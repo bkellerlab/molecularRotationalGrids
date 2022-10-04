@@ -10,7 +10,7 @@ from matplotlib.text import Text
 from matplotlib.axes import Axes
 from scipy.spatial.transform import Rotation
 
-from ..rotations.rotation_2D import Rotation2D
+from molecularRotationalGrids.objects_3d.rotation_2D import Rotation2D
 
 
 class AbstractShape(ABC):

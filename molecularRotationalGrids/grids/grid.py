@@ -1,5 +1,4 @@
 from datetime import timedelta
-from operator import itemgetter
 from time import time
 import numpy as np
 from abc import ABC, abstractmethod
@@ -7,12 +6,12 @@ from scipy.constants import pi
 from scipy.spatial.distance import cdist
 
 from analysis.uniformity_measure import random_sphere_points
-from grids.cube_grid import cube_grid_on_sphere, select_half_sphere
-from grids.grid2rotation2grid import grid2euler, euler2grid, quaternion2grid, grid2quaternion
-from grids.polytopes import CubePolytope, IcosahedronPolytope
-from parsers.name_parser import NameParser
-from grids.order_grid import order_grid_points
-from my_constants import *
+from molecularRotationalGrids.grids.cube_grid import cube_grid_on_sphere, select_half_sphere
+from molecularRotationalGrids.grids.grid2rotation2grid import grid2euler, euler2grid, quaternion2grid, grid2quaternion
+from molecularRotationalGrids.grids.polytopes import CubePolytope, IcosahedronPolytope
+from molecularRotationalGrids.parsers.name_parser import NameParser
+from molecularRotationalGrids.grids.order_grid import order_grid_points
+from molecularRotationalGrids.my_constants import *
 
 
 class Grid(ABC):
@@ -247,17 +246,3 @@ def build_all_grids(N: int, **kwargs) -> list:
     for grid_type in SIX_METHOD_NAMES:
         all_grids.append(build_grid(grid_type, N, **kwargs))
     return all_grids
-
-
-if __name__ == "__main__":
-    # ico = IcoGrid(50)
-    # ico.save_violin_data()
-    # print(IcoGrid(50, use_saved=False, ordered=True).get_grid())
-    # print(IcoGrid(50, use_saved=False, ordered=False).generate_and_time(print_message=True))
-    N = 48
-    e_1 = build_grid("cube4D", N+7, ordered=True).get_grid()
-    e_2 = build_grid("cube4D", N, ordered=True).get_grid()
-    for n, line_1, line_2 in zip(range(N), e_1, e_2):
-        if not np.allclose(line_1-line_2, 0):
-            print(n, line_1, line_2)
-    #assert np.allclose(e_1[:N], e_2)
