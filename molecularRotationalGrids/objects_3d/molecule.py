@@ -9,8 +9,8 @@ from ..objects_3d.sphere import Sphere
 
 class Atom(Sphere):
 
-    def __init__(self, symbol: str, start_position: np.ndarray = np.array([0, 0, 0]), belongs_to=None):
-        self.element = element(symbol)
+    def __init__(self, atom_name: str, start_position: np.ndarray = np.array([0, 0, 0]), belongs_to=None):
+        self.element = element(atom_name)
         self.belongs_to = belongs_to
         super().__init__(radius=self.element.atomic_radius*PM2NM, color=self.element.jmol_color)
         self.translate(start_position)
@@ -22,7 +22,7 @@ class Atom(Sphere):
 
 class Molecule(AbstractShape):
 
-    def __init__(self, atom_names: list, centers: np.ndarray, connections: np.ndarray = None):
+    def __init__(self, atom_names: list, centers: np.ndarray, connections: np.ndarray = None, center_at_origin=False):
         self.atoms = []      # saving the Atom objects for easy plotting and access to properties
         for i, atom_name in enumerate(atom_names):
             self.atoms.append(Atom(atom_name, start_position=centers[i]))
@@ -31,7 +31,8 @@ class Molecule(AbstractShape):
         self.connections = connections
         super().__init__(dimension=3)
         self.position = self._calc_center_of_mass()
-        self.translate(-self.position)
+        if center_at_origin:
+            self.translate(-self.position)
 
     def _calc_center_of_mass(self):
         total_mass = 0
@@ -100,26 +101,26 @@ class H2(Molecule):
                          connections=np.array([[0, 1], [1, 0]]))
 
 
-if __name__ == '__main__':
-    import matplotlib.pyplot as plt
-    # noinspection PyUnresolvedReferences
-    from mpl_toolkits.mplot3d import Axes3D
-    from plotting.plotting_helper_functions import set_axes_equal
-
-    plt.style.use('dark_background')
-    fig = plt.figure()
-    ax = fig.add_subplot(111, projection='3d')
-    plt.xlabel('x')
-    plt.ylabel('y')
-    ax.set_zlabel('z')
-
-    my_HF = H2O()
-    print(my_HF.position)
-    my_HF.draw(ax)
-    my_HF.translate(np.array([0.2, 0.3, 0.5]))
-    print(np.linalg.norm(my_HF.atoms[0].position - my_HF.atoms[1].position))
-    my_HF.rotate_about_body(np.array([pi/2, pi/2, pi/2]), method="euler_123")
-    print(np.linalg.norm(my_HF.atoms[0].position - my_HF.atoms[1].position))
-    my_HF.draw(ax)
-    set_axes_equal(ax)
-    plt.show()
+# if __name__ == '__main__':
+#     import matplotlib.pyplot as plt
+#     # noinspection PyUnresolvedReferences
+#     from mpl_toolkits.mplot3d import Axes3D
+#     from plotting.plotting_helper_functions import set_axes_equal
+#
+#     plt.style.use('dark_background')
+#     fig = plt.figure()
+#     ax = fig.add_subplot(111, projection='3d')
+#     plt.xlabel('x')
+#     plt.ylabel('y')
+#     ax.set_zlabel('z')
+#
+#     my_HF = H2O()
+#     print(my_HF.position)
+#     my_HF.draw(ax)
+#     my_HF.translate(np.array([0.2, 0.3, 0.5]))
+#     print(np.linalg.norm(my_HF.atoms[0].position - my_HF.atoms[1].position))
+#     my_HF.rotate_about_body(np.array([pi/2, pi/2, pi/2]), method="euler_123")
+#     print(np.linalg.norm(my_HF.atoms[0].position - my_HF.atoms[1].position))
+#     my_HF.draw(ax)
+#     set_axes_equal(ax)
+#     plt.show()

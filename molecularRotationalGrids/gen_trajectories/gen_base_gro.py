@@ -35,7 +35,7 @@ class TwoMoleculeGro:
         self.f.write(f"{num_atoms_cen + num_atoms_rotating:5}\n")
 
     def _write_first_molecule(self):
-        self.f.writelines(self.cental_parser.atom_lines)
+        self.f.writelines(self.cental_parser.atom_lines_nm)
 
     def _write_current_second_molecule(self, residue="SOL"):
         # translate the atoms of the second file and write them
