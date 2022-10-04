@@ -1,7 +1,7 @@
 from typing import TextIO
 from mendeleev import element
 import numpy as np
-from objects_3d.molecule import Atom, Molecule
+from ..objects_3d.molecule import Atom, Molecule
 #from objects_3d.shape_set import MoleculeSet
 
 
@@ -25,7 +25,7 @@ class BaseGroParser:
             self._parse_line(gro_file)
         if parse_atoms:
             self._parse_atoms()
-        self.box = tuple(gro_file.readline().strip().split())
+        self.box = tuple([float(x) for x in gro_file.readline().strip().split()])
         assert len(self.atom_lines) == self.num_atoms
         gro_file.close()
 

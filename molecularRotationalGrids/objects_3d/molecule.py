@@ -2,9 +2,9 @@ import numpy as np
 from mendeleev import element
 from scipy.constants import pi
 
-from my_constants import *
-from objects_3d.abstractshape import AbstractShape
-from objects_3d.sphere import Sphere
+from ..my_constants import *
+from ..objects_3d.abstractshape import AbstractShape
+from ..objects_3d.sphere import Sphere
 
 
 class Atom(Sphere):
