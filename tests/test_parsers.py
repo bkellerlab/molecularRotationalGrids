@@ -2,6 +2,7 @@ import numpy as np
 from mendeleev import element
 
 from molecularRotationalGrids.parsers.base_gro_parser import BaseGroParser
+from molecularRotationalGrids.parsers.name_parser import NameParser
 
 
 def test_atom_gro_file():
@@ -55,6 +56,16 @@ def test_protein_gro_file():
     organic_elements = ["N", "O", "C", "H", "S", "P", "F"]
     for el in all_elements:
         assert el in organic_elements, f"{el} not correctly identified as organic element"
+
+
+def test_name_parser():
+    example_names = ["protein0_CL_ico_30_full", "H2O_H2O_ico_4_circular", "CL_NA_full_ico_5"]
+    np1 = NameParser(example_names[0])
+    np2 = NameParser(example_names[1])
+    np3 = NameParser(example_names[2])
+    assert np1.get_standard_name() == example_names[0]
+    assert np2.get_standard_name() == example_names[1]
+    assert np3.get_standard_name() == "CL_NA_ico_5_full"
 
 
 if __name__ == '__main__':

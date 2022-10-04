@@ -1,4 +1,4 @@
-from my_constants import *
+from ..my_constants import *
 
 
 class NameParser:
@@ -6,6 +6,9 @@ class NameParser:
     def __init__(self, name: str or dict):
         """
         Correct ordering: '[H2O_HF_]ico[_NO]_500_full_openMM[_extra]
+
+        Args:
+            string with a label used eg. for naming files, usually stating two molecules, grid type and size
         """
         # define all properties
         self.central_molecule = None
@@ -123,14 +126,3 @@ class NameParser:
         if not self.num_grid_points:
             raise ValueError(f"No number given!")
         return self.num_grid_points
-
-
-if __name__ == "__main__":
-    from os import walk
-
-    f = []
-    for (dirpath, dirnames, filenames) in walk("./data/"):
-        f.extend(filenames)
-    for el in f:
-        np = NameParser(el)
-        print(el, np.get_standard_name())
