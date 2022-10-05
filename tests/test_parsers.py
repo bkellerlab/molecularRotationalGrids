@@ -1,8 +1,8 @@
 import numpy as np
 from mendeleev import element
 
-from molecularRotationalGrids.parsers.base_gro_parser import BaseGroParser
-from molecularRotationalGrids.parsers.name_parser import NameParser
+from molgri.parsers.base_gro_parser import BaseGroParser
+from molgri.parsers.name_parser import NameParser
 
 
 def test_atom_gro_file():
