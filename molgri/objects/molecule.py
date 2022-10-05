@@ -3,8 +3,8 @@ from mendeleev import element
 from scipy.constants import pi
 
 from ..my_constants import *
-from ..objects_3d.abstractshape import AbstractShape
-from ..objects_3d.sphere import Sphere
+from ..objects.abstractshape import AbstractShape
+from ..objects.sphere import Sphere
 
 
 class Atom(Sphere):

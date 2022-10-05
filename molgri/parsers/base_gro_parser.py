@@ -1,7 +1,7 @@
 from mendeleev.fetch import fetch_table
 import numpy as np
 
-from ..objects_3d.molecule import Molecule
+from ..objects.molecule import Molecule
 
 
 def particle_type2element(particle_type: str) -> str:

@@ -1,5 +1,6 @@
 """
 Represent and draw a point in 3D space with a corresponding body basis that can be rotated and translated.
+Basis for all other objects that translate and rotate.
 """
 
 from abc import ABC
@@ -10,7 +11,7 @@ from matplotlib.text import Text
 from matplotlib.axes import Axes
 from scipy.spatial.transform import Rotation
 
-from molgri.objects_3d.rotation_2D import Rotation2D
+from molgri.objects.rotation_2D import Rotation2D
 
 
 class AbstractShape(ABC):

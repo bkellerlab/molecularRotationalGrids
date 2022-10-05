@@ -1,7 +1,7 @@
 import numpy as np
 from scipy.constants import pi
 
-from ..objects_3d.abstractshape import AbstractShape
+from ..objects.abstractshape import AbstractShape
 
 
 class Sphere(AbstractShape):
