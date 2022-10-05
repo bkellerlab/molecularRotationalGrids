@@ -14,6 +14,9 @@ COLORS = color_palette("hls", 6)
 DEFAULT_SEED = 1
 UNIQUE_TOL = 5
 
+# here write non-user-defined paths
+PATH_USER_PATHS = "molgri/paths.py"
+
 PATH_FIG_COM = "figures/center_of_mass/"
 PATH_FIG_GRID = "figures/grids/"
 PATH_FIG_LENG = "figures/leng_structures/"
