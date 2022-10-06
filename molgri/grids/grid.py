@@ -5,13 +5,14 @@ from abc import ABC, abstractmethod
 from scipy.constants import pi
 from scipy.spatial.distance import cdist
 
-from analysis.uniformity_measure import random_sphere_points
-from molecularRotationalGrids.grids.cube_grid import cube_grid_on_sphere, select_half_sphere
-from molecularRotationalGrids.grids.grid2rotation2grid import grid2euler, euler2grid, quaternion2grid, grid2quaternion
-from molecularRotationalGrids.grids.polytopes import CubePolytope, IcosahedronPolytope
-from molecularRotationalGrids.parsers.name_parser import NameParser
-from molecularRotationalGrids.grids.order_grid import order_grid_points
-from molecularRotationalGrids.my_constants import *
+from molgri.analysis.uniformity_measure import random_sphere_points
+from molgri.grids.cube_grid import cube_grid_on_sphere, select_half_sphere
+from molgri.grids.grid2rotation2grid import grid2euler, euler2grid, quaternion2grid, grid2quaternion
+from molgri.grids.polytopes import CubePolytope, IcosahedronPolytope
+from molgri.parsers.name_parser import NameParser
+from molgri.grids.order_grid import order_grid_points
+from molgri.my_constants import *
+from molgri.paths import PATH_OUTPUT_ROTGRIDS
 
 
 class Grid(ABC):
@@ -41,7 +42,7 @@ class Grid(ABC):
         # if this option enabled, search first if this grid has already been saved
         if use_saved:
             try:
-                self.grid = np.load(f"{PATH_SAVED_GRIDS}{self.standard_name}.npy")
+                self.grid = np.load(f"{PATH_OUTPUT_ROTGRIDS}{self.standard_name}.npy")
             except FileNotFoundError:
                 self.generate_and_time()
         else:
@@ -126,7 +127,7 @@ class Grid(ABC):
         return euler_seq
 
     def save_grid(self):
-        np.save(f"{PATH_SAVED_GRIDS}{self.standard_name}.npy", self.grid)
+        np.save(f"{PATH_OUTPUT_ROTGRIDS}{self.standard_name}.npy", self.grid)
 
     def save_violin_data(self, num_random: int = 1000, unit="arch"):
         violin_data = self.get_nn_distances(num_random, unit=unit)

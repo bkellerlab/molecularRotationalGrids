@@ -1,57 +1,6 @@
 import numpy as np
 from scipy.spatial.transform import Rotation
 
-#import warnings
-
-#warnings.filterwarnings("ignore")
-
-
-# @time_function
-# def random_euler_angles(n: int = 50, ordered=None) -> np.ndarray:
-#     """
-#     Return n randomly generated sets of Euler angles.
-#
-#     Args:
-#         n: how many random sets
-#
-#     Returns:
-#         array of size (n, 3), points on a sphere
-#     """
-#     euler_angles = 2 * pi * np.random.random((n, 3))
-#     grid_points = euler2grid(euler_angles)
-#     return grid_points
-
-
-# @time_function
-# def euler_grid(N: int, ordered=True) -> np.ndarray:
-#     """
-#     Create a grid by sampling phi, theta and psi of Euler_123 representation in equal distances.
-#
-#     Args:
-#         ordered:
-#         N: how many samples per angle
-#
-#     Returns:
-#         an array (N, 3) where each row is a point on a 3D sphere
-#     """
-#     euler_meshgrid = []
-#     grid_points = []
-#     num_points = 1
-#     while len(grid_points) < N:
-#         phis = np.linspace(0, 2 * pi, num_points)
-#         thetas = np.linspace(0, 2 * pi, num_points)
-#         psis = np.linspace(0, 2 * pi, num_points)
-#         euler_meshgrid = np.array(np.meshgrid(*(phis, thetas, psis)), dtype=float)
-#         euler_meshgrid = euler_meshgrid.reshape((3, -1)).T
-#         # convert to a grid
-#         grid_points = euler2grid(euler_meshgrid)
-#         grid_points = np.unique(np.round(grid_points, 4), axis=0)
-#         num_points += 1
-#     # order
-#     if ordered:
-#         grid_points[:N] = order_grid_points(grid_points, N)
-#     return grid_points[:N]
-
 
 def quaternion2grid(array_quaternions: np.ndarray) -> np.ndarray:
     """

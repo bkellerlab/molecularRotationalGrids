@@ -7,18 +7,22 @@ to new ones.
 # TODO: check for validity of inputs
 
 import os
-from os.path import join, samefile
+from os.path import samefile
 from pathlib import Path
 import shutil
 
 from molgri.my_constants import PATH_USER_PATHS
 
-DEFAULT_ROT_GRIDS = "output/grid_files/"
-DEFAULT_PT = "output/pt_files/"
-DEFAULT_BASE_GRO = "input/base_gro_files/"
-
+# if you introduce new IO folders, add them to next three lines
+IO_FOLDER_PURPUSES = ["rotational grids", "pseudotrajectory files", "base gro files", "grid plots", "grid animations",
+                      "grid ordering animations"]
+IO_FOLDER_DEFAULTS = ["output/grid_files/", "output/pt_files/", "input/base_gro_files/", "output/figures_grids/",
+                      "output/animations_grids/", "output/animations_grid_ordering/"]
+IO_VARIABLE_NAMES = ["PATH_OUTPUT_ROTGRIDS", "PATH_OUTPUT_PT", "PATH_INPUT_BASEGRO", "PATH_OUTPUT_GRIDPLOT",
+                     "PATH_OUTPUT_GRID_ANI", "PATH_OUTPUT_GRIDORDER_ANI"]
 
 # which files are needed? Rotation grids (output), Pseudotrajectories (output), single-molecule gro files (input)
+
 
 def detect_current_paths() -> list:
     """
@@ -40,23 +44,20 @@ def detect_current_paths() -> list:
     return all_paths
 
 
-def create_io_folders(rot_grids_path: str, pt_path: str, base_gro_path: str):
+def create_io_folders(new_paths: list):
     """
     Rewrites the saved paths in PATH_USER_PATHS file by paths given by inputs.
     Creates new folders at paths given by inputs.
     Adds new paths to .gitignore file.
 
     Args:
-        rot_grids_path: path where you save the output (rotational grids)
-        pt_path: path where you save the output (pseudotrajectories)
-        base_gro_path: path where the user provides the input (base gro files)
+        new_paths: list of paths in the same order as default
     """
-    new_paths = [rot_grids_path, pt_path, base_gro_path]
-    # write down the requested folders in paths.py file
+    assert len(new_paths) == len(IO_FOLDER_DEFAULTS)
+    # write down the new paths in paths.py file
     with open(PATH_USER_PATHS, "w") as f:
-        f.write(f"PATH_OUTPUT_ROTGRIDS = '{rot_grids_path}'\n")
-        f.write(f"PATH_OUTPUT_PT = '{pt_path}'\n")
-        f.write(f"PATH_INPUT_BASEGRO = '{base_gro_path}'\n")
+        for varname, new_value in zip(IO_VARIABLE_NAMES, new_paths):
+            f.write(f"{varname} = '{new_value}'\n")
     # create the folders (if they do not exist yet)
     for path in new_paths:
         if not os.path.exists(path):
@@ -82,8 +83,8 @@ def move_and_delete_io_folders(current_folder: str, new_folder: str):
     # moves files to a new location
     for current_file in Path(current_folder).glob('*.*'):
         shutil.copy(current_file, new_folder)
-    # deletes old folders
-    os.rmdir(current_folder)
+    # deletes old folders and files in it
+    shutil.rmtree(current_folder)
     # delete old folder from .gitignore
     with open(f".gitignore", "r") as f:
         lines = f.readlines()
@@ -97,15 +98,14 @@ def run_user_input_program():
     """
     This script interacts with the user and asks for new paths to I/O files.
     """
-    what_to_save = ["rotational grids", "pseudotrajectory files", "base gro files"]
     current_values = detect_current_paths()
     user_values = []
-    print(f"Default i/o folders are: {DEFAULT_ROT_GRIDS, DEFAULT_PT, DEFAULT_BASE_GRO}.")
+    print(f"Default i/o folders are: {IO_FOLDER_DEFAULTS}.")
     reset = input("Reset all i/o folders to default values? (y/n) ")
     if reset.strip() in ["y", "yes"]:
-        user_values = [DEFAULT_ROT_GRIDS, DEFAULT_PT, DEFAULT_BASE_GRO]
+        user_values = IO_FOLDER_DEFAULTS
     else:
-        for message, default in zip(what_to_save, current_values):
+        for message, default in zip(IO_FOLDER_PURPUSES, current_values):
             change1 = f"Current folder for saving {message} is {default}. Do you want to change it? (y/n) "
             wanna_change1 = input(change1)
             if wanna_change1.strip() in ["y", "yes"]:
@@ -115,7 +115,7 @@ def run_user_input_program():
             else:
                 user_values.append(default)
     # create new folders and references
-    create_io_folders(*user_values)
+    create_io_folders(user_values)
     # Ask if you should move & delete from previous folders
     for ov, nv in zip(current_values, user_values):
         if not samefile(ov, nv):

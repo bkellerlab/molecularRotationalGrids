@@ -14,11 +14,13 @@ COLORS = color_palette("hls", 6)
 DEFAULT_SEED = 1
 UNIQUE_TOL = 5
 
+ENDING_GRID_FILES = "npy"
+
 # here write non-user-defined paths
 PATH_USER_PATHS = "molgri/paths.py"
 
 PATH_FIG_COM = "figures/center_of_mass/"
-PATH_FIG_GRID = "figures/grids/"
+#PATH_FIG_GRID = "figures/grids/"
 PATH_FIG_LENG = "figures/leng_structures/"
 PATH_FIG_TRAJ = "figures/trajectories/"
 PATH_FIG_CON = "figures/convergence/"
@@ -30,7 +32,7 @@ PATH_FIG_TIME = "figures/timing/"
 
 PATH_ANI_COM = "animations/center_of_mass/"
 PATH_ANI_ROT = "animations/rotations/"
-PATH_ANI_GRID = "animations/grids/"
+#PATH_ANI_GRID = "animations/grids/"
 PATH_ANI_TRAJ = "animations/trajectories/"
 PATH_ANI_LENG = "animations/leng_structures/"
 

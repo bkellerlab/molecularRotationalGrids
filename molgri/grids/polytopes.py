@@ -4,10 +4,10 @@ from scipy.constants import golden, pi
 from scipy.spatial import distance_matrix
 from abc import ABC, abstractmethod
 
-from analysis.uniformity_measure import unit_dist_on_sphere
-from grids.cube_grid import project_grid_on_sphere
-from plotting.abstract_plot import AbstractPlot
-from my_constants import *
+from molgri.analysis.uniformity_measure import unit_dist_on_sphere
+from molgri.grids.cube_grid import project_grid_on_sphere
+#from plotting.abstract_plot import AbstractPlot
+from molgri.my_constants import *
 
 np.random.seed(1)
 
@@ -266,34 +266,34 @@ class CubePolytope(Polytope):
         self.side_len = self.side_len / 2
 
 
-class PolytopePlot(AbstractPlot):
-
-    def __init__(self, data_name: str, num_divisions=3, **kwargs):
-        self.num_divisions = num_divisions
-        plot_type = f"polytope_{num_divisions}"
-        super().__init__(data_name, fig_path=PATH_FIG_PRES, plot_type=plot_type, style_type=["empty"], dimensions=3,
-                         **kwargs)
-
-    def _prepare_data(self) -> Polytope:
-        if self.data_name == "ico":
-            ico = IcosahedronPolytope()
-        else:
-            ico = CubePolytope()
-        for n in range(self.num_divisions):
-            ico.divide_edges()
-        return ico
-
-    def _plot_data(self, face="front", **kwargs):
-        if face == "front" and self.data_name == "ico":
-            face = {12}
-        elif face == "front":
-            face = {3}
-        ico = self._prepare_data()
-        ico.plot_points(self.ax, select_faces=face, projection=False)
-        ico.plot_edges(self.ax, select_faces=face)
-
-
-if __name__ == "__main__":
-    for num_divisions in (0, 1, 2, 3):
-        PolytopePlot("ico", num_divisions=num_divisions).create(equalize=True, elev=210, azim=90, pos_limit=0.55, neg_limit=-0.6, pad_inches=-0.6)
-        PolytopePlot("cube3D", num_divisions=num_divisions).create(equalize=True, elev=0, azim=0, pos_limit=0.7, neg_limit=-0.7, pad_inches=-0.8)
+# class PolytopePlot(AbstractPlot):
+#
+#     def __init__(self, data_name: str, num_divisions=3, **kwargs):
+#         self.num_divisions = num_divisions
+#         plot_type = f"polytope_{num_divisions}"
+#         super().__init__(data_name, fig_path=PATH_FIG_PRES, plot_type=plot_type, style_type=["empty"], dimensions=3,
+#                          **kwargs)
+#
+#     def _prepare_data(self) -> Polytope:
+#         if self.data_name == "ico":
+#             ico = IcosahedronPolytope()
+#         else:
+#             ico = CubePolytope()
+#         for n in range(self.num_divisions):
+#             ico.divide_edges()
+#         return ico
+#
+#     def _plot_data(self, face="front", **kwargs):
+#         if face == "front" and self.data_name == "ico":
+#             face = {12}
+#         elif face == "front":
+#             face = {3}
+#         ico = self._prepare_data()
+#         ico.plot_points(self.ax, select_faces=face, projection=False)
+#         ico.plot_edges(self.ax, select_faces=face)
+#
+#
+# if __name__ == "__main__":
+#     for num_divisions in (0, 1, 2, 3):
+#         PolytopePlot("ico", num_divisions=num_divisions).create(equalize=True, elev=210, azim=90, pos_limit=0.55, neg_limit=-0.6, pad_inches=-0.6)
+#         PolytopePlot("cube3D", num_divisions=num_divisions).create(equalize=True, elev=0, azim=0, pos_limit=0.7, neg_limit=-0.7, pad_inches=-0.8)
