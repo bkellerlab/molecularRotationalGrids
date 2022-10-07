@@ -1,8 +1,8 @@
 import numpy as np
 
-from grids.grid import Grid
-from gen_trajectories.gen_base_gro import TwoMoleculeGro
-from my_constants import *
+from molgri.grids.grid import Grid
+from molgri.pseudotrajectories.gen_base_gro import TwoMoleculeGro
+from molgri.my_constants import *
 
 
 class Pseudotrajectory(TwoMoleculeGro):
@@ -62,7 +62,7 @@ class Pseudotrajectory(TwoMoleculeGro):
 
 
 if __name__ == "__main__":
-    from grids.grid import IcoGrid
+    from molgri.grids.grid import IcoGrid
     my_grid = IcoGrid(1500)
     Pseudotrajectory("protein0", "NA", my_grid, traj_type="full").generate_pseudotrajectory(initial_distance_nm=1.5,
                                                                                             radii=DEFAULT_DISTANCES_PROTEIN)

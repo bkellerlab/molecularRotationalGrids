@@ -6,6 +6,8 @@ import argparse
 from os.path import exists
 from ast import literal_eval
 
+import numpy as np
+
 from molgri.grids.grid import build_grid
 from molgri.my_constants import ENDING_GRID_FILES
 from molgri.paths import PATH_INPUT_BASEGRO, PATH_OUTPUT_PT, PATH_OUTPUT_ROTGRIDS
@@ -13,6 +15,7 @@ from molgri.parsers.name_parser import NameParser
 
 # TODO: define total_N and generate in all dimensions uniform grid?
 # TODO: allow different rotation grids for two types of rotation
+from molgri.pseudotrajectories.pseudotrajectory import Pseudotrajectory
 
 parser = argparse.ArgumentParser()
 requiredNamed = parser.add_argument_group('required named arguments')
@@ -51,9 +54,22 @@ def check_file_existence(args):
     assert len(trans_grid) == 3, "Translational grid must be provided as a tuple of three parameters."
     for item in trans_grid:
         assert isinstance(item, int), "Items in translation grid tuple should be integers."
-    return rot_grid
+    # TODO: linspace is in general NOT a good enough approximation
+    trans_grid = np.linspace(*trans_grid)
+    return rot_grid, trans_grid
+
+
+def prepare_pseudotrajectory(args, r_grid, t_grid):
+    if args.only_origin:
+        traj_type = "circular"
+    else:
+        traj_type = "full"
+    pt = Pseudotrajectory(args.m1, args.m2, grid=r_grid, traj_type=traj_type)
+    # TODO: this is only placeholder
+    pt.generate_pseudotrajectory(initial_distance_nm=t_grid[0], radii=t_grid)
 
 
 if __name__ == '__main__':
     my_args = parser.parse_args()
-    check_file_existence(my_args)
+    my_rg, my_tg = check_file_existence(my_args)
+    prepare_pseudotrajectory(my_args, my_rg, my_tg)

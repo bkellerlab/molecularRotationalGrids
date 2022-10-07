@@ -1,8 +1,9 @@
 """
 Use two base_gro files (each containing only one molecule) to get a two-molecule base file.
 """
-from my_constants import *
-from parsers.base_gro_parser import BaseGroParser
+from molgri.my_constants import *
+from molgri.paths import PATH_INPUT_BASEGRO, PATH_OUTPUT_PT
+from molgri.parsers.base_gro_parser import BaseGroParser
 import os
 
 class TwoMoleculeGro:
@@ -15,12 +16,12 @@ class TwoMoleculeGro:
             name_central_gro:
             name_rotating_gro:
         """
-        central_file_path = f"{PATH_BASE_GRO_FILES}{name_central_gro}.gro"
-        rotating_file_path = f"{PATH_BASE_GRO_FILES}{name_rotating_gro}.gro"
+        central_file_path = f"{PATH_INPUT_BASEGRO}{name_central_gro}.gro"
+        rotating_file_path = f"{PATH_INPUT_BASEGRO}{name_rotating_gro}.gro"
         if result_name_gro is None:
-            result_file_path = f"{PATH_GENERATED_GRO_FILES}{name_central_gro}_{name_rotating_gro}_run.gro"
+            result_file_path = f"{PATH_OUTPUT_PT}{name_central_gro}_{name_rotating_gro}_run.gro"
         else:
-            result_file_path = f"{PATH_GENERATED_GRO_FILES}{result_name_gro}.gro"
+            result_file_path = f"{PATH_OUTPUT_PT}{result_name_gro}.gro"
         self.f = open(result_file_path, "w")
         self.cental_parser = BaseGroParser(central_file_path, parse_atoms=False)
         # parse rotating file as Atoms
