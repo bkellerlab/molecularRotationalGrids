@@ -15,7 +15,7 @@ from molgri.plotting.plot_grids import GridPlot
 parser = argparse.ArgumentParser()
 parser.add_argument('N', metavar='N', type=int, nargs='?',
                     default=500, help='Number of points per rotational grid.')
-parser.add_argument('--grid_type', metavar='g', type=str, nargs='?',
+parser.add_argument('--algorithm', metavar='g', type=str, nargs='?',
                     default='ico', help='Which grid-generating algorithm to use?\
                     (ico, cube3D, cube4D, randomQ, randomE, systemE)')
 parser.add_argument('--recalculate', action='store_true',
