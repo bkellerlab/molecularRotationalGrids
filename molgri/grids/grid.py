@@ -17,7 +17,8 @@ from molgri.paths import PATH_OUTPUT_ROTGRIDS
 
 class Grid(ABC):
 
-    def __init__(self, N: int, *, ordered: bool = True, use_saved: bool = False, gen_alg: str = None):
+    def __init__(self, N: int, *, ordered: bool = True, use_saved: bool = False, gen_alg: str = None,
+                 print_message=False):
         """
         Generate a grid with one of generation algorithms.
 
@@ -44,9 +45,10 @@ class Grid(ABC):
             try:
                 self.grid = np.load(f"{PATH_OUTPUT_ROTGRIDS}{self.standard_name}.npy")
             except FileNotFoundError:
-                self.generate_and_time()
+                self.generate_and_time(print_message=print_message)
+                self.save_grid()
         else:
-            self.generate_and_time()
+            self.generate_and_time(print_message=print_message)
         assert isinstance(self.grid, np.ndarray), "A grid must be a numpy array!"
         assert self.grid.shape == (N, 3), f"Grid not of correct shape! {self.grid.shape} instead of {(N, 3)}"
         assert np.allclose(np.linalg.norm(self.grid, axis=1), 1, atol=10**(-UNIQUE_TOL))

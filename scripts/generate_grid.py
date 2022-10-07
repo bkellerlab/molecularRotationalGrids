@@ -13,9 +13,10 @@ from molgri.my_constants import ENDING_GRID_FILES
 from molgri.plotting.plot_grids import GridPlot
 
 parser = argparse.ArgumentParser()
-parser.add_argument('N', metavar='N', type=int, nargs='?',
+requiredNamed = parser.add_argument_group('required named arguments')
+requiredNamed.add_argument('-N', metavar='N', type=int, nargs='?', required=True,
                     default=500, help='Number of points per rotational grid.')
-parser.add_argument('--algorithm', metavar='g', type=str, nargs='?',
+requiredNamed.add_argument('-algorithm', metavar='a', type=str, nargs='?', required=True,
                     default='ico', help='Which grid-generating algorithm to use?\
                     (ico, cube3D, cube4D, randomQ, randomE, systemE)')
 parser.add_argument('--recalculate', action='store_true',
@@ -35,9 +36,9 @@ def prepare_grid(args, name) -> Grid:
     # if already exists and no --recalculate flag, just display a message
     if os.path.exists(join(PATH_OUTPUT_ROTGRIDS, f"{grid_name}.{ENDING_GRID_FILES}")) and not args.recalculate:
         print(f"Grid with name {name} is already saved. If you want to recalculate it, select --recalculate flag.")
-        my_grid = build_grid(args.grid_type, args.N, use_saved=True)
+        my_grid = build_grid(args.algorithm, args.N, use_saved=True)
     else:
-        my_grid = build_grid(args.grid_type, args.N, use_saved=False)
+        my_grid = build_grid(args.algorithm, args.N, use_saved=False)
         my_grid.generate_and_time(print_message=True)
         my_grid.save_grid()
     return my_grid
@@ -45,7 +46,7 @@ def prepare_grid(args, name) -> Grid:
 
 if __name__ == '__main__':
     my_args = parser.parse_args()
-    grid_name = NameParser(f"{my_args.grid_type}_{my_args.N}").get_standard_name()
+    grid_name = NameParser(f"{my_args.algorithm}_{my_args.N}").get_standard_name()
     prepare_grid(my_args, grid_name)
     if my_args.animate or my_args.animate_ordering:
         my_args.draw = True

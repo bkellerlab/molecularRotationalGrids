@@ -16,7 +16,7 @@ the generation algorithm (default icosahedron grid). For example, for a
 45-point grid generated with a cube 3D algorithm, the command would be
 
 ```
-python -m scripts.generate_grid 45 --algorithm cube3D
+python -m scripts.generate_grid -N 45 -a cube3D
 ```
 User can specify additional optional flags to get additional outputs
 
