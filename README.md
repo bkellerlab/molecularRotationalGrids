@@ -115,6 +115,18 @@ for &lt;num_frames>, it does not need to correspond exactly to the number of fra
 
 #### Calculating energy along a pseudotrajectory
 
+The user must also provide a topology file which includes both molecules used in a pseudotrajectory.
+We will assume that this file is named topol.top. Lastly, we need a GROMACS run file that we will name
+mdrun.mdp. This file records GROMACS parameters and can be used as in normal simulations, but note that
+some parameters (e.g. integrator, dt) are meaningless for a pseudotrajectory without actual dynamics.
 
+```
+gmx22 grompp -f mdrun.mdp -c <pt_file_name>.gro -p topol.top -o result.tpr   
+gmx22 trjconv -f <pt_file_name>.gro -s result.tpr -o result.trr
+gmx22 mdrun -s result.tpr -rerun result.trr
+gmx22 energy -f ener.edr -o full_energy.xvg
+```
+
+With these commands, energy along each point of the pseudotrajectory is recorded.
 
 ## Complex applications: using python package
