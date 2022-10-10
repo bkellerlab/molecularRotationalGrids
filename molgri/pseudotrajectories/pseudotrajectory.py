@@ -42,6 +42,7 @@ class Pseudotrajectory(TwoMoleculeGro):
             initial_atom_set.rotate_about_origin(one_rotation, method="quaternion", inverse=True)
         return frame_index
 
+    # TODO: translational grid shouldn't be an input here
     def generate_pseudotrajectory(self, initial_distance_nm=0.26, radii=DEFAULT_DISTANCES) -> int:
         index = 0
         # initial set-up of molecules

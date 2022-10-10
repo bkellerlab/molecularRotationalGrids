@@ -8,9 +8,7 @@ from ast import literal_eval
 
 import numpy as np
 
-from molgri.grids.grid import build_grid
-from molgri.my_constants import ENDING_GRID_FILES
-from molgri.paths import PATH_INPUT_BASEGRO, PATH_OUTPUT_PT, PATH_OUTPUT_ROTGRIDS
+from molgri.paths import PATH_INPUT_BASEGRO
 from molgri.parsers.name_parser import NameParser
 from scripts.generate_grid import prepare_grid
 
@@ -51,7 +49,6 @@ def check_file_existence(args):
         raise FileNotFoundError(f"Could not find the file {args.m2}.gro at {PATH_INPUT_BASEGRO}. "
                                 "Please provide a valid .gro file name as the second script parameter.")
     # if the rotational grid file doesn't exist, create it
-    #rot_grid = build_grid(algo, N, use_saved=True)
     rot_grid = prepare_grid(args, nap)
     # assert translational grid is a tuple with three parameters
     trans_grid = literal_eval(args.transgrid)
@@ -70,7 +67,6 @@ def prepare_pseudotrajectory(args, r_grid, t_grid):
         traj_type = "full"
     pt = Pseudotrajectory(args.m1, args.m2, grid=r_grid, traj_type=traj_type)
     end_index = pt.generate_pt_and_time(initial_distance_nm=t_grid[0], radii=t_grid)
-    #end_index = pt.generate_pseudotrajectory(initial_distance_nm=t_grid[0], radii=t_grid)
     print(f"Generated a {pt.decorator_label} with {end_index} timesteps.")
 
 

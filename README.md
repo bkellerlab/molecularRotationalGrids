@@ -18,7 +18,17 @@ the generation algorithm (default icosahedron grid). For example, for a
 ```
 python -m scripts.generate_grid -N 45 -a cube3D
 ```
+
+To summarize, required flags are:
+
+`-N` followed by the integer giving the number of points in a rotation grid
+
+`-algorithm` followed by the name of one of six provided algorithms
+(ico, cube3D, cube4D, randomQ, randomE, systemE)
+
 User can specify additional optional flags to get additional outputs
+
+`--recalculate` to overwrite the previously saved grid with identical parameters if it exists 
 
 `--statistics` to get more information about grid properties
 
@@ -30,11 +40,34 @@ User can specify additional optional flags to get additional outputs
 are plotted
 
 #### Generating pseudotrajectories
-To generate a pseudotrajectory, the user must first prepare two .gro input files in a standard
+To generate a pseudotrajectory (PT), the user must first prepare two .gro input files in a standard
 format, each containing the data for one molecule. In a pseudotrajectory, one of them will remain
 fixed at origin and the other will undergo translations and rotations. The rotation and translation
 grids also need to be provided. If they do not exist yet, they will be generated in that step.
+To generate a pseudotrajectory where a central molecule is H2O and the rotating molecule NH3,
+using a ico_50 rotation grid and a translational grid from 1 to 5 nm with step 2, run
 
+```
+python -m scripts.generate_pt -m1 H2O -m2 NH3 -rot ico_50 -trans "(1, 5, 2)"
+```
+Required flags are therefore:
+
+`-m1` followed by the name of the .gro file (without the ending) saved in input/base_gro_files
+      where the molecule fixed at origin is saved
+
+`-m1` followed by the name of the .gro file (without the ending) saved in input/base_gro_files
+      where the molecule that moves in PT is saved
+
+`-rotgrid` followed by the name of the grid written as &lt;algorithm>_&lt;num_points>, see also previous section
+
+`-transgrid` followed by the translational grid description in format '(start, stop, num_points)'
+
+And the optional additional flags are:
+
+`--recalculate` to overwrite the previously saved grid with identical parameters if it exists 
+
+`--only_origin` to use only rotations around origin and not around body for PT generation (recommended
+only if the -m2 particle is a single atom or ion)
 
 #### Changing default input/output folders
 Optionally, if one wishes to change the references to directories where input
