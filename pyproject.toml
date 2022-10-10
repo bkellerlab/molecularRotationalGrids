@@ -8,7 +8,6 @@ readme = "README.md"
 requires-python = ">=3.6"
 dynamic = ["dependencies"]
 keywords = ["pseudotrajectory", "molecular grids", "association", "state space discretisation"]
-include = ["molgri/*"]
 
 [project.urls]
 github = "https://github.com/bkellerlab/molecularRotationalGrids"
