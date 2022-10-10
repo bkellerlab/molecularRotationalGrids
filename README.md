@@ -44,4 +44,41 @@ python -m scripts.set_up_io_directories
 
 and follow the input commands.
 
+## Using outputs
+
+The pseudotrajectory .gro files can be used as regularly generated .gro files. We show how they can be
+displayed with VMD or used for GROMACS calculations, but the user is free to use them as inputs to any other
+tool.
+
+#### Displaying pseudotrajectory
+
+To display the generated pseudotrajectory with VMD, run
+
+```
+vmd <path-to-pt>
+```
+
+or on a windows computer
+
+```
+start vmd <path-to-pt>
+```
+
+Then, to fully display a pseudotrajectory, it is often helpful to change the display style and to display
+several or all frames at once. We suggest using the following commands within the VMD command line:
+
+```
+mol modstyle 0 0 VDW
+mol drawframes 0 0 1:<step>:<num_frames>
+```
+
+A useful trick is to use the number of rotations as <step> - this displays one structure per mass point
+without considering internal rotations. This number is also written in the name of the .gro file.
+If you want to display all frames, you can use any large number
+for <num_frames>, it does not need to correspond exactly to the number of frames.
+
+#### Calculating energy along a pseudotrajectory
+
+
+
 ## Complex applications: using python package
