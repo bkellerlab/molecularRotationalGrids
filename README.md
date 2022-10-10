@@ -72,10 +72,10 @@ mol modstyle 0 0 VDW
 mol drawframes 0 0 1:<step>:<num_frames>
 ```
 
-A useful trick is to use the number of rotations as <step> - this displays one structure per mass point
+A useful trick is to use the number of rotations as &lt;step> - this displays one structure per mass point
 without considering internal rotations. This number is also written in the name of the .gro file.
 If you want to display all frames, you can use any large number
-for <num_frames>, it does not need to correspond exactly to the number of frames.
+for &lt;num_frames>, it does not need to correspond exactly to the number of frames.
 
 #### Calculating energy along a pseudotrajectory
 
