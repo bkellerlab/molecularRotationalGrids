@@ -6,6 +6,7 @@ from molgri.paths import PATH_INPUT_BASEGRO, PATH_OUTPUT_PT
 from molgri.parsers.base_gro_parser import BaseGroParser
 import os
 
+
 class TwoMoleculeGro:
 
     def __init__(self, name_central_gro, name_rotating_gro, result_name_gro=None):
@@ -25,7 +26,7 @@ class TwoMoleculeGro:
         self.f = open(result_file_path, "w")
         self.cental_parser = BaseGroParser(central_file_path, parse_atoms=False)
         # parse rotating file as Atoms
-        self.rotating_parser = BaseGroParser(rotating_file_path, parse_atoms=True, gro_write=self.f)
+        self.rotating_parser = BaseGroParser(rotating_file_path, parse_atoms=True) #, gro_write=self.f
 
     def _write_comment_num(self, frame_num=0):
         num_atoms_cen = self.cental_parser.num_atoms
@@ -46,13 +47,7 @@ class TwoMoleculeGro:
         hydrogen_counter = 1
         for atom in self.rotating_parser.molecule_set.atoms:
             pos_nm = atom.position
-            if atom.element.symbol == "O":
-                name = "OW"
-            elif atom.element.symbol == "H":
-                name = "HW" + str(hydrogen_counter)
-                hydrogen_counter += 1
-            else:
-                name = atom.element.symbol.upper()
+            name = atom.gro_label
             self.f.write(f"{num_molecule:5}{residue:5}{name:>5}{num_atom:5}{pos_nm[0]:8.3f}{pos_nm[1]:8.3f}"
                                 f"{pos_nm[2]:8.3f}{0:8.4f}{0:8.4f}{0:8.4f}\n")
             num_atom += 1
@@ -68,9 +63,7 @@ class TwoMoleculeGro:
         self._write_current_frame(frame_num=0)
         self.f.close()
 
-    def _write_current_frame(self, frame_num=0, pseudo_database=False):
-        #if pseudo_database:
-        #    self._add_pseudo_line()
+    def _write_current_frame(self, frame_num=0):
         self._write_comment_num(frame_num=frame_num)
         self._write_first_molecule()
         self._write_current_second_molecule()

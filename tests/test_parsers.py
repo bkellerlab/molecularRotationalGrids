@@ -27,9 +27,14 @@ def test_water_gro_file():
     assert np.allclose(my_molecule.atoms[0].position, [0.000, -0.005, 0.004])
     assert np.allclose(my_molecule.atoms[1].position, [0.000,  -0.005,  -0.092])
     assert np.allclose(my_molecule.atoms[2].position, [0.000,   0.087,   0.028])
+    # test elements
     assert my_molecule.atoms[0].element == element("O")
     assert my_molecule.atoms[1].element == element("H")
     assert my_molecule.atoms[1].element == element("H")
+    # test gro labels
+    assert my_molecule.atoms[0].gro_label == "OW"
+    assert my_molecule.atoms[1].gro_label == "HW1"
+    assert my_molecule.atoms[2].gro_label == "HW2"
 
 
 def test_protein_gro_file():
@@ -47,11 +52,17 @@ def test_protein_gro_file():
     assert np.allclose(my_molecule.atoms[1].position, [-0.450,  -0.287,  -1.946])
     assert np.allclose(my_molecule.atoms[901].position, [0.065,  -0.214,   2.135])
     assert my_molecule.atoms[0].element == element("N")
+    assert my_molecule.atoms[0].gro_label == "N"
     assert my_molecule.atoms[1].element == element("H")
+    assert my_molecule.atoms[1].gro_label == "H1"
     assert my_molecule.atoms[4].element == element("C")
+    assert my_molecule.atoms[4].gro_label == "CA"
     assert my_molecule.atoms[5].element == element("H")
+    assert my_molecule.atoms[5].gro_label == "HA"
     assert my_molecule.atoms[345].element == element("C")
+    assert my_molecule.atoms[345].gro_label == "CA"
     assert my_molecule.atoms[901].element == element("O")
+    assert my_molecule.atoms[901].gro_label == "OC2"
     all_elements = [at.element.symbol for at in my_molecule.atoms]
     organic_elements = ["N", "O", "C", "H", "S", "P", "F"]
     for el in all_elements:

@@ -9,8 +9,12 @@ from ..objects.sphere import Sphere
 
 class Atom(Sphere):
 
-    def __init__(self, atom_name: str, start_position: np.ndarray = np.array([0, 0, 0]), belongs_to=None):
+    def __init__(self, atom_name: str, start_position: np.ndarray = np.array([0, 0, 0]), belongs_to=None,
+                 gro_label: list = None):
+        if gro_label is None:
+            gro_label = atom_name
         self.element = element(atom_name)
+        self.gro_label = gro_label
         self.belongs_to = belongs_to
         super().__init__(radius=self.element.atomic_radius*PM2NM, color=self.element.jmol_color)
         self.translate(start_position)
@@ -22,10 +26,13 @@ class Atom(Sphere):
 
 class Molecule(AbstractShape):
 
-    def __init__(self, atom_names: list, centers: np.ndarray, connections: np.ndarray = None, center_at_origin=False):
+    def __init__(self, atom_names: list, centers: np.ndarray, connections: np.ndarray = None, center_at_origin=False,
+                 gro_labels: list = None):
+        if gro_labels is None:
+            gro_labels = atom_names
         self.atoms = []      # saving the Atom objects for easy plotting and access to properties
         for i, atom_name in enumerate(atom_names):
-            self.atoms.append(Atom(atom_name, start_position=centers[i]))
+            self.atoms.append(Atom(atom_name, start_position=centers[i], gro_label=gro_labels[i]))
         if connections is None:
             connections = np.diag([1]*len(self.atoms))
         self.connections = connections

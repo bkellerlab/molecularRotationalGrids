@@ -1,5 +1,3 @@
-import numpy as np
-
 from molgri.grids.grid import Grid
 from molgri.pseudotrajectories.gen_base_gro import TwoMoleculeGro
 from molgri.my_constants import *
@@ -28,14 +26,13 @@ class Pseudotrajectory(TwoMoleculeGro):
         for one_rotation in self.quaternions:
             initial_atom_set = self.rotating_parser.molecule_set
             initial_atom_set.rotate_about_origin(one_rotation, method="quaternion")
-            self._write_current_frame(frame_num=frame_index, pseudo_database=True)
+            self._write_current_frame(frame_num=frame_index)
             frame_index += 1
-            if self.traj_type == "full" and self.name_rotating != "CL" and self.name_rotating != "NA":
-                print("There are no single atoms")
+            if self.traj_type == "full":
                 for body_rotation in self.quaternions:
                     # rotate there
                     initial_atom_set.rotate_about_body(body_rotation, method="quaternion")
-                    self._write_current_frame(frame_num=frame_index, pseudo_database=True)
+                    self._write_current_frame(frame_num=frame_index)
                     # rotate back
                     initial_atom_set.rotate_about_body(body_rotation, method="quaternion", inverse=True)
                     frame_index += 1
@@ -46,7 +43,7 @@ class Pseudotrajectory(TwoMoleculeGro):
         index = 0
         # initial set-up of molecules
         self.rotating_parser.molecule_set.translate([0, 0, initial_distance_nm])
-        self._write_current_frame(index, pseudo_database=True)
+        self._write_current_frame(index)
         index += 1
         if self.traj_type == "circular":
             self._gen_trajectory(frame_index=index)
@@ -58,11 +55,11 @@ class Pseudotrajectory(TwoMoleculeGro):
         else:
             raise ValueError(f"{self.traj_type} not correct trajectory type, try 'full' or 'circular'.")
         self.f.close()
-        print(index)
 
 
 if __name__ == "__main__":
     from molgri.grids.grid import IcoGrid
-    my_grid = IcoGrid(1500)
-    Pseudotrajectory("protein0", "NA", my_grid, traj_type="full").generate_pseudotrajectory(initial_distance_nm=1.5,
-                                                                                            radii=DEFAULT_DISTANCES_PROTEIN)
+    my_grid = IcoGrid(15)
+    Pseudotrajectory("protein0", "NA", my_grid,
+                     traj_type="full").generate_pseudotrajectory(initial_distance_nm=1.5,
+                                                                 radii=DEFAULT_DISTANCES_PROTEIN)

@@ -65,16 +65,18 @@ class BaseGroParser:
             line = self.gro_file.readline()
             self.atom_lines_nm.append(line)
         if parse_atoms:
-            a_names, a_pos = self._parse_atoms()
+            a_labels, a_names, a_pos = self._parse_atoms()
             a_pos = np.array(a_pos)
-            self.molecule_set = Molecule(atom_names=a_names, centers=a_pos, center_at_origin=False)
+            self.molecule_set = Molecule(atom_names=a_names, centers=a_pos, center_at_origin=False,
+                                         gro_labels=a_labels)
         else:
             self.molecule_set = None
         self.box = tuple([float(x) for x in self.gro_file.readline().strip().split()])
         assert len(self.atom_lines_nm) == self.num_atoms
         self.gro_file.close()
 
-    def _parse_atoms(self):
+    def _parse_atoms(self) -> tuple:
+        list_gro_labels = []
         list_atom_names = []
         list_atom_pos = []
         for line in self.atom_lines_nm:
@@ -88,10 +90,15 @@ class BaseGroParser:
             y_pos_nm = float(line[28:36])
             z_pos_nm = float(line[36:44])
             # optionally velocities in nm/ps are writen at characters 44:52, 52:60, 60:68 of the line
+            list_gro_labels.append(atom_name)
             list_atom_names.append(element_name)
             list_atom_pos.append([x_pos_nm, y_pos_nm, z_pos_nm])
-        return list_atom_names, list_atom_pos
+        return list_gro_labels, list_atom_names, list_atom_pos
 
 
 if __name__ == '__main__':
+    from molgri.paths import PATH_INPUT_BASEGRO
     particle_type2element("C0")
+    bgp = BaseGroParser(gro_read=f"{PATH_INPUT_BASEGRO}H2O.gro", parse_atoms=True)
+    print(bgp.molecule_set.atoms[2].element)
+    print(bgp.molecule_set.atoms[2].gro_label)

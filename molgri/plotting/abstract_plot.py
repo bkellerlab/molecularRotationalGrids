@@ -1,8 +1,7 @@
 from abc import ABC, abstractmethod
 
-import numpy as np
 import seaborn as sns
-from matplotlib import pyplot as plt, ticker as ticker
+from matplotlib import pyplot as plt
 from matplotlib.animation import FuncAnimation, PillowWriter
 
 from molgri.my_constants import *
@@ -13,7 +12,7 @@ from molgri.plotting.plotting_helper_functions import set_axes_equal
 
 def set_up_style(style_type: list):
     """
-    Before creating fig and ax, set up background color (dark) and context (talk).
+    Before creating fig and ax, set up background color (eg. dark) and context (eg. talk).
 
     Args:
         style_type: list of plot descriptions eg. ['dark', 'talk', 'half_empty']
@@ -166,7 +165,7 @@ class AbstractPlot(ABC):
 
     @abstractmethod
     def _plot_data(self, **kwargs):
-        """Here, the plotting is implemented."""
+        """Here, the plotting is implemented in subclasses."""
         pass
 
     def _create_labels(self, x_label=None, y_label=None, z_label=None, **kwargs):
@@ -194,10 +193,10 @@ class AbstractPlot(ABC):
         """
         Rotate the 3D figure and save the animation.
         """
-        plt.close()  # this is necessary, don't ask me why
+        plt.close()  # this is necessary
 
         if self.dimensions == 2:
-            raise ValueError("Animation of figure rotation only available for 3D grids!")
+            raise ValueError("Animation of figure rotation only available for 3D figures!")
 
         def animate(frame):
             # rotate the view left-right
@@ -234,8 +233,8 @@ class AbstractPlot(ABC):
 
         self.ax.view_init(elev=30, azim=30)
         self._equalize_axes(pos_limit=1, neg_limit=-1)
-        for axis in [self.ax.xaxis, self.ax.yaxis, self.ax.zaxis]:
-            axis.set_major_locator(ticker.MaxNLocator(integer=True))
+        #for axis in [self.ax.xaxis, self.ax.yaxis, self.ax.zaxis]:
+        #    axis.set_major_locator(ticker.MaxNLocator(integer=True))
         ani = FuncAnimation(self.fig, func=update, frames=grid_plot.shape[1], interval=50, repeat=False)
         writergif = PillowWriter(fps=1, bitrate=-1)
         # noinspection PyTypeChecker
@@ -253,18 +252,3 @@ class AbstractPlot(ABC):
         plt.close()
 
 
-def create_one_plot(plot_type, name, animate_rot=False, animate_seq=False, **kwargs):
-    my_plot = plot_type(name, **kwargs)
-    my_plot.create(animate_rot=animate_rot, animate_seq=animate_seq)
-
-
-def create_all_plots(plot_type, set_type: str = "full", set_size=500, animate_rot=False, animate_seq=False,
-                     full_run=True, open_mm=True, **kwargs):
-    if open_mm:
-        names = [f"{name}_{set_size}_{set_type}_openMM" for name in SIX_METHOD_NAMES]
-    else:
-        names = [f"{name}_{set_size}_{set_type}" for name in SIX_METHOD_NAMES]
-    if full_run:
-        names.append(FULL_RUN_NAME)
-    for name in names:
-        create_one_plot(plot_type, name, animate_rot=animate_rot, animate_seq=animate_seq, **kwargs)
