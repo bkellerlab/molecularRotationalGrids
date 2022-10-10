@@ -70,7 +70,11 @@ def prepare_pseudotrajectory(args, r_grid, t_grid):
     print(f"Generated a {pt.decorator_label} with {end_index} timesteps.")
 
 
-if __name__ == '__main__':
+def run_generate_pt():
     my_args = parser.parse_args()
     my_rg, my_tg = check_file_existence(my_args)
     prepare_pseudotrajectory(my_args, my_rg, my_tg)
+
+
+if __name__ == '__main__':
+    run_generate_pt()

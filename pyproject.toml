@@ -1,0 +1,27 @@
+[project]
+name = "molgri"
+version = "0.0.1"
+description = "Generate pseudotrajectories based on rotaional molecular grids."
+authors = [{name="Hana Zupan", email="hana.zupan@fu-berlin.de"}]
+license = {file = "LICENSE"}
+readme = "README.md"
+requires-python = ">=3.6"
+dynamic = ["dependencies"]
+keywords = ["pseudotrajectory", "molecular grids", "association", "state space discretisation"]
+include = ["molgri/*"]
+
+[project.urls]
+github = "https://github.com/bkellerlab/molecularRotationalGrids"
+
+[build-system]
+requires = ["setuptools", "setuptools-scm"]
+build-backend = "setuptools.build_meta"
+
+
+[project.scripts]
+gen-grid = "molgri.scripts.generate_grid:run_generate_grid"
+gen-pt = "molgri.scripts.generate_pt:run_generate_pt"
+change-io = "molgri.scripts.set_up_io_directories:run_user_input_program"
+
+[tool.setuptools.dynamic]
+dependencies = {file = "requirements.txt"}

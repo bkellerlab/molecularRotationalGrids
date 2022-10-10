@@ -47,7 +47,7 @@ def prepare_grid(args, parsed_name: NameParser) -> Grid:
     return my_grid
 
 
-if __name__ == '__main__':
+def run_generate_grid():
     my_args = parser.parse_args()
     nap = NameParser(f"{my_args.algorithm}_{my_args.N}")
     grid_name = nap.get_standard_name()
@@ -64,3 +64,7 @@ if __name__ == '__main__':
         if my_args.animate_ordering:
             my_gp.animate_grid_sequence()
             print(f"Animation of the grid ordering saved to {PATH_OUTPUT_GRIDORDER_ANI}")
+
+
+if __name__ == '__main__':
+    run_generate_grid()
