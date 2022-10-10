@@ -12,6 +12,7 @@ from molgri.grids.grid import build_grid
 from molgri.my_constants import ENDING_GRID_FILES
 from molgri.paths import PATH_INPUT_BASEGRO, PATH_OUTPUT_PT, PATH_OUTPUT_ROTGRIDS
 from molgri.parsers.name_parser import NameParser
+from scripts.generate_grid import prepare_grid
 
 # TODO: define total_N and generate in all dimensions uniform grid?
 # TODO: allow different rotation grids for two types of rotation
@@ -29,6 +30,8 @@ requiredNamed.add_argument('-transgrid', metavar='tg', type=str, nargs='?', requ
                     help='Radii of rotation of one molecule around the other [nm].')
 parser.add_argument('--only_origin', action='store_true',
                     help='Only include rotations around the origin.')
+parser.add_argument('--recalculate', action='store_true',
+                    help='Even if a saved version of this grid already exists, recalculate it.')
 
 
 def check_file_existence(args):
@@ -48,7 +51,8 @@ def check_file_existence(args):
         raise FileNotFoundError(f"Could not find the file {args.m2}.gro at {PATH_INPUT_BASEGRO}. "
                                 "Please provide a valid .gro file name as the second script parameter.")
     # if the rotational grid file doesn't exist, create it
-    rot_grid = build_grid(algo, N, use_saved=True, print_message=True)
+    #rot_grid = build_grid(algo, N, use_saved=True)
+    rot_grid = prepare_grid(args, nap)
     # assert translational grid is a tuple with three parameters
     trans_grid = literal_eval(args.transgrid)
     assert len(trans_grid) == 3, "Translational grid must be provided as a tuple of three parameters."
@@ -65,8 +69,9 @@ def prepare_pseudotrajectory(args, r_grid, t_grid):
     else:
         traj_type = "full"
     pt = Pseudotrajectory(args.m1, args.m2, grid=r_grid, traj_type=traj_type)
-    # TODO: this is only placeholder
-    pt.generate_pseudotrajectory(initial_distance_nm=t_grid[0], radii=t_grid)
+    end_index = pt.generate_pt_and_time(initial_distance_nm=t_grid[0], radii=t_grid)
+    #end_index = pt.generate_pseudotrajectory(initial_distance_nm=t_grid[0], radii=t_grid)
+    print(f"Generated a {pt.decorator_label} with {end_index} timesteps.")
 
 
 if __name__ == '__main__':

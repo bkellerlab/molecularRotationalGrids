@@ -32,22 +32,26 @@ parser.add_argument('--animate_ordering', action='store_true',
 # TODO --statistics
 
 
-def prepare_grid(args, name) -> Grid:
+def prepare_grid(args, parsed_name: NameParser) -> Grid:
+    name = parsed_name.get_standard_name()
+    algo = parsed_name.grid_type
+    n_points = parsed_name.num_grid_points
     # if already exists and no --recalculate flag, just display a message
-    if os.path.exists(join(PATH_OUTPUT_ROTGRIDS, f"{grid_name}.{ENDING_GRID_FILES}")) and not args.recalculate:
+    if os.path.exists(join(PATH_OUTPUT_ROTGRIDS, f"{name}.{ENDING_GRID_FILES}")) and not args.recalculate:
         print(f"Grid with name {name} is already saved. If you want to recalculate it, select --recalculate flag.")
-        my_grid = build_grid(args.algorithm, args.N, use_saved=True)
+        my_grid = build_grid(algo, n_points, use_saved=True)
     else:
-        my_grid = build_grid(args.algorithm, args.N, use_saved=False)
-        my_grid.generate_and_time(print_message=True)
+        my_grid = build_grid(algo, n_points, use_saved=False)
         my_grid.save_grid()
+        print(f"Generated a {my_grid.decorator_label} with {my_grid.N} points.")
     return my_grid
 
 
 if __name__ == '__main__':
     my_args = parser.parse_args()
-    grid_name = NameParser(f"{my_args.algorithm}_{my_args.N}").get_standard_name()
-    prepare_grid(my_args, grid_name)
+    nap = NameParser(f"{my_args.algorithm}_{my_args.N}")
+    grid_name = nap.get_standard_name()
+    prepare_grid(my_args, nap)
     if my_args.animate or my_args.animate_ordering:
         my_args.draw = True
     if my_args.draw:

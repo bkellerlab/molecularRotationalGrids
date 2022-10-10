@@ -30,7 +30,10 @@ User can specify additional optional flags to get additional outputs
 are plotted
 
 #### Generating pseudotrajectories
-
+To generate a pseudotrajectory, the user must first prepare two .gro input files in a standard
+format, each containing the data for one molecule. In a pseudotrajectory, one of them will remain
+fixed at origin and the other will undergo translations and rotations. The rotation and translation
+grids also need to be provided. If they do not exist yet, they will be generated in that step.
 
 
 #### Changing default input/output folders

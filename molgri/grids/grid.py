@@ -13,12 +13,12 @@ from molgri.parsers.name_parser import NameParser
 from molgri.grids.order_grid import order_grid_points
 from molgri.my_constants import *
 from molgri.paths import PATH_OUTPUT_ROTGRIDS
+from molgri.wrappers import time_method
 
 
 class Grid(ABC):
 
-    def __init__(self, N: int, *, ordered: bool = True, use_saved: bool = False, gen_alg: str = None,
-                 print_message=False):
+    def __init__(self, N: int, *, ordered: bool = True, use_saved: bool = False, gen_alg: str = None):
         """
         Generate a grid with one of generation algorithms.
 
@@ -36,6 +36,7 @@ class Grid(ABC):
         self.N = N
         name_properties = {"grid_type": gen_alg, "num_grid_points": N, "ordering": ordered}
         self.standard_name = NameParser(name_properties).get_standard_name()
+        self.decorator_label = f"rotation grid {self.standard_name}"
         self.grid = None
         self.time = 0
         self.nn_dist_arch = None
@@ -45,10 +46,10 @@ class Grid(ABC):
             try:
                 self.grid = np.load(f"{PATH_OUTPUT_ROTGRIDS}{self.standard_name}.npy")
             except FileNotFoundError:
-                self.generate_and_time(print_message=print_message)
+                self.generate_and_time()
                 self.save_grid()
         else:
-            self.generate_and_time(print_message=print_message)
+            self.generate_and_time()
         assert isinstance(self.grid, np.ndarray), "A grid must be a numpy array!"
         assert self.grid.shape == (N, 3), f"Grid not of correct shape! {self.grid.shape} instead of {(N, 3)}"
         assert np.allclose(np.linalg.norm(self.grid, axis=1), 1, atol=10**(-UNIQUE_TOL))
@@ -102,14 +103,9 @@ class Grid(ABC):
         else:
             self.grid = self.grid[:self.N]
 
-    def generate_and_time(self, print_message=False):
-        t1 = time()
+    @time_method
+    def generate_and_time(self):
         self.generate_grid()
-        t2 = time()
-        if print_message:
-            print(f"Timing the generation of the grid {self.standard_name}: ", end="")
-            print(f"{timedelta(seconds=t2-t1)} hours:minutes:seconds")
-        self.time = t2 - t1
 
     def _order(self):
         self.grid = order_grid_points(self.grid, self.N)
