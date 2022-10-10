@@ -10,7 +10,7 @@ import numpy as np
 
 from molgri.paths import PATH_INPUT_BASEGRO
 from molgri.parsers.name_parser import NameParser
-from scripts.generate_grid import prepare_grid
+from molgri.scripts.generate_grid import prepare_grid
 
 # TODO: define total_N and generate in all dimensions uniform grid?
 # TODO: allow different rotation grids for two types of rotation
