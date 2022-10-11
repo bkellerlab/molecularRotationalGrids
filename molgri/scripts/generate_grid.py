@@ -13,6 +13,8 @@ from ..my_constants import ENDING_GRID_FILES
 from ..plotting.plot_grids import GridPlot
 from ..scripts.set_up_io_directories import freshly_create_all_folders
 
+# TODO --format allow to save also as readable file
+
 parser = argparse.ArgumentParser()
 requiredNamed = parser.add_argument_group('required named arguments')
 requiredNamed.add_argument('-N', metavar='N', type=int, nargs='?', required=True,
