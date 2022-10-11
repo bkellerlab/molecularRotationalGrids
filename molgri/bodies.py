@@ -12,15 +12,14 @@ from matplotlib import patches
 from matplotlib.axis import Axis
 from mendeleev import element
 from mpl_toolkits.mplot3d.art3d import Poly3DCollection
-from numpy._typing import ArrayLike
 from numpy.typing import ArrayLike
 from scipy.constants import pi
 from matplotlib.text import Text
 from matplotlib.axes import Axes
 from scipy.spatial.transform import Rotation
 
-from molgri.constants import PM2NM
-from molgri.rotations import Rotation2D
+from .constants import PM2NM
+from .rotations import Rotation2D
 
 
 class AbstractShape(ABC):
@@ -65,6 +64,7 @@ class AbstractShape(ABC):
         self.position += vector
         self.drawing_points += np.hstack(vector)
 
+    # noinspection PyUnusedLocal
     def _rotate(self, angles: ArrayLike, method: str, **kwargs) -> Rotation:
         """
         Helper function to initialize the 3D Rotation object from the scipy module
@@ -84,24 +84,6 @@ class AbstractShape(ABC):
         else:
             raise NotImplementedError(f"Method {method} is unknown or not implemented.")
 
-    def from_123_to_313(self):
-        """
-        Helper function to switch from the Euler 123 representation to the 313 representation.
-        """
-        matrix_123_313 = np.array([[0, -1, 0], [0, 0, -1], [1, 0, 0]])
-        self.basis = (matrix_123_313 @ self.basis.T).T
-        self.position = matrix_123_313 @ self.position
-        self.drawing_points = (matrix_123_313 @ self.drawing_points.T).T
-
-    def from_313_to_123(self):
-        """
-        Helper function to switch from the Euler 313 representation to the 123 representation.
-        """
-        matrix_313_123 = np.array([[0, -1, 0], [-1, 0, 0], [0, 0, -1]])
-        self.basis = (matrix_313_123 @ self.basis.T).T
-        self.position = matrix_313_123 @ self.position
-        self.drawing_points = (matrix_313_123 @ self.drawing_points.T).T
-
     def rotate_about_origin(self, angles: ArrayLike, method="euler_123", inverse: bool = False):
         """
         Rotate the object by angles given around the three coordinate axes. With respect to coordinate origin.
@@ -117,9 +99,9 @@ class AbstractShape(ABC):
             rotation_mat = self._rotate(angles, method)
         result = rotation_mat.apply(np.concatenate((self.basis, self.position[:, np.newaxis].T, self.drawing_points),
                                                    axis=0), inverse=inverse)
-        self.basis, self.position, self.drawing_points = result[:self.dimension],\
-                                                         result[self.dimension:self.dimension+1],\
-                                                         result[self.dimension+1:]
+        self.basis = result[:self.dimension]
+        self.position = result[self.dimension:self.dimension+1]
+        self.drawing_points = result[self.dimension+1:]
         self.position = self.position.T.squeeze()
         return rotation_mat
 
@@ -219,7 +201,6 @@ class AbstractShape(ABC):
                                      color="black", angles='xy', scale_units='xy', scale=1)
             # add the x, y, z _create_labels to the coordinate axes
             position_labels = np.vstack(self.position) + 1/2 * self.basis.T
-            #position_labels += 0.2 * np.ones((self.dimension, self.dimension)) - 0.15 * np.eye(self.dimension)
             if draw_labels:
                 text = axis.text(*position_labels[:, column], s=labels[column], fontsize=30)
                 everything_to_plot.extend([quiver, text])
@@ -232,45 +213,6 @@ class Point(AbstractShape):
     def draw(self, axis, **kwargs):
         axis.scatter(*self.position, color=self.color)
         super().draw(axis, **kwargs)
-
-
-if __name__ == '__main__':
-    import matplotlib.pyplot as plt
-    # noinspection PyUnresolvedReferences
-    from mpl_toolkits.mplot3d import Axes3D
-
-    fig = plt.figure()
-    ax = fig.add_subplot(111, projection='3d')
-    plt.xlabel('x')
-    plt.ylabel('y')
-    ax.set_zlabel('z')
-    ax.set_xlim(-5, 5)
-    ax.set_ylim(-5, 5)
-    ax.set_zlim(-5, 5)
-
-    s = Point(dimension=3, color="green")
-    s.draw(ax, show_basis=True)
-    s.translate(np.array([2, 1, 3]))
-    s.draw(ax, show_labels=True)
-    for j in range(100):
-        s.rotate_about_origin(np.array([pi/200, 0, 0]))
-        if j % 20 == 0:
-            s.draw(ax, show_basis=True)
-        else:
-            s.draw(ax)
-    for j in range(100):
-        s.rotate_about_origin(np.array([0, -pi/200, 0]))
-        if j % 20 == 0:
-            s.draw(ax, show_basis=True)
-        else:
-            s.draw(ax)
-    for j in range(100):
-        s.rotate_about_body(np.array([0, 0, -pi/200]))
-        if j % 20 == 0:
-            s.draw(ax, show_basis=True)
-        else:
-            s.draw(ax)
-    plt.show()
 
 
 class Cuboid(AbstractShape):
@@ -514,31 +456,6 @@ class Molecule(AbstractShape):
             atom.position = rot.apply(points_at_origin, inverse=inverse) + self.position
 
 
-class HF(Molecule):
-    def __init__(self):
-        distance = 91 * PM2NM
-        super().__init__(atom_names=["F", "H"], centers=np.array([[0, 0, 0], [0, 0, distance]]),
-                         connections=np.array([[0, 1], [1, 0]]))
-
-
-class H2O(Molecule):
-    def __init__(self):
-        distance = 95.7 * PM2NM
-        angle = np.deg2rad(104.50 - 90)
-        dist1 = distance * np.cos(angle)
-        dist2 = distance * np.sin(angle)
-        super().__init__(atom_names=["O", "H", "H"],
-                         centers=np.array([[0, 0, distance], [0, 0, 0], [0, dist1, distance + dist2]]),
-                         connections=np.array([[0, 1, 1], [1, 0, 0], [1, 0, 0]]))
-
-
-class H2(Molecule):
-    def __init__(self):
-        distance = 74 * PM2NM
-        super().__init__(atom_names=["H", "H"], centers=np.array([[0, 0, 0], [0, 0, distance]]),
-                         connections=np.array([[0, 1], [1, 0]]))
-
-
 class ShapeSet(object):
 
     def __init__(self, all_objects: list or AbstractShape, num_dim: int = 3, name: str = "ShapeSet",
@@ -716,3 +633,25 @@ class MoleculeSet(AtomSet):
         self.belongings = {f"molecule_{i}": key.atoms for i, key in enumerate(self.all_objects)}
         # changing from AtomSet
         self.num_atoms = sum([len(self.all_objects[i].atoms) for i in range(len(self.all_objects))])
+
+
+if __name__ == '__main__':
+    import matplotlib.pyplot as plt
+    # noinspection PyUnresolvedReferences
+    from mpl_toolkits.mplot3d import Axes3D
+
+    fig = plt.figure()
+    ax = fig.add_subplot(111, projection='3d')
+    ax.set_xlim(-5, 5)
+    ax.set_ylim(-5, 5)
+    ax.set_zlim(-5, 5)
+
+    my_cylinder = Cylinder()
+    my_cylinder.draw(ax, show_basis=False)
+    my_cylinder.translate(np.array([-3, 3, -4]))
+    my_cylinder.rotate_about_origin(np.array([pi / 4, pi / 6, pi / 3]))
+    my_cylinder.draw(ax, show_basis=False)
+    my_cylinder.rotate_about_body(np.array([pi / 4, pi / 6, pi / 3]))
+    my_cylinder.draw(ax, show_basis=False)
+    print(my_cylinder)
+    plt.show()
