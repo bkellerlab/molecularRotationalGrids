@@ -1,10 +1,8 @@
 """
 Use two base_gro files (each containing only one molecule) to get a two-molecule base file.
 """
-from molgri.my_constants import *
-from molgri.paths import PATH_INPUT_BASEGRO, PATH_OUTPUT_PT
-from molgri.parsers.base_gro_parser import BaseGroParser
-import os
+from ..paths import PATH_INPUT_BASEGRO, PATH_OUTPUT_PT
+from ..parsers.base_gro_parser import BaseGroParser
 
 
 class TwoMoleculeGro:

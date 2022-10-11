@@ -1,12 +1,14 @@
-from objects_3d.abstractshape import AbstractShape
-from objects_3d.molecule import Atom, Molecule, H2O, HF
+from collections import defaultdict
+from typing import TextIO
+
 from scipy.constants import pi
-from my_constants import *
 import numpy as np
 from numpy.typing import ArrayLike
 from matplotlib.axis import Axis
-from collections import defaultdict
-from typing import TextIO
+
+from ..objects.abstractshape import AbstractShape
+from ..objects.molecule import Atom, Molecule, H2O, HF
+from ..my_constants import *
 
 
 class ShapeSet(object):
@@ -225,7 +227,7 @@ if __name__ == '__main__':
     import matplotlib.pyplot as plt
     # noinspection PyUnresolvedReferences
     from mpl_toolkits.mplot3d import Axes3D
-    from plotting.plotting_helper_functions import set_axes_equal
+    from ..plotting.plotting_helper_functions import set_axes_equal
     import os
     filename = "../data/generated_gro_files/example_water_set.gro"
     if os.path.exists(filename):

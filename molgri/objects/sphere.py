@@ -37,7 +37,7 @@ if __name__ == '__main__':
     import matplotlib.pyplot as plt
     # noinspection PyUnresolvedReferences
     from mpl_toolkits.mplot3d import Axes3D
-    from plotting.plotting_helper_functions import set_axes_equal
+    from ..plotting.plotting_helper_functions import set_axes_equal
 
     fig = plt.figure()
     ax = fig.add_subplot(111, projection='3d')

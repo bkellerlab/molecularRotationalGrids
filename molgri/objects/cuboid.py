@@ -6,7 +6,7 @@ import numpy as np
 from matplotlib.axes import Axes
 from mpl_toolkits.mplot3d.art3d import Poly3DCollection
 
-from objects_3d.abstractshape import AbstractShape
+from ..objects.abstractshape import AbstractShape
 
 
 class Cuboid(AbstractShape):

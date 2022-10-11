@@ -1,7 +1,7 @@
-from molgri.grids.grid import Grid
-from molgri.pseudotrajectories.gen_base_gro import TwoMoleculeGro
-from molgri.my_constants import *
-from molgri.wrappers import time_method
+from ..grids.grid import Grid
+from ..pseudotrajectories.gen_base_gro import TwoMoleculeGro
+from ..my_constants import *
+from ..wrappers import time_method
 
 
 class Pseudotrajectory(TwoMoleculeGro):

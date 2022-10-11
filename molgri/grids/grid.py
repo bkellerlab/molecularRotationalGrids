@@ -1,19 +1,17 @@
-from datetime import timedelta
-from time import time
 import numpy as np
 from abc import ABC, abstractmethod
 from scipy.constants import pi
 from scipy.spatial.distance import cdist
 
-from molgri.analysis.uniformity_measure import random_sphere_points
-from molgri.grids.cube_grid import cube_grid_on_sphere, select_half_sphere
-from molgri.grids.grid2rotation2grid import grid2euler, euler2grid, quaternion2grid, grid2quaternion
-from molgri.grids.polytopes import CubePolytope, IcosahedronPolytope
-from molgri.parsers.name_parser import NameParser
-from molgri.grids.order_grid import order_grid_points
-from molgri.my_constants import *
-from molgri.paths import PATH_OUTPUT_ROTGRIDS
-from molgri.wrappers import time_method
+from ..analysis.uniformity_measure import random_sphere_points
+from ..grids.cube_grid import cube_grid_on_sphere, select_half_sphere
+from ..grids.grid2rotation2grid import grid2euler, euler2grid, quaternion2grid, grid2quaternion
+from ..grids.polytopes import CubePolytope, IcosahedronPolytope
+from ..parsers.name_parser import NameParser
+from ..grids.order_grid import order_grid_points
+from ..my_constants import *
+from ..paths import PATH_OUTPUT_ROTGRIDS
+from ..wrappers import time_method
 
 
 class Grid(ABC):

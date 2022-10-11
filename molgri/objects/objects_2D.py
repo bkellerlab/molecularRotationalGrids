@@ -4,7 +4,7 @@ import matplotlib.pyplot as plt
 from matplotlib import patches
 from matplotlib.axes import Axes
 
-from objects_3d.abstractshape import AbstractShape
+from ..objects.abstractshape import AbstractShape
 
 
 class Circle(AbstractShape):

@@ -1,6 +1,5 @@
 import numpy as np
 from mendeleev import element
-from scipy.constants import pi
 
 from ..my_constants import *
 from ..objects.abstractshape import AbstractShape

@@ -7,8 +7,8 @@ import pandas as pd
 from tqdm import tqdm
 from scipy.constants import pi
 
-from molgri.my_constants import *
-from molgri.paths import PATH_OUTPUT_ROTGRIDS
+from ..my_constants import *
+from ..paths import PATH_OUTPUT_ROTGRIDS
 
 np.random.seed(1)
 

@@ -1,9 +1,9 @@
 import numpy as np
 
-from molgri.grids.grid import build_grid
-from molgri.plotting.abstract_plot import AbstractPlot
-from molgri.my_constants import *
-from molgri.paths import PATH_OUTPUT_GRIDPLOT, PATH_OUTPUT_GRID_ANI
+from ..grids.grid import build_grid
+from ..plotting.abstract_plot import AbstractPlot
+from ..my_constants import *
+from ..paths import PATH_OUTPUT_GRIDPLOT, PATH_OUTPUT_GRID_ANI
 
 
 class GridPlot(AbstractPlot):

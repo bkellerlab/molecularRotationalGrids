@@ -2,7 +2,7 @@ from scipy.constants import pi
 from mpl_toolkits.mplot3d.art3d import Poly3DCollection
 import numpy as np
 
-from objects_3d.abstractshape import AbstractShape
+from ..objects.abstractshape import AbstractShape
 
 
 class Cylinder(AbstractShape):
@@ -12,7 +12,6 @@ class Cylinder(AbstractShape):
         self.radius = radius
         self.height = height
         self.num_points = 50
-        #us = np.linspace(-2 * pi * self.radius, 2 * pi * self.radius, self.num_points)
         us = np.linspace(-2 * pi, 2 * pi, self.num_points)
         zs = np.linspace(-self.height / 2, self.height, 2)
         us, zs = np.meshgrid(us, zs)

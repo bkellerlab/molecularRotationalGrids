@@ -4,10 +4,10 @@ import seaborn as sns
 from matplotlib import pyplot as plt
 from matplotlib.animation import FuncAnimation, PillowWriter
 
-from molgri.my_constants import *
-from molgri.paths import PATH_OUTPUT_GRIDORDER_ANI
-from molgri.parsers.name_parser import NameParser
-from molgri.plotting.plotting_helper_functions import set_axes_equal
+from ..my_constants import *
+from ..paths import PATH_OUTPUT_GRIDORDER_ANI
+from ..parsers.name_parser import NameParser
+from ..plotting.plotting_helper_functions import set_axes_equal
 
 
 def set_up_style(style_type: list):

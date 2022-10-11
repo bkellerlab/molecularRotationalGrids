@@ -4,10 +4,8 @@ from scipy.constants import golden, pi
 from scipy.spatial import distance_matrix
 from abc import ABC, abstractmethod
 
-from molgri.analysis.uniformity_measure import unit_dist_on_sphere
-from molgri.grids.cube_grid import project_grid_on_sphere
-#from plotting.abstract_plot import AbstractPlot
-from molgri.my_constants import *
+from ..analysis.uniformity_measure import unit_dist_on_sphere
+from ..grids.cube_grid import project_grid_on_sphere
 
 np.random.seed(1)
 
