@@ -1,4 +1,5 @@
 from seaborn import color_palette
+from pkg_resources import resource_filename
 from numpy import logspace
 
 PM2ANGSTROM = 0.01
@@ -17,7 +18,7 @@ UNIQUE_TOL = 5
 ENDING_GRID_FILES = "npy"
 
 # here write non-user-defined paths
-PATH_USER_PATHS = "molgri/paths.py"
+PATH_USER_PATHS = resource_filename("molgri", "paths.py")
 
 PATH_FIG_COM = "figures/center_of_mass/"
 #PATH_FIG_GRID = "figures/grids/"

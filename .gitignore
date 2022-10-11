@@ -133,10 +133,5 @@ dmypy.json
 *.idea
 
 # input/output stuff
-input/base_gro_files/
-output/pt_files/
-output/grid_files/
-output/test/
-output/figures_grids/
-output/animations_grids/
-output/animations_grid_ordering/
+**/input/*
+**/output/*

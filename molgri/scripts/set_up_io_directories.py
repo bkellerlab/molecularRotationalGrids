@@ -10,18 +10,29 @@ import os
 from os.path import samefile
 from pathlib import Path
 import shutil
+from pkg_resources import resource_filename
 
-from molgri.my_constants import PATH_USER_PATHS
+from ..my_constants import PATH_USER_PATHS
 
 # if you introduce new IO folders, add them to next three lines
 IO_FOLDER_PURPUSES = ["rotational grids", "pseudotrajectory files", "base gro files", "grid plots", "grid animations",
                       "grid ordering animations"]
 IO_FOLDER_DEFAULTS = ["output/grid_files/", "output/pt_files/", "input/base_gro_files/", "output/figures_grids/",
                       "output/animations_grids/", "output/animations_grid_ordering/"]
+#IO_FOLDER_DEFAULTS = [resource_filename("molgri", rel_path) for rel_path in IO_FOLDER_DEFAULTS]
 IO_VARIABLE_NAMES = ["PATH_OUTPUT_ROTGRIDS", "PATH_OUTPUT_PT", "PATH_INPUT_BASEGRO", "PATH_OUTPUT_GRIDPLOT",
                      "PATH_OUTPUT_GRID_ANI", "PATH_OUTPUT_GRIDORDER_ANI"]
 
 # which files are needed? Rotation grids (output), Pseudotrajectories (output), single-molecule gro files (input)
+
+
+def freshly_create_all_folders():
+    for path in IO_FOLDER_DEFAULTS:
+        if not os.path.exists(path):
+            os.makedirs(path)
+    with open(PATH_USER_PATHS, "w") as f:
+        for varname, new_value in zip(IO_VARIABLE_NAMES, IO_FOLDER_DEFAULTS):
+            f.write(f"{varname} = '{new_value}'\n")
 
 
 def detect_current_paths() -> list:
@@ -62,13 +73,13 @@ def create_io_folders(new_paths: list):
     for path in new_paths:
         if not os.path.exists(path):
             os.makedirs(path)
-    # add them to .gitignore
-    with open(f".gitignore", "r") as f:
-        lines = f.readlines()
-    with open(f".gitignore", "a") as f:
-        for path in new_paths:
-            if f"{path}\n" not in lines:
-                f.write(f"{path}\n")
+    # # add them to .gitignore
+    # with open(f".gitignore", "r") as f:
+    #     lines = f.readlines()
+    # with open(f".gitignore", "a") as f:
+    #     for path in new_paths:
+    #         if f"{path}\n" not in lines:
+    #             f.write(f"{path}\n")
 
 
 def move_and_delete_io_folders(current_folder: str, new_folder: str):
@@ -85,13 +96,13 @@ def move_and_delete_io_folders(current_folder: str, new_folder: str):
         shutil.copy(current_file, new_folder)
     # deletes old folders and files in it
     shutil.rmtree(current_folder)
-    # delete old folder from .gitignore
-    with open(f".gitignore", "r") as f:
-        lines = f.readlines()
-    with open(f".gitignore", "w") as f:
-        for line in lines:
-            if line.strip("\n") != current_folder:
-                f.write(line)
+    # # delete old folder from .gitignore
+    # with open(f".gitignore", "r") as f:
+    #     lines = f.readlines()
+    # with open(f".gitignore", "w") as f:
+    #     for line in lines:
+    #         if line.strip("\n") != current_folder:
+    #             f.write(line)
 
 
 def run_user_input_program():
@@ -127,4 +138,5 @@ def run_user_input_program():
 
 
 if __name__ == '__main__':
-    run_user_input_program()
+    #run_user_input_program()
+    freshly_create_all_folders()

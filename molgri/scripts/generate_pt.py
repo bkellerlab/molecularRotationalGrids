@@ -8,13 +8,14 @@ from ast import literal_eval
 
 import numpy as np
 
-from molgri.paths import PATH_INPUT_BASEGRO
-from molgri.parsers.name_parser import NameParser
-from molgri.scripts.generate_grid import prepare_grid
+from ..paths import PATH_INPUT_BASEGRO
+from ..parsers.name_parser import NameParser
+from ..scripts.generate_grid import prepare_grid
+from ..scripts.set_up_io_directories import freshly_create_all_folders
 
 # TODO: define total_N and generate in all dimensions uniform grid?
 # TODO: allow different rotation grids for two types of rotation
-from molgri.pseudotrajectories.pseudotrajectory import Pseudotrajectory
+from ..pseudotrajectories.pseudotrajectory import Pseudotrajectory
 
 parser = argparse.ArgumentParser()
 requiredNamed = parser.add_argument_group('required named arguments')
@@ -71,6 +72,7 @@ def prepare_pseudotrajectory(args, r_grid, t_grid):
 
 
 def run_generate_pt():
+    freshly_create_all_folders()
     my_args = parser.parse_args()
     my_rg, my_tg = check_file_existence(my_args)
     prepare_pseudotrajectory(my_args, my_rg, my_tg)

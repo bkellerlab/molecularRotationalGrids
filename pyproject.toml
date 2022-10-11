@@ -20,7 +20,7 @@ build-backend = "setuptools.build_meta"
 [project.scripts]
 gen-grid = "molgri.scripts.generate_grid:run_generate_grid"
 gen-pt = "molgri.scripts.generate_pt:run_generate_pt"
-change-io = "molgri.scripts.set_up_io_directories:run_user_input_program"
+define-io = "molgri.scripts.set_up_io_directories:freshly_create_all_folders"
 
 [tool.setuptools.dynamic]
 dependencies = {file = "requirements.txt"}

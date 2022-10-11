@@ -6,11 +6,12 @@ import os
 from os.path import join
 import argparse
 
-from molgri.grids.grid import build_grid, Grid
-from molgri.parsers.name_parser import NameParser
-from molgri.paths import PATH_OUTPUT_ROTGRIDS, PATH_OUTPUT_GRIDPLOT, PATH_OUTPUT_GRIDORDER_ANI, PATH_OUTPUT_GRID_ANI
-from molgri.my_constants import ENDING_GRID_FILES
-from molgri.plotting.plot_grids import GridPlot
+from ..grids.grid import build_grid, Grid
+from ..parsers.name_parser import NameParser
+from ..paths import PATH_OUTPUT_ROTGRIDS, PATH_OUTPUT_GRIDPLOT, PATH_OUTPUT_GRIDORDER_ANI, PATH_OUTPUT_GRID_ANI
+from ..my_constants import ENDING_GRID_FILES
+from ..plotting.plot_grids import GridPlot
+from ..scripts.set_up_io_directories import freshly_create_all_folders
 
 parser = argparse.ArgumentParser()
 requiredNamed = parser.add_argument_group('required named arguments')
@@ -48,6 +49,7 @@ def prepare_grid(args, parsed_name: NameParser) -> Grid:
 
 
 def run_generate_grid():
+    freshly_create_all_folders()
     my_args = parser.parse_args()
     nap = NameParser(f"{my_args.algorithm}_{my_args.N}")
     grid_name = nap.get_standard_name()
