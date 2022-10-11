@@ -12,7 +12,7 @@ from mpl_toolkits.mplot3d.axes3d import Axes3D
 from scipy.constants import pi
 from seaborn import color_palette
 
-from .grids import build_grid
+from .grids import build_grid, Polytope, IcosahedronPolytope, CubePolytope
 from .constants import DIM_SQUARE, DEFAULT_DPI, COLORS, DEFAULT_NS
 from .parsers import NameParser
 from .paths import PATH_OUTPUT_PLOTS, PATH_OUTPUT_ANIS
@@ -371,8 +371,34 @@ class AlphaConvergencePlot(AlphaViolinPlot):
         self.ax.get_legend().remove()
 
 
+class PolytopePlot(AbstractPlot):
+
+    def __init__(self, data_name: str, num_divisions=3, **kwargs):
+        self.num_divisions = num_divisions
+        plot_type = f"polytope_{num_divisions}"
+        super().__init__(data_name, fig_path=PATH_OUTPUT_PLOTS, plot_type=plot_type, style_type=["empty"], dimensions=3,
+                         **kwargs)
+
+    def _prepare_data(self) -> Polytope:
+        if self.data_name == "ico":
+            ico = IcosahedronPolytope()
+        else:
+            ico = CubePolytope()
+        for n in range(self.num_divisions):
+            ico.divide_edges()
+        return ico
+
+    def _plot_data(self, face="front", **kwargs):
+        if face == "front" and self.data_name == "ico":
+            face = {12}
+        elif face == "front":
+            face = {3}
+        ico = self._prepare_data()
+        ico.plot_points(self.ax, select_faces=face, projection=False)
+        ico.plot_edges(self.ax, select_faces=face)
+
+
 if __name__ == "__main__":
-    # TODO: include BodyPlot that draws/animates objects
     # examples of grid plots and animations
     GridPlot("ico_22").create(title="Icosahedron, 22 points", x_label="x", y_label="y", z_label="z", animate_rot=True,
                               animate_seq=True, main_ticks_only=True)
@@ -380,3 +406,8 @@ if __name__ == "__main__":
     # examples of statistics/convergence plots
     AlphaViolinPlot("ico_250", style_type=["talk"]).create(title="ico grid, 250")
     AlphaConvergencePlot("systemE", style_type=["talk"]).create(title="Convergence of systemE")
+    # examples of polyhedra
+    PolytopePlot("ico", num_divisions=3).create(equalize=True, elev=210, azim=90, pos_limit=0.55,
+                                                            neg_limit=-0.6)
+    PolytopePlot("cube3D", num_divisions=2).create(equalize=True, elev=0, azim=0, pos_limit=0.7,
+                                                               neg_limit=-0.7)
