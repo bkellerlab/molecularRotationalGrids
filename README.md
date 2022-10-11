@@ -2,7 +2,19 @@
 package to generate relative rotational positions and orientations of two molecular structures
 
 ## Installation
-[TODO]
+
+Currently the project is private but it is possible to install it with the command
+
+```
+pip install git+https://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@github.com/bkellerlab/molecularRotationalGrids.git@main
+```
+
+Once released to PyPI, you should be able to install the
+project using
+
+```
+pip install molgri
+```
 
 ## Simple applications: using scripts
 
@@ -21,7 +33,7 @@ define-io
 
 This will create the following folder system in your directory:
 
-.  
+ 
 📂 input  
  * 📂 base_gro_files 
 
