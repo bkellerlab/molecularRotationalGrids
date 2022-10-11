@@ -1,16 +1,11 @@
-"""
-Implements analysis tool min_max_avg_sd_distance() that helps evaluate the uniformity of the grid.
-"""
 import numpy as np
-from scipy.spatial.distance import cdist
 import pandas as pd
-from tqdm import tqdm
 from scipy.constants import pi
+from scipy.spatial.distance import cdist
+from tqdm import tqdm
 
-from ..my_constants import *
-from ..paths import PATH_OUTPUT_ROTGRIDS
-
-np.random.seed(1)
+from .my_constants import SIZE2NUMBERS, PATH_COMPARE_GRIDS
+from .paths import PATH_OUTPUT_ROTGRIDS
 
 
 def dist_on_sphere(vector1: np.ndarray, vector2: np.ndarray) -> float:
@@ -129,8 +124,3 @@ def random_sphere_points(n: int = 1000) -> np.ndarray:
     y = np.sin(theta) * np.sin(phi)
     z = np.cos(theta)
     return np.concatenate((x, y, z), axis=1)
-
-
-if __name__ == "__main__":
-    print(coverage_grids(SIX_METHOD_NAMES, filename="dict_grids_small", redo_calculations=False, set_size="small"))
-    print(coverage_grids(SIX_METHOD_NAMES, filename="dict_grids", redo_calculations=False, set_size="normal"))

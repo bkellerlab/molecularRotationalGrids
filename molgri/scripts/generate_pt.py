@@ -9,13 +9,13 @@ from ast import literal_eval
 import numpy as np
 
 from ..paths import PATH_INPUT_BASEGRO
-from ..parsers.name_parser import NameParser
+from molgri.parsers import NameParser
 from ..scripts.generate_grid import prepare_grid
 from ..scripts.set_up_io_directories import freshly_create_all_folders
 
 # TODO: define total_N and generate in all dimensions uniform grid?
 # TODO: allow different rotation grids for two types of rotation
-from ..pseudotrajectories.pseudotrajectory import Pseudotrajectory
+from molgri.pts import Pseudotrajectory
 
 parser = argparse.ArgumentParser()
 requiredNamed = parser.add_argument_group('required named arguments')

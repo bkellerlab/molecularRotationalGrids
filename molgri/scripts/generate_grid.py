@@ -6,11 +6,11 @@ import os
 from os.path import join
 import argparse
 
-from ..grids.grid import build_grid, Grid
-from ..parsers.name_parser import NameParser
+from molgri.grids import Grid, build_grid
+from molgri.parsers import NameParser
 from ..paths import PATH_OUTPUT_ROTGRIDS, PATH_OUTPUT_GRIDPLOT, PATH_OUTPUT_GRIDORDER_ANI, PATH_OUTPUT_GRID_ANI
 from ..my_constants import ENDING_GRID_FILES
-from ..plotting.plot_grids import GridPlot
+from molgri.plotting import GridPlot
 from ..scripts.set_up_io_directories import freshly_create_all_folders
 
 # TODO --format allow to save also as readable file
