@@ -8,10 +8,10 @@ import argparse
 
 from molgri.grids import Grid, build_grid
 from molgri.parsers import NameParser
-from ..paths import PATH_OUTPUT_ROTGRIDS, PATH_OUTPUT_GRIDPLOT, PATH_OUTPUT_GRIDORDER_ANI, PATH_OUTPUT_GRID_ANI
-from ..my_constants import ENDING_GRID_FILES
+from ..paths import PATH_OUTPUT_ROTGRIDS, PATH_OUTPUT_GRIDPLOT, PATH_OUTPUT_GRID_ANI
+from ..constants import ENDING_GRID_FILES
 from molgri.plotting import GridPlot
-from ..scripts.set_up_io_directories import freshly_create_all_folders
+from ..scripts.set_up_io import freshly_create_all_folders
 
 # TODO --format allow to save also as readable file
 
@@ -42,9 +42,9 @@ def prepare_grid(args, parsed_name: NameParser) -> Grid:
     # if already exists and no --recalculate flag, just display a message
     if os.path.exists(join(PATH_OUTPUT_ROTGRIDS, f"{name}.{ENDING_GRID_FILES}")) and not args.recalculate:
         print(f"Grid with name {name} is already saved. If you want to recalculate it, select --recalculate flag.")
-        my_grid = build_grid(algo, n_points, use_saved=True)
+        my_grid = build_grid(algo, n_points, use_saved=True, time_generation=True)
     else:
-        my_grid = build_grid(algo, n_points, use_saved=False)
+        my_grid = build_grid(algo, n_points, use_saved=False, time_generation=True)
         my_grid.save_grid()
         print(f"Generated a {my_grid.decorator_label} with {my_grid.N} points.")
     return my_grid
@@ -67,7 +67,7 @@ def run_generate_grid():
             print(f"Animation of the grid saved to {PATH_OUTPUT_GRID_ANI}")
         if my_args.animate_ordering:
             my_gp.animate_grid_sequence()
-            print(f"Animation of the grid ordering saved to {PATH_OUTPUT_GRIDORDER_ANI}")
+            print(f"Animation of the grid ordering saved to {PATH_OUTPUT_GRID_ANI}")
 
 
 if __name__ == '__main__':

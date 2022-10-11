@@ -19,7 +19,7 @@ from matplotlib.text import Text
 from matplotlib.axes import Axes
 from scipy.spatial.transform import Rotation
 
-from molgri.my_constants import PM2NM
+from molgri.constants import PM2NM
 from molgri.rotations import Rotation2D
 
 

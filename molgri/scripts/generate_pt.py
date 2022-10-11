@@ -11,7 +11,7 @@ import numpy as np
 from ..paths import PATH_INPUT_BASEGRO
 from molgri.parsers import NameParser
 from ..scripts.generate_grid import prepare_grid
-from ..scripts.set_up_io_directories import freshly_create_all_folders
+from ..scripts.set_up_io import freshly_create_all_folders
 
 # TODO: define total_N and generate in all dimensions uniform grid?
 # TODO: allow different rotation grids for two types of rotation

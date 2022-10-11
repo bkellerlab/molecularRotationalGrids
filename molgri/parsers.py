@@ -2,7 +2,7 @@ import numpy as np
 from mendeleev.fetch import fetch_table
 
 from molgri.bodies import Molecule
-from molgri.my_constants import MOLECULE_NAMES, SIX_METHOD_NAMES, FULL_RUN_NAME
+from molgri.constants import MOLECULE_NAMES, SIX_METHOD_NAMES, FULL_RUN_NAME
 
 
 class NameParser:
@@ -115,6 +115,10 @@ class NameParser:
         if standard_name.endswith("_"):
             standard_name = standard_name[:-1]
         return standard_name
+
+    def get_human_readable_name(self):
+        # TODO: name eg H2O-H2O system, icosahedron grid, 22 rotations
+        pass
 
     def get_grid_type(self):
         if not self.grid_type:

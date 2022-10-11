@@ -1,5 +1,5 @@
 from molgri.grids import Grid
-from molgri.my_constants import DEFAULT_DISTANCES
+from molgri.constants import DEFAULT_DISTANCES
 from molgri.parsers import BaseGroParser
 from molgri.paths import PATH_INPUT_BASEGRO, PATH_OUTPUT_PT
 from molgri.wrappers import time_method
@@ -24,7 +24,7 @@ class TwoMoleculeGro:
         self.f = open(result_file_path, "w")
         self.cental_parser = BaseGroParser(central_file_path, parse_atoms=False)
         # parse rotating file as Atoms
-        self.rotating_parser = BaseGroParser(rotating_file_path, parse_atoms=True) #, gro_write=self.f
+        self.rotating_parser = BaseGroParser(rotating_file_path, parse_atoms=True)
 
     def _write_comment_num(self, frame_num=0):
         num_atoms_cen = self.cental_parser.num_atoms

@@ -4,9 +4,12 @@ from scipy.constants import pi
 from scipy.spatial.distance import cdist
 from tqdm import tqdm
 
-from .my_constants import SIZE2NUMBERS, PATH_COMPARE_GRIDS
+from .constants import SIZE2NUMBERS
 from .paths import PATH_OUTPUT_ROTGRIDS
 
+
+# TODO: functions here (except unit_dist_on_sphere) are basically not used
+# replace them with useful ones that create statistics files
 
 def dist_on_sphere(vector1: np.ndarray, vector2: np.ndarray) -> float:
     """
@@ -99,10 +102,10 @@ def coverage_grids(grid_names: list, filename: str = False, redo_calculations: b
             data[i][1:] = min_max_avg_sd_distance(grid)
         df = pd.DataFrame(data, index=grid_names, columns=["N points", "min", "max", "average", "SD"])
         df = df.sort_values("average")
-        if filename:
-            df.to_csv(PATH_COMPARE_GRIDS + filename + ".csv")
-    else:
-        df = pd.read_csv(PATH_COMPARE_GRIDS + filename + ".csv", index_col=0)
+    #     if filename:
+    #         df.to_csv(PATH_COMPARE_GRIDS + filename + ".csv")
+    # else:
+    #     df = pd.read_csv(PATH_COMPARE_GRIDS + filename + ".csv", index_col=0)
     return df
 
 
@@ -124,3 +127,34 @@ def random_sphere_points(n: int = 1000) -> np.ndarray:
     y = np.sin(theta) * np.sin(phi)
     z = np.cos(theta)
     return np.concatenate((x, y, z), axis=1)
+
+
+def unit_vector(vector):
+    """ Returns the unit vector of the vector.  """
+    return vector / np.linalg.norm(vector)
+
+
+def vector_within_alpha(central_vec: np.ndarray, side_vector: np.ndarray, alpha: float):
+    v1_u = unit_vector(central_vec)
+    v2_u = unit_vector(side_vector)
+    angle_vectors = np.arccos(np.clip(np.dot(v1_u, v2_u), -1.0, 1.0))
+    return angle_vectors < alpha
+
+
+def count_points_within_alpha(grid, central_vec: np.ndarray, alpha: float):
+    grid_points = grid.get_grid()
+    num_points = 0
+    for point in grid_points:
+        if vector_within_alpha(central_vec, point, alpha):
+            num_points += 1
+    return num_points
+
+
+def random_axes_count_points(grid, alpha: float, num_random_points: int = 1000):
+    central_vectors = random_sphere_points(num_random_points)
+    all_ratios = np.zeros(num_random_points)
+
+    for i, central_vector in enumerate(central_vectors):
+        num_within = count_points_within_alpha(grid, central_vector, alpha)
+        all_ratios[i] = num_within/grid.N
+    return all_ratios

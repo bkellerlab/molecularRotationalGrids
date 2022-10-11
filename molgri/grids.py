@@ -8,15 +8,16 @@ from scipy.spatial.distance import cdist
 
 from molgri.analysis import random_sphere_points, unit_dist_on_sphere
 from molgri.rotations import grid2quaternion, grid2euler, quaternion2grid, euler2grid
-from molgri.my_constants import DEFAULT_SEED, SIX_METHOD_NAMES, UNIQUE_TOL, PATH_VIOLIN_DATA
+from molgri.constants import DEFAULT_SEED, SIX_METHOD_NAMES, UNIQUE_TOL
 from molgri.parsers import NameParser
-from molgri.paths import PATH_OUTPUT_ROTGRIDS
+from molgri.paths import PATH_OUTPUT_ROTGRIDS, PATH_OUTPUT_STAT
 from molgri.wrappers import time_method
 
 
 class Grid(ABC):
 
-    def __init__(self, N: int, *, ordered: bool = True, use_saved: bool = False, gen_alg: str = None):
+    def __init__(self, N: int, *, ordered: bool = True, use_saved: bool = False, gen_alg: str = None,
+                 time_generation: bool = False):
         """
         Generate a grid with one of generation algorithms.
 
@@ -25,6 +26,7 @@ class Grid(ABC):
             N: number of grid points
             ordered: if True order and truncate, else only truncate to N points
             use_saved: if True use saved grids if available
+            time_generation: if True write out a message about time needed for generation
         """
         self.rn_gen = np.random.default_rng(DEFAULT_SEED)
         np.random.seed(DEFAULT_SEED)
@@ -39,15 +41,16 @@ class Grid(ABC):
         self.time = 0
         self.nn_dist_arch = None
         self.nn_dist_cup = None
+        gen_func = self.generate_and_time if time_generation else self.generate_grid
         # if this option enabled, search first if this grid has already been saved
         if use_saved:
             try:
                 self.grid = np.load(f"{PATH_OUTPUT_ROTGRIDS}{self.standard_name}.npy")
             except FileNotFoundError:
-                self.generate_and_time()
+                gen_func()
                 self.save_grid()
         else:
-            self.generate_and_time()
+            gen_func()
         assert isinstance(self.grid, np.ndarray), "A grid must be a numpy array!"
         assert self.grid.shape == (N, 3), f"Grid not of correct shape! {self.grid.shape} instead of {(N, 3)}"
         assert np.allclose(np.linalg.norm(self.grid, axis=1), 1, atol=10**(-UNIQUE_TOL))
@@ -125,9 +128,9 @@ class Grid(ABC):
     def save_grid(self):
         np.save(f"{PATH_OUTPUT_ROTGRIDS}{self.standard_name}.npy", self.grid)
 
-    def save_violin_data(self, num_random: int = 1000, unit="arch"):
-        violin_data = self.get_nn_distances(num_random, unit=unit)
-        np.save(f"{PATH_VIOLIN_DATA}{self.standard_name}_{unit}.npy", violin_data)
+    def save_statistics(self, num_random: int = 1000, unit="arch"):
+        stat_data = self.get_nn_distances(num_random, unit=unit)
+        np.save(f"{PATH_OUTPUT_STAT}{self.standard_name}_{unit}.npy", stat_data)
 
 
 class RandomQGrid(Grid):

@@ -1,5 +1,5 @@
 from molgri.grids import build_grid, classic_grid_d_cube, select_only_faces, project_grid_on_sphere, select_half_sphere
-from molgri.my_constants import *
+from molgri.constants import *
 import numpy as np
 
 

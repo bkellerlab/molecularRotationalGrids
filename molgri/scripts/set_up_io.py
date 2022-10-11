@@ -12,16 +12,16 @@ from pathlib import Path
 import shutil
 from pkg_resources import resource_filename
 
-from ..my_constants import PATH_USER_PATHS
+from ..constants import PATH_USER_PATHS
 
 # if you introduce new IO folders, add them to next three lines
-IO_FOLDER_PURPUSES = ["rotational grids", "pseudotrajectory files", "base gro files", "grid plots", "grid animations",
-                      "grid ordering animations"]
-IO_FOLDER_DEFAULTS = ["output/grid_files/", "output/pt_files/", "input/base_gro_files/", "output/figures_grids/",
-                      "output/animations_grids/", "output/animations_grid_ordering/"]
+IO_FOLDER_PURPUSES = ["rotational grids", "pseudotrajectory files", "base gro files", "plots", "animations",
+                      "grid statistics"]
+IO_FOLDER_DEFAULTS = ["output/grid_files/", "output/pt_files/", "input/base_gro_files/", "output/figures/",
+                      "output/animations/", "output/statistics_files"]
 #IO_FOLDER_DEFAULTS = [resource_filename("molgri", rel_path) for rel_path in IO_FOLDER_DEFAULTS]
-IO_VARIABLE_NAMES = ["PATH_OUTPUT_ROTGRIDS", "PATH_OUTPUT_PT", "PATH_INPUT_BASEGRO", "PATH_OUTPUT_GRIDPLOT",
-                     "PATH_OUTPUT_GRID_ANI", "PATH_OUTPUT_GRIDORDER_ANI"]
+IO_VARIABLE_NAMES = ["PATH_OUTPUT_ROTGRIDS", "PATH_OUTPUT_PT", "PATH_INPUT_BASEGRO", "PATH_OUTPUT_PLOTS",
+                     "PATH_OUTPUT_ANIS", "PATH_OUTPUT_STAT"]
 
 # which files are needed? Rotation grids (output), Pseudotrajectories (output), single-molecule gro files (input)
 

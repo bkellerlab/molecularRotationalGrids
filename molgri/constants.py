@@ -1,6 +1,5 @@
 from seaborn import color_palette
 from pkg_resources import resource_filename
-from numpy import logspace
 
 PM2ANGSTROM = 0.01
 NM2ANGSTROM = 10
@@ -9,6 +8,7 @@ PM2NM = 0.001
 
 DIM_LANDSCAPE = (7.25, 4.45)
 DIM_PORTRAIT = (3.45, 4.45)
+DIM_SQUARE = (4.45, 4.45)
 DEFAULT_DPI = 600
 DEFAULT_DPI_MULTI = 300
 COLORS = color_palette("hls", 6)
@@ -20,36 +20,33 @@ ENDING_GRID_FILES = "npy"
 # here write non-user-defined paths
 PATH_USER_PATHS = resource_filename("molgri", "paths.py")
 
-PATH_FIG_COM = "figures/center_of_mass/"
-#PATH_FIG_GRID = "figures/grids/"
-PATH_FIG_LENG = "figures/leng_structures/"
-PATH_FIG_TRAJ = "figures/trajectories/"
-PATH_FIG_CON = "figures/convergence/"
-PATH_FIG_EDT = "figures/energy_during_trajectory/"
-PATH_FIG_CME = "figures/cumulative_min_energy/"
-PATH_FIG_PRES = "figures/presentation/"
-PATH_FIG_TEST = "figures/tests/"
-PATH_FIG_TIME = "figures/timing/"
-
-PATH_ANI_COM = "animations/center_of_mass/"
-PATH_ANI_ROT = "animations/rotations/"
-#PATH_ANI_GRID = "animations/grids/"
-PATH_ANI_TRAJ = "animations/trajectories/"
-PATH_ANI_LENG = "animations/leng_structures/"
-
-#PATH_GENERATED_GRO_FILES = "../../nobackup/data/generated_gro_files/"
-#PATH_BASE_GRO_FILES = "provided_data/base_gro_files/"
-PATH_COMPARE_GRIDS = "../../nobackup/data/compare_grids/"
-PATH_GRO_RESULTS = "../../nobackup/data/gro_results/"
-PATH_OMM_RESULTS = "../../nobackup/data/openMM_results/"
-PATH_SAVED_GRIDS = "../../nobackup/data/saved_grids/"
-PATH_TOPOL = "provided_data/topologies/"
-PATH_FF = "provided_data/force_fields/"
-PATH_TIME_SIM = "../../nobackup/data/time_simulations/"
-PATH_VIOLIN_DATA = "../../nobackup/data/violin_data/"
-
-PATH_GROMACS = "../../nobackup/gromacs/"
-PATH_SCRIPTS = "../../nobackup/gromacs/SCRIPTS/"
+# PATH_FIG_COM = "figures/center_of_mass/"
+# #PATH_FIG_GRID = "figures/grids/"
+# PATH_FIG_LENG = "figures/leng_structures/"
+# PATH_FIG_TRAJ = "figures/trajectories/"
+# PATH_FIG_CON = "figures/convergence/"
+# PATH_FIG_EDT = "figures/energy_during_trajectory/"
+# PATH_FIG_CME = "figures/cumulative_min_energy/"
+# PATH_FIG_PRES = "figures/presentation/"
+# PATH_FIG_TEST = "figures/tests/"
+# PATH_FIG_TIME = "figures/timing/"
+#
+# PATH_ANI_COM = "animations/center_of_mass/"
+# PATH_ANI_ROT = "animations/rotations/"
+# PATH_ANI_TRAJ = "animations/trajectories/"
+# PATH_ANI_LENG = "animations/leng_structures/"
+#
+# PATH_COMPARE_GRIDS = "../../nobackup/data/compare_grids/"
+# PATH_GRO_RESULTS = "../../nobackup/data/gro_results/"
+# PATH_OMM_RESULTS = "../../nobackup/data/openMM_results/"
+# PATH_SAVED_GRIDS = "../../nobackup/data/saved_grids/"
+# PATH_TOPOL = "provided_data/topologies/"
+# PATH_FF = "provided_data/force_fields/"
+# PATH_TIME_SIM = "../../nobackup/data/time_simulations/"
+# PATH_VIOLIN_DATA = "../../nobackup/data/violin_data/"
+#
+# PATH_GROMACS = "../../nobackup/gromacs/"
+# PATH_SCRIPTS = "../../nobackup/gromacs/SCRIPTS/"
 
 SIX_METHOD_NAMES = ("systemE", "randomE", "randomQ", "cube4D", "cube3D", "ico")
 PRETTY_METHOD_NAMES = ("systematic Euler angles", "random Euler angles", "random quaternions", "4D cube grid",

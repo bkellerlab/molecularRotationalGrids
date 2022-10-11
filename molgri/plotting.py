@@ -1,4 +1,5 @@
 from abc import ABC, abstractmethod
+from typing import Union
 
 import numpy as np
 import pandas as pd
@@ -6,30 +7,16 @@ import seaborn as sns
 from matplotlib import pyplot as plt
 from matplotlib.animation import FuncAnimation, PillowWriter
 from matplotlib.axes import Axes
+from matplotlib import ticker
+from mpl_toolkits.mplot3d.axes3d import Axes3D
 from scipy.constants import pi
 from seaborn import color_palette
 
-from molgri.grids import build_grid
-from molgri.my_constants import DIM_LANDSCAPE, NAME2PRETTY_NAME, DEFAULT_DPI, NAME2SHORT_NAME, PATH_FIG_TEST, COLORS, \
-    DEFAULT_NS
-from molgri.parsers import NameParser
-from molgri.paths import PATH_OUTPUT_GRIDORDER_ANI, PATH_OUTPUT_GRIDPLOT, PATH_OUTPUT_GRID_ANI
-from molgri.analysis import random_sphere_points
-
-
-def set_up_style(style_type: list):
-    """
-    Before creating fig and ax, set up background color (eg. dark) and context (eg. talk).
-
-    Args:
-        style_type: list of plot descriptions eg. ['dark', 'talk', 'half_empty']
-    """
-    sns.reset_orig()
-    plt.style.use('default')
-    if "dark" in style_type:
-        plt.style.use('dark_background')
-    if "talk" in style_type:
-        sns.set_context("talk")
+from .grids import build_grid
+from .constants import DIM_SQUARE, DEFAULT_DPI, COLORS, DEFAULT_NS
+from .parsers import NameParser
+from .paths import PATH_OUTPUT_PLOTS, PATH_OUTPUT_ANIS
+from .analysis import random_axes_count_points
 
 
 class AbstractPlot(ABC):
@@ -38,8 +25,8 @@ class AbstractPlot(ABC):
     All other plots, including multiplots, inherit from this class.
     """
 
-    def __init__(self, data_name: str, dimensions: int = 3, style_type: list = None, fig_path: str = None,
-                 ani_path: str = None, ax: plt.Axes = None, figsize: tuple = DIM_LANDSCAPE,
+    def __init__(self, data_name: str, dimensions: int = 3, style_type: list = None, fig_path: str = PATH_OUTPUT_PLOTS,
+                 ani_path: str = PATH_OUTPUT_ANIS, ax: Union[Axes, Axes3D] = None, figsize: tuple = DIM_SQUARE,
                  plot_type: str = "abs"):
         """
         Input all information that needs to be provided before fig and ax are created.
@@ -48,8 +35,8 @@ class AbstractPlot(ABC):
             data_name: eg ico_500_full
             dimensions: 2 or 3
             style_type: a list of properties like 'dark', 'talk', 'empty' or 'half_empty'
-            fig_path: folder to save figures if created
-            ani_path: folder to save animations if created
+            fig_path: folder to save figures if created, should be set in subclasses
+            ani_path: folder to save animations if created, should be set in subclasses
             ax: enables to pass an already created axis - useful for PanelPlots
             figsize: forwarded to set up of the figure
             plot_type: str describing the plot function, added to the name of the plot
@@ -64,12 +51,13 @@ class AbstractPlot(ABC):
         self.parsed_data_name = NameParser(self.data_name)
         self.plot_type = plot_type
         self.figsize = figsize
-        try:
-            self.default_title = NAME2PRETTY_NAME[self.parsed_data_name.get_grid_type()]
-        except ValueError:
-            self.default_title = None
         # here change styles that need to be set before fig and ax are created
-        set_up_style(style_type)
+        sns.reset_orig()
+        plt.style.use('default')
+        if "dark" in style_type:
+            plt.style.use('dark_background')
+        if "talk" in style_type:
+            sns.set_context("talk")
         # create the empty figure
         self.fig = None
         self.ax = ax
@@ -77,7 +65,7 @@ class AbstractPlot(ABC):
     def create(self, *args, equalize=False, neg_limit=None, pos_limit=None, x_label=None, y_label=None, z_label=None,
                title=None, save_fig=True, animate_rot=False, animate_seq=False, sci_limit_min=-4, sci_limit_max=4,
                save_ending="pdf", dpi=600, labelpad=0, pad_inches=0, sharex="all", sharey="all", close_fig=True,
-               azim=-60, elev=30):
+               azim=-60, elev=30, main_ticks_only=False):
         """
         This is the only function the user should call on subclasses. It performs the entire plotting and
         saves the result. It uses all methods in appropriate order with appropriate values for the specific
@@ -95,16 +83,22 @@ class AbstractPlot(ABC):
             self._create_title(title=title)
         self._plot_data()
         self._sci_ticks(sci_limit_min, sci_limit_max)
+        if main_ticks_only:
+            if self.dimensions == 3:
+                for axis in [self.ax.xaxis, self.ax.yaxis, self.ax.zaxis]:
+                    axis.set_major_locator(ticker.MaxNLocator(integer=True))
+            else:
+                for axis in [self.ax.xaxis, self.ax.yaxis]:
+                    axis.set_major_locator(ticker.MaxNLocator(integer=True))
         if save_fig:
             self._save_plot(save_ending=save_ending, dpi=dpi, pad_inches=pad_inches)
         if close_fig:
             plt.close()
         if animate_rot:
             self.animate_figure_view()
-        if animate_seq:
-            self.animate_grid_sequence()
 
-    def _create_fig_ax(self, sharex="all", sharey="all"):
+    # noinspection PyUnusedLocal
+    def _create_fig_ax(self, sharex: str = "all", sharey: str = "all"):
         """
         The parameters need to stay there to be consistent with AbstractMultiPlot, but are not used.
 
@@ -124,7 +118,9 @@ class AbstractPlot(ABC):
     def _set_up_empty(self):
         """
         Second part of setting up the look of the plot, this time deleting unnecessary properties.
+        Keywords to change the look of the plot are taken from the property self.style_type.
         If 'half_empty', remove ticks, if 'empty', also any shading of the background in 3D plots.
+        The option 'half_dark' changes background to gray, 'dark' to black.
         """
         if "empty" in self.style_type or "half_empty" in self.style_type:
             self.ax.set_xticks([])
@@ -135,9 +131,9 @@ class AbstractPlot(ABC):
                 self.ax.axis('off')
         if "half_dark" in self.style_type:
             color = (0.5, 0.5, 0.5, 0.7)
-            self.ax.w_xaxis.set_pane_color(color)
-            self.ax.w_yaxis.set_pane_color(color)
-            self.ax.w_zaxis.set_pane_color(color)
+            self.ax.xaxis.set_pane_color(color)
+            self.ax.yaxis.set_pane_color(color)
+            self.ax.zaxis.set_pane_color(color)
 
     def _equalize_axes(self, neg_limit: float = None, pos_limit: float = None):
         """
@@ -148,8 +144,16 @@ class AbstractPlot(ABC):
             pos_limit: if set, this will be max x, y, (z) value of the plot - if pos_limit set but neg_limit not,
                        neg_limit is set to -pos_limit
         """
+        # because ax.set_aspect('equal') does not work for 3D axes
         if self.dimensions == 3:
-            set_axes_equal(self.ax)
+            self.ax.set_box_aspect(aspect=[1, 1, 1])
+            x_lim, y_lim, z_lim = self.ax.get_xlim3d(), self.ax.get_ylim3d(), self.ax.get_zlim3d()
+            all_ranges = abs(x_lim[1] - x_lim[0]), abs(y_lim[1] - y_lim[0]), abs(z_lim[1] - z_lim[0])
+            x_middle, y_middle, z_middle = np.mean(x_lim), np.mean(y_lim), np.mean(z_lim)
+            plot_range = 0.5 * max(all_ranges)
+            self.ax.set_xlim3d([x_middle - plot_range, x_middle + plot_range])
+            self.ax.set_ylim3d([y_middle - plot_range, y_middle + plot_range])
+            self.ax.set_zlim3d([z_middle - plot_range, z_middle + plot_range])
         else:
             self.ax.set_aspect('equal')
         if pos_limit is not None and neg_limit is None:
@@ -175,7 +179,7 @@ class AbstractPlot(ABC):
         """Here, the plotting is implemented in subclasses."""
         pass
 
-    def _create_labels(self, x_label=None, y_label=None, z_label=None, **kwargs):
+    def _create_labels(self, x_label: str = None, y_label: str = None, z_label: str = None, **kwargs):
         if x_label:
             self.ax.set_xlabel(x_label, **kwargs)
         if y_label:
@@ -183,22 +187,23 @@ class AbstractPlot(ABC):
         if z_label and self.dimensions == 3:
             self.ax.set_zlabel(z_label, **kwargs)
 
-    def _create_title(self, title):
+    def _create_title(self, title: str):
         if "talk" in self.style_type:
             self.ax.set_title(title, fontsize=15)
         else:
             self.ax.set_title(title)
 
-    def _sci_ticks(self, neg_lim: int = -4, pos_lim: int = 4):
+    @staticmethod
+    def _sci_ticks(neg_lim: int = -4, pos_lim: int = 4):
         try:
             plt.ticklabel_format(style='sci', axis='x', scilimits=(neg_lim, pos_lim))
             plt.ticklabel_format(style='sci', axis='y', scilimits=(neg_lim, pos_lim))
         except AttributeError:
             pass
 
-    def animate_figure_view(self):
+    def animate_figure_view(self) -> FuncAnimation:
         """
-        Rotate the 3D figure and save the animation.
+        Rotate the 3D figure for 360 degrees around itself and save the animation.
         """
         plt.close()  # this is necessary
 
@@ -217,10 +222,59 @@ class AbstractPlot(ABC):
         anim.save(f"{self.ani_path}{self.data_name}_{self.plot_type}.gif", writer=writergif, dpi=400)
         return anim
 
+    def _save_plot(self, save_ending: str = "pdf", dpi: int = DEFAULT_DPI, **kwargs):
+        self.fig.tight_layout()
+        if self.fig_path:
+            standard_name = self.parsed_data_name.get_standard_name()
+            plt.savefig(f"{self.fig_path}{standard_name}_{self.plot_type}.{save_ending}", dpi=dpi, bbox_inches='tight',
+                        **kwargs)
+        else:
+            raise ValueError("path to save the figure has not been selected!")
+        plt.close()
+
+
+class GridPlot(AbstractPlot):
+
+    def __init__(self, data_name, *, style_type: list = None, plot_type: str = "grid", **kwargs):
+        """
+        This class is used for plots and animations of grids.
+
+        Args:
+            data_name: in the form algorithm_N e.g. randomQ_60
+            style_type: a list of style properties like ['empty', 'talk', 'half_dark']
+            plot_type: change this if you need unique name for plots with same data_name
+            **kwargs:
+        """
+        if style_type is None:
+            style_type = ["talk"]
+        super().__init__(data_name, style_type=style_type, plot_type=plot_type, **kwargs)
+
+    def _prepare_data(self) -> np.ndarray:
+        num = self.parsed_data_name.get_num()
+        orig_name = self.parsed_data_name.get_grid_type()
+        my_grid = build_grid(orig_name, num, use_saved=True).get_grid()
+        return my_grid
+
+    def _plot_data(self, **kwargs):
+        my_grid = self._prepare_data()
+        self.ax.scatter(*my_grid.T, color="black", s=4)
+        self.ax.view_init(elev=10, azim=30)
+
+    def create(self, **kwargs):
+        if "empty" in self.style_type:
+            pad_inches = -0.2
+        else:
+            pad_inches = 0
+        super(GridPlot, self).create(equalize=True, pos_limit=1, pad_inches=pad_inches, **kwargs)
+        animate_seq = kwargs.pop("animate_seq", False)
+        if animate_seq:
+            self.animate_grid_sequence()
+
     def animate_grid_sequence(self):
         """
         Animate how a grid is constructed - how each individual point is added.
         """
+        # TODO: to not replot but hide points?
         self.ax = None
         self._create_fig_ax()
         self._set_up_empty()
@@ -240,129 +294,29 @@ class AbstractPlot(ABC):
 
         self.ax.view_init(elev=30, azim=30)
         self._equalize_axes(pos_limit=1, neg_limit=-1)
-        #for axis in [self.ax.xaxis, self.ax.yaxis, self.ax.zaxis]:
-        #    axis.set_major_locator(ticker.MaxNLocator(integer=True))
         ani = FuncAnimation(self.fig, func=update, frames=grid_plot.shape[1], interval=50, repeat=False)
         writergif = PillowWriter(fps=1, bitrate=-1)
         # noinspection PyTypeChecker
-        ani.save(f"{PATH_OUTPUT_GRIDORDER_ANI}{self.data_name}_{self.plot_type}.gif", writer=writergif, dpi=400)
+        ani.save(f"{self.ani_path}{self.data_name}_{self.plot_type}_ord.gif", writer=writergif, dpi=400)
         plt.close()
-
-    def _save_plot(self, save_ending="pdf", dpi=DEFAULT_DPI, **kwargs):
-        self.fig.tight_layout()
-        if self.fig_path:
-            standard_name = self.parsed_data_name.get_standard_name()
-            plt.savefig(f"{self.fig_path}{standard_name}_{self.plot_type}.{save_ending}", dpi=dpi, bbox_inches='tight',
-                        **kwargs)
-        else:
-            raise ValueError("path to save the figure has not been selected!")
-        plt.close()
-
-
-class GridPlot(AbstractPlot):
-
-    def __init__(self, data_name, empty=True, title=True, plot_type="grid", **kwargs):
-        if empty:
-            style_type = ["talk", "empty"]
-            plot_type = "e" + plot_type
-        else:
-            style_type = ["talk", "half_empty"]
-        super().__init__(data_name, fig_path=PATH_OUTPUT_GRIDPLOT, style_type=style_type,
-                         ani_path=PATH_OUTPUT_GRID_ANI, plot_type=plot_type, **kwargs)
-        self.title = title
-
-    def _prepare_data(self) -> np.ndarray:
-        num = self.parsed_data_name.get_num()
-        orig_name = self.parsed_data_name.get_grid_type()
-        my_grid = build_grid(orig_name, num, use_saved=True).get_grid()
-        return my_grid
-
-    def _plot_data(self, **kwargs):
-        my_grid = self._prepare_data()
-        self.ax.scatter(*my_grid.T, color="black", s=4)
-        self.ax.view_init(elev=10, azim=30)
-
-    def create(self, **kwargs):
-        short_gt = NAME2SHORT_NAME[self.parsed_data_name.grid_type]
-        title_ex = f"{short_gt} grid, {self.parsed_data_name.num_grid_points} points"
-        title = title_ex if self.title else None
-        if "empty" in self.style_type:
-            pad_inches = -0.2
-        else:
-            pad_inches = 0
-        super(GridPlot, self).create(equalize=True, pos_limit=1, pad_inches=pad_inches, title=title, **kwargs)
-
-
-def set_axes_equal(ax: Axes):
-    """
-    Source: https://stackoverflow.com/questions/13685386/matplotlib-equal-unit-length-with-equal-aspect-ratio-z-axis-is-not-equal-to
-    Make axes of 3D plot have equal scale so that spheres appear as spheres,
-    cubes as cubes, etc..  This is one possible solution to Matplotlib's
-    ax.set_aspect('equal') and ax.axis('equal') not working for 3D.
-
-    Input
-      ax: a matplotlib axis
-    """
-    # noinspection PyTypeChecker
-    ax.set_box_aspect(aspect=[1, 1, 1])
-    x_limits = ax.get_xlim3d()
-    y_limits = ax.get_ylim3d()
-    z_limits = ax.get_zlim3d()
-
-    x_range = abs(x_limits[1] - x_limits[0])
-    x_middle = np.mean(x_limits)
-    y_range = abs(y_limits[1] - y_limits[0])
-    y_middle = np.mean(y_limits)
-    z_range = abs(z_limits[1] - z_limits[0])
-    z_middle = np.mean(z_limits)
-
-    # The plot bounding box is a sphere in the sense of the infinity
-    # norm, hence I call half the max range the plot radius.
-    plot_radius = 0.5*max([x_range, y_range, z_range])
-
-    ax.set_xlim3d([x_middle - plot_radius, x_middle + plot_radius])
-    ax.set_ylim3d([y_middle - plot_radius, y_middle + plot_radius])
-    ax.set_zlim3d([z_middle - plot_radius, z_middle + plot_radius])
-
-
-def unit_vector(vector):
-    """ Returns the unit vector of the vector.  """
-    return vector / np.linalg.norm(vector)
-
-
-def vector_within_alpha(central_vec: np.ndarray, side_vector: np.ndarray, alpha: float):
-    v1_u = unit_vector(central_vec)
-    v2_u = unit_vector(side_vector)
-    angle_vectors = np.arccos(np.clip(np.dot(v1_u, v2_u), -1.0, 1.0))
-    return angle_vectors < alpha
-
-
-def count_points_within_alpha(grid, central_vec: np.ndarray, alpha: float):
-    grid_points = grid.get_grid()
-    num_points = 0
-    for point in grid_points:
-        if vector_within_alpha(central_vec, point, alpha):
-            num_points += 1
-    return num_points
-
-
-def random_axes_count_points(grid, alpha: float, num_random_points: int = 1000):
-    central_vectors = random_sphere_points(num_random_points)
-    all_ratios = np.zeros(num_random_points)
-
-    for i, central_vector in enumerate(central_vectors):
-        num_within = count_points_within_alpha(grid, central_vector, alpha)
-        all_ratios[i] = num_within/grid.N
-    return all_ratios
 
 
 class AlphaViolinPlot(AbstractPlot):
 
-    def __init__(self, data_name: str, plot_type="alpha", style_type=None, **kwargs):
+    def __init__(self, data_name: str, *, plot_type: str = "uniformity", style_type: list = None, **kwargs):
+        """
+        Creates violin plots that are a measure of grid uniformity. A good grid will display minimal variation
+        along a range of angles alpha.
+
+        Args:
+            data_name: in the form algorithm_N e.g. randomQ_60
+            plot_type: change this if you need unique name for plots with same data_name
+            style_type: a list of style properties like ['empty', 'talk', 'half_dark']
+            **kwargs:
+        """
         if style_type is None:
-            style_type = ["talk"]
-        super().__init__(data_name, dimensions=2, style_type=style_type, plot_type=plot_type, fig_path=PATH_FIG_TEST,
-                         **kwargs)
+            style_type = ["white"]
+        super().__init__(data_name, dimensions=2, style_type=style_type, plot_type=plot_type, **kwargs)
 
     def _prepare_data(self) -> pd.DataFrame:
         my_grid = build_grid(self.parsed_data_name.grid_type, self.parsed_data_name.num_grid_points, use_saved=True)
@@ -370,6 +324,7 @@ class AlphaViolinPlot(AbstractPlot):
         ratios = [[], [], []]
         num_rand_points = 100
         sphere_surface = 4 * pi
+        # TODO: use saved in statistics files if they exist
         for alpha in alphas:
             cone_area = 2 * pi * (1-np.cos(alpha))
             ideal_coverage = cone_area / sphere_surface
@@ -382,7 +337,6 @@ class AlphaViolinPlot(AbstractPlot):
     def _plot_data(self, **kwargs):
         df = self._prepare_data()
         sns.violinplot(x=df["alphas"], y=df["coverages"], ax=self.ax, palette=COLORS, linewidth=1, scale="count")
-        self.ax.set_title(NAME2SHORT_NAME[self.parsed_data_name.grid_type])
         self.ax.set_xticklabels([r'$\frac{\pi}{6}$', r'$\frac{2\pi}{6}$', r'$\frac{3\pi}{6}$', r'$\frac{4\pi}{6}$',
                                  r'$\frac{5\pi}{6}$'])
 
@@ -390,7 +344,14 @@ class AlphaViolinPlot(AbstractPlot):
 class AlphaConvergencePlot(AlphaViolinPlot):
 
     def __init__(self, data_name: str, **kwargs):
-        super().__init__(data_name, **kwargs)
+        """
+        Creates convergence plots that show how coverages approach optimal values
+
+        Args:
+            data_name: name of the algorithm e.g. randomQ
+            **kwargs:
+        """
+        super().__init__(data_name, plot_type="convergence", **kwargs)
 
     def _plot_data(self, **kwargs):
         full_df = []
@@ -403,10 +364,19 @@ class AlphaConvergencePlot(AlphaViolinPlot):
             full_df.append(df)
         full_df = pd.concat(full_df, axis=0, ignore_index=True)
         sns.lineplot(x=full_df["N"], y=full_df["coverages"], ax=self.ax, hue=full_df["alphas"],
-                        palette=color_palette("hls", 5), linewidth=1)
+                     palette=color_palette("hls", 5), linewidth=1)
         sns.lineplot(x=full_df["N"], y=full_df["ideal coverage"], style=full_df["alphas"], ax=self.ax, color="black")
-        if "ico" in self.data_name:
-            self.ax.set_xscale("log")
-            self.ax.set_yscale("log")
-        self.ax.set_title(NAME2SHORT_NAME[self.parsed_data_name.grid_type])
+        self.ax.set_xscale("log")
+        self.ax.set_yscale("log")
         self.ax.get_legend().remove()
+
+
+if __name__ == "__main__":
+    # TODO: include BodyPlot that draws/animates objects
+    # examples of grid plots and animations
+    GridPlot("ico_22").create(title="Icosahedron, 22 points", x_label="x", y_label="y", z_label="z", animate_rot=True,
+                              animate_seq=True, main_ticks_only=True)
+    GridPlot("cube3D_500", style_type=["talk", "empty"]).create()
+    # examples of statistics/convergence plots
+    AlphaViolinPlot("ico_250", style_type=["talk"]).create(title="ico grid, 250")
+    AlphaConvergencePlot("systemE", style_type=["talk"]).create(title="Convergence of systemE")
