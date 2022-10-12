@@ -351,14 +351,19 @@ class AlphaConvergencePlot(AlphaViolinPlot):
             data_name: name of the algorithm e.g. randomQ
             **kwargs:
         """
+        nap = NameParser(data_name)
+        if nap.num_grid_points is None:
+            self.ns_list = DEFAULT_NS
+        else:
+            self.ns_list = np.logspace(np.log10(3), np.log10(nap.num_grid_points), dtype=int)
+            self.ns_list = np.unique(self.ns_list)
         super().__init__(data_name, plot_type="convergence", **kwargs)
 
     def _plot_data(self, **kwargs):
         full_df = []
 
-        for N in DEFAULT_NS:
+        for N in self.ns_list:
             self.parsed_data_name.num_grid_points = N
-            self.data_name = self.parsed_data_name.get_standard_name()
             df = self._prepare_data()
             df["N"] = N
             full_df.append(df)

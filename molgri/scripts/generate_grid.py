@@ -10,7 +10,7 @@ from molgri.grids import Grid, build_grid
 from molgri.parsers import NameParser
 from ..paths import PATH_OUTPUT_ROTGRIDS, PATH_OUTPUT_PLOTS, PATH_OUTPUT_ANIS
 from ..constants import ENDING_GRID_FILES
-from molgri.plotting import GridPlot
+from molgri.plotting import GridPlot, AlphaViolinPlot, AlphaConvergencePlot
 from ..scripts.set_up_io import freshly_create_all_folders
 
 # TODO --format allow to save also as readable file
@@ -25,14 +25,13 @@ requiredNamed.add_argument('-algorithm', metavar='a', type=str, nargs='?', requi
 parser.add_argument('--recalculate', action='store_true',
                     help='Even if a saved version of this grid already exists, recalculate it.')
 parser.add_argument('--statistics', action='store_true',
-                    help='Write out statistics about this grid.')
+                    help='Write out statistics and draw statistics plots about this grid.')
 parser.add_argument('--draw', action='store_true',
                     help='Draw this grid and display a figure.')
 parser.add_argument('--animate', action='store_true',
                     help='Provide an animation of the grid display.')
 parser.add_argument('--animate_ordering', action='store_true',
                     help='Provide an animation of the grid ordering.')
-# TODO --statistics
 
 
 def prepare_grid(args, parsed_name: NameParser) -> Grid:
@@ -68,7 +67,15 @@ def run_generate_grid():
         if my_args.animate_ordering:
             my_gp.animate_grid_sequence()
             print(f"Animation of the grid ordering saved to {PATH_OUTPUT_ANIS}")
-
+    if my_args.statistics:
+        # create statistic data
+        # create violin plot
+        AlphaViolinPlot(grid_name).create()
+        print(f"A violin plot showing the uniformity of {grid_name} saved to {PATH_OUTPUT_PLOTS}.")
+        # create covergence plot
+        AlphaConvergencePlot(grid_name).create()
+        print(f"A convergence plot with number of points between 3 and {nap.num_grid_points} saved "
+              f"to {PATH_OUTPUT_PLOTS}.")
 
 if __name__ == '__main__':
     run_generate_grid()
