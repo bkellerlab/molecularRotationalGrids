@@ -39,9 +39,7 @@ ENERGY_SHORT_TYPES = ["LJ", "Dis", "Coulumb", "pot"]
 ENERGY_SHORT2FULL = {n: pn for n, pn in zip(ENERGY_SHORT_TYPES, ENERGY_TYPES)}
 ENERGY_FULL2SHORT = {n: pn for n, pn in zip(ENERGY_TYPES, ENERGY_SHORT_TYPES)}
 DEFAULT_DISTANCES_PROTEIN = (0.75, 0.25, 0.25, 0.25, 0.25, 0.25, 0.25, 0.25)
-#DEFAULT_DISTANCES = (0.25, 0.05, 0.05, 0.05, 0.05)
 DEFAULT_DISTANCES = (0.26, 0.005, 0.005, 0.005, 0.005, 0.005, 0.005)
-#DEFAULT_NS = logspace(0.5, 5, num=30, dtype=int)
 DEFAULT_NS = [3,    4,    5,    6,    8,   10,   12,   15,   18,   23,
          30,   34,   41,   50,   62,   75,   100, 112,  137,  167,  204,
         249,  300,  370,  452,  500,  672,  819, 1000]

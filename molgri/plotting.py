@@ -373,8 +373,18 @@ class AlphaConvergencePlot(AlphaViolinPlot):
 
 class PolytopePlot(AbstractPlot):
 
-    def __init__(self, data_name: str, num_divisions=3, **kwargs):
+    def __init__(self, data_name: str, num_divisions=3, faces=None, **kwargs):
+        """
+        Plotting (some faces of) polyhedra, demonstrating the subdivision of faces with points.
+
+        Args:
+            data_name:
+            num_divisions: how many levels of faces subdivisions should be drawn
+            faces: a set of indices indicating which faces to draw
+            **kwargs:
+        """
         self.num_divisions = num_divisions
+        self.faces = faces
         plot_type = f"polytope_{num_divisions}"
         super().__init__(data_name, fig_path=PATH_OUTPUT_PLOTS, plot_type=plot_type, style_type=["empty"], dimensions=3,
                          **kwargs)
@@ -388,14 +398,14 @@ class PolytopePlot(AbstractPlot):
             ico.divide_edges()
         return ico
 
-    def _plot_data(self, face="front", **kwargs):
-        if face == "front" and self.data_name == "ico":
-            face = {12}
-        elif face == "front":
-            face = {3}
+    def _plot_data(self, **kwargs):
+        if self.faces is None and self.data_name == "ico":
+            self.faces = {12}
+        elif self.faces is None:
+            self.faces = {3}
         ico = self._prepare_data()
-        ico.plot_points(self.ax, select_faces=face, projection=False)
-        ico.plot_edges(self.ax, select_faces=face)
+        ico.plot_points(self.ax, select_faces=self.faces, projection=False)
+        ico.plot_edges(self.ax, select_faces=self.faces)
 
 
 if __name__ == "__main__":
@@ -407,7 +417,7 @@ if __name__ == "__main__":
     AlphaViolinPlot("ico_250", style_type=["talk"]).create(title="ico grid, 250")
     AlphaConvergencePlot("systemE", style_type=["talk"]).create(title="Convergence of systemE")
     # examples of polyhedra
-    PolytopePlot("ico", num_divisions=3).create(equalize=True, elev=210, azim=90, pos_limit=0.55,
+    PolytopePlot("ico", num_divisions=2, faces={0, 1, 2, 3, 4}).create(equalize=True, elev=190, azim=120, pos_limit=0.55,
                                                             neg_limit=-0.6)
-    PolytopePlot("cube3D", num_divisions=2).create(equalize=True, elev=0, azim=0, pos_limit=0.7,
+    PolytopePlot("cube3D", num_divisions=3).create(equalize=True, elev=0, azim=0, pos_limit=0.7,
                                                                neg_limit=-0.7)

@@ -1,94 +1,6 @@
-from molgri.grids import build_grid, classic_grid_d_cube, select_only_faces, project_grid_on_sphere, select_half_sphere
-from molgri.constants import *
+from molgri.grids import build_grid
+from molgri.constants import SIX_METHOD_NAMES
 import numpy as np
-
-
-def test_grid_2D():
-    points = 6
-    dimensions = 2
-    # classic_grid_d_cube
-    my_grid = classic_grid_d_cube(points, dimensions)
-    assert my_grid.shape == (dimensions, points, points), "Shape wrong"
-    flattened = my_grid.reshape((-1, dimensions))
-    assert len(flattened) == points * points
-    # length of the square diagonal should be 2
-    above_left = my_grid[:, 0, 0]
-    down_right = my_grid[:, -1, -1]
-    diag_len = np.sqrt(8)
-    assert np.isclose(np.linalg.norm(down_right - above_left), diag_len)
-    # select_only_faces
-    my_faces = select_only_faces(my_grid)
-    N = points + points + points - 2 + points - 2
-    assert my_faces.shape == (N, dimensions)
-    above_left = my_faces[0, :]
-    down_right = my_faces[-1, :]
-    assert np.isclose(np.linalg.norm(down_right - above_left), diag_len)
-    for i in range(points):
-        assert my_grid[:, 0, i] in my_faces
-        assert my_grid[:, points - 1, i] in my_faces
-        assert my_grid[:, i, 0] in my_faces
-        assert my_grid[:, i, points - 1] in my_faces
-    # project_cube_grid_on_sphere
-    my_sphere = project_grid_on_sphere(my_faces)
-    assert my_sphere.shape == (N, dimensions)
-    for sph_point in my_sphere:
-        assert np.isclose(np.linalg.norm(sph_point), 1)
-    # select_half_sphere
-    my_half_sphere = select_half_sphere(my_sphere)
-    assert my_half_sphere.shape == (N//2, dimensions) or (N//2 + 1, dimensions)
-    for sph_point in my_half_sphere:
-        assert np.isclose(np.linalg.norm(sph_point), 1)
-        x, y = sph_point
-        assert [x, -y] not in my_half_sphere.tolist()
-        assert [x, -y] in my_sphere
-
-
-def test_grid_3D():
-    points = 12
-    dimensions = 3
-    # classic_grid_d_cube
-    my_grid = classic_grid_d_cube(points, dimensions)
-    assert my_grid.shape == (dimensions, points, points, points)
-    flattened = my_grid.reshape((-1, dimensions))
-    assert len(flattened) == points * points * points
-    # length of the square diagonal should be 2
-    above_left = my_grid[:, 0, 0, 0]
-    down_right = my_grid[:, -1, -1, -1]
-    dia_len = 3.4641016151377544
-    assert np.isclose(np.linalg.norm(down_right - above_left), dia_len)
-    # select_only_faces
-    my_faces = select_only_faces(my_grid)
-    N = points * points * 6 - 12 * points + 8
-    assert my_faces.shape == (N, dimensions)
-    above_left = my_faces[0, :]
-    down_right = my_faces[-1, :]
-    assert np.isclose(np.linalg.norm(down_right - above_left), dia_len)
-    for i in range(points):
-        assert my_grid[:, 0, i, 0] in my_faces
-        assert my_grid[:, points - 1, i, 0] in my_faces
-        assert my_grid[:, i, 0, 0] in my_faces
-        assert my_grid[:, i, points - 1, 0] in my_faces
-        assert my_grid[:, 0, 0, i] in my_faces
-        assert my_grid[:, 0, -1, 0] in my_faces
-        assert my_grid[:, -1, 0, i] in my_faces
-        assert my_grid[:, -1, -1, 0] in my_faces
-        assert my_grid[:, 0, i, -1] in my_faces
-        assert my_grid[:, points - 1, i, -1] in my_faces
-        assert my_grid[:, i, 0, -1] in my_faces
-        assert my_grid[:, i, points - 1, -1] in my_faces
-    # project_cube_grid_on_sphere
-    my_sphere = project_grid_on_sphere(my_faces)
-    assert my_sphere.shape == (N, dimensions)
-    for sph_point in my_sphere:
-        assert np.isclose(np.linalg.norm(sph_point), 1)
-    # select_half_sphere
-    my_half_sphere = select_half_sphere(my_sphere)
-    assert my_half_sphere.shape == (N//2, dimensions) or (N//2 + 1, dimensions)
-    for sph_point in my_half_sphere:
-        assert np.isclose(np.linalg.norm(sph_point), 1)
-        x, y, z = sph_point
-        assert [x, -y, -z] not in my_half_sphere.tolist()
-        assert [x, -y, -z] in my_sphere
 
 
 def test_ordering():
@@ -107,6 +19,4 @@ def test_ordering():
 
 
 if __name__ == "__main__":
-    test_grid_2D()
-    test_grid_3D()
     test_ordering()

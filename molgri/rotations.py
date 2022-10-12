@@ -1,5 +1,5 @@
 import numpy as np
-from numpy._typing import ArrayLike
+from numpy.typing import ArrayLike
 from scipy.spatial.transform import Rotation
 
 

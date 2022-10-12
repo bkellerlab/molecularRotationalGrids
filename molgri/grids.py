@@ -7,10 +7,10 @@ from scipy.spatial import distance_matrix
 from scipy.spatial.distance import cdist
 
 from .analysis import random_sphere_points, unit_dist_on_sphere
-from .rotations import grid2quaternion, grid2euler, quaternion2grid, euler2grid
 from .constants import DEFAULT_SEED, SIX_METHOD_NAMES, UNIQUE_TOL
 from .parsers import NameParser
 from .paths import PATH_OUTPUT_ROTGRIDS, PATH_OUTPUT_STAT
+from .rotations import grid2quaternion, grid2euler, quaternion2grid, euler2grid
 from .wrappers import time_method
 
 
@@ -234,6 +234,40 @@ class CubePolytope(Polytope):
             assert len(node[1]["face"]) == 3 and node[1]["level"] == 0
         self.side_len = self.side_len / 2
 
+
+def _calc_edges(vertices: np.ndarray, side_len: float) -> dict:
+    """
+    Needed for the determination of edges while setting up a polytope. If a bit weird, keep in mind this is a legacy
+    function. Do not use on its own.
+
+    Args:
+        vertices: an array of polytope vertices
+        side_len: everything < sqrt(2)*side_len apart will be considered a neighbour
+
+    Returns:
+        a dictionary, key is the vertex, values are its neighbours
+    """
+    dist = distance_matrix(vertices, vertices)
+    # filter points more than 0 and less than sqrt(2)*side away from each other
+    # this gives exactly triangles and squares as neighbours
+    where_result = np.where((dist <= np.sqrt(2)*side_len) & (0 < dist))
+    indices_min_dist = zip(where_result[0], where_result[1])
+    # key is the vertex, values are its neighbours
+    tree_connections = {tuple(vert): [] for vert in vertices}
+    for i1, i2 in indices_min_dist:
+        tree_connections[tuple(vertices[i1])].append(vertices[i2])
+    return tree_connections
+
+
+def second_neighbours(graph: nx.Graph, node):
+    """Yield second neighbors of node in graph.
+    Neighbors are not not unique!
+    """
+    for neighbor_list in [graph.neighbors(n) for n in graph.neighbors(node)]:
+        for n in neighbor_list:
+            yield n
+
+
 class Grid(ABC):
 
     def __init__(self, N: int, *, ordered: bool = True, use_saved: bool = False, gen_alg: str = None,
@@ -352,6 +386,64 @@ class Grid(ABC):
         np.save(f"{PATH_OUTPUT_STAT}{self.standard_name}_{unit}.npy", stat_data)
 
 
+def order_grid_points(grid: np.ndarray, N: int, start_i: int = 1) -> np.ndarray:
+    """
+    You are provided with a (possibly) unordered grid and return a grid with N points ordered in such a way that
+    these N points have the best possible coverage.
+
+    Args:
+        grid: grid, array of shape (L, 3) to be ordered where L should be >= N
+        N: number of grid points wished at the end
+        start_i: from which index to start ordering (in case the first i elements already ordered)
+
+    Returns:
+        an array of shape (N, 3) ordered in such a way that these N points have the best possible coverage.
+    """
+    if N > len(grid):
+        print(f"Warning! N>len(grid)! Only {len(grid)} points will be returned!")
+    for index in range(start_i, min(len(grid), N)):
+        grid = select_next_gridpoint(grid, index)
+    return grid[:N]
+
+
+def project_grid_on_sphere(grid: np.ndarray) -> np.ndarray:
+    """
+    A grid can be seen as a collection of vectors to gridpoints. If a vector is scaled to 1, it will represent a point
+    on a unit sphere in d-1 dimensions. This function normalizes the vectors, creating vectors pointing to the
+    surface of a d-1 dimensional sphere.
+
+    Args:
+        grid: a (N, d) array where each row represents the coordinates of a grid point
+
+    Returns:
+        a (N, d) array where each row has been scaled to length 1
+    """
+    largest_abs = np.max(np.abs(grid), axis=1)[:, np.newaxis]
+    grid = np.divide(grid, largest_abs)
+    norms = np.linalg.norm(grid, axis=1)[:, np.newaxis]
+    return np.divide(grid, norms)
+
+
+def select_next_gridpoint(set_grid_points, i):
+    """
+    Provide a set of grid points where the first i are already sorted. Find the best next gridpoint out of points
+    in set_grid_points[i:]
+
+    Args:
+        set_grid_points: grid, array of shape (L, 3) where elements up to i are already ordered
+        i: index how far the array is already ordered (up to bun not including i).
+
+    Returns:
+        set_grid_points where the ith element in swapped with the best possible next grid point
+    """
+    distances = cdist(set_grid_points[i:], set_grid_points[:i], metric="cosine")
+    distances.sort()
+    nn_dist = distances[:, 0]
+    index_max = np.argmax(nn_dist)
+    set_grid_points[[i, i + index_max]] = set_grid_points[[i + index_max, i]]
+    return set_grid_points
+
+
 class RandomQGrid(Grid):
 
     def __init__(self, N: int, **kwargs):
@@ -404,21 +496,74 @@ class Cube4DGrid(Grid):
 
     def __init__(self, N: int, **kwargs):
         super().__init__(N, gen_alg="cube4D", **kwargs)
-        np.random.seed(1)
+        self.d = 4  # dimensions
 
     def generate_grid(self):
         self.grid = []
         num_divisions = 1
         state_before = np.random.get_state()
         while len(self.grid) < self.N:
-            grid_qua = cube_grid_on_sphere(num_divisions, 4)
-            grid_qua = select_half_sphere(grid_qua)
+            grid_qua = self._full_d_dim_grid()
+            grid_qua = self._select_only_faces(grid_qua)
+            grid_qua = project_grid_on_sphere(grid_qua)
+            # select only half the sphere
+            grid_qua = grid_qua[grid_qua[:, self.d - 1] >= 0, :]
             # convert to grid
             self.grid = quaternion2grid(grid_qua)
             self.grid = np.unique(np.round(self.grid, UNIQUE_TOL), axis=0)
             num_divisions += 1
         np.random.set_state(state_before)
         super().generate_grid()
+
+    def _full_d_dim_grid(self, cheb: bool = False, change_start: float = 0, change_end: float = 0,
+                         dtype=np.float64) -> np.ndarray:
+        """
+        This is a function to create a classical grid of a d-dimensional cube. It creates a grid over the entire
+        (hyper)volume of the (hyper)cube.
+
+        This is a unit cube between -sqrt(1/d) and sqrt(1/d) in all dimensions where d = num of dimensions.
+
+        Args:
+            cheb: use Chebyscheff points instead of equally spaced points
+            change_start: add or subtract from -sqrt(1/d) as the start of the grid
+            change_end: add or subtract from sqrt(1/d) as the end of the grid
+            dtype: forwarded to linspace while creating a grid
+
+        Returns:
+            a meshgrid of dimension (d, n, n, .... n) where n is repeated d times
+        """
+        if cheb:
+            from numpy.polynomial.chebyshev import chebpts1
+            side = chebpts1(self.N)
+        else:
+            # np.sqrt(1/d)
+            side = np.linspace(-1 + change_start, 1 - change_end, self.N, dtype=dtype)
+        # repeat the same n points d times and then make a new line of the array every d elements
+        sides = np.tile(side, self.d)
+        sides = sides[np.newaxis, :].reshape((self.d, self.N))
+        # create a grid by meshing every line of the sides array
+        return np.array(np.meshgrid(*sides))
+
+    def _select_only_faces(self, grid: np.ndarray):
+        """
+        Take a meshgrid (d, n, n, ... n)  and return an array of points (N, d) including only the points that
+        lie on the faces of the grid, so the edge points in at least one of dimensions.
+
+        Args:
+            grid: numpy array (d, n, n, ... n) containing grid points
+
+        Returns:
+            points (N, d) where N is the number of edge points and d the dimension
+        """
+        assert self.d == len(grid)
+        set_grids = []
+        for swap_i in range(self.d):
+            meshgrid_swapped = np.swapaxes(grid, axis1=1, axis2=(1 + swap_i))
+            set_grids.append(meshgrid_swapped[:, 0, ...])
+            set_grids.append(meshgrid_swapped[:, -1, ...])
+
+        result = np.hstack(set_grids).reshape((self.d, -1)).T
+        return np.unique(result, axis=0)
 
 
 class Polyhedron3DGrid(Grid):
@@ -460,198 +605,5 @@ def build_grid(grid_type: str, N: int, **kwargs) -> Grid:
     return grid_obj(N, **kwargs)
 
 
-
-def classic_grid_d_cube(n: int, d: int, cheb: bool = False, change_start: float = 0,
-                        change_end: float = 0, dtype=np.float64) -> np.ndarray:
-    """
-    This is a function to create a classical grid of a d-dimensional cube. It creates a grid over the entire
-    (hyper)volume of the (hyper)cube.
-
-    This is a unit cube between -sqrt(1/d) and sqrt(1/d) in all dimensions where d = num of dimensions.
-
-    Args:
-        n: number of grid points in each dimension
-        d: number of dimensions of the cube
-        cheb: use Chebyscheff points instead of equally spaced points
-        change_start: add or subtract from -sqrt(1/d) as the start of the grid
-        change_end: add or subtract from sqrt(1/d) as the end of the grid
-        dtype: forwarded to linspace while creating a grid
-
-    Returns:
-        a meshgrid of dimension (d, n, n, .... n) where n is repeated d times
-    """
-    if cheb:
-        from numpy.polynomial.chebyshev import chebpts1
-        side = chebpts1(n)
-    else:
-        # np.sqrt(1/d)
-        side = np.linspace(-1 + change_start, 1 - change_end, n, dtype=dtype)
-    # repeat the same n points d times and then make a new line of the array every d elements
-    sides = np.tile(side, d)
-    sides = sides[np.newaxis, :].reshape((d, n))
-    # create a grid by meshing every line of the sides array
-    return np.array(np.meshgrid(*sides))
-
-
-def sukharev_grid_d_cube(n: int, d: int) -> np.ndarray:
-    """
-    This is almost like the classic grid, just points at mid-cells instead of at the edges
-    NOT TESTED
-    """
-    step = 2*np.sqrt(1/d) / n
-    return classic_grid_d_cube(n, d, change_start=step/2, change_end=-step/2)
-
-
-def select_only_faces(grid: np.ndarray) -> np.ndarray:
-    """
-    Take a meshgrid (d, n, n, ... n)  and return an array of points (N, d) including only the points that
-    lie on the faces of the grid, so the edge points in at least one of dimensions.
-
-    Args:
-        grid: numpy array (d, n, n, ... n) containing grid points
-
-    Returns:
-        points (N, d) where N is the number of edge points and d the dimension
-    """
-    d = len(grid)
-    set_grids = []
-    for swap_i in range(d):
-        meshgrid_swapped = np.swapaxes(grid, axis1=1, axis2=(1+swap_i))
-        set_grids.append(meshgrid_swapped[:, 0, ...])
-        set_grids.append(meshgrid_swapped[:, -1, ...])
-
-    result = np.hstack(set_grids).reshape((d, -1)).T
-    return np.unique(result, axis=0)
-
-
-def project_grid_on_sphere(grid: np.ndarray) -> np.ndarray:
-    """
-    A grid can be seen as a collection of vectors to gridpoints. If a vector is scaled to 1, it will represent a point
-    on a unit sphere in d-1 dimensions. This function normalizes the vectors, creating vectors pointing to the
-    surface of a d-1 dimensional sphere.
-
-    Args:
-        grid: a (N, d) array where each row represents the coordinates of a grid point
-
-    Returns:
-        a (N, d) array where each row has been scaled to length 1
-    """
-    largest_abs = np.max(np.abs(grid), axis=1)[:, np.newaxis]
-    grid = np.divide(grid, largest_abs)
-    norms = np.linalg.norm(grid, axis=1)[:, np.newaxis]
-    return np.divide(grid, norms)
-
-
-def select_half_sphere(grid: np.ndarray) -> np.ndarray:
-    """
-    In order to sample SO(3) rotations, we only sample half of the sphere. This function takes a grid and returns
-    the same grid with only positive values for the last dimension
-
-    Args:
-        grid: an array of points, shape (N, d)
-
-    Returns:
-        an array of points, shape (N//2, d), first components of each row >= 0)
-    """
-    d = grid.shape[1]
-    grid_pos = grid[grid[:, d-1] >= 0, :]
-    return grid_pos
-
-
-def cube_grid_on_sphere(n: int, d: int = 3) -> np.ndarray:
-    """
-    Note: n is not the end number of points, but the number of points per side. For 3D cubes, the final number of
-    points can be calculated as: n*n*6 - 12*n + 8, so for example:
-    n=2, d=3 -> return array of shape (8, 3)
-    n=3, d=3 -> return array of shape (26, 3)
-    n=4, d=3 -> return array of shape (56, 3)
-
-    Args:
-        n: number of grid points in each dimension
-        d: number of dimensions of the cube
-
-    Returns:
-        an array of points on a surface of a d-dim sphere, each line one point
-    """
-    grid_qua = classic_grid_d_cube(n, d)
-    grid_qua = select_only_faces(grid_qua)
-    grid_qua = project_grid_on_sphere(grid_qua)
-    return grid_qua
-
-
-def _calc_edges(vertices: np.ndarray, side_len: float) -> dict:
-    """
-    Needed for the determination of edges while setting up a polytope. If a bit weird, keep in mind this is a legacy
-    function. Do not use on its own.
-
-    Args:
-        vertices: an array of polytope vertices
-        side_len: everything < sqrt(2)*side_len apart will be considered a neighbour
-
-    Returns:
-        a dictionary, key is the vertex, values are its neighbours
-    """
-    dist = distance_matrix(vertices, vertices)
-    # filter points more than 0 and less than sqrt(2)*side away from each other
-    # this gives exactly triangles and squares as neighbours
-    where_result = np.where((dist <= np.sqrt(2)*side_len) & (0 < dist))
-    indices_min_dist = zip(where_result[0], where_result[1])
-    # key is the vertex, values are its neighbours
-    tree_connections = {tuple(vert): [] for vert in vertices}
-    for i1, i2 in indices_min_dist:
-        tree_connections[tuple(vertices[i1])].append(vertices[i2])
-    return tree_connections
-
-
-def second_neighbours(graph: nx.Graph, node):
-    """Yield second neighbors of node in graph.
-    Neighbors are not not unique!
-    """
-    for neighbor_list in [graph.neighbors(n) for n in graph.neighbors(node)]:
-        for n in neighbor_list:
-            yield n
-
-
-
-
-
-def order_grid_points(grid: np.ndarray, N: int, start_i: int = 1) -> np.ndarray:
-    """
-    You are provided with a (possibly) unordered grid and return a grid with N points ordered in such a way that
-    these N points have the best possible coverage.
-
-    Args:
-        grid: grid, array of shape (L, 3) to be ordered where L should be >= N
-        N: number of grid points wished at the end
-        start_i: from which index to start ordering (in case the first i elements already ordered)
-
-    Returns:
-        an array of shape (N, 3) ordered in such a way that these N points have the best possible coverage.
-    """
-    if N > len(grid):
-        print(f"Warning! N>len(grid)! Only {len(grid)} points will be returned!")
-    for index in range(start_i, min(len(grid), N)):
-        grid = select_next_gridpoint(grid, index)
-    return grid[:N]
-
-
-def select_next_gridpoint(set_grid_points, i):
-    """
-    Provide a set of grid points where the first i are already sorted. Find the best next gridpoint out of points
-    in set_grid_points[i:]
-
-    Args:
-        set_grid_points: grid, array of shape (L, 3) where elements up to i are already ordered
-        i: index how far the array is already ordered (up to bun not including i).
-
-    Returns:
-        set_grid_points where the ith element in swapped with the best possible next grid point
-    """
-    distances = cdist(set_grid_points[i:], set_grid_points[:i], metric="cosine")
-    distances.sort()
-    nn_dist = distances[:, 0]
-    index_max = np.argmax(nn_dist)
-    set_grid_points[[i, i + index_max]] = set_grid_points[[i + index_max, i]]
-    return set_grid_points
 
 

@@ -1,19 +1,22 @@
-from molgri.grids import Grid
-from molgri.constants import DEFAULT_DISTANCES
-from molgri.parsers import BaseGroParser
-from molgri.paths import PATH_INPUT_BASEGRO, PATH_OUTPUT_PT
-from molgri.wrappers import time_method
+from .grids import Grid
+from .constants import DEFAULT_DISTANCES
+from .parsers import BaseGroParser
+from .paths import PATH_INPUT_BASEGRO, PATH_OUTPUT_PT
+from .wrappers import time_method
 
 
 class TwoMoleculeGro:
 
-    def __init__(self, name_central_gro, name_rotating_gro, result_name_gro=None):
+    def __init__(self, name_central_gro: str, name_rotating_gro: str, result_name_gro=None):
         """
         We read in two base gro files, each containing one molecule. Capable of writing a new gro file that
-        contains one or more time steps in which the second molecule moves around. First molecule is only read in as lines
+        contains one or more time steps in which the second molecule moves around. First molecule is only read
+        and the lines copied at every step; second molecule is read and represented with Atom objects which can rotate
+        and translate.
+
         Args:
-            name_central_gro:
-            name_rotating_gro:
+            name_central_gro: name of the molecule that stays fixed
+            name_rotating_gro: name of the molecule that moves in a pseudotrajectory
         """
         central_file_path = f"{PATH_INPUT_BASEGRO}{name_central_gro}.gro"
         rotating_file_path = f"{PATH_INPUT_BASEGRO}{name_rotating_gro}.gro"
@@ -22,12 +25,12 @@ class TwoMoleculeGro:
         else:
             result_file_path = f"{PATH_OUTPUT_PT}{result_name_gro}.gro"
         self.f = open(result_file_path, "w")
-        self.cental_parser = BaseGroParser(central_file_path, parse_atoms=False)
+        self.central_parser = BaseGroParser(central_file_path, parse_atoms=False)
         # parse rotating file as Atoms
         self.rotating_parser = BaseGroParser(rotating_file_path, parse_atoms=True)
 
     def _write_comment_num(self, frame_num=0):
-        num_atoms_cen = self.cental_parser.num_atoms
+        num_atoms_cen = self.central_parser.num_atoms
         num_atoms_rotating = self.rotating_parser.num_atoms
         # write comment
         self.f.write(f"c_num={num_atoms_cen}, r_num={num_atoms_rotating}, t={frame_num}\n")
@@ -35,11 +38,11 @@ class TwoMoleculeGro:
         self.f.write(f"{num_atoms_cen + num_atoms_rotating:5}\n")
 
     def _write_first_molecule(self):
-        self.f.writelines(self.cental_parser.atom_lines_nm)
+        self.f.writelines(self.central_parser.atom_lines_nm)
 
     def _write_current_second_molecule(self, residue="SOL"):
         # translate the atoms of the second file and write them
-        num_atoms_cen = self.cental_parser.num_atoms
+        num_atoms_cen = self.central_parser.num_atoms
         num_atom = num_atoms_cen + 1
         num_molecule = 2
         hydrogen_counter = 1
@@ -51,7 +54,7 @@ class TwoMoleculeGro:
             num_atom += 1
 
     def _write_box(self):
-        for box_el in self.cental_parser.box:
+        for box_el in self.central_parser.box:
             self.f.write(f"\t{box_el}")
         self.f.write("\n")
 
@@ -73,7 +76,7 @@ class TwoMoleculeGro:
 
 class Pseudotrajectory(TwoMoleculeGro):
 
-    def __init__(self, name_central_gro, name_rotating_gro, grid: Grid, traj_type="full"):
+    def __init__(self, name_central_gro: str, name_rotating_gro: str, grid: Grid, traj_type="full"):
         grid_name = grid.standard_name  # for example ico_500
         pseudo_name = f"{name_central_gro}_{name_rotating_gro}_{grid_name}_{traj_type}"
         self.pt_name = pseudo_name
@@ -87,10 +90,10 @@ class Pseudotrajectory(TwoMoleculeGro):
         """
         This does not deal with any radii yet, only with rotations.
         Args:
-            frame_index:
+            frame_index: index of the last frame written
 
         Returns:
-
+            the new frame index after all rotations completed
         """
         frame_index = frame_index
         for one_rotation in self.quaternions:
