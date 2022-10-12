@@ -1,7 +1,7 @@
 import numpy as np
 from mendeleev import element
 
-from molgri.parsers import NameParser, BaseGroParser
+from molgri.parsers import NameParser, BaseGroParser, TranslationParser
 
 
 def test_atom_gro_file():
@@ -80,8 +80,30 @@ def test_name_parser():
     assert np3.get_standard_name() == "CL_NA_ico_5_full"
 
 
+def test_trans_parser():
+    assert np.allclose(TranslationParser("1").get_trans_grid(), np.array([1]))
+    assert np.allclose(TranslationParser("2.14").get_trans_grid(), np.array([2.14]))
+    assert np.allclose(TranslationParser("(2, 3.5, 4)").get_trans_grid(), np.array([2, 3.5, 4]))
+    assert np.allclose(TranslationParser("[16, 2, 11]").get_trans_grid(), np.array([2, 11, 16]))
+    assert np.allclose(TranslationParser("1, 2.7, 2.6").get_trans_grid(), np.array([1, 2.6, 2.7]))
+    assert np.allclose(TranslationParser("linspace(2, 6, 5)").get_trans_grid(), np.linspace(2, 6, 5))
+    assert np.allclose(TranslationParser("linspace (2, 6, 5)").get_trans_grid(), np.linspace(2, 6, 5))
+    assert np.allclose(TranslationParser("linspace(2, 6)").get_trans_grid(), np.linspace(2, 6, 50))
+    assert np.allclose(TranslationParser("range(2, 7, 2)").get_trans_grid(), np.arange(2, 7, 2))
+    assert np.allclose(TranslationParser("range(2, 7)").get_trans_grid(), np.arange(2, 7))
+    assert np.allclose(TranslationParser("arange(2, 7)").get_trans_grid(), np.arange(2, 7))
+    assert np.allclose(TranslationParser("range(7)").get_trans_grid(), np.arange(7))
+    assert np.allclose(TranslationParser("range(7.3)").get_trans_grid(), np.arange(7.3))
+    assert np.allclose(TranslationParser("arange(7.3)").get_trans_grid(), np.arange(7.3))
+    # increments
+    assert np.allclose(TranslationParser("[5, 6.5, 7, 12]").get_increments(), np.array([5, 1.5, 0.5, 5]))
+    assert np.allclose(TranslationParser("[5, 12, 6.5, 7]").get_increments(), np.array([5, 1.5, 0.5, 5]))
+    assert np.allclose(TranslationParser("[12, 5, 6.5, 7]").get_increments(), np.array([5, 1.5, 0.5, 5]))
+
+
 if __name__ == '__main__':
     test_atom_gro_file()
     test_water_gro_file()
     test_protein_gro_file()
     test_name_parser()
+    test_trans_parser()

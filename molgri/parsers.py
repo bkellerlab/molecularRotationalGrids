@@ -1,3 +1,6 @@
+import re
+import numbers
+
 import numpy as np
 from mendeleev.fetch import fetch_table
 from ast import literal_eval
@@ -227,3 +230,37 @@ class BaseGroParser:
             list_atom_names.append(element_name)
             list_atom_pos.append([x_pos_nm, y_pos_nm, z_pos_nm])
         return list_gro_labels, list_atom_names, list_atom_pos
+
+
+class TranslationParser(object):
+
+    def __init__(self, user_input: str):
+        self.user_input = user_input
+        if "linspace" in self.user_input:
+            bracket_input = self._read_within_brackets()
+            self.trans_grid = np.linspace(*bracket_input)
+        elif "range" in self.user_input:
+            bracket_input = self._read_within_brackets()
+            self.trans_grid = np.arange(*bracket_input)
+        else:
+            self.trans_grid = literal_eval(self.user_input)
+            self.trans_grid = np.array(self.trans_grid)
+            self.trans_grid = np.sort(self.trans_grid, axis=None)
+
+    def get_trans_grid(self) -> np.ndarray:
+        return self.trans_grid
+
+    def get_increments(self):
+        increment_grid = [self.trans_grid[0]]
+        for start, stop in zip(self.trans_grid, self.trans_grid[1:]):
+            increment_grid.append(stop-start)
+        increment_grid = np.array(increment_grid)
+        assert np.all(increment_grid > 0), "Negative or zero increments in translation grid make no sense!"
+        return increment_grid
+
+    def _read_within_brackets(self) -> tuple:
+        str_in_brackets = self.user_input.split('(', 1)[1].split(')')[0]
+        str_in_brackets = literal_eval(str_in_brackets)
+        if isinstance(str_in_brackets,numbers.Number):
+            str_in_brackets = tuple((str_in_brackets,))
+        return str_in_brackets

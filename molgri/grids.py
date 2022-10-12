@@ -495,8 +495,8 @@ class SystemEGrid(Grid):
 class Cube4DGrid(Grid):
 
     def __init__(self, N: int, **kwargs):
-        super().__init__(N, gen_alg="cube4D", **kwargs)
         self.d = 4  # dimensions
+        super().__init__(N, gen_alg="cube4D", **kwargs)
 
     def generate_grid(self):
         self.grid = []

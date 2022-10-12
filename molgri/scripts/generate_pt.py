@@ -9,7 +9,7 @@ from ast import literal_eval
 import numpy as np
 
 from ..paths import PATH_INPUT_BASEGRO
-from molgri.parsers import NameParser
+from molgri.parsers import NameParser, TranslationParser
 from ..scripts.generate_grid import prepare_grid
 from ..scripts.set_up_io import freshly_create_all_folders
 
@@ -51,13 +51,8 @@ def check_file_existence(args):
                                 "Please provide a valid .gro file name as the second script parameter.")
     # if the rotational grid file doesn't exist, create it
     rot_grid = prepare_grid(args, nap)
-    # assert translational grid is a tuple with three parameters
-    trans_grid = literal_eval(args.transgrid)
-    assert len(trans_grid) == 3, "Translational grid must be provided as a tuple of three parameters."
-    for item in trans_grid:
-        assert isinstance(item, int), "Items in translation grid tuple should be integers."
-    # TODO: linspace is in general NOT a good enough approximation
-    trans_grid = np.linspace(*trans_grid)
+    # parse translational grid
+    trans_grid = TranslationParser(args.transgrid)
     return rot_grid, trans_grid
 
 
@@ -66,8 +61,8 @@ def prepare_pseudotrajectory(args, r_grid, t_grid):
         traj_type = "circular"
     else:
         traj_type = "full"
-    pt = Pseudotrajectory(args.m1, args.m2, grid=r_grid, traj_type=traj_type)
-    end_index = pt.generate_pt_and_time(initial_distance_nm=t_grid[0], radii=t_grid)
+    pt = Pseudotrajectory(args.m1, args.m2, rot_grid=r_grid, trans_grid=t_grid, traj_type=traj_type)
+    end_index = pt.generate_pt_and_time()
     print(f"Generated a {pt.decorator_label} with {end_index} timesteps.")
 
 

@@ -1,6 +1,8 @@
+import numpy as np
+
 from .grids import Grid
 from .constants import DEFAULT_DISTANCES
-from .parsers import BaseGroParser
+from .parsers import BaseGroParser, TranslationParser
 from .paths import PATH_INPUT_BASEGRO, PATH_OUTPUT_PT
 from .wrappers import time_method
 
@@ -76,12 +78,14 @@ class TwoMoleculeGro:
 
 class Pseudotrajectory(TwoMoleculeGro):
 
-    def __init__(self, name_central_gro: str, name_rotating_gro: str, grid: Grid, traj_type="full"):
-        grid_name = grid.standard_name  # for example ico_500
+    def __init__(self, name_central_gro: str, name_rotating_gro: str, rot_grid: Grid, trans_grid: TranslationParser,
+                 traj_type="full"):
+        grid_name = rot_grid.standard_name  # for example ico_500
         pseudo_name = f"{name_central_gro}_{name_rotating_gro}_{grid_name}_{traj_type}"
         self.pt_name = pseudo_name
         super().__init__(name_central_gro, name_rotating_gro, result_name_gro=pseudo_name)
-        self.quaternions = grid.as_quaternion()
+        self.quaternions = rot_grid.as_quaternion()
+        self.trans_grid = trans_grid
         self.traj_type = traj_type
         self.name_rotating = name_rotating_gro
         self.decorator_label = f"pseudotrajectory {pseudo_name}"
@@ -112,18 +116,18 @@ class Pseudotrajectory(TwoMoleculeGro):
             initial_atom_set.rotate_about_origin(one_rotation, method="quaternion", inverse=True)
         return frame_index
 
-    # TODO: translational grid shouldn't be an input here
-    def generate_pseudotrajectory(self, initial_distance_nm=0.26, radii=DEFAULT_DISTANCES) -> int:
+    def generate_pseudotrajectory(self) -> int:
         index = 0
+        trans_increments = self.trans_grid.get_increments()
         # initial set-up of molecules
-        self.rotating_parser.molecule_set.translate([0, 0, initial_distance_nm])
+        self.rotating_parser.molecule_set.translate([0, 0, trans_increments[0]])
         self._write_current_frame(index)
         index += 1
         if self.traj_type == "circular":
             self._gen_trajectory(frame_index=index)
         elif self.traj_type == "full":
             # go over different radii
-            for shell_d in radii[1:]:
+            for shell_d in trans_increments[1:]:
                 index = self._gen_trajectory(frame_index=index)
                 self.rotating_parser.molecule_set.translate([0, 0, shell_d])
         else:
@@ -132,5 +136,5 @@ class Pseudotrajectory(TwoMoleculeGro):
         return index
 
     @time_method
-    def generate_pt_and_time(self, *args, **kwargs) -> int:
-        return self.generate_pseudotrajectory(*args, **kwargs)
+    def generate_pt_and_time(self) -> int:
+        return self.generate_pseudotrajectory()
