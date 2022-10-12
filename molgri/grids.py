@@ -7,7 +7,7 @@ from scipy.spatial import distance_matrix
 from scipy.spatial.distance import cdist
 
 from .analysis import random_sphere_points, unit_dist_on_sphere
-from .constants import DEFAULT_SEED, SIX_METHOD_NAMES, UNIQUE_TOL
+from .constants import DEFAULT_SEED, SIX_METHOD_NAMES, UNIQUE_TOL, ENDING_GRID_FILES
 from .parsers import NameParser
 from .paths import PATH_OUTPUT_ROTGRIDS, PATH_OUTPUT_STAT
 from .rotations import grid2quaternion, grid2euler, quaternion2grid, euler2grid
@@ -379,7 +379,10 @@ class Grid(ABC):
         return euler_seq
 
     def save_grid(self):
-        np.save(f"{PATH_OUTPUT_ROTGRIDS}{self.standard_name}.npy", self.grid)
+        np.save(f"{PATH_OUTPUT_ROTGRIDS}{self.standard_name}.{ENDING_GRID_FILES}", self.grid)
+
+    def save_grid_txt(self):
+        np.savetxt(f"{PATH_OUTPUT_ROTGRIDS}{self.standard_name}.txt", self.grid)
 
     def save_statistics(self, num_random: int = 1000, unit="arch"):
         stat_data = self.get_nn_distances(num_random, unit=unit)

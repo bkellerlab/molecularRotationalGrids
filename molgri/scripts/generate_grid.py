@@ -32,6 +32,8 @@ parser.add_argument('--animate', action='store_true',
                     help='Provide an animation of the grid display.')
 parser.add_argument('--animate_ordering', action='store_true',
                     help='Provide an animation of the grid ordering.')
+parser.add_argument('--readable', action='store_true',
+                    help='Also save the grid in a human-readable.txt format.')
 
 
 def prepare_grid(args, parsed_name: NameParser) -> Grid:
@@ -46,6 +48,9 @@ def prepare_grid(args, parsed_name: NameParser) -> Grid:
         my_grid = build_grid(algo, n_points, use_saved=False, time_generation=True)
         my_grid.save_grid()
         print(f"Generated a {my_grid.decorator_label} with {my_grid.N} points.")
+    if args.readable:
+        my_grid.save_grid_txt()
+        print(f"Saved a human-readable version of rotation grid to {PATH_OUTPUT_ROTGRIDS}{name}.txt")
     return my_grid
 
 
