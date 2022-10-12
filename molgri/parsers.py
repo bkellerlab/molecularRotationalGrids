@@ -1,8 +1,9 @@
 import numpy as np
 from mendeleev.fetch import fetch_table
+from ast import literal_eval
 
-from molgri.bodies import Molecule
-from molgri.constants import MOLECULE_NAMES, SIX_METHOD_NAMES, FULL_RUN_NAME
+from .bodies import Molecule
+from .constants import MOLECULE_NAMES, SIX_METHOD_NAMES, FULL_RUN_NAME
 
 
 class NameParser:
@@ -203,7 +204,7 @@ class BaseGroParser:
                                          gro_labels=a_labels)
         else:
             self.molecule_set = None
-        self.box = tuple([float(x) for x in self.gro_file.readline().strip().split()])
+        self.box = tuple([literal_eval(x) for x in self.gro_file.readline().strip().split()])
         assert len(self.atom_lines_nm) == self.num_atoms
         self.gro_file.close()
 
