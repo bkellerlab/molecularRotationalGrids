@@ -16,6 +16,12 @@ project using
 pip install molgri
 ```
 
+## Units
+
+Please note that the unit system we employ here is the same as used by GROMACS 
+[as described here](https://manual.gromacs.org/documentation/2019/reference-manual/definitions.html). 
+Specifically, all distances should be provided as nanometers (nm).
+
 ## Simple applications: using scripts
 
 For users that simply wish to create rotational grids or psudotrajectories
