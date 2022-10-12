@@ -158,3 +158,5 @@ def random_axes_count_points(grid, alpha: float, num_random_points: int = 1000):
         num_within = count_points_within_alpha(grid, central_vector, alpha)
         all_ratios[i] = num_within/grid.N
     return all_ratios
+
+

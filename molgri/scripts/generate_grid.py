@@ -8,7 +8,7 @@ import argparse
 
 from molgri.grids import Grid, build_grid
 from molgri.parsers import NameParser
-from ..paths import PATH_OUTPUT_ROTGRIDS, PATH_OUTPUT_PLOTS, PATH_OUTPUT_ANIS
+from ..paths import PATH_OUTPUT_ROTGRIDS, PATH_OUTPUT_PLOTS, PATH_OUTPUT_ANIS, PATH_OUTPUT_STAT
 from ..constants import ENDING_GRID_FILES
 from molgri.plotting import GridPlot, AlphaViolinPlot, AlphaConvergencePlot
 from ..scripts.set_up_io import freshly_create_all_folders
@@ -59,7 +59,7 @@ def run_generate_grid():
     my_args = parser.parse_args()
     nap = NameParser(f"{my_args.algorithm}_{my_args.N}")
     grid_name = nap.get_standard_name()
-    prepare_grid(my_args, nap)
+    my_grid = prepare_grid(my_args, nap)
     if my_args.animate or my_args.animate_ordering:
         my_args.draw = True
     if my_args.draw:
@@ -74,6 +74,8 @@ def run_generate_grid():
             print(f"Animation of the grid ordering saved to {PATH_OUTPUT_ANIS}")
     if my_args.statistics:
         # create statistic data
+        my_grid.save_statistics()
+        print(f"A statistics file describing the grid {grid_name} was saved to {PATH_OUTPUT_STAT}.")
         # create violin plot
         AlphaViolinPlot(grid_name).create()
         print(f"A violin plot showing the uniformity of {grid_name} saved to {PATH_OUTPUT_PLOTS}.")

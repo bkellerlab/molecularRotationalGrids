@@ -12,7 +12,7 @@ from ..constants import PATH_USER_PATHS
 IO_FOLDER_PURPUSES = ["rotational grids", "pseudotrajectory files", "base gro files", "plots", "animations",
                       "grid statistics"]
 IO_FOLDER_DEFAULTS = ["output/grid_files/", "output/pt_files/", "input/base_gro_files/", "output/figures/",
-                      "output/animations/", "output/statistics_files"]
+                      "output/animations/", "output/statistics_files/"]
 IO_VARIABLE_NAMES = ["PATH_OUTPUT_ROTGRIDS", "PATH_OUTPUT_PT", "PATH_INPUT_BASEGRO", "PATH_OUTPUT_PLOTS",
                      "PATH_OUTPUT_ANIS", "PATH_OUTPUT_STAT"]
 

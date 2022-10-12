@@ -5,8 +5,9 @@ import numpy as np
 from scipy.constants import pi, golden
 from scipy.spatial import distance_matrix
 from scipy.spatial.distance import cdist
+import pandas as pd
 
-from .analysis import random_sphere_points, unit_dist_on_sphere
+from .analysis import random_sphere_points, unit_dist_on_sphere, random_axes_count_points
 from .constants import DEFAULT_SEED, SIX_METHOD_NAMES, UNIQUE_TOL, ENDING_GRID_FILES
 from .parsers import NameParser
 from .paths import PATH_OUTPUT_ROTGRIDS, PATH_OUTPUT_STAT
@@ -321,33 +322,33 @@ class Grid(ABC):
         self.nn_dist_arch = None
         self.nn_dist_cup = None
 
-    def get_nn_distances(self, num_random: int = 500, unit="arch") -> np.ndarray:
-        if unit == "arch" and self.nn_dist_arch is not None:
-            return self.nn_dist_arch
-        elif unit == "spherical_cap" and self.nn_dist_cup is not None:
-            # noinspection PyTypeChecker
-            return self.nn_dist_cup
-        else:
-            random_points = random_sphere_points(num_random)
-            distances = cdist(random_points, self.grid, metric="cosine")
-            distances.sort()
-            nn_dist = distances[:, 0]
-            if unit == "arch":
-                self.nn_dist_arch = nn_dist
-                return self.nn_dist_arch
-            elif unit == "spherical_cap":
-                self.nn_dist_cup = 2 * pi * (1 - np.cos(nn_dist))
-                return self.nn_dist_cup
-            else:
-                raise ValueError(f"{unit} not a valid uniformity unit, try 'arch' or 'spherical_cup")
+    # def get_nn_distances(self, num_random: int = 500, unit="arch") -> np.ndarray:
+    #     if unit == "arch" and self.nn_dist_arch is not None:
+    #         return self.nn_dist_arch
+    #     elif unit == "spherical_cap" and self.nn_dist_cup is not None:
+    #         # noinspection PyTypeChecker
+    #         return self.nn_dist_cup
+    #     else:
+    #         random_points = random_sphere_points(num_random)
+    #         distances = cdist(random_points, self.grid, metric="cosine")
+    #         distances.sort()
+    #         nn_dist = distances[:, 0]
+    #         if unit == "arch":
+    #             self.nn_dist_arch = nn_dist
+    #             return self.nn_dist_arch
+    #         elif unit == "spherical_cap":
+    #             self.nn_dist_cup = 2 * pi * (1 - np.cos(nn_dist))
+    #             return self.nn_dist_cup
+    #         else:
+    #             raise ValueError(f"{unit} not a valid uniformity unit, try 'arch' or 'spherical_cup")
 
-    def get_nn_overview(self, num_random: int = 1000, unit="arch"):
-        nn_dist = self.get_nn_distances(num_random=num_random, unit=unit)
-        min_dist = np.min(nn_dist)
-        max_dist = np.max(nn_dist)
-        average_dist = np.average(nn_dist)
-        sd = np.std(nn_dist)
-        return np.array([min_dist, max_dist, average_dist, sd])
+    # def get_nn_overview(self, num_random: int = 1000, unit="arch"):
+    #     nn_dist = self.get_nn_distances(num_random=num_random, unit=unit)
+    #     min_dist = np.min(nn_dist)
+    #     max_dist = np.max(nn_dist)
+    #     average_dist = np.average(nn_dist)
+    #     sd = np.std(nn_dist)
+    #     return np.array([min_dist, max_dist, average_dist, sd]), nn_dist
 
     @abstractmethod
     def generate_grid(self):
@@ -384,9 +385,32 @@ class Grid(ABC):
     def save_grid_txt(self):
         np.savetxt(f"{PATH_OUTPUT_ROTGRIDS}{self.standard_name}.txt", self.grid)
 
-    def save_statistics(self, num_random: int = 1000, unit="arch"):
-        stat_data = self.get_nn_distances(num_random, unit=unit)
-        np.save(f"{PATH_OUTPUT_STAT}{self.standard_name}_{unit}.npy", stat_data)
+    def save_statistics(self, num_random: int = 100, unit="arch"):
+        # first message (what measure you are using)
+        f"To test coverage of {self.standard_name}, we generate {num_random} random points on a sphere and."
+        # define alphas
+        # [pi / 6, 2 * pi / 6, 3 * pi / 6, 4 * pi / 6, 5 * pi / 6]
+        stat_data = self._generate_statistics(num_rand_points=num_random)
+        #self.get_nn_overview()
+        #stat_data = self.get_nn_distances(num_random, unit=unit)
+        print(stat_data)
+        #np.savetxt(f"{PATH_OUTPUT_STAT}{self.standard_name}_{unit}.txt", stat_data)
+
+    def _generate_statistics(self, num_rand_points: int = 100):
+        # write out short version ("N points", "min", "max", "average", "SD")
+        alphas = [pi/6, 2*pi/6, 3*pi/6, 4*pi/6, 5*pi/6]
+        ratios = [[], [], []]
+        sphere_surface = 4 * pi
+        for alpha in alphas:
+            cone_area = 2 * pi * (1-np.cos(alpha))
+            ideal_coverage = cone_area / sphere_surface
+            ratios[0].extend(random_axes_count_points(self, alpha, num_random_points=num_rand_points))
+            ratios[1].extend([alpha]*num_rand_points)
+            ratios[2].extend([ideal_coverage]*num_rand_points)
+        alpha_df = pd.DataFrame(data=np.array(ratios).T, columns=["coverages", "alphas", "ideal coverage"])
+        # write out all random points
+        # write out all distances grid_point - closest random point
+        return alpha_df.describe() #, all_random_points, all_distances
 
 
 def order_grid_points(grid: np.ndarray, N: int, start_i: int = 1) -> np.ndarray:
@@ -606,7 +630,3 @@ def build_grid(grid_type: str, N: int, **kwargs) -> Grid:
         raise ValueError(f"{grid_type} is not a valid grid type. Try 'ico', 'cube3D' ...")
     grid_obj = name2grid[grid_type]
     return grid_obj(N, **kwargs)
-
-
-
-
