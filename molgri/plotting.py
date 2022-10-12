@@ -417,7 +417,6 @@ if __name__ == "__main__":
     AlphaViolinPlot("ico_250", style_type=["talk"]).create(title="ico grid, 250")
     AlphaConvergencePlot("systemE", style_type=["talk"]).create(title="Convergence of systemE")
     # examples of polyhedra
-    PolytopePlot("ico", num_divisions=2, faces={0, 1, 2, 3, 4}).create(equalize=True, elev=190, azim=120, pos_limit=0.55,
-                                                            neg_limit=-0.6)
-    PolytopePlot("cube3D", num_divisions=3).create(equalize=True, elev=0, azim=0, pos_limit=0.7,
-                                                               neg_limit=-0.7)
+    PolytopePlot("ico", num_divisions=2, faces={0, 1, 2, 3, 4}).create(equalize=True, elev=190, azim=120,
+                                                                       pos_limit=0.55, neg_limit=-0.6)
+    PolytopePlot("cube3D", num_divisions=3).create(equalize=True, elev=0, azim=0, pos_limit=0.7, neg_limit=-0.7)

@@ -8,7 +8,7 @@ import argparse
 
 from molgri.grids import Grid, build_grid
 from molgri.parsers import NameParser
-from ..paths import PATH_OUTPUT_ROTGRIDS, PATH_OUTPUT_GRIDPLOT, PATH_OUTPUT_GRID_ANI
+from ..paths import PATH_OUTPUT_ROTGRIDS, PATH_OUTPUT_PLOTS, PATH_OUTPUT_ANIS
 from ..constants import ENDING_GRID_FILES
 from molgri.plotting import GridPlot
 from ..scripts.set_up_io import freshly_create_all_folders
@@ -59,15 +59,15 @@ def run_generate_grid():
     if my_args.animate or my_args.animate_ordering:
         my_args.draw = True
     if my_args.draw:
-        my_gp = GridPlot(grid_name, empty=True, title=False)
+        my_gp = GridPlot(grid_name, style_type=["talk", "empty"])
         my_gp.create()
-        print(f"Grid drawn and figure saved to {PATH_OUTPUT_GRIDPLOT}.")
+        print(f"Grid drawn and figure saved to {PATH_OUTPUT_PLOTS}.")
         if my_args.animate:
             my_gp.animate_figure_view()
-            print(f"Animation of the grid saved to {PATH_OUTPUT_GRID_ANI}")
+            print(f"Animation of the grid saved to {PATH_OUTPUT_ANIS}")
         if my_args.animate_ordering:
             my_gp.animate_grid_sequence()
-            print(f"Animation of the grid ordering saved to {PATH_OUTPUT_GRID_ANI}")
+            print(f"Animation of the grid ordering saved to {PATH_OUTPUT_ANIS}")
 
 
 if __name__ == '__main__':
