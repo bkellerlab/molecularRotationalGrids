@@ -296,6 +296,8 @@ class Grid(ABC):
         self.time = 0
         self.nn_dist_arch = None
         self.nn_dist_cup = None
+        self.short_statistics_path = f"{PATH_OUTPUT_STAT}{self.standard_name}_short_stat.txt"
+        self.statistics_path = f"{PATH_OUTPUT_STAT}{self.standard_name}_full_stat.csv"
         gen_func = self.generate_and_time if time_generation else self.generate_grid
         # if this option enabled, search first if this grid has already been saved
         if use_saved:
@@ -321,34 +323,6 @@ class Grid(ABC):
         self.time = 0
         self.nn_dist_arch = None
         self.nn_dist_cup = None
-
-    # def get_nn_distances(self, num_random: int = 500, unit="arch") -> np.ndarray:
-    #     if unit == "arch" and self.nn_dist_arch is not None:
-    #         return self.nn_dist_arch
-    #     elif unit == "spherical_cap" and self.nn_dist_cup is not None:
-    #         # noinspection PyTypeChecker
-    #         return self.nn_dist_cup
-    #     else:
-    #         random_points = random_sphere_points(num_random)
-    #         distances = cdist(random_points, self.grid, metric="cosine")
-    #         distances.sort()
-    #         nn_dist = distances[:, 0]
-    #         if unit == "arch":
-    #             self.nn_dist_arch = nn_dist
-    #             return self.nn_dist_arch
-    #         elif unit == "spherical_cap":
-    #             self.nn_dist_cup = 2 * pi * (1 - np.cos(nn_dist))
-    #             return self.nn_dist_cup
-    #         else:
-    #             raise ValueError(f"{unit} not a valid uniformity unit, try 'arch' or 'spherical_cup")
-
-    # def get_nn_overview(self, num_random: int = 1000, unit="arch"):
-    #     nn_dist = self.get_nn_distances(num_random=num_random, unit=unit)
-    #     min_dist = np.min(nn_dist)
-    #     max_dist = np.max(nn_dist)
-    #     average_dist = np.average(nn_dist)
-    #     sd = np.std(nn_dist)
-    #     return np.array([min_dist, max_dist, average_dist, sd]), nn_dist
 
     @abstractmethod
     def generate_grid(self):
@@ -385,32 +359,50 @@ class Grid(ABC):
     def save_grid_txt(self):
         np.savetxt(f"{PATH_OUTPUT_ROTGRIDS}{self.standard_name}.txt", self.grid)
 
-    def save_statistics(self, num_random: int = 100, unit="arch"):
+    def save_statistics(self, num_random: int = 100, print_message=False):
         # first message (what measure you are using)
-        f"To test coverage of {self.standard_name}, we generate {num_random} random points on a sphere and."
-        # define alphas
-        # [pi / 6, 2 * pi / 6, 3 * pi / 6, 4 * pi / 6, 5 * pi / 6]
-        stat_data = self._generate_statistics(num_rand_points=num_random)
-        #self.get_nn_overview()
-        #stat_data = self.get_nn_distances(num_random, unit=unit)
-        print(stat_data)
-        #np.savetxt(f"{PATH_OUTPUT_STAT}{self.standard_name}_{unit}.txt", stat_data)
+        newline = "\n"
+        m1 = f"STATISTICS: Testing the coverage of grid {self.standard_name} using {num_random} " \
+             f"random points on a sphere."
+        m2 = f"We select {num_random} random axes and count the number of grid points that fall within the angle" \
+             f"alpha (selected from [pi / 6, 2 * pi / 6, 3 * pi / 6, 4 * pi / 6, 5 * pi / 6]) of this axis. For an" \
+             f"ideally uniform grid, we expect the ratio of num_within_alpha/total_num_points to equal the ratio" \
+             f"area_of_alpha_spherical_cap/area_of_sphere, which we call ideal coverage."
+        stat_data, full_data = self._generate_statistics(num_rand_points=num_random)
+        if print_message:
+            print(m1)
+            print(stat_data)
+        # dealing with the file
+        with open(self.short_statistics_path, "w") as f:
+            f.writelines([m1, newline, newline, m2, newline, newline])
+        stat_data.to_csv(self.short_statistics_path, mode="a")
+        full_data.to_csv(self.statistics_path, mode="w")
 
-    def _generate_statistics(self, num_rand_points: int = 100):
+    def _generate_statistics(self, num_rand_points: int = 100) -> tuple:
         # write out short version ("N points", "min", "max", "average", "SD")
+        columns = ["alphas", "ideal coverages", "min coverage", "avg coverage", "max coverage", "standard deviation"]
+        ratios_columns = ["coverages", "alphas", "ideal coverage"]
         alphas = [pi/6, 2*pi/6, 3*pi/6, 4*pi/6, 5*pi/6]
         ratios = [[], [], []]
         sphere_surface = 4 * pi
-        for alpha in alphas:
+        data = np.zeros((len(alphas), 6))  # 5 data columns for: alpha, ideal coverage, min, max, average, sd
+        for i, alpha in enumerate(alphas):
             cone_area = 2 * pi * (1-np.cos(alpha))
             ideal_coverage = cone_area / sphere_surface
-            ratios[0].extend(random_axes_count_points(self, alpha, num_random_points=num_rand_points))
+            actual_coverages = random_axes_count_points(self, alpha, num_random_points=num_rand_points)
+            ratios[0].extend(actual_coverages)
             ratios[1].extend([alpha]*num_rand_points)
             ratios[2].extend([ideal_coverage]*num_rand_points)
-        alpha_df = pd.DataFrame(data=np.array(ratios).T, columns=["coverages", "alphas", "ideal coverage"])
-        # write out all random points
-        # write out all distances grid_point - closest random point
-        return alpha_df.describe() #, all_random_points, all_distances
+            data[i][0] = alpha
+            data[i][1] = ideal_coverage
+            data[i][2] = np.min(actual_coverages)
+            data[i][3] = np.average(actual_coverages)
+            data[i][4] = np.max(actual_coverages)
+            data[i][5] = np.std(actual_coverages)
+        alpha_df = pd.DataFrame(data=data, columns=columns)
+        alpha_df = alpha_df.set_index("alphas")
+        ratios_df = pd.DataFrame(data=np.array(ratios).T, columns=ratios_columns)
+        return alpha_df, ratios_df
 
 
 def order_grid_points(grid: np.ndarray, N: int, start_i: int = 1) -> np.ndarray:

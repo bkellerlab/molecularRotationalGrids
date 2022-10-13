@@ -74,7 +74,7 @@ def run_generate_grid():
             print(f"Animation of the grid ordering saved to {PATH_OUTPUT_ANIS}")
     if my_args.statistics:
         # create statistic data
-        my_grid.save_statistics()
+        my_grid.save_statistics(print_message=True)
         print(f"A statistics file describing the grid {grid_name} was saved to {PATH_OUTPUT_STAT}.")
         # create violin plot
         AlphaViolinPlot(grid_name).create()

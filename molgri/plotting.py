@@ -9,14 +9,12 @@ from matplotlib.animation import FuncAnimation, PillowWriter
 from matplotlib.axes import Axes
 from matplotlib import ticker
 from mpl_toolkits.mplot3d.axes3d import Axes3D
-from scipy.constants import pi
 from seaborn import color_palette
 
 from .grids import build_grid, Polytope, IcosahedronPolytope, CubePolytope
 from .constants import DIM_SQUARE, DEFAULT_DPI, COLORS, DEFAULT_NS
 from .parsers import NameParser
 from .paths import PATH_OUTPUT_PLOTS, PATH_OUTPUT_ANIS
-from .analysis import random_axes_count_points
 
 
 class AbstractPlot(ABC):
@@ -320,19 +318,13 @@ class AlphaViolinPlot(AbstractPlot):
 
     def _prepare_data(self) -> pd.DataFrame:
         my_grid = build_grid(self.parsed_data_name.grid_type, self.parsed_data_name.num_grid_points, use_saved=True)
-        alphas = [pi/6, 2*pi/6, 3*pi/6, 4*pi/6, 5*pi/6]
-        ratios = [[], [], []]
-        num_rand_points = 100
-        sphere_surface = 4 * pi
-        # TODO: use saved in statistics files if they exist
-        for alpha in alphas:
-            cone_area = 2 * pi * (1-np.cos(alpha))
-            ideal_coverage = cone_area / sphere_surface
-            ratios[0].extend(random_axes_count_points(my_grid, alpha, num_random_points=num_rand_points))
-            ratios[1].extend([alpha]*num_rand_points)
-            ratios[2].extend([ideal_coverage]*num_rand_points)
-        alpha_df = pd.DataFrame(data=np.array(ratios).T, columns=["coverages", "alphas", "ideal coverage"])
-        return alpha_df
+        # if statistics file already exists, use it, else create it
+        try:
+            ratios_df = pd.read_csv(my_grid.statistics_path)
+        except FileNotFoundError:
+            my_grid.save_statistics()
+            ratios_df = pd.read_csv(my_grid.statistics_path)
+        return ratios_df
 
     def _plot_data(self, **kwargs):
         df = self._prepare_data()
