@@ -1,0 +1,1202 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, minimum-scale=1" />
+<meta name="generator" content="pdoc 0.10.0" />
+<title>molgri.plotting API documentation</title>
+<meta name="description" content="" />
+<link rel="preload stylesheet" as="style" href="https://cdnjs.cloudflare.com/ajax/libs/10up-sanitize.css/11.0.1/sanitize.min.css" integrity="sha256-PK9q560IAAa6WVRRh76LtCaI8pjTJ2z11v0miyNNjrs=" crossorigin>
+<link rel="preload stylesheet" as="style" href="https://cdnjs.cloudflare.com/ajax/libs/10up-sanitize.css/11.0.1/typography.min.css" integrity="sha256-7l/o7C8jubJiy74VsKTidCy1yBkRtiUGbVkYBylBqUg=" crossorigin>
+<link rel="stylesheet preload" as="style" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/10.1.1/styles/github.min.css" crossorigin>
+<style>:root{--highlight-color:#fe9}.flex{display:flex !important}body{line-height:1.5em}#content{padding:20px}#sidebar{padding:30px;overflow:hidden}#sidebar > *:last-child{margin-bottom:2cm}.http-server-breadcrumbs{font-size:130%;margin:0 0 15px 0}#footer{font-size:.75em;padding:5px 30px;border-top:1px solid #ddd;text-align:right}#footer p{margin:0 0 0 1em;display:inline-block}#footer p:last-child{margin-right:30px}h1,h2,h3,h4,h5{font-weight:300}h1{font-size:2.5em;line-height:1.1em}h2{font-size:1.75em;margin:1em 0 .50em 0}h3{font-size:1.4em;margin:25px 0 10px 0}h4{margin:0;font-size:105%}h1:target,h2:target,h3:target,h4:target,h5:target,h6:target{background:var(--highlight-color);padding:.2em 0}a{color:#058;text-decoration:none;transition:color .3s ease-in-out}a:hover{color:#e82}.title code{font-weight:bold}h2[id^="header-"]{margin-top:2em}.ident{color:#900}pre code{background:#f8f8f8;font-size:.8em;line-height:1.4em}code{background:#f2f2f1;padding:1px 4px;overflow-wrap:break-word}h1 code{background:transparent}pre{background:#f8f8f8;border:0;border-top:1px solid #ccc;border-bottom:1px solid #ccc;margin:1em 0;padding:1ex}#http-server-module-list{display:flex;flex-flow:column}#http-server-module-list div{display:flex}#http-server-module-list dt{min-width:10%}#http-server-module-list p{margin-top:0}.toc ul,#index{list-style-type:none;margin:0;padding:0}#index code{background:transparent}#index h3{border-bottom:1px solid #ddd}#index ul{padding:0}#index h4{margin-top:.6em;font-weight:bold}@media (min-width:200ex){#index .two-column{column-count:2}}@media (min-width:300ex){#index .two-column{column-count:3}}dl{margin-bottom:2em}dl dl:last-child{margin-bottom:4em}dd{margin:0 0 1em 3em}#header-classes + dl > dd{margin-bottom:3em}dd dd{margin-left:2em}dd p{margin:10px 0}.name{background:#eee;font-weight:bold;font-size:.85em;padding:5px 10px;display:inline-block;min-width:40%}.name:hover{background:#e0e0e0}dt:target .name{background:var(--highlight-color)}.name > span:first-child{white-space:nowrap}.name.class > span:nth-child(2){margin-left:.4em}.inherited{color:#999;border-left:5px solid #eee;padding-left:1em}.inheritance em{font-style:normal;font-weight:bold}.desc h2{font-weight:400;font-size:1.25em}.desc h3{font-size:1em}.desc dt code{background:inherit}.source summary,.git-link-div{color:#666;text-align:right;font-weight:400;font-size:.8em;text-transform:uppercase}.source summary > *{white-space:nowrap;cursor:pointer}.git-link{color:inherit;margin-left:1em}.source pre{max-height:500px;overflow:auto;margin:0}.source pre code{font-size:12px;overflow:visible}.hlist{list-style:none}.hlist li{display:inline}.hlist li:after{content:',\2002'}.hlist li:last-child:after{content:none}.hlist .hlist{display:inline;padding-left:1em}img{max-width:100%}td{padding:0 .5em}.admonition{padding:.1em .5em;margin-bottom:1em}.admonition-title{font-weight:bold}.admonition.note,.admonition.info,.admonition.important{background:#aef}.admonition.todo,.admonition.versionadded,.admonition.tip,.admonition.hint{background:#dfd}.admonition.warning,.admonition.versionchanged,.admonition.deprecated{background:#fd4}.admonition.error,.admonition.danger,.admonition.caution{background:lightpink}</style>
+<style media="screen and (min-width: 700px)">@media screen and (min-width:700px){#sidebar{width:30%;height:100vh;overflow:auto;position:sticky;top:0}#content{width:70%;max-width:100ch;padding:3em 4em;border-left:1px solid #ddd}pre code{font-size:1em}.item .name{font-size:1em}main{display:flex;flex-direction:row-reverse;justify-content:flex-end}.toc ul ul,#index ul{padding-left:1.5em}.toc > ul > li{margin-top:.5em}}</style>
+<style media="print">@media print{#sidebar h1{page-break-before:always}.source{display:none}}@media print{*{background:transparent !important;color:#000 !important;box-shadow:none !important;text-shadow:none !important}a[href]:after{content:" (" attr(href) ")";font-size:90%}a[href][title]:after{content:none}abbr[title]:after{content:" (" attr(title) ")"}.ir a:after,a[href^="javascript:"]:after,a[href^="#"]:after{content:""}pre,blockquote{border:1px solid #999;page-break-inside:avoid}thead{display:table-header-group}tr,img{page-break-inside:avoid}img{max-width:100% !important}@page{margin:0.5cm}p,h2,h3{orphans:3;widows:3}h1,h2,h3,h4,h5,h6{page-break-after:avoid}}</style>
+<script defer src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/10.1.1/highlight.min.js" integrity="sha256-Uv3H6lx7dJmRfRvH8TH6kJD1TSK1aFcwgx+mdg3epi8=" crossorigin></script>
+<script>window.addEventListener('DOMContentLoaded', () => hljs.initHighlighting())</script>
+</head>
+<body>
+<main>
+<article id="content">
+<header>
+<h1 class="title">Module <code>molgri.plotting</code></h1>
+</header>
+<section id="section-intro">
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">from abc import ABC, abstractmethod
+from typing import Union
+
+import numpy as np
+import pandas as pd
+import seaborn as sns
+from matplotlib import pyplot as plt
+from matplotlib.animation import FuncAnimation, PillowWriter
+from matplotlib.axes import Axes
+from matplotlib import ticker
+from mpl_toolkits.mplot3d.axes3d import Axes3D
+import mpl_toolkits
+from seaborn import color_palette
+
+from .grids import build_grid, Polytope, IcosahedronPolytope, CubePolytope
+from .constants import DIM_SQUARE, DEFAULT_DPI, COLORS, DEFAULT_NS
+from .parsers import NameParser
+from .paths import PATH_OUTPUT_PLOTS, PATH_OUTPUT_ANIS
+
+
+class AbstractPlot(ABC):
+    &#34;&#34;&#34;
+    Most general plotting class (for one axis per plot). Set all methods that could be useful more than one time here.
+    All other plots, including multiplots, inherit from this class.
+    &#34;&#34;&#34;
+
+    def __init__(self, data_name: str, dimensions: int = 3, style_type: list = None, fig_path: str = PATH_OUTPUT_PLOTS,
+                 ani_path: str = PATH_OUTPUT_ANIS, ax: Union[Axes, Axes3D] = None, figsize: tuple = DIM_SQUARE,
+                 plot_type: str = &#34;abs&#34;):
+        &#34;&#34;&#34;
+        Input all information that needs to be provided before fig and ax are created.
+
+        Args:
+            data_name: eg ico_500_full
+            dimensions: 2 or 3
+            style_type: a list of properties like &#39;dark&#39;, &#39;talk&#39;, &#39;empty&#39; or &#39;half_empty&#39;
+            fig_path: folder to save figures if created, should be set in subclasses
+            ani_path: folder to save animations if created, should be set in subclasses
+            ax: enables to pass an already created axis - useful for PanelPlots
+            figsize: forwarded to set up of the figure
+            plot_type: str describing the plot function, added to the name of the plot
+        &#34;&#34;&#34;
+        if style_type is None:
+            style_type = [&#34;white&#34;]
+        self.fig_path = fig_path
+        self.ani_path = ani_path
+        self.dimensions = dimensions
+        self.style_type = style_type
+        self.data_name = data_name
+        self.parsed_data_name = NameParser(self.data_name)
+        self.plot_type = plot_type
+        self.figsize = figsize
+        # here change styles that need to be set before fig and ax are created
+        sns.reset_orig()
+        plt.style.use(&#39;default&#39;)
+        if &#34;dark&#34; in style_type:
+            plt.style.use(&#39;dark_background&#39;)
+        if &#34;talk&#34; in style_type:
+            sns.set_context(&#34;talk&#34;)
+        # create the empty figure
+        self.fig = None
+        self.ax = ax
+
+    def create(self, *args, equalize=False, neg_limit=None, pos_limit=None, x_label=None, y_label=None, z_label=None,
+               title=None, save_fig=True, animate_rot=False, animate_seq=False, sci_limit_min=-4, sci_limit_max=4,
+               save_ending=&#34;pdf&#34;, dpi=600, labelpad=0, pad_inches=0, sharex=&#34;all&#34;, sharey=&#34;all&#34;, close_fig=True,
+               azim=-60, elev=30, main_ticks_only=False):
+        &#34;&#34;&#34;
+        This is the only function the user should call on subclasses. It performs the entire plotting and
+        saves the result. It uses all methods in appropriate order with appropriate values for the specific
+        plot type we are using. If requested, saves the plot and/or animations.
+        &#34;&#34;&#34;
+        self._create_fig_ax(sharex=sharex, sharey=sharey)
+        self._set_up_empty()
+        if self.dimensions == 3:
+            self.ax.view_init(azim=azim, elev=elev)
+        if equalize:
+            self._equalize_axes(neg_limit=neg_limit, pos_limit=pos_limit)
+        if x_label or y_label or z_label:
+            self._create_labels(x_label=x_label, y_label=y_label, z_label=z_label, labelpad=labelpad)
+        if title:
+            self._create_title(title=title)
+        self._plot_data()
+        self._sci_ticks(sci_limit_min, sci_limit_max)
+        if main_ticks_only:
+            if self.dimensions == 3:
+                for axis in [self.ax.xaxis, self.ax.yaxis, self.ax.zaxis]:
+                    axis.set_major_locator(ticker.MaxNLocator(integer=True))
+            else:
+                for axis in [self.ax.xaxis, self.ax.yaxis]:
+                    axis.set_major_locator(ticker.MaxNLocator(integer=True))
+        if save_fig:
+            self._save_plot(save_ending=save_ending, dpi=dpi, pad_inches=pad_inches)
+        if close_fig:
+            plt.close()
+        if animate_rot:
+            self.animate_figure_view()
+
+    # noinspection PyUnusedLocal
+    def _create_fig_ax(self, sharex: str = &#34;all&#34;, sharey: str = &#34;all&#34;):
+        &#34;&#34;&#34;
+        The parameters need to stay there to be consistent with AbstractMultiPlot, but are not used.
+
+        Args:
+            sharex: if multiplots should share the same x axis
+            sharey: if multiplots should share the same y axis
+        &#34;&#34;&#34;
+        self.fig = plt.figure(figsize=self.figsize)
+        if self.ax is None:
+            if self.dimensions == 3:
+                self.ax = self.fig.add_subplot(111, projection=&#39;3d&#39;, computed_zorder=False)
+            elif self.dimensions == 2:
+                self.ax = self.fig.add_subplot(111)
+            else:
+                raise ValueError(&#34;Only 2 or 3 dimensions possible.&#34;)
+
+    def _set_up_empty(self):
+        &#34;&#34;&#34;
+        Second part of setting up the look of the plot, this time deleting unnecessary properties.
+        Keywords to change the look of the plot are taken from the property self.style_type.
+        If &#39;half_empty&#39;, remove ticks, if &#39;empty&#39;, also any shading of the background in 3D plots.
+        The option &#39;half_dark&#39; changes background to gray, &#39;dark&#39; to black.
+        &#34;&#34;&#34;
+        if &#34;empty&#34; in self.style_type or &#34;half_empty&#34; in self.style_type:
+            self.ax.set_xticks([])
+            self.ax.set_yticks([])
+            if self.dimensions == 3:
+                self.ax.set_zticks([])
+            if &#34;empty&#34; in self.style_type:
+                self.ax.axis(&#39;off&#39;)
+        if &#34;half_dark&#34; in self.style_type:
+            color = (0.5, 0.5, 0.5, 0.7)
+            self.ax.xaxis.set_pane_color(color)
+            self.ax.yaxis.set_pane_color(color)
+            self.ax.zaxis.set_pane_color(color)
+
+    def _equalize_axes(self, neg_limit: float = None, pos_limit: float = None):
+        &#34;&#34;&#34;
+        Makes x, y, (z) axis equally longs and if limits given, enforces them on all axes.
+
+        Args:
+            neg_limit: if set, this will be min x, y, (z) value of the plot
+            pos_limit: if set, this will be max x, y, (z) value of the plot - if pos_limit set but neg_limit not,
+                       neg_limit is set to -pos_limit
+        &#34;&#34;&#34;
+        # because ax.set_aspect(&#39;equal&#39;) does not work for 3D axes
+        if self.dimensions == 3:
+            self.ax.set_box_aspect(aspect=[1, 1, 1])
+            x_lim, y_lim, z_lim = self.ax.get_xlim3d(), self.ax.get_ylim3d(), self.ax.get_zlim3d()
+            all_ranges = abs(x_lim[1] - x_lim[0]), abs(y_lim[1] - y_lim[0]), abs(z_lim[1] - z_lim[0])
+            x_middle, y_middle, z_middle = np.mean(x_lim), np.mean(y_lim), np.mean(z_lim)
+            plot_range = 0.5 * max(all_ranges)
+            self.ax.set_xlim3d([x_middle - plot_range, x_middle + plot_range])
+            self.ax.set_ylim3d([y_middle - plot_range, y_middle + plot_range])
+            self.ax.set_zlim3d([z_middle - plot_range, z_middle + plot_range])
+        else:
+            self.ax.set_aspect(&#39;equal&#39;)
+        if pos_limit is not None and neg_limit is None:
+            neg_limit = -pos_limit
+        if pos_limit and neg_limit:
+            self.ax.set_xlim(neg_limit, pos_limit)
+            self.ax.set_ylim(neg_limit, pos_limit)
+            if self.dimensions == 3:
+                self.ax.set_zlim(neg_limit, pos_limit)
+
+    @abstractmethod
+    def _prepare_data(self) -&gt; object:
+        &#34;&#34;&#34;
+        This function should only be used by the self._plot_data method to obtain the data that we wanna plot.
+
+        Returns:
+            dataframe, grid or similar construction
+        &#34;&#34;&#34;
+        pass
+
+    @abstractmethod
+    def _plot_data(self, **kwargs):
+        &#34;&#34;&#34;Here, the plotting is implemented in subclasses.&#34;&#34;&#34;
+        pass
+
+    def _create_labels(self, x_label: str = None, y_label: str = None, z_label: str = None, **kwargs):
+        if x_label:
+            self.ax.set_xlabel(x_label, **kwargs)
+        if y_label:
+            self.ax.set_ylabel(y_label, **kwargs)
+        if z_label and self.dimensions == 3:
+            self.ax.set_zlabel(z_label, **kwargs)
+
+    def _create_title(self, title: str):
+        if &#34;talk&#34; in self.style_type:
+            self.ax.set_title(title, fontsize=15)
+        else:
+            self.ax.set_title(title)
+
+    @staticmethod
+    def _sci_ticks(neg_lim: int = -4, pos_lim: int = 4):
+        try:
+            plt.ticklabel_format(style=&#39;sci&#39;, axis=&#39;x&#39;, scilimits=(neg_lim, pos_lim))
+            plt.ticklabel_format(style=&#39;sci&#39;, axis=&#39;y&#39;, scilimits=(neg_lim, pos_lim))
+        except AttributeError:
+            pass
+
+    def animate_figure_view(self) -&gt; FuncAnimation:
+        &#34;&#34;&#34;
+        Rotate the 3D figure for 360 degrees around itself and save the animation.
+        &#34;&#34;&#34;
+        plt.close()  # this is necessary
+
+        if self.dimensions == 2:
+            raise ValueError(&#34;Animation of figure rotation only available for 3D figures!&#34;)
+
+        def animate(frame):
+            # rotate the view left-right
+            self.ax.view_init(azim=2*frame)
+            plt.pause(.001)
+            return self.fig
+
+        anim = FuncAnimation(self.fig, animate, frames=180, interval=50)
+        writergif = PillowWriter(fps=10, bitrate=-1)
+        # noinspection PyTypeChecker
+        anim.save(f&#34;{self.ani_path}{self.data_name}_{self.plot_type}.gif&#34;, writer=writergif, dpi=400)
+        return anim
+
+    def _save_plot(self, save_ending: str = &#34;pdf&#34;, dpi: int = DEFAULT_DPI, **kwargs):
+        self.fig.tight_layout()
+        if self.fig_path:
+            standard_name = self.parsed_data_name.get_standard_name()
+            plt.savefig(f&#34;{self.fig_path}{standard_name}_{self.plot_type}.{save_ending}&#34;, dpi=dpi, bbox_inches=&#39;tight&#39;,
+                        **kwargs)
+        else:
+            raise ValueError(&#34;path to save the figure has not been selected!&#34;)
+        plt.close()
+
+
+class GridPlot(AbstractPlot):
+
+    def __init__(self, data_name, *, style_type: list = None, plot_type: str = &#34;grid&#34;, **kwargs):
+        &#34;&#34;&#34;
+        This class is used for plots and animations of grids.
+
+        Args:
+            data_name: in the form algorithm_N e.g. randomQ_60
+            style_type: a list of style properties like [&#39;empty&#39;, &#39;talk&#39;, &#39;half_dark&#39;]
+            plot_type: change this if you need unique name for plots with same data_name
+            **kwargs:
+        &#34;&#34;&#34;
+        if style_type is None:
+            style_type = [&#34;talk&#34;]
+        super().__init__(data_name, style_type=style_type, plot_type=plot_type, **kwargs)
+        self.grid = self._prepare_data()
+
+    def _prepare_data(self) -&gt; np.ndarray:
+        num = self.parsed_data_name.get_num()
+        orig_name = self.parsed_data_name.get_grid_type()
+        my_grid = build_grid(orig_name, num, use_saved=True).get_grid()
+        return my_grid
+
+    def _plot_data(self, **kwargs):
+        self.sc = self.ax.scatter(*self.grid.T, color=&#34;black&#34;, s=30) #, s=4)
+        self.ax.view_init(elev=10, azim=30)
+
+    def create(self, **kwargs):
+        if &#34;empty&#34; in self.style_type:
+            pad_inches = -0.2
+        else:
+            pad_inches = 0
+        super(GridPlot, self).create(equalize=True, pos_limit=1, pad_inches=pad_inches, **kwargs)
+        animate_seq = kwargs.pop(&#34;animate_seq&#34;, False)
+        if animate_seq:
+            self.animate_grid_sequence()
+
+    def animate_grid_sequence(self):
+        &#34;&#34;&#34;
+        Animate how a grid is constructed - how each individual point is added.
+
+        WARNING - I am not sure that this method always displays correct order/depth coloring - mathplotlib
+        is not the most reliable tool for 3d plots and it may change the plotting order for rendering some
+        points above others!
+        &#34;&#34;&#34;
+
+        def update(i):
+            current_colors = np.concatenate([facecolors_before[:i], all_white[i:]])
+            self.sc.set_facecolors(current_colors)
+            self.sc.set_edgecolors(current_colors)
+            return self.sc,
+
+
+        facecolors_before = self.sc.get_facecolors()
+        shape_colors = facecolors_before.shape
+        all_white = np.zeros(shape_colors)
+
+        self.ax.view_init(elev=10, azim=30)
+        self._equalize_axes(pos_limit=1, neg_limit=-1)
+        ani = FuncAnimation(self.fig, func=update, frames=len(facecolors_before), interval=5, repeat=False)
+        writergif = PillowWriter(fps=3, bitrate=-1)
+        # noinspection PyTypeChecker
+        ani.save(f&#34;{self.ani_path}{self.data_name}_{self.plot_type}_ord.gif&#34;, writer=writergif, dpi=400)
+        plt.close()
+
+
+class AlphaViolinPlot(AbstractPlot):
+
+    def __init__(self, data_name: str, *, plot_type: str = &#34;uniformity&#34;, style_type: list = None, **kwargs):
+        &#34;&#34;&#34;
+        Creates violin plots that are a measure of grid uniformity. A good grid will display minimal variation
+        along a range of angles alpha.
+
+        Args:
+            data_name: in the form algorithm_N e.g. randomQ_60
+            plot_type: change this if you need unique name for plots with same data_name
+            style_type: a list of style properties like [&#39;empty&#39;, &#39;talk&#39;, &#39;half_dark&#39;]
+            **kwargs:
+        &#34;&#34;&#34;
+        if style_type is None:
+            style_type = [&#34;white&#34;]
+        super().__init__(data_name, dimensions=2, style_type=style_type, plot_type=plot_type, **kwargs)
+
+    def _prepare_data(self) -&gt; pd.DataFrame:
+        my_grid = build_grid(self.parsed_data_name.grid_type, self.parsed_data_name.num_grid_points, use_saved=True)
+        # if statistics file already exists, use it, else create it
+        try:
+            ratios_df = pd.read_csv(my_grid.statistics_path)
+        except FileNotFoundError:
+            my_grid.save_statistics()
+            ratios_df = pd.read_csv(my_grid.statistics_path)
+        return ratios_df
+
+    def _plot_data(self, **kwargs):
+        df = self._prepare_data()
+        sns.violinplot(x=df[&#34;alphas&#34;], y=df[&#34;coverages&#34;], ax=self.ax, palette=COLORS, linewidth=1, scale=&#34;count&#34;)
+        self.ax.set_xticklabels([r&#39;$\frac{\pi}{6}$&#39;, r&#39;$\frac{2\pi}{6}$&#39;, r&#39;$\frac{3\pi}{6}$&#39;, r&#39;$\frac{4\pi}{6}$&#39;,
+                                 r&#39;$\frac{5\pi}{6}$&#39;])
+
+
+class AlphaConvergencePlot(AlphaViolinPlot):
+
+    def __init__(self, data_name: str, **kwargs):
+        &#34;&#34;&#34;
+        Creates convergence plots that show how coverages approach optimal values
+
+        Args:
+            data_name: name of the algorithm e.g. randomQ
+            **kwargs:
+        &#34;&#34;&#34;
+        nap = NameParser(data_name)
+        if nap.num_grid_points is None:
+            self.ns_list = DEFAULT_NS
+        else:
+            self.ns_list = np.logspace(np.log10(3), np.log10(nap.num_grid_points), dtype=int)
+            self.ns_list = np.unique(self.ns_list)
+        super().__init__(data_name, plot_type=&#34;convergence&#34;, **kwargs)
+
+    def _plot_data(self, **kwargs):
+        full_df = []
+
+        for N in self.ns_list:
+            self.parsed_data_name.num_grid_points = N
+            df = self._prepare_data()
+            df[&#34;N&#34;] = N
+            full_df.append(df)
+        full_df = pd.concat(full_df, axis=0, ignore_index=True)
+        sns.lineplot(x=full_df[&#34;N&#34;], y=full_df[&#34;coverages&#34;], ax=self.ax, hue=full_df[&#34;alphas&#34;],
+                     palette=color_palette(&#34;hls&#34;, 5), linewidth=1)
+        sns.lineplot(x=full_df[&#34;N&#34;], y=full_df[&#34;ideal coverage&#34;], style=full_df[&#34;alphas&#34;], ax=self.ax, color=&#34;black&#34;)
+        self.ax.set_xscale(&#34;log&#34;)
+        self.ax.set_yscale(&#34;log&#34;)
+        self.ax.get_legend().remove()
+
+
+class PolytopePlot(AbstractPlot):
+
+    def __init__(self, data_name: str, num_divisions=3, faces=None, **kwargs):
+        &#34;&#34;&#34;
+        Plotting (some faces of) polyhedra, demonstrating the subdivision of faces with points.
+
+        Args:
+            data_name:
+            num_divisions: how many levels of faces subdivisions should be drawn
+            faces: a set of indices indicating which faces to draw
+            **kwargs:
+        &#34;&#34;&#34;
+        self.num_divisions = num_divisions
+        self.faces = faces
+        plot_type = f&#34;polytope_{num_divisions}&#34;
+        super().__init__(data_name, fig_path=PATH_OUTPUT_PLOTS, plot_type=plot_type, style_type=[&#34;empty&#34;], dimensions=3,
+                         **kwargs)
+
+    def _prepare_data(self) -&gt; Polytope:
+        if self.data_name == &#34;ico&#34;:
+            ico = IcosahedronPolytope()
+        else:
+            ico = CubePolytope()
+        for n in range(self.num_divisions):
+            ico.divide_edges()
+        return ico
+
+    def _plot_data(self, **kwargs):
+        if self.faces is None and self.data_name == &#34;ico&#34;:
+            self.faces = {12}
+        elif self.faces is None:
+            self.faces = {3}
+        ico = self._prepare_data()
+        ico.plot_points(self.ax, select_faces=self.faces, projection=False)
+        ico.plot_edges(self.ax, select_faces=self.faces)
+
+
+if __name__ == &#34;__main__&#34;:
+    # examples of grid plots and animations
+    GridPlot(&#34;ico_22&#34;).create(title=&#34;Icosahedron, 22 points&#34;, x_label=&#34;x&#34;, y_label=&#34;y&#34;, z_label=&#34;z&#34;, animate_rot=True,
+                              animate_seq=True, main_ticks_only=True)
+    GridPlot(&#34;cube3D_500&#34;, style_type=[&#34;talk&#34;, &#34;empty&#34;]).create()
+    # examples of statistics/convergence plots
+    AlphaViolinPlot(&#34;ico_250&#34;, style_type=[&#34;talk&#34;]).create(title=&#34;ico grid, 250&#34;)
+    AlphaConvergencePlot(&#34;systemE&#34;, style_type=[&#34;talk&#34;]).create(title=&#34;Convergence of systemE&#34;)
+    # examples of polyhedra
+    PolytopePlot(&#34;ico&#34;, num_divisions=2, faces={0, 1, 2, 3, 4}).create(equalize=True, elev=190, azim=120,
+                                                                       pos_limit=0.55, neg_limit=-0.6)
+    PolytopePlot(&#34;cube3D&#34;, num_divisions=3).create(equalize=True, elev=0, azim=0, pos_limit=0.7, neg_limit=-0.7)</code></pre>
+</details>
+</section>
+<section>
+</section>
+<section>
+</section>
+<section>
+</section>
+<section>
+<h2 class="section-title" id="header-classes">Classes</h2>
+<dl>
+<dt id="molgri.plotting.AbstractPlot"><code class="flex name class">
+<span>class <span class="ident">AbstractPlot</span></span>
+<span>(</span><span>data_name: str, dimensions: int = 3, style_type: list = None, fig_path: str = 'output/figures/', ani_path: str = 'output/animations/', ax: Union[matplotlib.axes._axes.Axes, mpl_toolkits.mplot3d.axes3d.Axes3D] = None, figsize: tuple = (4.45, 4.45), plot_type: str = 'abs')</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Most general plotting class (for one axis per plot). Set all methods that could be useful more than one time here.
+All other plots, including multiplots, inherit from this class.</p>
+<p>Input all information that needs to be provided before fig and ax are created.</p>
+<h2 id="args">Args</h2>
+<dl>
+<dt><strong><code>data_name</code></strong></dt>
+<dd>eg ico_500_full</dd>
+<dt><strong><code>dimensions</code></strong></dt>
+<dd>2 or 3</dd>
+<dt><strong><code>style_type</code></strong></dt>
+<dd>a list of properties like 'dark', 'talk', 'empty' or 'half_empty'</dd>
+<dt><strong><code>fig_path</code></strong></dt>
+<dd>folder to save figures if created, should be set in subclasses</dd>
+<dt><strong><code>ani_path</code></strong></dt>
+<dd>folder to save animations if created, should be set in subclasses</dd>
+<dt><strong><code>ax</code></strong></dt>
+<dd>enables to pass an already created axis - useful for PanelPlots</dd>
+<dt><strong><code>figsize</code></strong></dt>
+<dd>forwarded to set up of the figure</dd>
+<dt><strong><code>plot_type</code></strong></dt>
+<dd>str describing the plot function, added to the name of the plot</dd>
+</dl></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">class AbstractPlot(ABC):
+    &#34;&#34;&#34;
+    Most general plotting class (for one axis per plot). Set all methods that could be useful more than one time here.
+    All other plots, including multiplots, inherit from this class.
+    &#34;&#34;&#34;
+
+    def __init__(self, data_name: str, dimensions: int = 3, style_type: list = None, fig_path: str = PATH_OUTPUT_PLOTS,
+                 ani_path: str = PATH_OUTPUT_ANIS, ax: Union[Axes, Axes3D] = None, figsize: tuple = DIM_SQUARE,
+                 plot_type: str = &#34;abs&#34;):
+        &#34;&#34;&#34;
+        Input all information that needs to be provided before fig and ax are created.
+
+        Args:
+            data_name: eg ico_500_full
+            dimensions: 2 or 3
+            style_type: a list of properties like &#39;dark&#39;, &#39;talk&#39;, &#39;empty&#39; or &#39;half_empty&#39;
+            fig_path: folder to save figures if created, should be set in subclasses
+            ani_path: folder to save animations if created, should be set in subclasses
+            ax: enables to pass an already created axis - useful for PanelPlots
+            figsize: forwarded to set up of the figure
+            plot_type: str describing the plot function, added to the name of the plot
+        &#34;&#34;&#34;
+        if style_type is None:
+            style_type = [&#34;white&#34;]
+        self.fig_path = fig_path
+        self.ani_path = ani_path
+        self.dimensions = dimensions
+        self.style_type = style_type
+        self.data_name = data_name
+        self.parsed_data_name = NameParser(self.data_name)
+        self.plot_type = plot_type
+        self.figsize = figsize
+        # here change styles that need to be set before fig and ax are created
+        sns.reset_orig()
+        plt.style.use(&#39;default&#39;)
+        if &#34;dark&#34; in style_type:
+            plt.style.use(&#39;dark_background&#39;)
+        if &#34;talk&#34; in style_type:
+            sns.set_context(&#34;talk&#34;)
+        # create the empty figure
+        self.fig = None
+        self.ax = ax
+
+    def create(self, *args, equalize=False, neg_limit=None, pos_limit=None, x_label=None, y_label=None, z_label=None,
+               title=None, save_fig=True, animate_rot=False, animate_seq=False, sci_limit_min=-4, sci_limit_max=4,
+               save_ending=&#34;pdf&#34;, dpi=600, labelpad=0, pad_inches=0, sharex=&#34;all&#34;, sharey=&#34;all&#34;, close_fig=True,
+               azim=-60, elev=30, main_ticks_only=False):
+        &#34;&#34;&#34;
+        This is the only function the user should call on subclasses. It performs the entire plotting and
+        saves the result. It uses all methods in appropriate order with appropriate values for the specific
+        plot type we are using. If requested, saves the plot and/or animations.
+        &#34;&#34;&#34;
+        self._create_fig_ax(sharex=sharex, sharey=sharey)
+        self._set_up_empty()
+        if self.dimensions == 3:
+            self.ax.view_init(azim=azim, elev=elev)
+        if equalize:
+            self._equalize_axes(neg_limit=neg_limit, pos_limit=pos_limit)
+        if x_label or y_label or z_label:
+            self._create_labels(x_label=x_label, y_label=y_label, z_label=z_label, labelpad=labelpad)
+        if title:
+            self._create_title(title=title)
+        self._plot_data()
+        self._sci_ticks(sci_limit_min, sci_limit_max)
+        if main_ticks_only:
+            if self.dimensions == 3:
+                for axis in [self.ax.xaxis, self.ax.yaxis, self.ax.zaxis]:
+                    axis.set_major_locator(ticker.MaxNLocator(integer=True))
+            else:
+                for axis in [self.ax.xaxis, self.ax.yaxis]:
+                    axis.set_major_locator(ticker.MaxNLocator(integer=True))
+        if save_fig:
+            self._save_plot(save_ending=save_ending, dpi=dpi, pad_inches=pad_inches)
+        if close_fig:
+            plt.close()
+        if animate_rot:
+            self.animate_figure_view()
+
+    # noinspection PyUnusedLocal
+    def _create_fig_ax(self, sharex: str = &#34;all&#34;, sharey: str = &#34;all&#34;):
+        &#34;&#34;&#34;
+        The parameters need to stay there to be consistent with AbstractMultiPlot, but are not used.
+
+        Args:
+            sharex: if multiplots should share the same x axis
+            sharey: if multiplots should share the same y axis
+        &#34;&#34;&#34;
+        self.fig = plt.figure(figsize=self.figsize)
+        if self.ax is None:
+            if self.dimensions == 3:
+                self.ax = self.fig.add_subplot(111, projection=&#39;3d&#39;, computed_zorder=False)
+            elif self.dimensions == 2:
+                self.ax = self.fig.add_subplot(111)
+            else:
+                raise ValueError(&#34;Only 2 or 3 dimensions possible.&#34;)
+
+    def _set_up_empty(self):
+        &#34;&#34;&#34;
+        Second part of setting up the look of the plot, this time deleting unnecessary properties.
+        Keywords to change the look of the plot are taken from the property self.style_type.
+        If &#39;half_empty&#39;, remove ticks, if &#39;empty&#39;, also any shading of the background in 3D plots.
+        The option &#39;half_dark&#39; changes background to gray, &#39;dark&#39; to black.
+        &#34;&#34;&#34;
+        if &#34;empty&#34; in self.style_type or &#34;half_empty&#34; in self.style_type:
+            self.ax.set_xticks([])
+            self.ax.set_yticks([])
+            if self.dimensions == 3:
+                self.ax.set_zticks([])
+            if &#34;empty&#34; in self.style_type:
+                self.ax.axis(&#39;off&#39;)
+        if &#34;half_dark&#34; in self.style_type:
+            color = (0.5, 0.5, 0.5, 0.7)
+            self.ax.xaxis.set_pane_color(color)
+            self.ax.yaxis.set_pane_color(color)
+            self.ax.zaxis.set_pane_color(color)
+
+    def _equalize_axes(self, neg_limit: float = None, pos_limit: float = None):
+        &#34;&#34;&#34;
+        Makes x, y, (z) axis equally longs and if limits given, enforces them on all axes.
+
+        Args:
+            neg_limit: if set, this will be min x, y, (z) value of the plot
+            pos_limit: if set, this will be max x, y, (z) value of the plot - if pos_limit set but neg_limit not,
+                       neg_limit is set to -pos_limit
+        &#34;&#34;&#34;
+        # because ax.set_aspect(&#39;equal&#39;) does not work for 3D axes
+        if self.dimensions == 3:
+            self.ax.set_box_aspect(aspect=[1, 1, 1])
+            x_lim, y_lim, z_lim = self.ax.get_xlim3d(), self.ax.get_ylim3d(), self.ax.get_zlim3d()
+            all_ranges = abs(x_lim[1] - x_lim[0]), abs(y_lim[1] - y_lim[0]), abs(z_lim[1] - z_lim[0])
+            x_middle, y_middle, z_middle = np.mean(x_lim), np.mean(y_lim), np.mean(z_lim)
+            plot_range = 0.5 * max(all_ranges)
+            self.ax.set_xlim3d([x_middle - plot_range, x_middle + plot_range])
+            self.ax.set_ylim3d([y_middle - plot_range, y_middle + plot_range])
+            self.ax.set_zlim3d([z_middle - plot_range, z_middle + plot_range])
+        else:
+            self.ax.set_aspect(&#39;equal&#39;)
+        if pos_limit is not None and neg_limit is None:
+            neg_limit = -pos_limit
+        if pos_limit and neg_limit:
+            self.ax.set_xlim(neg_limit, pos_limit)
+            self.ax.set_ylim(neg_limit, pos_limit)
+            if self.dimensions == 3:
+                self.ax.set_zlim(neg_limit, pos_limit)
+
+    @abstractmethod
+    def _prepare_data(self) -&gt; object:
+        &#34;&#34;&#34;
+        This function should only be used by the self._plot_data method to obtain the data that we wanna plot.
+
+        Returns:
+            dataframe, grid or similar construction
+        &#34;&#34;&#34;
+        pass
+
+    @abstractmethod
+    def _plot_data(self, **kwargs):
+        &#34;&#34;&#34;Here, the plotting is implemented in subclasses.&#34;&#34;&#34;
+        pass
+
+    def _create_labels(self, x_label: str = None, y_label: str = None, z_label: str = None, **kwargs):
+        if x_label:
+            self.ax.set_xlabel(x_label, **kwargs)
+        if y_label:
+            self.ax.set_ylabel(y_label, **kwargs)
+        if z_label and self.dimensions == 3:
+            self.ax.set_zlabel(z_label, **kwargs)
+
+    def _create_title(self, title: str):
+        if &#34;talk&#34; in self.style_type:
+            self.ax.set_title(title, fontsize=15)
+        else:
+            self.ax.set_title(title)
+
+    @staticmethod
+    def _sci_ticks(neg_lim: int = -4, pos_lim: int = 4):
+        try:
+            plt.ticklabel_format(style=&#39;sci&#39;, axis=&#39;x&#39;, scilimits=(neg_lim, pos_lim))
+            plt.ticklabel_format(style=&#39;sci&#39;, axis=&#39;y&#39;, scilimits=(neg_lim, pos_lim))
+        except AttributeError:
+            pass
+
+    def animate_figure_view(self) -&gt; FuncAnimation:
+        &#34;&#34;&#34;
+        Rotate the 3D figure for 360 degrees around itself and save the animation.
+        &#34;&#34;&#34;
+        plt.close()  # this is necessary
+
+        if self.dimensions == 2:
+            raise ValueError(&#34;Animation of figure rotation only available for 3D figures!&#34;)
+
+        def animate(frame):
+            # rotate the view left-right
+            self.ax.view_init(azim=2*frame)
+            plt.pause(.001)
+            return self.fig
+
+        anim = FuncAnimation(self.fig, animate, frames=180, interval=50)
+        writergif = PillowWriter(fps=10, bitrate=-1)
+        # noinspection PyTypeChecker
+        anim.save(f&#34;{self.ani_path}{self.data_name}_{self.plot_type}.gif&#34;, writer=writergif, dpi=400)
+        return anim
+
+    def _save_plot(self, save_ending: str = &#34;pdf&#34;, dpi: int = DEFAULT_DPI, **kwargs):
+        self.fig.tight_layout()
+        if self.fig_path:
+            standard_name = self.parsed_data_name.get_standard_name()
+            plt.savefig(f&#34;{self.fig_path}{standard_name}_{self.plot_type}.{save_ending}&#34;, dpi=dpi, bbox_inches=&#39;tight&#39;,
+                        **kwargs)
+        else:
+            raise ValueError(&#34;path to save the figure has not been selected!&#34;)
+        plt.close()</code></pre>
+</details>
+<h3>Ancestors</h3>
+<ul class="hlist">
+<li>abc.ABC</li>
+</ul>
+<h3>Subclasses</h3>
+<ul class="hlist">
+<li><a title="molgri.plotting.AlphaViolinPlot" href="#molgri.plotting.AlphaViolinPlot">AlphaViolinPlot</a></li>
+<li><a title="molgri.plotting.GridPlot" href="#molgri.plotting.GridPlot">GridPlot</a></li>
+<li><a title="molgri.plotting.PolytopePlot" href="#molgri.plotting.PolytopePlot">PolytopePlot</a></li>
+</ul>
+<h3>Methods</h3>
+<dl>
+<dt id="molgri.plotting.AbstractPlot.animate_figure_view"><code class="name flex">
+<span>def <span class="ident">animate_figure_view</span></span>(<span>self) ‑> matplotlib.animation.FuncAnimation</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Rotate the 3D figure for 360 degrees around itself and save the animation.</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def animate_figure_view(self) -&gt; FuncAnimation:
+    &#34;&#34;&#34;
+    Rotate the 3D figure for 360 degrees around itself and save the animation.
+    &#34;&#34;&#34;
+    plt.close()  # this is necessary
+
+    if self.dimensions == 2:
+        raise ValueError(&#34;Animation of figure rotation only available for 3D figures!&#34;)
+
+    def animate(frame):
+        # rotate the view left-right
+        self.ax.view_init(azim=2*frame)
+        plt.pause(.001)
+        return self.fig
+
+    anim = FuncAnimation(self.fig, animate, frames=180, interval=50)
+    writergif = PillowWriter(fps=10, bitrate=-1)
+    # noinspection PyTypeChecker
+    anim.save(f&#34;{self.ani_path}{self.data_name}_{self.plot_type}.gif&#34;, writer=writergif, dpi=400)
+    return anim</code></pre>
+</details>
+</dd>
+<dt id="molgri.plotting.AbstractPlot.create"><code class="name flex">
+<span>def <span class="ident">create</span></span>(<span>self, *args, equalize=False, neg_limit=None, pos_limit=None, x_label=None, y_label=None, z_label=None, title=None, save_fig=True, animate_rot=False, animate_seq=False, sci_limit_min=-4, sci_limit_max=4, save_ending='pdf', dpi=600, labelpad=0, pad_inches=0, sharex='all', sharey='all', close_fig=True, azim=-60, elev=30, main_ticks_only=False)</span>
+</code></dt>
+<dd>
+<div class="desc"><p>This is the only function the user should call on subclasses. It performs the entire plotting and
+saves the result. It uses all methods in appropriate order with appropriate values for the specific
+plot type we are using. If requested, saves the plot and/or animations.</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def create(self, *args, equalize=False, neg_limit=None, pos_limit=None, x_label=None, y_label=None, z_label=None,
+           title=None, save_fig=True, animate_rot=False, animate_seq=False, sci_limit_min=-4, sci_limit_max=4,
+           save_ending=&#34;pdf&#34;, dpi=600, labelpad=0, pad_inches=0, sharex=&#34;all&#34;, sharey=&#34;all&#34;, close_fig=True,
+           azim=-60, elev=30, main_ticks_only=False):
+    &#34;&#34;&#34;
+    This is the only function the user should call on subclasses. It performs the entire plotting and
+    saves the result. It uses all methods in appropriate order with appropriate values for the specific
+    plot type we are using. If requested, saves the plot and/or animations.
+    &#34;&#34;&#34;
+    self._create_fig_ax(sharex=sharex, sharey=sharey)
+    self._set_up_empty()
+    if self.dimensions == 3:
+        self.ax.view_init(azim=azim, elev=elev)
+    if equalize:
+        self._equalize_axes(neg_limit=neg_limit, pos_limit=pos_limit)
+    if x_label or y_label or z_label:
+        self._create_labels(x_label=x_label, y_label=y_label, z_label=z_label, labelpad=labelpad)
+    if title:
+        self._create_title(title=title)
+    self._plot_data()
+    self._sci_ticks(sci_limit_min, sci_limit_max)
+    if main_ticks_only:
+        if self.dimensions == 3:
+            for axis in [self.ax.xaxis, self.ax.yaxis, self.ax.zaxis]:
+                axis.set_major_locator(ticker.MaxNLocator(integer=True))
+        else:
+            for axis in [self.ax.xaxis, self.ax.yaxis]:
+                axis.set_major_locator(ticker.MaxNLocator(integer=True))
+    if save_fig:
+        self._save_plot(save_ending=save_ending, dpi=dpi, pad_inches=pad_inches)
+    if close_fig:
+        plt.close()
+    if animate_rot:
+        self.animate_figure_view()</code></pre>
+</details>
+</dd>
+</dl>
+</dd>
+<dt id="molgri.plotting.AlphaConvergencePlot"><code class="flex name class">
+<span>class <span class="ident">AlphaConvergencePlot</span></span>
+<span>(</span><span>data_name: str, **kwargs)</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Most general plotting class (for one axis per plot). Set all methods that could be useful more than one time here.
+All other plots, including multiplots, inherit from this class.</p>
+<p>Creates convergence plots that show how coverages approach optimal values</p>
+<h2 id="args">Args</h2>
+<dl>
+<dt><strong><code>data_name</code></strong></dt>
+<dd>name of the algorithm e.g. randomQ</dd>
+</dl>
+<p>**kwargs:</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">class AlphaConvergencePlot(AlphaViolinPlot):
+
+    def __init__(self, data_name: str, **kwargs):
+        &#34;&#34;&#34;
+        Creates convergence plots that show how coverages approach optimal values
+
+        Args:
+            data_name: name of the algorithm e.g. randomQ
+            **kwargs:
+        &#34;&#34;&#34;
+        nap = NameParser(data_name)
+        if nap.num_grid_points is None:
+            self.ns_list = DEFAULT_NS
+        else:
+            self.ns_list = np.logspace(np.log10(3), np.log10(nap.num_grid_points), dtype=int)
+            self.ns_list = np.unique(self.ns_list)
+        super().__init__(data_name, plot_type=&#34;convergence&#34;, **kwargs)
+
+    def _plot_data(self, **kwargs):
+        full_df = []
+
+        for N in self.ns_list:
+            self.parsed_data_name.num_grid_points = N
+            df = self._prepare_data()
+            df[&#34;N&#34;] = N
+            full_df.append(df)
+        full_df = pd.concat(full_df, axis=0, ignore_index=True)
+        sns.lineplot(x=full_df[&#34;N&#34;], y=full_df[&#34;coverages&#34;], ax=self.ax, hue=full_df[&#34;alphas&#34;],
+                     palette=color_palette(&#34;hls&#34;, 5), linewidth=1)
+        sns.lineplot(x=full_df[&#34;N&#34;], y=full_df[&#34;ideal coverage&#34;], style=full_df[&#34;alphas&#34;], ax=self.ax, color=&#34;black&#34;)
+        self.ax.set_xscale(&#34;log&#34;)
+        self.ax.set_yscale(&#34;log&#34;)
+        self.ax.get_legend().remove()</code></pre>
+</details>
+<h3>Ancestors</h3>
+<ul class="hlist">
+<li><a title="molgri.plotting.AlphaViolinPlot" href="#molgri.plotting.AlphaViolinPlot">AlphaViolinPlot</a></li>
+<li><a title="molgri.plotting.AbstractPlot" href="#molgri.plotting.AbstractPlot">AbstractPlot</a></li>
+<li>abc.ABC</li>
+</ul>
+<h3>Inherited members</h3>
+<ul class="hlist">
+<li><code><b><a title="molgri.plotting.AlphaViolinPlot" href="#molgri.plotting.AlphaViolinPlot">AlphaViolinPlot</a></b></code>:
+<ul class="hlist">
+<li><code><a title="molgri.plotting.AlphaViolinPlot.animate_figure_view" href="#molgri.plotting.AbstractPlot.animate_figure_view">animate_figure_view</a></code></li>
+<li><code><a title="molgri.plotting.AlphaViolinPlot.create" href="#molgri.plotting.AbstractPlot.create">create</a></code></li>
+</ul>
+</li>
+</ul>
+</dd>
+<dt id="molgri.plotting.AlphaViolinPlot"><code class="flex name class">
+<span>class <span class="ident">AlphaViolinPlot</span></span>
+<span>(</span><span>data_name: str, *, plot_type: str = 'uniformity', style_type: list = None, **kwargs)</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Most general plotting class (for one axis per plot). Set all methods that could be useful more than one time here.
+All other plots, including multiplots, inherit from this class.</p>
+<p>Creates violin plots that are a measure of grid uniformity. A good grid will display minimal variation
+along a range of angles alpha.</p>
+<h2 id="args">Args</h2>
+<dl>
+<dt><strong><code>data_name</code></strong></dt>
+<dd>in the form algorithm_N e.g. randomQ_60</dd>
+<dt><strong><code>plot_type</code></strong></dt>
+<dd>change this if you need unique name for plots with same data_name</dd>
+<dt><strong><code>style_type</code></strong></dt>
+<dd>a list of style properties like ['empty', 'talk', 'half_dark']</dd>
+</dl>
+<p>**kwargs:</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">class AlphaViolinPlot(AbstractPlot):
+
+    def __init__(self, data_name: str, *, plot_type: str = &#34;uniformity&#34;, style_type: list = None, **kwargs):
+        &#34;&#34;&#34;
+        Creates violin plots that are a measure of grid uniformity. A good grid will display minimal variation
+        along a range of angles alpha.
+
+        Args:
+            data_name: in the form algorithm_N e.g. randomQ_60
+            plot_type: change this if you need unique name for plots with same data_name
+            style_type: a list of style properties like [&#39;empty&#39;, &#39;talk&#39;, &#39;half_dark&#39;]
+            **kwargs:
+        &#34;&#34;&#34;
+        if style_type is None:
+            style_type = [&#34;white&#34;]
+        super().__init__(data_name, dimensions=2, style_type=style_type, plot_type=plot_type, **kwargs)
+
+    def _prepare_data(self) -&gt; pd.DataFrame:
+        my_grid = build_grid(self.parsed_data_name.grid_type, self.parsed_data_name.num_grid_points, use_saved=True)
+        # if statistics file already exists, use it, else create it
+        try:
+            ratios_df = pd.read_csv(my_grid.statistics_path)
+        except FileNotFoundError:
+            my_grid.save_statistics()
+            ratios_df = pd.read_csv(my_grid.statistics_path)
+        return ratios_df
+
+    def _plot_data(self, **kwargs):
+        df = self._prepare_data()
+        sns.violinplot(x=df[&#34;alphas&#34;], y=df[&#34;coverages&#34;], ax=self.ax, palette=COLORS, linewidth=1, scale=&#34;count&#34;)
+        self.ax.set_xticklabels([r&#39;$\frac{\pi}{6}$&#39;, r&#39;$\frac{2\pi}{6}$&#39;, r&#39;$\frac{3\pi}{6}$&#39;, r&#39;$\frac{4\pi}{6}$&#39;,
+                                 r&#39;$\frac{5\pi}{6}$&#39;])</code></pre>
+</details>
+<h3>Ancestors</h3>
+<ul class="hlist">
+<li><a title="molgri.plotting.AbstractPlot" href="#molgri.plotting.AbstractPlot">AbstractPlot</a></li>
+<li>abc.ABC</li>
+</ul>
+<h3>Subclasses</h3>
+<ul class="hlist">
+<li><a title="molgri.plotting.AlphaConvergencePlot" href="#molgri.plotting.AlphaConvergencePlot">AlphaConvergencePlot</a></li>
+</ul>
+<h3>Inherited members</h3>
+<ul class="hlist">
+<li><code><b><a title="molgri.plotting.AbstractPlot" href="#molgri.plotting.AbstractPlot">AbstractPlot</a></b></code>:
+<ul class="hlist">
+<li><code><a title="molgri.plotting.AbstractPlot.animate_figure_view" href="#molgri.plotting.AbstractPlot.animate_figure_view">animate_figure_view</a></code></li>
+<li><code><a title="molgri.plotting.AbstractPlot.create" href="#molgri.plotting.AbstractPlot.create">create</a></code></li>
+</ul>
+</li>
+</ul>
+</dd>
+<dt id="molgri.plotting.GridPlot"><code class="flex name class">
+<span>class <span class="ident">GridPlot</span></span>
+<span>(</span><span>data_name, *, style_type: list = None, plot_type: str = 'grid', **kwargs)</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Most general plotting class (for one axis per plot). Set all methods that could be useful more than one time here.
+All other plots, including multiplots, inherit from this class.</p>
+<p>This class is used for plots and animations of grids.</p>
+<h2 id="args">Args</h2>
+<dl>
+<dt><strong><code>data_name</code></strong></dt>
+<dd>in the form algorithm_N e.g. randomQ_60</dd>
+<dt><strong><code>style_type</code></strong></dt>
+<dd>a list of style properties like ['empty', 'talk', 'half_dark']</dd>
+<dt><strong><code>plot_type</code></strong></dt>
+<dd>change this if you need unique name for plots with same data_name</dd>
+</dl>
+<p>**kwargs:</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">class GridPlot(AbstractPlot):
+
+    def __init__(self, data_name, *, style_type: list = None, plot_type: str = &#34;grid&#34;, **kwargs):
+        &#34;&#34;&#34;
+        This class is used for plots and animations of grids.
+
+        Args:
+            data_name: in the form algorithm_N e.g. randomQ_60
+            style_type: a list of style properties like [&#39;empty&#39;, &#39;talk&#39;, &#39;half_dark&#39;]
+            plot_type: change this if you need unique name for plots with same data_name
+            **kwargs:
+        &#34;&#34;&#34;
+        if style_type is None:
+            style_type = [&#34;talk&#34;]
+        super().__init__(data_name, style_type=style_type, plot_type=plot_type, **kwargs)
+        self.grid = self._prepare_data()
+
+    def _prepare_data(self) -&gt; np.ndarray:
+        num = self.parsed_data_name.get_num()
+        orig_name = self.parsed_data_name.get_grid_type()
+        my_grid = build_grid(orig_name, num, use_saved=True).get_grid()
+        return my_grid
+
+    def _plot_data(self, **kwargs):
+        self.sc = self.ax.scatter(*self.grid.T, color=&#34;black&#34;, s=30) #, s=4)
+        self.ax.view_init(elev=10, azim=30)
+
+    def create(self, **kwargs):
+        if &#34;empty&#34; in self.style_type:
+            pad_inches = -0.2
+        else:
+            pad_inches = 0
+        super(GridPlot, self).create(equalize=True, pos_limit=1, pad_inches=pad_inches, **kwargs)
+        animate_seq = kwargs.pop(&#34;animate_seq&#34;, False)
+        if animate_seq:
+            self.animate_grid_sequence()
+
+    def animate_grid_sequence(self):
+        &#34;&#34;&#34;
+        Animate how a grid is constructed - how each individual point is added.
+
+        WARNING - I am not sure that this method always displays correct order/depth coloring - mathplotlib
+        is not the most reliable tool for 3d plots and it may change the plotting order for rendering some
+        points above others!
+        &#34;&#34;&#34;
+
+        def update(i):
+            current_colors = np.concatenate([facecolors_before[:i], all_white[i:]])
+            self.sc.set_facecolors(current_colors)
+            self.sc.set_edgecolors(current_colors)
+            return self.sc,
+
+
+        facecolors_before = self.sc.get_facecolors()
+        shape_colors = facecolors_before.shape
+        all_white = np.zeros(shape_colors)
+
+        self.ax.view_init(elev=10, azim=30)
+        self._equalize_axes(pos_limit=1, neg_limit=-1)
+        ani = FuncAnimation(self.fig, func=update, frames=len(facecolors_before), interval=5, repeat=False)
+        writergif = PillowWriter(fps=3, bitrate=-1)
+        # noinspection PyTypeChecker
+        ani.save(f&#34;{self.ani_path}{self.data_name}_{self.plot_type}_ord.gif&#34;, writer=writergif, dpi=400)
+        plt.close()</code></pre>
+</details>
+<h3>Ancestors</h3>
+<ul class="hlist">
+<li><a title="molgri.plotting.AbstractPlot" href="#molgri.plotting.AbstractPlot">AbstractPlot</a></li>
+<li>abc.ABC</li>
+</ul>
+<h3>Methods</h3>
+<dl>
+<dt id="molgri.plotting.GridPlot.animate_grid_sequence"><code class="name flex">
+<span>def <span class="ident">animate_grid_sequence</span></span>(<span>self)</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Animate how a grid is constructed - how each individual point is added.</p>
+<p>WARNING - I am not sure that this method always displays correct order/depth coloring - mathplotlib
+is not the most reliable tool for 3d plots and it may change the plotting order for rendering some
+points above others!</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def animate_grid_sequence(self):
+    &#34;&#34;&#34;
+    Animate how a grid is constructed - how each individual point is added.
+
+    WARNING - I am not sure that this method always displays correct order/depth coloring - mathplotlib
+    is not the most reliable tool for 3d plots and it may change the plotting order for rendering some
+    points above others!
+    &#34;&#34;&#34;
+
+    def update(i):
+        current_colors = np.concatenate([facecolors_before[:i], all_white[i:]])
+        self.sc.set_facecolors(current_colors)
+        self.sc.set_edgecolors(current_colors)
+        return self.sc,
+
+
+    facecolors_before = self.sc.get_facecolors()
+    shape_colors = facecolors_before.shape
+    all_white = np.zeros(shape_colors)
+
+    self.ax.view_init(elev=10, azim=30)
+    self._equalize_axes(pos_limit=1, neg_limit=-1)
+    ani = FuncAnimation(self.fig, func=update, frames=len(facecolors_before), interval=5, repeat=False)
+    writergif = PillowWriter(fps=3, bitrate=-1)
+    # noinspection PyTypeChecker
+    ani.save(f&#34;{self.ani_path}{self.data_name}_{self.plot_type}_ord.gif&#34;, writer=writergif, dpi=400)
+    plt.close()</code></pre>
+</details>
+</dd>
+</dl>
+<h3>Inherited members</h3>
+<ul class="hlist">
+<li><code><b><a title="molgri.plotting.AbstractPlot" href="#molgri.plotting.AbstractPlot">AbstractPlot</a></b></code>:
+<ul class="hlist">
+<li><code><a title="molgri.plotting.AbstractPlot.animate_figure_view" href="#molgri.plotting.AbstractPlot.animate_figure_view">animate_figure_view</a></code></li>
+<li><code><a title="molgri.plotting.AbstractPlot.create" href="#molgri.plotting.AbstractPlot.create">create</a></code></li>
+</ul>
+</li>
+</ul>
+</dd>
+<dt id="molgri.plotting.PolytopePlot"><code class="flex name class">
+<span>class <span class="ident">PolytopePlot</span></span>
+<span>(</span><span>data_name: str, num_divisions=3, faces=None, **kwargs)</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Most general plotting class (for one axis per plot). Set all methods that could be useful more than one time here.
+All other plots, including multiplots, inherit from this class.</p>
+<p>Plotting (some faces of) polyhedra, demonstrating the subdivision of faces with points.</p>
+<h2 id="args">Args</h2>
+<dl>
+<dt>data_name:</dt>
+<dt><strong><code>num_divisions</code></strong></dt>
+<dd>how many levels of faces subdivisions should be drawn</dd>
+<dt><strong><code>faces</code></strong></dt>
+<dd>a set of indices indicating which faces to draw</dd>
+</dl>
+<p>**kwargs:</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">class PolytopePlot(AbstractPlot):
+
+    def __init__(self, data_name: str, num_divisions=3, faces=None, **kwargs):
+        &#34;&#34;&#34;
+        Plotting (some faces of) polyhedra, demonstrating the subdivision of faces with points.
+
+        Args:
+            data_name:
+            num_divisions: how many levels of faces subdivisions should be drawn
+            faces: a set of indices indicating which faces to draw
+            **kwargs:
+        &#34;&#34;&#34;
+        self.num_divisions = num_divisions
+        self.faces = faces
+        plot_type = f&#34;polytope_{num_divisions}&#34;
+        super().__init__(data_name, fig_path=PATH_OUTPUT_PLOTS, plot_type=plot_type, style_type=[&#34;empty&#34;], dimensions=3,
+                         **kwargs)
+
+    def _prepare_data(self) -&gt; Polytope:
+        if self.data_name == &#34;ico&#34;:
+            ico = IcosahedronPolytope()
+        else:
+            ico = CubePolytope()
+        for n in range(self.num_divisions):
+            ico.divide_edges()
+        return ico
+
+    def _plot_data(self, **kwargs):
+        if self.faces is None and self.data_name == &#34;ico&#34;:
+            self.faces = {12}
+        elif self.faces is None:
+            self.faces = {3}
+        ico = self._prepare_data()
+        ico.plot_points(self.ax, select_faces=self.faces, projection=False)
+        ico.plot_edges(self.ax, select_faces=self.faces)</code></pre>
+</details>
+<h3>Ancestors</h3>
+<ul class="hlist">
+<li><a title="molgri.plotting.AbstractPlot" href="#molgri.plotting.AbstractPlot">AbstractPlot</a></li>
+<li>abc.ABC</li>
+</ul>
+<h3>Inherited members</h3>
+<ul class="hlist">
+<li><code><b><a title="molgri.plotting.AbstractPlot" href="#molgri.plotting.AbstractPlot">AbstractPlot</a></b></code>:
+<ul class="hlist">
+<li><code><a title="molgri.plotting.AbstractPlot.animate_figure_view" href="#molgri.plotting.AbstractPlot.animate_figure_view">animate_figure_view</a></code></li>
+<li><code><a title="molgri.plotting.AbstractPlot.create" href="#molgri.plotting.AbstractPlot.create">create</a></code></li>
+</ul>
+</li>
+</ul>
+</dd>
+</dl>
+</section>
+</article>
+<nav id="sidebar">
+<h1>Index</h1>
+<div class="toc">
+<ul></ul>
+</div>
+<ul id="index">
+<li><h3>Super-module</h3>
+<ul>
+<li><code><a title="molgri" href="index.html">molgri</a></code></li>
+</ul>
+</li>
+<li><h3><a href="#header-classes">Classes</a></h3>
+<ul>
+<li>
+<h4><code><a title="molgri.plotting.AbstractPlot" href="#molgri.plotting.AbstractPlot">AbstractPlot</a></code></h4>
+<ul class="">
+<li><code><a title="molgri.plotting.AbstractPlot.animate_figure_view" href="#molgri.plotting.AbstractPlot.animate_figure_view">animate_figure_view</a></code></li>
+<li><code><a title="molgri.plotting.AbstractPlot.create" href="#molgri.plotting.AbstractPlot.create">create</a></code></li>
+</ul>
+</li>
+<li>
+<h4><code><a title="molgri.plotting.AlphaConvergencePlot" href="#molgri.plotting.AlphaConvergencePlot">AlphaConvergencePlot</a></code></h4>
+</li>
+<li>
+<h4><code><a title="molgri.plotting.AlphaViolinPlot" href="#molgri.plotting.AlphaViolinPlot">AlphaViolinPlot</a></code></h4>
+</li>
+<li>
+<h4><code><a title="molgri.plotting.GridPlot" href="#molgri.plotting.GridPlot">GridPlot</a></code></h4>
+<ul class="">
+<li><code><a title="molgri.plotting.GridPlot.animate_grid_sequence" href="#molgri.plotting.GridPlot.animate_grid_sequence">animate_grid_sequence</a></code></li>
+</ul>
+</li>
+<li>
+<h4><code><a title="molgri.plotting.PolytopePlot" href="#molgri.plotting.PolytopePlot">PolytopePlot</a></code></h4>
+</li>
+</ul>
+</li>
+</ul>
+</nav>
+</main>
+<footer id="footer">
+<p>Generated by <a href="https://pdoc3.github.io/pdoc" title="pdoc: Python API documentation generator"><cite>pdoc</cite> 0.10.0</a>.</p>
+</footer>
+</body>
+</html>

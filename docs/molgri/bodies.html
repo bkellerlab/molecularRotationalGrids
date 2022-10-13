@@ -1,0 +1,2137 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, minimum-scale=1" />
+<meta name="generator" content="pdoc 0.10.0" />
+<title>molgri.bodies API documentation</title>
+<meta name="description" content="Represent and draw a point in 3D space with a corresponding body basis that can be rotated and translated.
+Basis for all other objects that translate …" />
+<link rel="preload stylesheet" as="style" href="https://cdnjs.cloudflare.com/ajax/libs/10up-sanitize.css/11.0.1/sanitize.min.css" integrity="sha256-PK9q560IAAa6WVRRh76LtCaI8pjTJ2z11v0miyNNjrs=" crossorigin>
+<link rel="preload stylesheet" as="style" href="https://cdnjs.cloudflare.com/ajax/libs/10up-sanitize.css/11.0.1/typography.min.css" integrity="sha256-7l/o7C8jubJiy74VsKTidCy1yBkRtiUGbVkYBylBqUg=" crossorigin>
+<link rel="stylesheet preload" as="style" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/10.1.1/styles/github.min.css" crossorigin>
+<style>:root{--highlight-color:#fe9}.flex{display:flex !important}body{line-height:1.5em}#content{padding:20px}#sidebar{padding:30px;overflow:hidden}#sidebar > *:last-child{margin-bottom:2cm}.http-server-breadcrumbs{font-size:130%;margin:0 0 15px 0}#footer{font-size:.75em;padding:5px 30px;border-top:1px solid #ddd;text-align:right}#footer p{margin:0 0 0 1em;display:inline-block}#footer p:last-child{margin-right:30px}h1,h2,h3,h4,h5{font-weight:300}h1{font-size:2.5em;line-height:1.1em}h2{font-size:1.75em;margin:1em 0 .50em 0}h3{font-size:1.4em;margin:25px 0 10px 0}h4{margin:0;font-size:105%}h1:target,h2:target,h3:target,h4:target,h5:target,h6:target{background:var(--highlight-color);padding:.2em 0}a{color:#058;text-decoration:none;transition:color .3s ease-in-out}a:hover{color:#e82}.title code{font-weight:bold}h2[id^="header-"]{margin-top:2em}.ident{color:#900}pre code{background:#f8f8f8;font-size:.8em;line-height:1.4em}code{background:#f2f2f1;padding:1px 4px;overflow-wrap:break-word}h1 code{background:transparent}pre{background:#f8f8f8;border:0;border-top:1px solid #ccc;border-bottom:1px solid #ccc;margin:1em 0;padding:1ex}#http-server-module-list{display:flex;flex-flow:column}#http-server-module-list div{display:flex}#http-server-module-list dt{min-width:10%}#http-server-module-list p{margin-top:0}.toc ul,#index{list-style-type:none;margin:0;padding:0}#index code{background:transparent}#index h3{border-bottom:1px solid #ddd}#index ul{padding:0}#index h4{margin-top:.6em;font-weight:bold}@media (min-width:200ex){#index .two-column{column-count:2}}@media (min-width:300ex){#index .two-column{column-count:3}}dl{margin-bottom:2em}dl dl:last-child{margin-bottom:4em}dd{margin:0 0 1em 3em}#header-classes + dl > dd{margin-bottom:3em}dd dd{margin-left:2em}dd p{margin:10px 0}.name{background:#eee;font-weight:bold;font-size:.85em;padding:5px 10px;display:inline-block;min-width:40%}.name:hover{background:#e0e0e0}dt:target .name{background:var(--highlight-color)}.name > span:first-child{white-space:nowrap}.name.class > span:nth-child(2){margin-left:.4em}.inherited{color:#999;border-left:5px solid #eee;padding-left:1em}.inheritance em{font-style:normal;font-weight:bold}.desc h2{font-weight:400;font-size:1.25em}.desc h3{font-size:1em}.desc dt code{background:inherit}.source summary,.git-link-div{color:#666;text-align:right;font-weight:400;font-size:.8em;text-transform:uppercase}.source summary > *{white-space:nowrap;cursor:pointer}.git-link{color:inherit;margin-left:1em}.source pre{max-height:500px;overflow:auto;margin:0}.source pre code{font-size:12px;overflow:visible}.hlist{list-style:none}.hlist li{display:inline}.hlist li:after{content:',\2002'}.hlist li:last-child:after{content:none}.hlist .hlist{display:inline;padding-left:1em}img{max-width:100%}td{padding:0 .5em}.admonition{padding:.1em .5em;margin-bottom:1em}.admonition-title{font-weight:bold}.admonition.note,.admonition.info,.admonition.important{background:#aef}.admonition.todo,.admonition.versionadded,.admonition.tip,.admonition.hint{background:#dfd}.admonition.warning,.admonition.versionchanged,.admonition.deprecated{background:#fd4}.admonition.error,.admonition.danger,.admonition.caution{background:lightpink}</style>
+<style media="screen and (min-width: 700px)">@media screen and (min-width:700px){#sidebar{width:30%;height:100vh;overflow:auto;position:sticky;top:0}#content{width:70%;max-width:100ch;padding:3em 4em;border-left:1px solid #ddd}pre code{font-size:1em}.item .name{font-size:1em}main{display:flex;flex-direction:row-reverse;justify-content:flex-end}.toc ul ul,#index ul{padding-left:1.5em}.toc > ul > li{margin-top:.5em}}</style>
+<style media="print">@media print{#sidebar h1{page-break-before:always}.source{display:none}}@media print{*{background:transparent !important;color:#000 !important;box-shadow:none !important;text-shadow:none !important}a[href]:after{content:" (" attr(href) ")";font-size:90%}a[href][title]:after{content:none}abbr[title]:after{content:" (" attr(title) ")"}.ir a:after,a[href^="javascript:"]:after,a[href^="#"]:after{content:""}pre,blockquote{border:1px solid #999;page-break-inside:avoid}thead{display:table-header-group}tr,img{page-break-inside:avoid}img{max-width:100% !important}@page{margin:0.5cm}p,h2,h3{orphans:3;widows:3}h1,h2,h3,h4,h5,h6{page-break-after:avoid}}</style>
+<script defer src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/10.1.1/highlight.min.js" integrity="sha256-Uv3H6lx7dJmRfRvH8TH6kJD1TSK1aFcwgx+mdg3epi8=" crossorigin></script>
+<script>window.addEventListener('DOMContentLoaded', () => hljs.initHighlighting())</script>
+</head>
+<body>
+<main>
+<article id="content">
+<header>
+<h1 class="title">Module <code>molgri.bodies</code></h1>
+</header>
+<section id="section-intro">
+<p>Represent and draw a point in 3D space with a corresponding body basis that can be rotated and translated.
+Basis for all other objects that translate and rotate.</p>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">&#34;&#34;&#34;
+Represent and draw a point in 3D space with a corresponding body basis that can be rotated and translated.
+Basis for all other objects that translate and rotate.
+&#34;&#34;&#34;
+
+from abc import ABC
+from collections import defaultdict
+from typing import TextIO
+
+import numpy as np
+from matplotlib import patches
+from matplotlib.axis import Axis
+from mendeleev import element
+from mpl_toolkits.mplot3d.art3d import Poly3DCollection
+from numpy.typing import ArrayLike
+from scipy.constants import pi
+from matplotlib.text import Text
+from matplotlib.axes import Axes
+from scipy.spatial.transform import Rotation
+
+from .constants import PM2NM
+from .rotations import Rotation2D
+
+
+class AbstractShape(ABC):
+
+    def __init__(self, dimension: int, drawing_points: np.ndarray = None, color=&#34;black&#34;):
+        &#34;&#34;&#34;
+        A shape is always created at origin. It can be represented by its basis in 2D or 3D.
+        Its position and angles can later be changed with translations and rotation.
+
+        Args:
+            dimension: 2 or 3, how many dimensions in space does the object have.
+        &#34;&#34;&#34;
+        assert dimension in [2, 3], &#34;Dimension can only be 2 or 3&#34;
+        self.dimension = dimension
+        # self.position and self.angles represent the internal body coordination system
+        # (x, y, z) or (x, y)
+        self.position = np.zeros(self.dimension, dtype=float)
+        # basis vectors
+        self.basis = np.eye(self.dimension, dtype=float)
+        # points used for drawing of shape (num_points, self.dimensions)
+        if drawing_points is None:
+            self.drawing_points = np.zeros((1, self.dimension), dtype=float)
+        else:
+            self.drawing_points = drawing_points
+        assert self.drawing_points.shape[1] in [2, 3], &#34;drawing_points must have shape (num_points, self.dimensions)&#34;
+        self.color = color
+        self.initial_state = (self.basis.copy(), self.position.copy(), self.drawing_points.copy())
+
+    def __str__(self):
+        return f&#34;{self.color} {type(self).__name__} at {self.position}&#34;
+
+    def translate(self, vector: ArrayLike):
+        &#34;&#34;&#34;
+        Move the position of the point by a given vector. This method can be appended by subclasses.
+        The basis does not change (it is always drawn from the current self.position).
+
+        Args:
+            vector: array of shape (3,) or (2,) depending on self.dimension
+        &#34;&#34;&#34;
+        vector = np.array(vector)
+        assert len(vector) == self.position.shape[0], &#34;Dimensions of the object space and vector space do not align.&#34;
+        self.position += vector
+        self.drawing_points += np.hstack(vector)
+
+    # noinspection PyUnusedLocal
+    def _rotate(self, angles: ArrayLike, method: str, **kwargs) -&gt; Rotation:
+        &#34;&#34;&#34;
+        Helper function to initialize the 3D Rotation object from the scipy module
+        Args:
+            angles: a list/array or number representing rotations in radians
+            method: the type of rotation description: &#39;euler_123&#39;, &#39;euler_313&#39;, &#39;simple_3D_x&#39;, &#39;simple_3D_y&#39;
+                    or &#39;simple_3D_z&#39;
+        Returns:
+            Rotation object
+        &#34;&#34;&#34;
+        dict_methods = {&#34;euler_123&#34;: &#34;ZYX&#34;, &#34;euler_313&#34;: &#34;ZXZ&#34;, &#34;simple_3D_x&#34;: &#34;X&#34;, &#34;simple_3D_y&#34;: &#34;Y&#34;,
+                        &#34;simple_3D_z&#34;: &#34;Z&#34;}
+        if method in dict_methods.keys():
+            return Rotation.from_euler(dict_methods[method], angles)
+        elif method == &#34;quaternion&#34;:
+            return Rotation.from_quat(angles)
+        else:
+            raise NotImplementedError(f&#34;Method {method} is unknown or not implemented.&#34;)
+
+    def rotate_about_origin(self, angles: ArrayLike, method=&#34;euler_123&#34;, inverse: bool = False):
+        &#34;&#34;&#34;
+        Rotate the object by angles given around the three coordinate axes. With respect to coordinate origin.
+
+        Args:
+            angles: array of shape (3,) or (2,) depending on self.dimension providing angles in radians
+            method: &#39;euler_123&#39;, &#39;euler_313&#39;, &#39;simple_3D_x&#39;, &#39;simple_3D_y&#39;, &#39;simple_3D_z&#39; or &#39;quaternion&#39;
+            inverse: True if the rotation should be inverted
+        &#34;&#34;&#34;
+        if self.dimension == 2:
+            rotation_mat = Rotation2D(angles)
+        else:
+            rotation_mat = self._rotate(angles, method)
+        result = rotation_mat.apply(np.concatenate((self.basis, self.position[:, np.newaxis].T, self.drawing_points),
+                                                   axis=0), inverse=inverse)
+        self.basis = result[:self.dimension]
+        self.position = result[self.dimension:self.dimension+1]
+        self.drawing_points = result[self.dimension+1:]
+        self.position = self.position.T.squeeze()
+        return rotation_mat
+
+    def rotate_about_body(self, angles: ArrayLike, method=&#34;euler_123&#34;, inverse: bool = False):
+        &#34;&#34;&#34;
+        Rotate the object by angles given around the three coordinate axes. With respect to body coordinates.
+
+        Args:
+            angles: array of shape (3,) or (2,) depending on self.dimension providing angles in radians
+            method:&#39;euler_123&#39;, &#39;euler_313&#39;, &#39;simple_3D_x&#39;, &#39;simple_3D_y&#39;, &#39;simple_3D_z&#39; or &#39;quaternion&#39;
+            inverse: True if the rotation should be inverted
+        &#34;&#34;&#34;
+        if self.dimension == 2:
+            rotation_mat = Rotation2D(angles)
+        else:
+            rotation_mat = self._rotate(angles, method)
+        points_at_origin = self.drawing_points - np.hstack(self.position)
+        result = rotation_mat.apply(np.concatenate((self.basis, points_at_origin), axis=0), inverse=inverse)
+        self.basis, self.drawing_points = result[:self.dimension], result[self.dimension:]
+        self.drawing_points += np.hstack(self.position)
+        return rotation_mat
+
+    def draw(self, axis: Axes, show_labels=False, show_basis=False, rotational_axis=None, rotational_center=&#34;origin&#34;)\
+            -&gt; list:
+        &#34;&#34;&#34;
+        Draw the object in the given axis (2D or 3D). Possibly also draws the label with atom position, the
+        body coordinate axes and/or the axis of rotation. Should be appended by subclasses for drawing the objects.
+
+        Args:
+            axis: ax on which the object should be drown
+            show_labels: show a label with the position of the point
+            show_basis: show the basis attached to the object
+            rotational_axis: the 3D vector representing the axis around which to rotate
+            rotational_center: &#39;origin&#39; or &#39;body&#39;, where the rotational axis should be drawn.
+        Returns:
+            list of all objects to be plotted
+        &#34;&#34;&#34;
+        to_return = []
+        # draw rotational axis
+        if np.any(rotational_axis):
+            if rotational_center == &#39;body&#39;:
+                origin = self.position
+            elif rotational_center == &#39;origin&#39;:
+                origin = np.array([0, 0, 0])
+            else:
+                raise ValueError(f&#34;Unknown argument {rotational_center} for rotational center (try &#39;body&#39; or &#39;origin&#39;)&#34;)
+            normed = rotational_axis / np.linalg.norm(rotational_axis)
+            axis_pic = axis.quiver(*origin, *normed, color=&#34;black&#34;, length=3, arrow_length_ratio=0.1)
+            to_return.append(axis_pic)
+        # draw label with the position of the body at the center of the body
+        if show_labels:
+            center_labels = self._draw_center_label(axis)
+            to_return.append(center_labels)
+        # draw the 2D/3D body axes
+        if show_basis:
+            basis_pic = self._draw_body_coordinates(axis)
+            to_return.extend(basis_pic)
+        return to_return
+
+    def _draw_center_label(self, axis: Axes) -&gt; Text:
+        &#34;&#34;&#34;
+        Helper function for drawing the label of the object center.
+
+        Args:
+            axis: ax for drawing
+        Returns:
+            the Text object that should be plotted
+        &#34;&#34;&#34;
+        if self.dimension == 2:
+            label_text = axis.text(*self.position, s=f&#34; ({self.position[0]}, {self.position[1]})&#34;)
+        else:
+            label_text = axis.text(*self.position, s=f&#34; ({self.position[0]}, {self.position[1]}, {self.position[2]})&#34;)
+        return label_text
+
+    def _draw_body_coordinates(self, axis: Axes, draw_labels=True) -&gt; list:
+        &#34;&#34;&#34;
+        Helper function for drawing the coordinate system attached to the object.
+
+        Args:
+            axis: ax for drawing
+            draw_labels: whether to label the basis with x_b, y_b, z_b
+        Returns:
+            list of all objects to be plotted (axes vectors, _create_labels)
+        &#34;&#34;&#34;
+        if type(self) == AbstractShape:
+            labels = [r&#34;$x$&#34;, r&#34;$y$&#34;, r&#34;$z$&#34;]
+        else:
+            labels = [r&#34;$x_b$&#34;, r&#34;$y_b$&#34;, r&#34;$z_b$&#34;]
+        everything_to_plot = []
+        for column in range(self.dimension):
+            # basis is drawn with an origin at current position
+            if self.dimension == 3:
+                quiver = axis.quiver(*self.position, *self.basis[column, :], length=1, color=&#34;black&#34;)
+            else:
+                # length=1 in 2D does not exist for some reason, this is the workaround
+                quiver = axis.quiver(*self.position, *self.basis[column, :],
+                                     color=&#34;black&#34;, angles=&#39;xy&#39;, scale_units=&#39;xy&#39;, scale=1)
+            # add the x, y, z _create_labels to the coordinate axes
+            position_labels = np.vstack(self.position) + 1/2 * self.basis.T
+            if draw_labels:
+                text = axis.text(*position_labels[:, column], s=labels[column], fontsize=30)
+                everything_to_plot.extend([quiver, text])
+            else:
+                everything_to_plot.extend([quiver])
+        return everything_to_plot
+
+
+class Point(AbstractShape):
+    def draw(self, axis, **kwargs):
+        axis.scatter(*self.position, color=self.color)
+        super().draw(axis, **kwargs)
+
+
+class Cuboid(AbstractShape):
+
+    def __init__(self, len_x: float = 1, len_y: float = 2, len_z: float = 4, color: str = &#34;blue&#34;):
+        &#34;&#34;&#34;
+        Cuboid is always a 3D object. It is created with a center at the origin.
+
+        Args:
+            len_x: length of side in x direction
+            len_y: length of side in y direction
+            len_z: length of side in z direction
+        &#34;&#34;&#34;
+
+        self.side_lens = np.array([len_x, len_y, len_z], dtype=float)
+        # (3, 8) array that saves the position of vertices
+        # do not change the order or the entire class needs to be adapted!
+        vertices = np.zeros((3, 8))
+        vertices[0] = self.side_lens[0]/2 * np.array([-1, -1, -1, -1, 1, 1, 1, 1])
+        vertices[1] = self.side_lens[1]/2 * np.array([-1, -1, 1, 1, -1, -1, 1, 1])
+        vertices[2] = self.side_lens[2]/2 * np.array([-1, 1, -1, 1, -1, 1, -1, 1])
+        super().__init__(dimension=3, drawing_points=vertices.T, color=color)
+
+    def __str__(self):
+        return f&#34;{self.color} {type(self).__name__} at {self.position} with sides {self.side_lens}&#34;
+
+    def _create_all_faces(self):
+        &#34;&#34;&#34;
+        Helper function to create a list of all rectangles that represent the six faces of a cuboid.
+        &#34;&#34;&#34;
+        # numbers represent the order of vertices that create a face
+        edge_sequences = [&#34;0132&#34;, &#34;4576&#34;, &#34;6732&#34;, &#34;5104&#34;, &#34;5731&#34;, &#34;4620&#34;]
+        all_faces = []
+        for face_num in edge_sequences:
+            # each row one of the corners of the rectangle
+            rectangle = np.zeros((4, 3), dtype=float)
+            for i, num in enumerate(face_num):
+                rectangle[i] = self.drawing_points[int(num), :]
+            all_faces.append(rectangle)
+        return all_faces
+
+    def draw(self, axis: Axes, show_vertices: bool = False, **kwargs):
+        alpha = kwargs.pop(&#34;alpha&#34;, 0.5)
+        cuboid = Poly3DCollection(self._create_all_faces(), color=self.color, alpha=alpha)
+        axis.add_collection3d(cuboid)
+        super_obj = super().draw(axis, **kwargs)
+        # show dots at all vertices
+        if show_vertices:
+            scatter = axis.scatter(*self.drawing_points.T, color=&#34;black&#34;)
+            return [cuboid, scatter, *super_obj]
+        return [cuboid, *super_obj]
+
+
+class Cylinder(AbstractShape):
+
+    def __init__(self, radius=1, height=3, color=&#34;green&#34;):
+
+        self.radius = radius
+        self.height = height
+        self.num_points = 50
+        us = np.linspace(-2 * pi, 2 * pi, self.num_points)
+        zs = np.linspace(-self.height / 2, self.height, 2)
+        us, zs = np.meshgrid(us, zs)
+        xs = self.radius * np.cos(us)
+        ys = self.radius * np.sin(us)
+        bottom_circle = np.stack((xs[0], ys[0], zs[0]))
+        upper_circle = np.stack((xs[1], ys[1], zs[1]))
+        super().__init__(3, drawing_points=np.hstack((bottom_circle, upper_circle)).T, color=color)
+
+    def __str__(self):
+        return f&#34;{self.color} {type(self).__name__} at {self.position} with radius {self.radius} &amp; height {self.height}&#34;
+
+    def draw(self, axis, **kwargs):
+        bottom_circle = self.drawing_points[:self.num_points, :]
+        upper_circle = self.drawing_points[self.num_points:, :]
+        surface = np.stack((bottom_circle, upper_circle), axis=1)
+        # draw the top and bottom circle
+        alpha = kwargs.pop(&#34;alpha&#34;, 0.5)
+        surf1 = Poly3DCollection([bottom_circle, upper_circle], color=self.color, alpha=alpha)
+        axis.add_collection3d(surf1)
+        # draw the curved surface
+        surf2 = axis.plot_surface(*surface.T, color=self.color, alpha=alpha)
+        super_obj = super().draw(axis, **kwargs)
+        return [surf1, surf2, *super_obj]
+
+
+class Sphere(AbstractShape):
+
+    def __init__(self, radius=1, color=&#34;red&#34;):
+        self.radius = radius
+        super().__init__(3, color=color)
+
+    def __str__(self):
+        return f&#34;{self.color} {type(self).__name__} at {self.position} with radius {self.radius}&#34;
+
+    def draw(self, axis, **kwargs):
+        &#34;&#34;&#34;
+        Draw the sphere with given radius.
+
+        Args:
+            axis: ax on which the object should be drown
+        &#34;&#34;&#34;
+        alpha = kwargs.pop(&#34;alpha&#34;, 0.5)
+        shade = kwargs.pop(&#34;shade&#34;, True)
+        u, v = np.mgrid[-pi:pi:20j,
+                        -pi:pi:20j]
+        x = self.radius * np.cos(u) * np.sin(v)
+        y = self.radius * np.sin(u) * np.sin(v)
+        z = self.radius * np.cos(v)
+        surf = axis.plot_surface(x + self.position[0], y + self.position[1], z + self.position[2],
+                                 color=self.color, alpha=alpha, rstride=1, cstride=1, shade=shade)
+        super_obj = super().draw(axis, **kwargs)
+        return [surf, *super_obj]
+
+
+class Circle(AbstractShape):
+
+    def __init__(self, radius: float = 1, color: str = &#34;red&#34;):
+        self.radius = radius
+        num_points = 100
+        points = np.linspace(-2*pi, 2*pi, num_points)
+        xs = self.radius * np.cos(points)
+        ys = self.radius * np.sin(points)
+        all_points = np.array([xs, ys])
+        super().__init__(2, drawing_points=all_points.T, color=color)
+
+    def __str__(self):
+        return f&#34;{self.color} {type(self).__name__} at {self.position} with radius {self.radius}&#34;
+
+    def draw(self, axis: Axes, **kwargs) -&gt; list:
+        &#34;&#34;&#34;
+        Draw a circle with given radius.
+
+        Args:
+            axis: ax on which the object should be drown
+        &#34;&#34;&#34;
+        circle_patch = patches.Polygon(self.drawing_points, color=self.color, alpha=0.5)
+        axis.add_patch(circle_patch)
+        super_obj = super().draw(axis, **kwargs)
+        return [circle_patch, *super_obj]
+
+
+class Rectangle(AbstractShape):
+    def __init__(self, len_x: float = 1, len_y: float = 2, color=&#34;blue&#34;):
+        self.side_lens = np.array([len_x, len_y])
+        vertices = 1/2 * np.array([[-len_x, -len_y],
+                                   [-len_x, len_y],
+                                   [len_x, len_y],
+                                   [len_x, -len_y]])
+        super().__init__(2, drawing_points=vertices, color=color)
+
+    def __str__(self):
+        return f&#34;{self.color} {type(self).__name__} at {self.position} with sides {self.side_lens}&#34;
+
+    def draw(self, axis: Axes, **kwargs) -&gt; list:
+        &#34;&#34;&#34;
+        Draw a rectangle
+
+        Args:
+            axis: ax on which the object should be drown
+        &#34;&#34;&#34;
+        rectangle = patches.Polygon(self.drawing_points, color=self.color, alpha=0.5)
+        axis.add_patch(rectangle)
+        super_obj = super().draw(axis, **kwargs)
+        return [rectangle, *super_obj]
+
+
+class Atom(Sphere):
+
+    def __init__(self, atom_name: str, start_position: np.ndarray = np.array([0, 0, 0]), belongs_to=None,
+                 gro_label: list = None):
+        if gro_label is None:
+            gro_label = atom_name
+        self.element = element(atom_name)
+        self.gro_label = gro_label
+        self.belongs_to = belongs_to
+        super().__init__(radius=self.element.atomic_radius*PM2NM, color=self.element.jmol_color)
+        self.translate(start_position)
+
+    def draw(self, axis, **kwargs):
+        alpha = kwargs.pop(&#34;alpha&#34;, 1)
+        return super().draw(axis, alpha=alpha, shade=False, **kwargs)
+
+
+class Molecule(AbstractShape):
+
+    def __init__(self, atom_names: list, centers: np.ndarray, connections: np.ndarray = None, center_at_origin=False,
+                 gro_labels: list = None):
+        if gro_labels is None:
+            gro_labels = atom_names
+        self.atoms = []      # saving the Atom objects for easy plotting and access to properties
+        for i, atom_name in enumerate(atom_names):
+            self.atoms.append(Atom(atom_name, start_position=centers[i], gro_label=gro_labels[i]))
+        if connections is None:
+            connections = np.diag([1]*len(self.atoms))
+        self.connections = connections
+        super().__init__(dimension=3)
+        self.position = self._calc_center_of_mass()
+        if center_at_origin:
+            self.translate(-self.position)
+
+    def _calc_center_of_mass(self):
+        total_mass = 0
+        com = np.zeros(3)
+        for i, atom in enumerate(self.atoms):
+            total_mass += atom.element.atomic_weight
+            com += atom.element.atomic_weight * self.atoms[i].position
+        return com/total_mass
+
+    def draw(self, axis, **kwargs):
+        # currently only possible to draw single bonds
+        plot_elements = []
+        # draw bonds as connections of centers
+        for i, line in enumerate(self.connections):
+            for j, el in enumerate(line[:i]):
+                if el:
+                    plot_e = axis.plot(*zip(self.atoms[i].position, self.atoms[j].position), color=&#34;black&#34;, linewidth=2)
+                    plot_elements.extend(plot_e)
+        # draw atoms as solid spheres
+        for atom in self.atoms:
+            plot_e = atom.draw(axis, **kwargs)
+            plot_elements.extend(plot_e)
+        return plot_elements
+
+    def translate(self, vector: np.ndarray):
+        super().translate(vector)
+        for atom in self.atoms:
+            atom.translate(vector)
+
+    def rotate_about_origin(self, angles: np.ndarray, **kwargs):
+        super().rotate_about_origin(angles, **kwargs)
+        for atom in self.atoms:
+            atom.rotate_about_origin(angles, **kwargs)
+
+    def rotate_about_body(self, angles: np.ndarray or float, **kwargs):
+        super().rotate_about_body(angles, **kwargs)
+        inverse = kwargs.pop(&#34;inverse&#34;, False)
+        for atom in self.atoms:
+            points_at_origin = atom.position - self.position
+            rot = atom._rotate(angles, **kwargs)
+            atom.position = rot.apply(points_at_origin, inverse=inverse) + self.position
+
+
+class ShapeSet(object):
+
+    def __init__(self, all_objects: list or AbstractShape, num_dim: int = 3, name: str = &#34;ShapeSet&#34;,
+                 time_step: int = 0):
+        &#34;&#34;&#34;
+        An object joining several AbstractShape objects so they can be translated, rotated or drawn together.
+        Using &#39;which&#39; command, only a part of the collection can be manipulated.
+        &#34;&#34;&#34;
+        self.num_dim = num_dim
+        self.time_step = time_step
+        self.name = name
+        if type(all_objects) == AbstractShape:
+            self.all_objects = [all_objects]
+        else:
+            self.all_objects = all_objects
+        assert [type(x) == AbstractShape for x in self.all_objects], &#34;All simulated objects must be type(AbstractShape)&#34;
+        assert [x.dimension == self.num_dim for x in self.all_objects], &#34;All objects must have the same&#34; \
+                                                                        &#34;number of dimensions as the set&#34;
+
+    def draw_objects(self, axis: Axis, which: list = None, **kwargs) -&gt; list:
+        &#34;&#34;&#34;
+        The only method that actually draws. All other methods should call this method to draw.
+
+        Args:
+            axis: axis on which to draw
+            which: list of 1s and 0s as long as self.all_objects or None - which objects should be drawn. If None, all.
+            **kwargs: forwarded to AbstractShape.draw(), e.g. show_basis = True
+        &#34;&#34;&#34;
+        all_images = []
+        which = self._select_which_objects(which)
+        for i, obj in enumerate(self.all_objects):
+            if which[i]:
+                all_images.extend(obj.draw(axis, **kwargs))
+        return all_images
+
+    def _select_which_objects(self, which: list or None):
+        &#34;&#34;&#34;
+        Helper function to create a filter which objects to use from self.all_objects. If which=None, use all.
+        &#34;&#34;&#34;
+        if which is None:
+            which = [1] * len(self.all_objects)
+        else:
+            assert len(which) == len(self.all_objects), &#34;which needs to provide 1/0 for each object in self.all_objects&#34;
+            assert all([x in [1, 0] for x in which]), &#34;which cannot have values other than 1 or 0&#34;
+        return which
+
+    def _manipulate_once(self, which_action: str, vector: ArrayLike, which: list = None, method: str = &#34;euler_123&#34;,
+                         inverse: bool = False):
+        &#34;&#34;&#34;
+        Selects appropriate which_action and forwards to the corresponding function.
+
+        Args:
+            which_action: options: [&#39;translate&#39;, &#39;rotate_objects_about_origin&#39;, &#39;rotate_objects_about_body&#39;]
+            vector: vector for translation or vector/float of rotational angles
+            which: list of 1s and 0s as long as self.all_objects or None - which objects should be drawn. If None, all
+            method: what method of rotation
+        &#34;&#34;&#34;
+        for j, _ in enumerate(self.all_objects):
+            if which[j]:
+                if which_action == &#34;translate&#34;:
+                    self.all_objects[j].translate(vector)
+                elif which_action == &#34;rotate_about_body&#34;:
+                    return self.all_objects[j].rotate_about_body(vector, method=method, inverse=inverse)
+                elif which_action == &#34;rotate_about_origin&#34;:
+                    return self.all_objects[j].rotate_about_origin(vector, method=method, inverse=inverse)
+                else:
+                    raise NotImplementedError(&#34;Only actions translate, rotate_about_body and&#34; +
+                                              &#34;rotate_abut_origin are implemented.&#34;)
+
+    def _manipulate_objects(self, which_action: str, vector: ArrayLike, which: list = None,
+                            num_steps: int = 1, method: str = &#34;euler_123&#34;, inverse=False, **kwargs):
+        &#34;&#34;&#34;
+        Helper method that implements the background of translate_objects, rotate_objects_about_origin and
+        rotate_objects_about_body.
+
+        Args:
+            num_steps: in how many steps the movement should happen
+            the rest of arguments forwarded to self._manipulate_once()
+        &#34;&#34;&#34;
+        vector = np.array(vector)
+        which = self._select_which_objects(which)
+        # can be done in several steps for a better illustration in simulation
+        for i in range(num_steps):
+            # do it for all objects selected with which command
+            self._manipulate_once(which_action=which_action, vector=vector/num_steps, which=which, method=method,
+                                  inverse=inverse)
+            self.time_step += 1
+
+    def translate_objects(self, vector: ArrayLike, which: list = None, **kwargs):
+        &#34;&#34;&#34;
+        Translate all or some of objects for vector. Can be drawn or not, in multiple steps or not. See
+        self._manipulate_objects for details.
+        &#34;&#34;&#34;
+        self._manipulate_objects(&#34;translate&#34;, vector, which=which, **kwargs)
+
+    def rotate_objects_about_origin(self, vector: ArrayLike, which: list = None, **kwargs):
+        &#34;&#34;&#34;
+        Rotate all or some of objects about origin for a set of angles. Can be drawn or not, in multiple steps or not.
+        See self._manipulate_objects for details.
+        &#34;&#34;&#34;
+        self._manipulate_objects(&#34;rotate_about_origin&#34;, vector, which=which, **kwargs)
+
+    def rotate_objects_about_body(self, vector: ArrayLike, which: list = None, **kwargs):
+        &#34;&#34;&#34;
+        Rotate all or some of objects about body for a set of angles. Can be drawn or not, in multiple steps or not.
+        See self._manipulate_objects for details.
+        &#34;&#34;&#34;
+        self._manipulate_objects(&#34;rotate_about_body&#34;, vector, which=which, **kwargs)
+
+
+class AtomSet(ShapeSet):
+
+    def __init__(self, all_objects: list or AbstractShape, file_gro: TextIO = None,
+                 file_xyz: TextIO = None, **kwargs):
+        super().__init__(all_objects, **kwargs)
+        assert [type(x) == Atom for x in self.all_objects], &#34;All simulated objects must be Atoms&#34;
+        self.belongings = self._group_by_belonging()
+        self.file_gro = file_gro
+        self.file_xyz = file_xyz
+        self.num_atoms = len(self.all_objects)
+
+    def _group_by_belonging(self) -&gt; dict:
+        try:
+            belonging_dic = defaultdict(list)
+            for one_object in self.all_objects:
+                belonging_dic[one_object.belongs_to].append(one_object)
+            belonging_dic = dict(belonging_dic)
+            return belonging_dic
+        # this happens when initializing MoleculeSet
+        except AttributeError:
+            return dict()
+
+    def _select_which_objects(self, which: list or None):
+        &#34;&#34;&#34;
+        Helper function to create a filter which objects to use from self.all_objects. If which=None, use all.
+        &#34;&#34;&#34;
+        if which is None:
+            which = [1] * len(self.all_objects)
+        elif which in list(self.belongings.keys()):
+            return [x.belongs_to == which for x in self.all_objects]
+        else:
+            assert len(which) == len(self.all_objects), &#34;which needs to provide 1/0 for each object in self.all_objects&#34;
+            assert all([x in [1, 0] for x in which]), &#34;which cannot have values other than 1 or 0&#34;
+        return which
+
+    def _save_atom_lines_gro(self, residue: str = &#34;SOL&#34;, atom_num=1, residue_num=1):
+        num_atom = atom_num
+        num_molecule = residue_num
+        for molecule_name, molecule_atoms in self.belongings.items():
+            hydrogen_counter = 1
+            for atom in molecule_atoms:
+                pos_nm = atom.position
+                if atom.element.symbol == &#34;O&#34;:
+                    name = &#34;OW&#34;
+                elif atom.element.symbol == &#34;H&#34;:
+                    name = &#34;HW&#34; + str(hydrogen_counter)
+                    hydrogen_counter += 1
+                else:
+                    name = atom.element.symbol
+                self.file_gro.write(f&#34;{num_molecule:5}{residue:5}{name:&gt;5}{num_atom:5}{pos_nm[0]:8.3f}{pos_nm[1]:8.3f}&#34;
+                                    f&#34;{pos_nm[2]:8.3f}{0:8.4f}{0:8.4f}{0:8.4f}\n&#34;)
+                num_atom += 1
+            num_molecule += 1
+
+    def _manipulate_objects(self, *args, save_to_gro=False, ** kwargs):
+        super()._manipulate_objects(*args, **kwargs)
+
+
+class MoleculeSet(AtomSet):
+
+    def __init__(self, all_objects: list or AbstractShape, file_gro: TextIO = None, file_xyz: TextIO = None, **kwargs):
+        super().__init__(all_objects, file_gro=file_gro, file_xyz=file_xyz, **kwargs)
+        assert [type(x) == Molecule for x in self.all_objects], &#34;All objects must be Molecules&#34;
+        # changing from AtomSet
+        self.belongings = {f&#34;molecule_{i}&#34;: key.atoms for i, key in enumerate(self.all_objects)}
+        # changing from AtomSet
+        self.num_atoms = sum([len(self.all_objects[i].atoms) for i in range(len(self.all_objects))])
+
+
+if __name__ == &#39;__main__&#39;:
+    import matplotlib.pyplot as plt
+    # noinspection PyUnresolvedReferences
+    from mpl_toolkits.mplot3d import Axes3D
+
+    fig = plt.figure()
+    ax = fig.add_subplot(111, projection=&#39;3d&#39;)
+    ax.set_xlim(-5, 5)
+    ax.set_ylim(-5, 5)
+    ax.set_zlim(-5, 5)
+
+    my_cylinder = Cylinder()
+    my_cylinder.draw(ax, show_basis=False)
+    my_cylinder.translate(np.array([-3, 3, -4]))
+    my_cylinder.rotate_about_origin(np.array([pi / 4, pi / 6, pi / 3]))
+    my_cylinder.draw(ax, show_basis=False)
+    my_cylinder.rotate_about_body(np.array([pi / 4, pi / 6, pi / 3]))
+    my_cylinder.draw(ax, show_basis=False)
+    print(my_cylinder)
+    plt.show()</code></pre>
+</details>
+</section>
+<section>
+</section>
+<section>
+</section>
+<section>
+</section>
+<section>
+<h2 class="section-title" id="header-classes">Classes</h2>
+<dl>
+<dt id="molgri.bodies.AbstractShape"><code class="flex name class">
+<span>class <span class="ident">AbstractShape</span></span>
+<span>(</span><span>dimension: int, drawing_points: numpy.ndarray = None, color='black')</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Helper class that provides a standard way to create an ABC using
+inheritance.</p>
+<p>A shape is always created at origin. It can be represented by its basis in 2D or 3D.
+Its position and angles can later be changed with translations and rotation.</p>
+<h2 id="args">Args</h2>
+<dl>
+<dt><strong><code>dimension</code></strong></dt>
+<dd>2 or 3, how many dimensions in space does the object have.</dd>
+</dl></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">class AbstractShape(ABC):
+
+    def __init__(self, dimension: int, drawing_points: np.ndarray = None, color=&#34;black&#34;):
+        &#34;&#34;&#34;
+        A shape is always created at origin. It can be represented by its basis in 2D or 3D.
+        Its position and angles can later be changed with translations and rotation.
+
+        Args:
+            dimension: 2 or 3, how many dimensions in space does the object have.
+        &#34;&#34;&#34;
+        assert dimension in [2, 3], &#34;Dimension can only be 2 or 3&#34;
+        self.dimension = dimension
+        # self.position and self.angles represent the internal body coordination system
+        # (x, y, z) or (x, y)
+        self.position = np.zeros(self.dimension, dtype=float)
+        # basis vectors
+        self.basis = np.eye(self.dimension, dtype=float)
+        # points used for drawing of shape (num_points, self.dimensions)
+        if drawing_points is None:
+            self.drawing_points = np.zeros((1, self.dimension), dtype=float)
+        else:
+            self.drawing_points = drawing_points
+        assert self.drawing_points.shape[1] in [2, 3], &#34;drawing_points must have shape (num_points, self.dimensions)&#34;
+        self.color = color
+        self.initial_state = (self.basis.copy(), self.position.copy(), self.drawing_points.copy())
+
+    def __str__(self):
+        return f&#34;{self.color} {type(self).__name__} at {self.position}&#34;
+
+    def translate(self, vector: ArrayLike):
+        &#34;&#34;&#34;
+        Move the position of the point by a given vector. This method can be appended by subclasses.
+        The basis does not change (it is always drawn from the current self.position).
+
+        Args:
+            vector: array of shape (3,) or (2,) depending on self.dimension
+        &#34;&#34;&#34;
+        vector = np.array(vector)
+        assert len(vector) == self.position.shape[0], &#34;Dimensions of the object space and vector space do not align.&#34;
+        self.position += vector
+        self.drawing_points += np.hstack(vector)
+
+    # noinspection PyUnusedLocal
+    def _rotate(self, angles: ArrayLike, method: str, **kwargs) -&gt; Rotation:
+        &#34;&#34;&#34;
+        Helper function to initialize the 3D Rotation object from the scipy module
+        Args:
+            angles: a list/array or number representing rotations in radians
+            method: the type of rotation description: &#39;euler_123&#39;, &#39;euler_313&#39;, &#39;simple_3D_x&#39;, &#39;simple_3D_y&#39;
+                    or &#39;simple_3D_z&#39;
+        Returns:
+            Rotation object
+        &#34;&#34;&#34;
+        dict_methods = {&#34;euler_123&#34;: &#34;ZYX&#34;, &#34;euler_313&#34;: &#34;ZXZ&#34;, &#34;simple_3D_x&#34;: &#34;X&#34;, &#34;simple_3D_y&#34;: &#34;Y&#34;,
+                        &#34;simple_3D_z&#34;: &#34;Z&#34;}
+        if method in dict_methods.keys():
+            return Rotation.from_euler(dict_methods[method], angles)
+        elif method == &#34;quaternion&#34;:
+            return Rotation.from_quat(angles)
+        else:
+            raise NotImplementedError(f&#34;Method {method} is unknown or not implemented.&#34;)
+
+    def rotate_about_origin(self, angles: ArrayLike, method=&#34;euler_123&#34;, inverse: bool = False):
+        &#34;&#34;&#34;
+        Rotate the object by angles given around the three coordinate axes. With respect to coordinate origin.
+
+        Args:
+            angles: array of shape (3,) or (2,) depending on self.dimension providing angles in radians
+            method: &#39;euler_123&#39;, &#39;euler_313&#39;, &#39;simple_3D_x&#39;, &#39;simple_3D_y&#39;, &#39;simple_3D_z&#39; or &#39;quaternion&#39;
+            inverse: True if the rotation should be inverted
+        &#34;&#34;&#34;
+        if self.dimension == 2:
+            rotation_mat = Rotation2D(angles)
+        else:
+            rotation_mat = self._rotate(angles, method)
+        result = rotation_mat.apply(np.concatenate((self.basis, self.position[:, np.newaxis].T, self.drawing_points),
+                                                   axis=0), inverse=inverse)
+        self.basis = result[:self.dimension]
+        self.position = result[self.dimension:self.dimension+1]
+        self.drawing_points = result[self.dimension+1:]
+        self.position = self.position.T.squeeze()
+        return rotation_mat
+
+    def rotate_about_body(self, angles: ArrayLike, method=&#34;euler_123&#34;, inverse: bool = False):
+        &#34;&#34;&#34;
+        Rotate the object by angles given around the three coordinate axes. With respect to body coordinates.
+
+        Args:
+            angles: array of shape (3,) or (2,) depending on self.dimension providing angles in radians
+            method:&#39;euler_123&#39;, &#39;euler_313&#39;, &#39;simple_3D_x&#39;, &#39;simple_3D_y&#39;, &#39;simple_3D_z&#39; or &#39;quaternion&#39;
+            inverse: True if the rotation should be inverted
+        &#34;&#34;&#34;
+        if self.dimension == 2:
+            rotation_mat = Rotation2D(angles)
+        else:
+            rotation_mat = self._rotate(angles, method)
+        points_at_origin = self.drawing_points - np.hstack(self.position)
+        result = rotation_mat.apply(np.concatenate((self.basis, points_at_origin), axis=0), inverse=inverse)
+        self.basis, self.drawing_points = result[:self.dimension], result[self.dimension:]
+        self.drawing_points += np.hstack(self.position)
+        return rotation_mat
+
+    def draw(self, axis: Axes, show_labels=False, show_basis=False, rotational_axis=None, rotational_center=&#34;origin&#34;)\
+            -&gt; list:
+        &#34;&#34;&#34;
+        Draw the object in the given axis (2D or 3D). Possibly also draws the label with atom position, the
+        body coordinate axes and/or the axis of rotation. Should be appended by subclasses for drawing the objects.
+
+        Args:
+            axis: ax on which the object should be drown
+            show_labels: show a label with the position of the point
+            show_basis: show the basis attached to the object
+            rotational_axis: the 3D vector representing the axis around which to rotate
+            rotational_center: &#39;origin&#39; or &#39;body&#39;, where the rotational axis should be drawn.
+        Returns:
+            list of all objects to be plotted
+        &#34;&#34;&#34;
+        to_return = []
+        # draw rotational axis
+        if np.any(rotational_axis):
+            if rotational_center == &#39;body&#39;:
+                origin = self.position
+            elif rotational_center == &#39;origin&#39;:
+                origin = np.array([0, 0, 0])
+            else:
+                raise ValueError(f&#34;Unknown argument {rotational_center} for rotational center (try &#39;body&#39; or &#39;origin&#39;)&#34;)
+            normed = rotational_axis / np.linalg.norm(rotational_axis)
+            axis_pic = axis.quiver(*origin, *normed, color=&#34;black&#34;, length=3, arrow_length_ratio=0.1)
+            to_return.append(axis_pic)
+        # draw label with the position of the body at the center of the body
+        if show_labels:
+            center_labels = self._draw_center_label(axis)
+            to_return.append(center_labels)
+        # draw the 2D/3D body axes
+        if show_basis:
+            basis_pic = self._draw_body_coordinates(axis)
+            to_return.extend(basis_pic)
+        return to_return
+
+    def _draw_center_label(self, axis: Axes) -&gt; Text:
+        &#34;&#34;&#34;
+        Helper function for drawing the label of the object center.
+
+        Args:
+            axis: ax for drawing
+        Returns:
+            the Text object that should be plotted
+        &#34;&#34;&#34;
+        if self.dimension == 2:
+            label_text = axis.text(*self.position, s=f&#34; ({self.position[0]}, {self.position[1]})&#34;)
+        else:
+            label_text = axis.text(*self.position, s=f&#34; ({self.position[0]}, {self.position[1]}, {self.position[2]})&#34;)
+        return label_text
+
+    def _draw_body_coordinates(self, axis: Axes, draw_labels=True) -&gt; list:
+        &#34;&#34;&#34;
+        Helper function for drawing the coordinate system attached to the object.
+
+        Args:
+            axis: ax for drawing
+            draw_labels: whether to label the basis with x_b, y_b, z_b
+        Returns:
+            list of all objects to be plotted (axes vectors, _create_labels)
+        &#34;&#34;&#34;
+        if type(self) == AbstractShape:
+            labels = [r&#34;$x$&#34;, r&#34;$y$&#34;, r&#34;$z$&#34;]
+        else:
+            labels = [r&#34;$x_b$&#34;, r&#34;$y_b$&#34;, r&#34;$z_b$&#34;]
+        everything_to_plot = []
+        for column in range(self.dimension):
+            # basis is drawn with an origin at current position
+            if self.dimension == 3:
+                quiver = axis.quiver(*self.position, *self.basis[column, :], length=1, color=&#34;black&#34;)
+            else:
+                # length=1 in 2D does not exist for some reason, this is the workaround
+                quiver = axis.quiver(*self.position, *self.basis[column, :],
+                                     color=&#34;black&#34;, angles=&#39;xy&#39;, scale_units=&#39;xy&#39;, scale=1)
+            # add the x, y, z _create_labels to the coordinate axes
+            position_labels = np.vstack(self.position) + 1/2 * self.basis.T
+            if draw_labels:
+                text = axis.text(*position_labels[:, column], s=labels[column], fontsize=30)
+                everything_to_plot.extend([quiver, text])
+            else:
+                everything_to_plot.extend([quiver])
+        return everything_to_plot</code></pre>
+</details>
+<h3>Ancestors</h3>
+<ul class="hlist">
+<li>abc.ABC</li>
+</ul>
+<h3>Subclasses</h3>
+<ul class="hlist">
+<li><a title="molgri.bodies.Circle" href="#molgri.bodies.Circle">Circle</a></li>
+<li><a title="molgri.bodies.Cuboid" href="#molgri.bodies.Cuboid">Cuboid</a></li>
+<li><a title="molgri.bodies.Cylinder" href="#molgri.bodies.Cylinder">Cylinder</a></li>
+<li><a title="molgri.bodies.Molecule" href="#molgri.bodies.Molecule">Molecule</a></li>
+<li><a title="molgri.bodies.Point" href="#molgri.bodies.Point">Point</a></li>
+<li><a title="molgri.bodies.Rectangle" href="#molgri.bodies.Rectangle">Rectangle</a></li>
+<li><a title="molgri.bodies.Sphere" href="#molgri.bodies.Sphere">Sphere</a></li>
+</ul>
+<h3>Methods</h3>
+<dl>
+<dt id="molgri.bodies.AbstractShape.draw"><code class="name flex">
+<span>def <span class="ident">draw</span></span>(<span>self, axis: matplotlib.axes._axes.Axes, show_labels=False, show_basis=False, rotational_axis=None, rotational_center='origin') ‑> list</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Draw the object in the given axis (2D or 3D). Possibly also draws the label with atom position, the
+body coordinate axes and/or the axis of rotation. Should be appended by subclasses for drawing the objects.</p>
+<h2 id="args">Args</h2>
+<dl>
+<dt><strong><code>axis</code></strong></dt>
+<dd>ax on which the object should be drown</dd>
+<dt><strong><code>show_labels</code></strong></dt>
+<dd>show a label with the position of the point</dd>
+<dt><strong><code>show_basis</code></strong></dt>
+<dd>show the basis attached to the object</dd>
+<dt><strong><code>rotational_axis</code></strong></dt>
+<dd>the 3D vector representing the axis around which to rotate</dd>
+<dt><strong><code>rotational_center</code></strong></dt>
+<dd>'origin' or 'body', where the rotational axis should be drawn.</dd>
+</dl>
+<h2 id="returns">Returns</h2>
+<p>list of all objects to be plotted</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def draw(self, axis: Axes, show_labels=False, show_basis=False, rotational_axis=None, rotational_center=&#34;origin&#34;)\
+        -&gt; list:
+    &#34;&#34;&#34;
+    Draw the object in the given axis (2D or 3D). Possibly also draws the label with atom position, the
+    body coordinate axes and/or the axis of rotation. Should be appended by subclasses for drawing the objects.
+
+    Args:
+        axis: ax on which the object should be drown
+        show_labels: show a label with the position of the point
+        show_basis: show the basis attached to the object
+        rotational_axis: the 3D vector representing the axis around which to rotate
+        rotational_center: &#39;origin&#39; or &#39;body&#39;, where the rotational axis should be drawn.
+    Returns:
+        list of all objects to be plotted
+    &#34;&#34;&#34;
+    to_return = []
+    # draw rotational axis
+    if np.any(rotational_axis):
+        if rotational_center == &#39;body&#39;:
+            origin = self.position
+        elif rotational_center == &#39;origin&#39;:
+            origin = np.array([0, 0, 0])
+        else:
+            raise ValueError(f&#34;Unknown argument {rotational_center} for rotational center (try &#39;body&#39; or &#39;origin&#39;)&#34;)
+        normed = rotational_axis / np.linalg.norm(rotational_axis)
+        axis_pic = axis.quiver(*origin, *normed, color=&#34;black&#34;, length=3, arrow_length_ratio=0.1)
+        to_return.append(axis_pic)
+    # draw label with the position of the body at the center of the body
+    if show_labels:
+        center_labels = self._draw_center_label(axis)
+        to_return.append(center_labels)
+    # draw the 2D/3D body axes
+    if show_basis:
+        basis_pic = self._draw_body_coordinates(axis)
+        to_return.extend(basis_pic)
+    return to_return</code></pre>
+</details>
+</dd>
+<dt id="molgri.bodies.AbstractShape.rotate_about_body"><code class="name flex">
+<span>def <span class="ident">rotate_about_body</span></span>(<span>self, angles: Union[numpy.__array_like._SupportsArray[numpy.dtype], numpy.__nested_sequence._NestedSequence[numpy.__array_like._SupportsArray[numpy.dtype]], bool, int, float, complex, str, bytes, numpy.__nested_sequence._NestedSequence[Union[bool, int, float, complex, str, bytes]]], method='euler_123', inverse: bool = False)</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Rotate the object by angles given around the three coordinate axes. With respect to body coordinates.</p>
+<h2 id="args">Args</h2>
+<dl>
+<dt><strong><code>angles</code></strong></dt>
+<dd>array of shape (3,) or (2,) depending on self.dimension providing angles in radians</dd>
+<dt>method:'euler_123', 'euler_313', 'simple_3D_x', 'simple_3D_y', 'simple_3D_z' or 'quaternion'</dt>
+<dt><strong><code>inverse</code></strong></dt>
+<dd>True if the rotation should be inverted</dd>
+</dl></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def rotate_about_body(self, angles: ArrayLike, method=&#34;euler_123&#34;, inverse: bool = False):
+    &#34;&#34;&#34;
+    Rotate the object by angles given around the three coordinate axes. With respect to body coordinates.
+
+    Args:
+        angles: array of shape (3,) or (2,) depending on self.dimension providing angles in radians
+        method:&#39;euler_123&#39;, &#39;euler_313&#39;, &#39;simple_3D_x&#39;, &#39;simple_3D_y&#39;, &#39;simple_3D_z&#39; or &#39;quaternion&#39;
+        inverse: True if the rotation should be inverted
+    &#34;&#34;&#34;
+    if self.dimension == 2:
+        rotation_mat = Rotation2D(angles)
+    else:
+        rotation_mat = self._rotate(angles, method)
+    points_at_origin = self.drawing_points - np.hstack(self.position)
+    result = rotation_mat.apply(np.concatenate((self.basis, points_at_origin), axis=0), inverse=inverse)
+    self.basis, self.drawing_points = result[:self.dimension], result[self.dimension:]
+    self.drawing_points += np.hstack(self.position)
+    return rotation_mat</code></pre>
+</details>
+</dd>
+<dt id="molgri.bodies.AbstractShape.rotate_about_origin"><code class="name flex">
+<span>def <span class="ident">rotate_about_origin</span></span>(<span>self, angles: Union[numpy.__array_like._SupportsArray[numpy.dtype], numpy.__nested_sequence._NestedSequence[numpy.__array_like._SupportsArray[numpy.dtype]], bool, int, float, complex, str, bytes, numpy.__nested_sequence._NestedSequence[Union[bool, int, float, complex, str, bytes]]], method='euler_123', inverse: bool = False)</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Rotate the object by angles given around the three coordinate axes. With respect to coordinate origin.</p>
+<h2 id="args">Args</h2>
+<dl>
+<dt><strong><code>angles</code></strong></dt>
+<dd>array of shape (3,) or (2,) depending on self.dimension providing angles in radians</dd>
+<dt><strong><code>method</code></strong></dt>
+<dd>'euler_123', 'euler_313', 'simple_3D_x', 'simple_3D_y', 'simple_3D_z' or 'quaternion'</dd>
+<dt><strong><code>inverse</code></strong></dt>
+<dd>True if the rotation should be inverted</dd>
+</dl></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def rotate_about_origin(self, angles: ArrayLike, method=&#34;euler_123&#34;, inverse: bool = False):
+    &#34;&#34;&#34;
+    Rotate the object by angles given around the three coordinate axes. With respect to coordinate origin.
+
+    Args:
+        angles: array of shape (3,) or (2,) depending on self.dimension providing angles in radians
+        method: &#39;euler_123&#39;, &#39;euler_313&#39;, &#39;simple_3D_x&#39;, &#39;simple_3D_y&#39;, &#39;simple_3D_z&#39; or &#39;quaternion&#39;
+        inverse: True if the rotation should be inverted
+    &#34;&#34;&#34;
+    if self.dimension == 2:
+        rotation_mat = Rotation2D(angles)
+    else:
+        rotation_mat = self._rotate(angles, method)
+    result = rotation_mat.apply(np.concatenate((self.basis, self.position[:, np.newaxis].T, self.drawing_points),
+                                               axis=0), inverse=inverse)
+    self.basis = result[:self.dimension]
+    self.position = result[self.dimension:self.dimension+1]
+    self.drawing_points = result[self.dimension+1:]
+    self.position = self.position.T.squeeze()
+    return rotation_mat</code></pre>
+</details>
+</dd>
+<dt id="molgri.bodies.AbstractShape.translate"><code class="name flex">
+<span>def <span class="ident">translate</span></span>(<span>self, vector: Union[numpy.__array_like._SupportsArray[numpy.dtype], numpy.__nested_sequence._NestedSequence[numpy.__array_like._SupportsArray[numpy.dtype]], bool, int, float, complex, str, bytes, numpy.__nested_sequence._NestedSequence[Union[bool, int, float, complex, str, bytes]]])</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Move the position of the point by a given vector. This method can be appended by subclasses.
+The basis does not change (it is always drawn from the current self.position).</p>
+<h2 id="args">Args</h2>
+<dl>
+<dt><strong><code>vector</code></strong></dt>
+<dd>array of shape (3,) or (2,) depending on self.dimension</dd>
+</dl></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def translate(self, vector: ArrayLike):
+    &#34;&#34;&#34;
+    Move the position of the point by a given vector. This method can be appended by subclasses.
+    The basis does not change (it is always drawn from the current self.position).
+
+    Args:
+        vector: array of shape (3,) or (2,) depending on self.dimension
+    &#34;&#34;&#34;
+    vector = np.array(vector)
+    assert len(vector) == self.position.shape[0], &#34;Dimensions of the object space and vector space do not align.&#34;
+    self.position += vector
+    self.drawing_points += np.hstack(vector)</code></pre>
+</details>
+</dd>
+</dl>
+</dd>
+<dt id="molgri.bodies.Atom"><code class="flex name class">
+<span>class <span class="ident">Atom</span></span>
+<span>(</span><span>atom_name: str, start_position: numpy.ndarray = array([0, 0, 0]), belongs_to=None, gro_label: list = None)</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Helper class that provides a standard way to create an ABC using
+inheritance.</p>
+<p>A shape is always created at origin. It can be represented by its basis in 2D or 3D.
+Its position and angles can later be changed with translations and rotation.</p>
+<h2 id="args">Args</h2>
+<dl>
+<dt><strong><code>dimension</code></strong></dt>
+<dd>2 or 3, how many dimensions in space does the object have.</dd>
+</dl></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">class Atom(Sphere):
+
+    def __init__(self, atom_name: str, start_position: np.ndarray = np.array([0, 0, 0]), belongs_to=None,
+                 gro_label: list = None):
+        if gro_label is None:
+            gro_label = atom_name
+        self.element = element(atom_name)
+        self.gro_label = gro_label
+        self.belongs_to = belongs_to
+        super().__init__(radius=self.element.atomic_radius*PM2NM, color=self.element.jmol_color)
+        self.translate(start_position)
+
+    def draw(self, axis, **kwargs):
+        alpha = kwargs.pop(&#34;alpha&#34;, 1)
+        return super().draw(axis, alpha=alpha, shade=False, **kwargs)</code></pre>
+</details>
+<h3>Ancestors</h3>
+<ul class="hlist">
+<li><a title="molgri.bodies.Sphere" href="#molgri.bodies.Sphere">Sphere</a></li>
+<li><a title="molgri.bodies.AbstractShape" href="#molgri.bodies.AbstractShape">AbstractShape</a></li>
+<li>abc.ABC</li>
+</ul>
+<h3>Inherited members</h3>
+<ul class="hlist">
+<li><code><b><a title="molgri.bodies.Sphere" href="#molgri.bodies.Sphere">Sphere</a></b></code>:
+<ul class="hlist">
+<li><code><a title="molgri.bodies.Sphere.draw" href="#molgri.bodies.Sphere.draw">draw</a></code></li>
+<li><code><a title="molgri.bodies.Sphere.rotate_about_body" href="#molgri.bodies.AbstractShape.rotate_about_body">rotate_about_body</a></code></li>
+<li><code><a title="molgri.bodies.Sphere.rotate_about_origin" href="#molgri.bodies.AbstractShape.rotate_about_origin">rotate_about_origin</a></code></li>
+<li><code><a title="molgri.bodies.Sphere.translate" href="#molgri.bodies.AbstractShape.translate">translate</a></code></li>
+</ul>
+</li>
+</ul>
+</dd>
+<dt id="molgri.bodies.AtomSet"><code class="flex name class">
+<span>class <span class="ident">AtomSet</span></span>
+<span>(</span><span>all_objects: list, file_gro: <class 'TextIO'> = None, file_xyz: <class 'TextIO'> = None, **kwargs)</span>
+</code></dt>
+<dd>
+<div class="desc"><p>An object joining several AbstractShape objects so they can be translated, rotated or drawn together.
+Using 'which' command, only a part of the collection can be manipulated.</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">class AtomSet(ShapeSet):
+
+    def __init__(self, all_objects: list or AbstractShape, file_gro: TextIO = None,
+                 file_xyz: TextIO = None, **kwargs):
+        super().__init__(all_objects, **kwargs)
+        assert [type(x) == Atom for x in self.all_objects], &#34;All simulated objects must be Atoms&#34;
+        self.belongings = self._group_by_belonging()
+        self.file_gro = file_gro
+        self.file_xyz = file_xyz
+        self.num_atoms = len(self.all_objects)
+
+    def _group_by_belonging(self) -&gt; dict:
+        try:
+            belonging_dic = defaultdict(list)
+            for one_object in self.all_objects:
+                belonging_dic[one_object.belongs_to].append(one_object)
+            belonging_dic = dict(belonging_dic)
+            return belonging_dic
+        # this happens when initializing MoleculeSet
+        except AttributeError:
+            return dict()
+
+    def _select_which_objects(self, which: list or None):
+        &#34;&#34;&#34;
+        Helper function to create a filter which objects to use from self.all_objects. If which=None, use all.
+        &#34;&#34;&#34;
+        if which is None:
+            which = [1] * len(self.all_objects)
+        elif which in list(self.belongings.keys()):
+            return [x.belongs_to == which for x in self.all_objects]
+        else:
+            assert len(which) == len(self.all_objects), &#34;which needs to provide 1/0 for each object in self.all_objects&#34;
+            assert all([x in [1, 0] for x in which]), &#34;which cannot have values other than 1 or 0&#34;
+        return which
+
+    def _save_atom_lines_gro(self, residue: str = &#34;SOL&#34;, atom_num=1, residue_num=1):
+        num_atom = atom_num
+        num_molecule = residue_num
+        for molecule_name, molecule_atoms in self.belongings.items():
+            hydrogen_counter = 1
+            for atom in molecule_atoms:
+                pos_nm = atom.position
+                if atom.element.symbol == &#34;O&#34;:
+                    name = &#34;OW&#34;
+                elif atom.element.symbol == &#34;H&#34;:
+                    name = &#34;HW&#34; + str(hydrogen_counter)
+                    hydrogen_counter += 1
+                else:
+                    name = atom.element.symbol
+                self.file_gro.write(f&#34;{num_molecule:5}{residue:5}{name:&gt;5}{num_atom:5}{pos_nm[0]:8.3f}{pos_nm[1]:8.3f}&#34;
+                                    f&#34;{pos_nm[2]:8.3f}{0:8.4f}{0:8.4f}{0:8.4f}\n&#34;)
+                num_atom += 1
+            num_molecule += 1
+
+    def _manipulate_objects(self, *args, save_to_gro=False, ** kwargs):
+        super()._manipulate_objects(*args, **kwargs)</code></pre>
+</details>
+<h3>Ancestors</h3>
+<ul class="hlist">
+<li><a title="molgri.bodies.ShapeSet" href="#molgri.bodies.ShapeSet">ShapeSet</a></li>
+</ul>
+<h3>Subclasses</h3>
+<ul class="hlist">
+<li><a title="molgri.bodies.MoleculeSet" href="#molgri.bodies.MoleculeSet">MoleculeSet</a></li>
+</ul>
+<h3>Inherited members</h3>
+<ul class="hlist">
+<li><code><b><a title="molgri.bodies.ShapeSet" href="#molgri.bodies.ShapeSet">ShapeSet</a></b></code>:
+<ul class="hlist">
+<li><code><a title="molgri.bodies.ShapeSet.draw_objects" href="#molgri.bodies.ShapeSet.draw_objects">draw_objects</a></code></li>
+<li><code><a title="molgri.bodies.ShapeSet.rotate_objects_about_body" href="#molgri.bodies.ShapeSet.rotate_objects_about_body">rotate_objects_about_body</a></code></li>
+<li><code><a title="molgri.bodies.ShapeSet.rotate_objects_about_origin" href="#molgri.bodies.ShapeSet.rotate_objects_about_origin">rotate_objects_about_origin</a></code></li>
+<li><code><a title="molgri.bodies.ShapeSet.translate_objects" href="#molgri.bodies.ShapeSet.translate_objects">translate_objects</a></code></li>
+</ul>
+</li>
+</ul>
+</dd>
+<dt id="molgri.bodies.Circle"><code class="flex name class">
+<span>class <span class="ident">Circle</span></span>
+<span>(</span><span>radius: float = 1, color: str = 'red')</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Helper class that provides a standard way to create an ABC using
+inheritance.</p>
+<p>A shape is always created at origin. It can be represented by its basis in 2D or 3D.
+Its position and angles can later be changed with translations and rotation.</p>
+<h2 id="args">Args</h2>
+<dl>
+<dt><strong><code>dimension</code></strong></dt>
+<dd>2 or 3, how many dimensions in space does the object have.</dd>
+</dl></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">class Circle(AbstractShape):
+
+    def __init__(self, radius: float = 1, color: str = &#34;red&#34;):
+        self.radius = radius
+        num_points = 100
+        points = np.linspace(-2*pi, 2*pi, num_points)
+        xs = self.radius * np.cos(points)
+        ys = self.radius * np.sin(points)
+        all_points = np.array([xs, ys])
+        super().__init__(2, drawing_points=all_points.T, color=color)
+
+    def __str__(self):
+        return f&#34;{self.color} {type(self).__name__} at {self.position} with radius {self.radius}&#34;
+
+    def draw(self, axis: Axes, **kwargs) -&gt; list:
+        &#34;&#34;&#34;
+        Draw a circle with given radius.
+
+        Args:
+            axis: ax on which the object should be drown
+        &#34;&#34;&#34;
+        circle_patch = patches.Polygon(self.drawing_points, color=self.color, alpha=0.5)
+        axis.add_patch(circle_patch)
+        super_obj = super().draw(axis, **kwargs)
+        return [circle_patch, *super_obj]</code></pre>
+</details>
+<h3>Ancestors</h3>
+<ul class="hlist">
+<li><a title="molgri.bodies.AbstractShape" href="#molgri.bodies.AbstractShape">AbstractShape</a></li>
+<li>abc.ABC</li>
+</ul>
+<h3>Methods</h3>
+<dl>
+<dt id="molgri.bodies.Circle.draw"><code class="name flex">
+<span>def <span class="ident">draw</span></span>(<span>self, axis: matplotlib.axes._axes.Axes, **kwargs) ‑> list</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Draw a circle with given radius.</p>
+<h2 id="args">Args</h2>
+<dl>
+<dt><strong><code>axis</code></strong></dt>
+<dd>ax on which the object should be drown</dd>
+</dl></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def draw(self, axis: Axes, **kwargs) -&gt; list:
+    &#34;&#34;&#34;
+    Draw a circle with given radius.
+
+    Args:
+        axis: ax on which the object should be drown
+    &#34;&#34;&#34;
+    circle_patch = patches.Polygon(self.drawing_points, color=self.color, alpha=0.5)
+    axis.add_patch(circle_patch)
+    super_obj = super().draw(axis, **kwargs)
+    return [circle_patch, *super_obj]</code></pre>
+</details>
+</dd>
+</dl>
+<h3>Inherited members</h3>
+<ul class="hlist">
+<li><code><b><a title="molgri.bodies.AbstractShape" href="#molgri.bodies.AbstractShape">AbstractShape</a></b></code>:
+<ul class="hlist">
+<li><code><a title="molgri.bodies.AbstractShape.rotate_about_body" href="#molgri.bodies.AbstractShape.rotate_about_body">rotate_about_body</a></code></li>
+<li><code><a title="molgri.bodies.AbstractShape.rotate_about_origin" href="#molgri.bodies.AbstractShape.rotate_about_origin">rotate_about_origin</a></code></li>
+<li><code><a title="molgri.bodies.AbstractShape.translate" href="#molgri.bodies.AbstractShape.translate">translate</a></code></li>
+</ul>
+</li>
+</ul>
+</dd>
+<dt id="molgri.bodies.Cuboid"><code class="flex name class">
+<span>class <span class="ident">Cuboid</span></span>
+<span>(</span><span>len_x: float = 1, len_y: float = 2, len_z: float = 4, color: str = 'blue')</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Helper class that provides a standard way to create an ABC using
+inheritance.</p>
+<p>Cuboid is always a 3D object. It is created with a center at the origin.</p>
+<h2 id="args">Args</h2>
+<dl>
+<dt><strong><code>len_x</code></strong></dt>
+<dd>length of side in x direction</dd>
+<dt><strong><code>len_y</code></strong></dt>
+<dd>length of side in y direction</dd>
+<dt><strong><code>len_z</code></strong></dt>
+<dd>length of side in z direction</dd>
+</dl></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">class Cuboid(AbstractShape):
+
+    def __init__(self, len_x: float = 1, len_y: float = 2, len_z: float = 4, color: str = &#34;blue&#34;):
+        &#34;&#34;&#34;
+        Cuboid is always a 3D object. It is created with a center at the origin.
+
+        Args:
+            len_x: length of side in x direction
+            len_y: length of side in y direction
+            len_z: length of side in z direction
+        &#34;&#34;&#34;
+
+        self.side_lens = np.array([len_x, len_y, len_z], dtype=float)
+        # (3, 8) array that saves the position of vertices
+        # do not change the order or the entire class needs to be adapted!
+        vertices = np.zeros((3, 8))
+        vertices[0] = self.side_lens[0]/2 * np.array([-1, -1, -1, -1, 1, 1, 1, 1])
+        vertices[1] = self.side_lens[1]/2 * np.array([-1, -1, 1, 1, -1, -1, 1, 1])
+        vertices[2] = self.side_lens[2]/2 * np.array([-1, 1, -1, 1, -1, 1, -1, 1])
+        super().__init__(dimension=3, drawing_points=vertices.T, color=color)
+
+    def __str__(self):
+        return f&#34;{self.color} {type(self).__name__} at {self.position} with sides {self.side_lens}&#34;
+
+    def _create_all_faces(self):
+        &#34;&#34;&#34;
+        Helper function to create a list of all rectangles that represent the six faces of a cuboid.
+        &#34;&#34;&#34;
+        # numbers represent the order of vertices that create a face
+        edge_sequences = [&#34;0132&#34;, &#34;4576&#34;, &#34;6732&#34;, &#34;5104&#34;, &#34;5731&#34;, &#34;4620&#34;]
+        all_faces = []
+        for face_num in edge_sequences:
+            # each row one of the corners of the rectangle
+            rectangle = np.zeros((4, 3), dtype=float)
+            for i, num in enumerate(face_num):
+                rectangle[i] = self.drawing_points[int(num), :]
+            all_faces.append(rectangle)
+        return all_faces
+
+    def draw(self, axis: Axes, show_vertices: bool = False, **kwargs):
+        alpha = kwargs.pop(&#34;alpha&#34;, 0.5)
+        cuboid = Poly3DCollection(self._create_all_faces(), color=self.color, alpha=alpha)
+        axis.add_collection3d(cuboid)
+        super_obj = super().draw(axis, **kwargs)
+        # show dots at all vertices
+        if show_vertices:
+            scatter = axis.scatter(*self.drawing_points.T, color=&#34;black&#34;)
+            return [cuboid, scatter, *super_obj]
+        return [cuboid, *super_obj]</code></pre>
+</details>
+<h3>Ancestors</h3>
+<ul class="hlist">
+<li><a title="molgri.bodies.AbstractShape" href="#molgri.bodies.AbstractShape">AbstractShape</a></li>
+<li>abc.ABC</li>
+</ul>
+<h3>Inherited members</h3>
+<ul class="hlist">
+<li><code><b><a title="molgri.bodies.AbstractShape" href="#molgri.bodies.AbstractShape">AbstractShape</a></b></code>:
+<ul class="hlist">
+<li><code><a title="molgri.bodies.AbstractShape.draw" href="#molgri.bodies.AbstractShape.draw">draw</a></code></li>
+<li><code><a title="molgri.bodies.AbstractShape.rotate_about_body" href="#molgri.bodies.AbstractShape.rotate_about_body">rotate_about_body</a></code></li>
+<li><code><a title="molgri.bodies.AbstractShape.rotate_about_origin" href="#molgri.bodies.AbstractShape.rotate_about_origin">rotate_about_origin</a></code></li>
+<li><code><a title="molgri.bodies.AbstractShape.translate" href="#molgri.bodies.AbstractShape.translate">translate</a></code></li>
+</ul>
+</li>
+</ul>
+</dd>
+<dt id="molgri.bodies.Cylinder"><code class="flex name class">
+<span>class <span class="ident">Cylinder</span></span>
+<span>(</span><span>radius=1, height=3, color='green')</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Helper class that provides a standard way to create an ABC using
+inheritance.</p>
+<p>A shape is always created at origin. It can be represented by its basis in 2D or 3D.
+Its position and angles can later be changed with translations and rotation.</p>
+<h2 id="args">Args</h2>
+<dl>
+<dt><strong><code>dimension</code></strong></dt>
+<dd>2 or 3, how many dimensions in space does the object have.</dd>
+</dl></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">class Cylinder(AbstractShape):
+
+    def __init__(self, radius=1, height=3, color=&#34;green&#34;):
+
+        self.radius = radius
+        self.height = height
+        self.num_points = 50
+        us = np.linspace(-2 * pi, 2 * pi, self.num_points)
+        zs = np.linspace(-self.height / 2, self.height, 2)
+        us, zs = np.meshgrid(us, zs)
+        xs = self.radius * np.cos(us)
+        ys = self.radius * np.sin(us)
+        bottom_circle = np.stack((xs[0], ys[0], zs[0]))
+        upper_circle = np.stack((xs[1], ys[1], zs[1]))
+        super().__init__(3, drawing_points=np.hstack((bottom_circle, upper_circle)).T, color=color)
+
+    def __str__(self):
+        return f&#34;{self.color} {type(self).__name__} at {self.position} with radius {self.radius} &amp; height {self.height}&#34;
+
+    def draw(self, axis, **kwargs):
+        bottom_circle = self.drawing_points[:self.num_points, :]
+        upper_circle = self.drawing_points[self.num_points:, :]
+        surface = np.stack((bottom_circle, upper_circle), axis=1)
+        # draw the top and bottom circle
+        alpha = kwargs.pop(&#34;alpha&#34;, 0.5)
+        surf1 = Poly3DCollection([bottom_circle, upper_circle], color=self.color, alpha=alpha)
+        axis.add_collection3d(surf1)
+        # draw the curved surface
+        surf2 = axis.plot_surface(*surface.T, color=self.color, alpha=alpha)
+        super_obj = super().draw(axis, **kwargs)
+        return [surf1, surf2, *super_obj]</code></pre>
+</details>
+<h3>Ancestors</h3>
+<ul class="hlist">
+<li><a title="molgri.bodies.AbstractShape" href="#molgri.bodies.AbstractShape">AbstractShape</a></li>
+<li>abc.ABC</li>
+</ul>
+<h3>Inherited members</h3>
+<ul class="hlist">
+<li><code><b><a title="molgri.bodies.AbstractShape" href="#molgri.bodies.AbstractShape">AbstractShape</a></b></code>:
+<ul class="hlist">
+<li><code><a title="molgri.bodies.AbstractShape.draw" href="#molgri.bodies.AbstractShape.draw">draw</a></code></li>
+<li><code><a title="molgri.bodies.AbstractShape.rotate_about_body" href="#molgri.bodies.AbstractShape.rotate_about_body">rotate_about_body</a></code></li>
+<li><code><a title="molgri.bodies.AbstractShape.rotate_about_origin" href="#molgri.bodies.AbstractShape.rotate_about_origin">rotate_about_origin</a></code></li>
+<li><code><a title="molgri.bodies.AbstractShape.translate" href="#molgri.bodies.AbstractShape.translate">translate</a></code></li>
+</ul>
+</li>
+</ul>
+</dd>
+<dt id="molgri.bodies.Molecule"><code class="flex name class">
+<span>class <span class="ident">Molecule</span></span>
+<span>(</span><span>atom_names: list, centers: numpy.ndarray, connections: numpy.ndarray = None, center_at_origin=False, gro_labels: list = None)</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Helper class that provides a standard way to create an ABC using
+inheritance.</p>
+<p>A shape is always created at origin. It can be represented by its basis in 2D or 3D.
+Its position and angles can later be changed with translations and rotation.</p>
+<h2 id="args">Args</h2>
+<dl>
+<dt><strong><code>dimension</code></strong></dt>
+<dd>2 or 3, how many dimensions in space does the object have.</dd>
+</dl></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">class Molecule(AbstractShape):
+
+    def __init__(self, atom_names: list, centers: np.ndarray, connections: np.ndarray = None, center_at_origin=False,
+                 gro_labels: list = None):
+        if gro_labels is None:
+            gro_labels = atom_names
+        self.atoms = []      # saving the Atom objects for easy plotting and access to properties
+        for i, atom_name in enumerate(atom_names):
+            self.atoms.append(Atom(atom_name, start_position=centers[i], gro_label=gro_labels[i]))
+        if connections is None:
+            connections = np.diag([1]*len(self.atoms))
+        self.connections = connections
+        super().__init__(dimension=3)
+        self.position = self._calc_center_of_mass()
+        if center_at_origin:
+            self.translate(-self.position)
+
+    def _calc_center_of_mass(self):
+        total_mass = 0
+        com = np.zeros(3)
+        for i, atom in enumerate(self.atoms):
+            total_mass += atom.element.atomic_weight
+            com += atom.element.atomic_weight * self.atoms[i].position
+        return com/total_mass
+
+    def draw(self, axis, **kwargs):
+        # currently only possible to draw single bonds
+        plot_elements = []
+        # draw bonds as connections of centers
+        for i, line in enumerate(self.connections):
+            for j, el in enumerate(line[:i]):
+                if el:
+                    plot_e = axis.plot(*zip(self.atoms[i].position, self.atoms[j].position), color=&#34;black&#34;, linewidth=2)
+                    plot_elements.extend(plot_e)
+        # draw atoms as solid spheres
+        for atom in self.atoms:
+            plot_e = atom.draw(axis, **kwargs)
+            plot_elements.extend(plot_e)
+        return plot_elements
+
+    def translate(self, vector: np.ndarray):
+        super().translate(vector)
+        for atom in self.atoms:
+            atom.translate(vector)
+
+    def rotate_about_origin(self, angles: np.ndarray, **kwargs):
+        super().rotate_about_origin(angles, **kwargs)
+        for atom in self.atoms:
+            atom.rotate_about_origin(angles, **kwargs)
+
+    def rotate_about_body(self, angles: np.ndarray or float, **kwargs):
+        super().rotate_about_body(angles, **kwargs)
+        inverse = kwargs.pop(&#34;inverse&#34;, False)
+        for atom in self.atoms:
+            points_at_origin = atom.position - self.position
+            rot = atom._rotate(angles, **kwargs)
+            atom.position = rot.apply(points_at_origin, inverse=inverse) + self.position</code></pre>
+</details>
+<h3>Ancestors</h3>
+<ul class="hlist">
+<li><a title="molgri.bodies.AbstractShape" href="#molgri.bodies.AbstractShape">AbstractShape</a></li>
+<li>abc.ABC</li>
+</ul>
+<h3>Inherited members</h3>
+<ul class="hlist">
+<li><code><b><a title="molgri.bodies.AbstractShape" href="#molgri.bodies.AbstractShape">AbstractShape</a></b></code>:
+<ul class="hlist">
+<li><code><a title="molgri.bodies.AbstractShape.draw" href="#molgri.bodies.AbstractShape.draw">draw</a></code></li>
+<li><code><a title="molgri.bodies.AbstractShape.rotate_about_body" href="#molgri.bodies.AbstractShape.rotate_about_body">rotate_about_body</a></code></li>
+<li><code><a title="molgri.bodies.AbstractShape.rotate_about_origin" href="#molgri.bodies.AbstractShape.rotate_about_origin">rotate_about_origin</a></code></li>
+<li><code><a title="molgri.bodies.AbstractShape.translate" href="#molgri.bodies.AbstractShape.translate">translate</a></code></li>
+</ul>
+</li>
+</ul>
+</dd>
+<dt id="molgri.bodies.MoleculeSet"><code class="flex name class">
+<span>class <span class="ident">MoleculeSet</span></span>
+<span>(</span><span>all_objects: list, file_gro: <class 'TextIO'> = None, file_xyz: <class 'TextIO'> = None, **kwargs)</span>
+</code></dt>
+<dd>
+<div class="desc"><p>An object joining several AbstractShape objects so they can be translated, rotated or drawn together.
+Using 'which' command, only a part of the collection can be manipulated.</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">class MoleculeSet(AtomSet):
+
+    def __init__(self, all_objects: list or AbstractShape, file_gro: TextIO = None, file_xyz: TextIO = None, **kwargs):
+        super().__init__(all_objects, file_gro=file_gro, file_xyz=file_xyz, **kwargs)
+        assert [type(x) == Molecule for x in self.all_objects], &#34;All objects must be Molecules&#34;
+        # changing from AtomSet
+        self.belongings = {f&#34;molecule_{i}&#34;: key.atoms for i, key in enumerate(self.all_objects)}
+        # changing from AtomSet
+        self.num_atoms = sum([len(self.all_objects[i].atoms) for i in range(len(self.all_objects))])</code></pre>
+</details>
+<h3>Ancestors</h3>
+<ul class="hlist">
+<li><a title="molgri.bodies.AtomSet" href="#molgri.bodies.AtomSet">AtomSet</a></li>
+<li><a title="molgri.bodies.ShapeSet" href="#molgri.bodies.ShapeSet">ShapeSet</a></li>
+</ul>
+<h3>Inherited members</h3>
+<ul class="hlist">
+<li><code><b><a title="molgri.bodies.AtomSet" href="#molgri.bodies.AtomSet">AtomSet</a></b></code>:
+<ul class="hlist">
+<li><code><a title="molgri.bodies.AtomSet.draw_objects" href="#molgri.bodies.ShapeSet.draw_objects">draw_objects</a></code></li>
+<li><code><a title="molgri.bodies.AtomSet.rotate_objects_about_body" href="#molgri.bodies.ShapeSet.rotate_objects_about_body">rotate_objects_about_body</a></code></li>
+<li><code><a title="molgri.bodies.AtomSet.rotate_objects_about_origin" href="#molgri.bodies.ShapeSet.rotate_objects_about_origin">rotate_objects_about_origin</a></code></li>
+<li><code><a title="molgri.bodies.AtomSet.translate_objects" href="#molgri.bodies.ShapeSet.translate_objects">translate_objects</a></code></li>
+</ul>
+</li>
+</ul>
+</dd>
+<dt id="molgri.bodies.Point"><code class="flex name class">
+<span>class <span class="ident">Point</span></span>
+<span>(</span><span>dimension: int, drawing_points: numpy.ndarray = None, color='black')</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Helper class that provides a standard way to create an ABC using
+inheritance.</p>
+<p>A shape is always created at origin. It can be represented by its basis in 2D or 3D.
+Its position and angles can later be changed with translations and rotation.</p>
+<h2 id="args">Args</h2>
+<dl>
+<dt><strong><code>dimension</code></strong></dt>
+<dd>2 or 3, how many dimensions in space does the object have.</dd>
+</dl></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">class Point(AbstractShape):
+    def draw(self, axis, **kwargs):
+        axis.scatter(*self.position, color=self.color)
+        super().draw(axis, **kwargs)</code></pre>
+</details>
+<h3>Ancestors</h3>
+<ul class="hlist">
+<li><a title="molgri.bodies.AbstractShape" href="#molgri.bodies.AbstractShape">AbstractShape</a></li>
+<li>abc.ABC</li>
+</ul>
+<h3>Inherited members</h3>
+<ul class="hlist">
+<li><code><b><a title="molgri.bodies.AbstractShape" href="#molgri.bodies.AbstractShape">AbstractShape</a></b></code>:
+<ul class="hlist">
+<li><code><a title="molgri.bodies.AbstractShape.draw" href="#molgri.bodies.AbstractShape.draw">draw</a></code></li>
+<li><code><a title="molgri.bodies.AbstractShape.rotate_about_body" href="#molgri.bodies.AbstractShape.rotate_about_body">rotate_about_body</a></code></li>
+<li><code><a title="molgri.bodies.AbstractShape.rotate_about_origin" href="#molgri.bodies.AbstractShape.rotate_about_origin">rotate_about_origin</a></code></li>
+<li><code><a title="molgri.bodies.AbstractShape.translate" href="#molgri.bodies.AbstractShape.translate">translate</a></code></li>
+</ul>
+</li>
+</ul>
+</dd>
+<dt id="molgri.bodies.Rectangle"><code class="flex name class">
+<span>class <span class="ident">Rectangle</span></span>
+<span>(</span><span>len_x: float = 1, len_y: float = 2, color='blue')</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Helper class that provides a standard way to create an ABC using
+inheritance.</p>
+<p>A shape is always created at origin. It can be represented by its basis in 2D or 3D.
+Its position and angles can later be changed with translations and rotation.</p>
+<h2 id="args">Args</h2>
+<dl>
+<dt><strong><code>dimension</code></strong></dt>
+<dd>2 or 3, how many dimensions in space does the object have.</dd>
+</dl></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">class Rectangle(AbstractShape):
+    def __init__(self, len_x: float = 1, len_y: float = 2, color=&#34;blue&#34;):
+        self.side_lens = np.array([len_x, len_y])
+        vertices = 1/2 * np.array([[-len_x, -len_y],
+                                   [-len_x, len_y],
+                                   [len_x, len_y],
+                                   [len_x, -len_y]])
+        super().__init__(2, drawing_points=vertices, color=color)
+
+    def __str__(self):
+        return f&#34;{self.color} {type(self).__name__} at {self.position} with sides {self.side_lens}&#34;
+
+    def draw(self, axis: Axes, **kwargs) -&gt; list:
+        &#34;&#34;&#34;
+        Draw a rectangle
+
+        Args:
+            axis: ax on which the object should be drown
+        &#34;&#34;&#34;
+        rectangle = patches.Polygon(self.drawing_points, color=self.color, alpha=0.5)
+        axis.add_patch(rectangle)
+        super_obj = super().draw(axis, **kwargs)
+        return [rectangle, *super_obj]</code></pre>
+</details>
+<h3>Ancestors</h3>
+<ul class="hlist">
+<li><a title="molgri.bodies.AbstractShape" href="#molgri.bodies.AbstractShape">AbstractShape</a></li>
+<li>abc.ABC</li>
+</ul>
+<h3>Methods</h3>
+<dl>
+<dt id="molgri.bodies.Rectangle.draw"><code class="name flex">
+<span>def <span class="ident">draw</span></span>(<span>self, axis: matplotlib.axes._axes.Axes, **kwargs) ‑> list</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Draw a rectangle</p>
+<h2 id="args">Args</h2>
+<dl>
+<dt><strong><code>axis</code></strong></dt>
+<dd>ax on which the object should be drown</dd>
+</dl></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def draw(self, axis: Axes, **kwargs) -&gt; list:
+    &#34;&#34;&#34;
+    Draw a rectangle
+
+    Args:
+        axis: ax on which the object should be drown
+    &#34;&#34;&#34;
+    rectangle = patches.Polygon(self.drawing_points, color=self.color, alpha=0.5)
+    axis.add_patch(rectangle)
+    super_obj = super().draw(axis, **kwargs)
+    return [rectangle, *super_obj]</code></pre>
+</details>
+</dd>
+</dl>
+<h3>Inherited members</h3>
+<ul class="hlist">
+<li><code><b><a title="molgri.bodies.AbstractShape" href="#molgri.bodies.AbstractShape">AbstractShape</a></b></code>:
+<ul class="hlist">
+<li><code><a title="molgri.bodies.AbstractShape.rotate_about_body" href="#molgri.bodies.AbstractShape.rotate_about_body">rotate_about_body</a></code></li>
+<li><code><a title="molgri.bodies.AbstractShape.rotate_about_origin" href="#molgri.bodies.AbstractShape.rotate_about_origin">rotate_about_origin</a></code></li>
+<li><code><a title="molgri.bodies.AbstractShape.translate" href="#molgri.bodies.AbstractShape.translate">translate</a></code></li>
+</ul>
+</li>
+</ul>
+</dd>
+<dt id="molgri.bodies.ShapeSet"><code class="flex name class">
+<span>class <span class="ident">ShapeSet</span></span>
+<span>(</span><span>all_objects: list, num_dim: int = 3, name: str = 'ShapeSet', time_step: int = 0)</span>
+</code></dt>
+<dd>
+<div class="desc"><p>An object joining several AbstractShape objects so they can be translated, rotated or drawn together.
+Using 'which' command, only a part of the collection can be manipulated.</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">class ShapeSet(object):
+
+    def __init__(self, all_objects: list or AbstractShape, num_dim: int = 3, name: str = &#34;ShapeSet&#34;,
+                 time_step: int = 0):
+        &#34;&#34;&#34;
+        An object joining several AbstractShape objects so they can be translated, rotated or drawn together.
+        Using &#39;which&#39; command, only a part of the collection can be manipulated.
+        &#34;&#34;&#34;
+        self.num_dim = num_dim
+        self.time_step = time_step
+        self.name = name
+        if type(all_objects) == AbstractShape:
+            self.all_objects = [all_objects]
+        else:
+            self.all_objects = all_objects
+        assert [type(x) == AbstractShape for x in self.all_objects], &#34;All simulated objects must be type(AbstractShape)&#34;
+        assert [x.dimension == self.num_dim for x in self.all_objects], &#34;All objects must have the same&#34; \
+                                                                        &#34;number of dimensions as the set&#34;
+
+    def draw_objects(self, axis: Axis, which: list = None, **kwargs) -&gt; list:
+        &#34;&#34;&#34;
+        The only method that actually draws. All other methods should call this method to draw.
+
+        Args:
+            axis: axis on which to draw
+            which: list of 1s and 0s as long as self.all_objects or None - which objects should be drawn. If None, all.
+            **kwargs: forwarded to AbstractShape.draw(), e.g. show_basis = True
+        &#34;&#34;&#34;
+        all_images = []
+        which = self._select_which_objects(which)
+        for i, obj in enumerate(self.all_objects):
+            if which[i]:
+                all_images.extend(obj.draw(axis, **kwargs))
+        return all_images
+
+    def _select_which_objects(self, which: list or None):
+        &#34;&#34;&#34;
+        Helper function to create a filter which objects to use from self.all_objects. If which=None, use all.
+        &#34;&#34;&#34;
+        if which is None:
+            which = [1] * len(self.all_objects)
+        else:
+            assert len(which) == len(self.all_objects), &#34;which needs to provide 1/0 for each object in self.all_objects&#34;
+            assert all([x in [1, 0] for x in which]), &#34;which cannot have values other than 1 or 0&#34;
+        return which
+
+    def _manipulate_once(self, which_action: str, vector: ArrayLike, which: list = None, method: str = &#34;euler_123&#34;,
+                         inverse: bool = False):
+        &#34;&#34;&#34;
+        Selects appropriate which_action and forwards to the corresponding function.
+
+        Args:
+            which_action: options: [&#39;translate&#39;, &#39;rotate_objects_about_origin&#39;, &#39;rotate_objects_about_body&#39;]
+            vector: vector for translation or vector/float of rotational angles
+            which: list of 1s and 0s as long as self.all_objects or None - which objects should be drawn. If None, all
+            method: what method of rotation
+        &#34;&#34;&#34;
+        for j, _ in enumerate(self.all_objects):
+            if which[j]:
+                if which_action == &#34;translate&#34;:
+                    self.all_objects[j].translate(vector)
+                elif which_action == &#34;rotate_about_body&#34;:
+                    return self.all_objects[j].rotate_about_body(vector, method=method, inverse=inverse)
+                elif which_action == &#34;rotate_about_origin&#34;:
+                    return self.all_objects[j].rotate_about_origin(vector, method=method, inverse=inverse)
+                else:
+                    raise NotImplementedError(&#34;Only actions translate, rotate_about_body and&#34; +
+                                              &#34;rotate_abut_origin are implemented.&#34;)
+
+    def _manipulate_objects(self, which_action: str, vector: ArrayLike, which: list = None,
+                            num_steps: int = 1, method: str = &#34;euler_123&#34;, inverse=False, **kwargs):
+        &#34;&#34;&#34;
+        Helper method that implements the background of translate_objects, rotate_objects_about_origin and
+        rotate_objects_about_body.
+
+        Args:
+            num_steps: in how many steps the movement should happen
+            the rest of arguments forwarded to self._manipulate_once()
+        &#34;&#34;&#34;
+        vector = np.array(vector)
+        which = self._select_which_objects(which)
+        # can be done in several steps for a better illustration in simulation
+        for i in range(num_steps):
+            # do it for all objects selected with which command
+            self._manipulate_once(which_action=which_action, vector=vector/num_steps, which=which, method=method,
+                                  inverse=inverse)
+            self.time_step += 1
+
+    def translate_objects(self, vector: ArrayLike, which: list = None, **kwargs):
+        &#34;&#34;&#34;
+        Translate all or some of objects for vector. Can be drawn or not, in multiple steps or not. See
+        self._manipulate_objects for details.
+        &#34;&#34;&#34;
+        self._manipulate_objects(&#34;translate&#34;, vector, which=which, **kwargs)
+
+    def rotate_objects_about_origin(self, vector: ArrayLike, which: list = None, **kwargs):
+        &#34;&#34;&#34;
+        Rotate all or some of objects about origin for a set of angles. Can be drawn or not, in multiple steps or not.
+        See self._manipulate_objects for details.
+        &#34;&#34;&#34;
+        self._manipulate_objects(&#34;rotate_about_origin&#34;, vector, which=which, **kwargs)
+
+    def rotate_objects_about_body(self, vector: ArrayLike, which: list = None, **kwargs):
+        &#34;&#34;&#34;
+        Rotate all or some of objects about body for a set of angles. Can be drawn or not, in multiple steps or not.
+        See self._manipulate_objects for details.
+        &#34;&#34;&#34;
+        self._manipulate_objects(&#34;rotate_about_body&#34;, vector, which=which, **kwargs)</code></pre>
+</details>
+<h3>Subclasses</h3>
+<ul class="hlist">
+<li><a title="molgri.bodies.AtomSet" href="#molgri.bodies.AtomSet">AtomSet</a></li>
+</ul>
+<h3>Methods</h3>
+<dl>
+<dt id="molgri.bodies.ShapeSet.draw_objects"><code class="name flex">
+<span>def <span class="ident">draw_objects</span></span>(<span>self, axis: matplotlib.axis.Axis, which: list = None, **kwargs) ‑> list</span>
+</code></dt>
+<dd>
+<div class="desc"><p>The only method that actually draws. All other methods should call this method to draw.</p>
+<h2 id="args">Args</h2>
+<dl>
+<dt><strong><code>axis</code></strong></dt>
+<dd>axis on which to draw</dd>
+<dt><strong><code>which</code></strong></dt>
+<dd>list of 1s and 0s as long as self.all_objects or None - which objects should be drawn. If None, all.</dd>
+<dt><strong><code>**kwargs</code></strong></dt>
+<dd>forwarded to AbstractShape.draw(), e.g. show_basis = True</dd>
+</dl></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def draw_objects(self, axis: Axis, which: list = None, **kwargs) -&gt; list:
+    &#34;&#34;&#34;
+    The only method that actually draws. All other methods should call this method to draw.
+
+    Args:
+        axis: axis on which to draw
+        which: list of 1s and 0s as long as self.all_objects or None - which objects should be drawn. If None, all.
+        **kwargs: forwarded to AbstractShape.draw(), e.g. show_basis = True
+    &#34;&#34;&#34;
+    all_images = []
+    which = self._select_which_objects(which)
+    for i, obj in enumerate(self.all_objects):
+        if which[i]:
+            all_images.extend(obj.draw(axis, **kwargs))
+    return all_images</code></pre>
+</details>
+</dd>
+<dt id="molgri.bodies.ShapeSet.rotate_objects_about_body"><code class="name flex">
+<span>def <span class="ident">rotate_objects_about_body</span></span>(<span>self, vector: Union[numpy.__array_like._SupportsArray[numpy.dtype], numpy.__nested_sequence._NestedSequence[numpy.__array_like._SupportsArray[numpy.dtype]], bool, int, float, complex, str, bytes, numpy.__nested_sequence._NestedSequence[Union[bool, int, float, complex, str, bytes]]], which: list = None, **kwargs)</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Rotate all or some of objects about body for a set of angles. Can be drawn or not, in multiple steps or not.
+See self._manipulate_objects for details.</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def rotate_objects_about_body(self, vector: ArrayLike, which: list = None, **kwargs):
+    &#34;&#34;&#34;
+    Rotate all or some of objects about body for a set of angles. Can be drawn or not, in multiple steps or not.
+    See self._manipulate_objects for details.
+    &#34;&#34;&#34;
+    self._manipulate_objects(&#34;rotate_about_body&#34;, vector, which=which, **kwargs)</code></pre>
+</details>
+</dd>
+<dt id="molgri.bodies.ShapeSet.rotate_objects_about_origin"><code class="name flex">
+<span>def <span class="ident">rotate_objects_about_origin</span></span>(<span>self, vector: Union[numpy.__array_like._SupportsArray[numpy.dtype], numpy.__nested_sequence._NestedSequence[numpy.__array_like._SupportsArray[numpy.dtype]], bool, int, float, complex, str, bytes, numpy.__nested_sequence._NestedSequence[Union[bool, int, float, complex, str, bytes]]], which: list = None, **kwargs)</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Rotate all or some of objects about origin for a set of angles. Can be drawn or not, in multiple steps or not.
+See self._manipulate_objects for details.</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def rotate_objects_about_origin(self, vector: ArrayLike, which: list = None, **kwargs):
+    &#34;&#34;&#34;
+    Rotate all or some of objects about origin for a set of angles. Can be drawn or not, in multiple steps or not.
+    See self._manipulate_objects for details.
+    &#34;&#34;&#34;
+    self._manipulate_objects(&#34;rotate_about_origin&#34;, vector, which=which, **kwargs)</code></pre>
+</details>
+</dd>
+<dt id="molgri.bodies.ShapeSet.translate_objects"><code class="name flex">
+<span>def <span class="ident">translate_objects</span></span>(<span>self, vector: Union[numpy.__array_like._SupportsArray[numpy.dtype], numpy.__nested_sequence._NestedSequence[numpy.__array_like._SupportsArray[numpy.dtype]], bool, int, float, complex, str, bytes, numpy.__nested_sequence._NestedSequence[Union[bool, int, float, complex, str, bytes]]], which: list = None, **kwargs)</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Translate all or some of objects for vector. Can be drawn or not, in multiple steps or not. See
+self._manipulate_objects for details.</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def translate_objects(self, vector: ArrayLike, which: list = None, **kwargs):
+    &#34;&#34;&#34;
+    Translate all or some of objects for vector. Can be drawn or not, in multiple steps or not. See
+    self._manipulate_objects for details.
+    &#34;&#34;&#34;
+    self._manipulate_objects(&#34;translate&#34;, vector, which=which, **kwargs)</code></pre>
+</details>
+</dd>
+</dl>
+</dd>
+<dt id="molgri.bodies.Sphere"><code class="flex name class">
+<span>class <span class="ident">Sphere</span></span>
+<span>(</span><span>radius=1, color='red')</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Helper class that provides a standard way to create an ABC using
+inheritance.</p>
+<p>A shape is always created at origin. It can be represented by its basis in 2D or 3D.
+Its position and angles can later be changed with translations and rotation.</p>
+<h2 id="args">Args</h2>
+<dl>
+<dt><strong><code>dimension</code></strong></dt>
+<dd>2 or 3, how many dimensions in space does the object have.</dd>
+</dl></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">class Sphere(AbstractShape):
+
+    def __init__(self, radius=1, color=&#34;red&#34;):
+        self.radius = radius
+        super().__init__(3, color=color)
+
+    def __str__(self):
+        return f&#34;{self.color} {type(self).__name__} at {self.position} with radius {self.radius}&#34;
+
+    def draw(self, axis, **kwargs):
+        &#34;&#34;&#34;
+        Draw the sphere with given radius.
+
+        Args:
+            axis: ax on which the object should be drown
+        &#34;&#34;&#34;
+        alpha = kwargs.pop(&#34;alpha&#34;, 0.5)
+        shade = kwargs.pop(&#34;shade&#34;, True)
+        u, v = np.mgrid[-pi:pi:20j,
+                        -pi:pi:20j]
+        x = self.radius * np.cos(u) * np.sin(v)
+        y = self.radius * np.sin(u) * np.sin(v)
+        z = self.radius * np.cos(v)
+        surf = axis.plot_surface(x + self.position[0], y + self.position[1], z + self.position[2],
+                                 color=self.color, alpha=alpha, rstride=1, cstride=1, shade=shade)
+        super_obj = super().draw(axis, **kwargs)
+        return [surf, *super_obj]</code></pre>
+</details>
+<h3>Ancestors</h3>
+<ul class="hlist">
+<li><a title="molgri.bodies.AbstractShape" href="#molgri.bodies.AbstractShape">AbstractShape</a></li>
+<li>abc.ABC</li>
+</ul>
+<h3>Subclasses</h3>
+<ul class="hlist">
+<li><a title="molgri.bodies.Atom" href="#molgri.bodies.Atom">Atom</a></li>
+</ul>
+<h3>Methods</h3>
+<dl>
+<dt id="molgri.bodies.Sphere.draw"><code class="name flex">
+<span>def <span class="ident">draw</span></span>(<span>self, axis, **kwargs)</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Draw the sphere with given radius.</p>
+<h2 id="args">Args</h2>
+<dl>
+<dt><strong><code>axis</code></strong></dt>
+<dd>ax on which the object should be drown</dd>
+</dl></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def draw(self, axis, **kwargs):
+    &#34;&#34;&#34;
+    Draw the sphere with given radius.
+
+    Args:
+        axis: ax on which the object should be drown
+    &#34;&#34;&#34;
+    alpha = kwargs.pop(&#34;alpha&#34;, 0.5)
+    shade = kwargs.pop(&#34;shade&#34;, True)
+    u, v = np.mgrid[-pi:pi:20j,
+                    -pi:pi:20j]
+    x = self.radius * np.cos(u) * np.sin(v)
+    y = self.radius * np.sin(u) * np.sin(v)
+    z = self.radius * np.cos(v)
+    surf = axis.plot_surface(x + self.position[0], y + self.position[1], z + self.position[2],
+                             color=self.color, alpha=alpha, rstride=1, cstride=1, shade=shade)
+    super_obj = super().draw(axis, **kwargs)
+    return [surf, *super_obj]</code></pre>
+</details>
+</dd>
+</dl>
+<h3>Inherited members</h3>
+<ul class="hlist">
+<li><code><b><a title="molgri.bodies.AbstractShape" href="#molgri.bodies.AbstractShape">AbstractShape</a></b></code>:
+<ul class="hlist">
+<li><code><a title="molgri.bodies.AbstractShape.rotate_about_body" href="#molgri.bodies.AbstractShape.rotate_about_body">rotate_about_body</a></code></li>
+<li><code><a title="molgri.bodies.AbstractShape.rotate_about_origin" href="#molgri.bodies.AbstractShape.rotate_about_origin">rotate_about_origin</a></code></li>
+<li><code><a title="molgri.bodies.AbstractShape.translate" href="#molgri.bodies.AbstractShape.translate">translate</a></code></li>
+</ul>
+</li>
+</ul>
+</dd>
+</dl>
+</section>
+</article>
+<nav id="sidebar">
+<h1>Index</h1>
+<div class="toc">
+<ul></ul>
+</div>
+<ul id="index">
+<li><h3>Super-module</h3>
+<ul>
+<li><code><a title="molgri" href="index.html">molgri</a></code></li>
+</ul>
+</li>
+<li><h3><a href="#header-classes">Classes</a></h3>
+<ul>
+<li>
+<h4><code><a title="molgri.bodies.AbstractShape" href="#molgri.bodies.AbstractShape">AbstractShape</a></code></h4>
+<ul class="">
+<li><code><a title="molgri.bodies.AbstractShape.draw" href="#molgri.bodies.AbstractShape.draw">draw</a></code></li>
+<li><code><a title="molgri.bodies.AbstractShape.rotate_about_body" href="#molgri.bodies.AbstractShape.rotate_about_body">rotate_about_body</a></code></li>
+<li><code><a title="molgri.bodies.AbstractShape.rotate_about_origin" href="#molgri.bodies.AbstractShape.rotate_about_origin">rotate_about_origin</a></code></li>
+<li><code><a title="molgri.bodies.AbstractShape.translate" href="#molgri.bodies.AbstractShape.translate">translate</a></code></li>
+</ul>
+</li>
+<li>
+<h4><code><a title="molgri.bodies.Atom" href="#molgri.bodies.Atom">Atom</a></code></h4>
+</li>
+<li>
+<h4><code><a title="molgri.bodies.AtomSet" href="#molgri.bodies.AtomSet">AtomSet</a></code></h4>
+</li>
+<li>
+<h4><code><a title="molgri.bodies.Circle" href="#molgri.bodies.Circle">Circle</a></code></h4>
+<ul class="">
+<li><code><a title="molgri.bodies.Circle.draw" href="#molgri.bodies.Circle.draw">draw</a></code></li>
+</ul>
+</li>
+<li>
+<h4><code><a title="molgri.bodies.Cuboid" href="#molgri.bodies.Cuboid">Cuboid</a></code></h4>
+</li>
+<li>
+<h4><code><a title="molgri.bodies.Cylinder" href="#molgri.bodies.Cylinder">Cylinder</a></code></h4>
+</li>
+<li>
+<h4><code><a title="molgri.bodies.Molecule" href="#molgri.bodies.Molecule">Molecule</a></code></h4>
+</li>
+<li>
+<h4><code><a title="molgri.bodies.MoleculeSet" href="#molgri.bodies.MoleculeSet">MoleculeSet</a></code></h4>
+</li>
+<li>
+<h4><code><a title="molgri.bodies.Point" href="#molgri.bodies.Point">Point</a></code></h4>
+</li>
+<li>
+<h4><code><a title="molgri.bodies.Rectangle" href="#molgri.bodies.Rectangle">Rectangle</a></code></h4>
+<ul class="">
+<li><code><a title="molgri.bodies.Rectangle.draw" href="#molgri.bodies.Rectangle.draw">draw</a></code></li>
+</ul>
+</li>
+<li>
+<h4><code><a title="molgri.bodies.ShapeSet" href="#molgri.bodies.ShapeSet">ShapeSet</a></code></h4>
+<ul class="">
+<li><code><a title="molgri.bodies.ShapeSet.draw_objects" href="#molgri.bodies.ShapeSet.draw_objects">draw_objects</a></code></li>
+<li><code><a title="molgri.bodies.ShapeSet.rotate_objects_about_body" href="#molgri.bodies.ShapeSet.rotate_objects_about_body">rotate_objects_about_body</a></code></li>
+<li><code><a title="molgri.bodies.ShapeSet.rotate_objects_about_origin" href="#molgri.bodies.ShapeSet.rotate_objects_about_origin">rotate_objects_about_origin</a></code></li>
+<li><code><a title="molgri.bodies.ShapeSet.translate_objects" href="#molgri.bodies.ShapeSet.translate_objects">translate_objects</a></code></li>
+</ul>
+</li>
+<li>
+<h4><code><a title="molgri.bodies.Sphere" href="#molgri.bodies.Sphere">Sphere</a></code></h4>
+<ul class="">
+<li><code><a title="molgri.bodies.Sphere.draw" href="#molgri.bodies.Sphere.draw">draw</a></code></li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+</nav>
+</main>
+<footer id="footer">
+<p>Generated by <a href="https://pdoc3.github.io/pdoc" title="pdoc: Python API documentation generator"><cite>pdoc</cite> 0.10.0</a>.</p>
+</footer>
+</body>
+</html>

@@ -1,0 +1,819 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, minimum-scale=1" />
+<meta name="generator" content="pdoc 0.10.0" />
+<title>molgri.parsers API documentation</title>
+<meta name="description" content="" />
+<link rel="preload stylesheet" as="style" href="https://cdnjs.cloudflare.com/ajax/libs/10up-sanitize.css/11.0.1/sanitize.min.css" integrity="sha256-PK9q560IAAa6WVRRh76LtCaI8pjTJ2z11v0miyNNjrs=" crossorigin>
+<link rel="preload stylesheet" as="style" href="https://cdnjs.cloudflare.com/ajax/libs/10up-sanitize.css/11.0.1/typography.min.css" integrity="sha256-7l/o7C8jubJiy74VsKTidCy1yBkRtiUGbVkYBylBqUg=" crossorigin>
+<link rel="stylesheet preload" as="style" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/10.1.1/styles/github.min.css" crossorigin>
+<style>:root{--highlight-color:#fe9}.flex{display:flex !important}body{line-height:1.5em}#content{padding:20px}#sidebar{padding:30px;overflow:hidden}#sidebar > *:last-child{margin-bottom:2cm}.http-server-breadcrumbs{font-size:130%;margin:0 0 15px 0}#footer{font-size:.75em;padding:5px 30px;border-top:1px solid #ddd;text-align:right}#footer p{margin:0 0 0 1em;display:inline-block}#footer p:last-child{margin-right:30px}h1,h2,h3,h4,h5{font-weight:300}h1{font-size:2.5em;line-height:1.1em}h2{font-size:1.75em;margin:1em 0 .50em 0}h3{font-size:1.4em;margin:25px 0 10px 0}h4{margin:0;font-size:105%}h1:target,h2:target,h3:target,h4:target,h5:target,h6:target{background:var(--highlight-color);padding:.2em 0}a{color:#058;text-decoration:none;transition:color .3s ease-in-out}a:hover{color:#e82}.title code{font-weight:bold}h2[id^="header-"]{margin-top:2em}.ident{color:#900}pre code{background:#f8f8f8;font-size:.8em;line-height:1.4em}code{background:#f2f2f1;padding:1px 4px;overflow-wrap:break-word}h1 code{background:transparent}pre{background:#f8f8f8;border:0;border-top:1px solid #ccc;border-bottom:1px solid #ccc;margin:1em 0;padding:1ex}#http-server-module-list{display:flex;flex-flow:column}#http-server-module-list div{display:flex}#http-server-module-list dt{min-width:10%}#http-server-module-list p{margin-top:0}.toc ul,#index{list-style-type:none;margin:0;padding:0}#index code{background:transparent}#index h3{border-bottom:1px solid #ddd}#index ul{padding:0}#index h4{margin-top:.6em;font-weight:bold}@media (min-width:200ex){#index .two-column{column-count:2}}@media (min-width:300ex){#index .two-column{column-count:3}}dl{margin-bottom:2em}dl dl:last-child{margin-bottom:4em}dd{margin:0 0 1em 3em}#header-classes + dl > dd{margin-bottom:3em}dd dd{margin-left:2em}dd p{margin:10px 0}.name{background:#eee;font-weight:bold;font-size:.85em;padding:5px 10px;display:inline-block;min-width:40%}.name:hover{background:#e0e0e0}dt:target .name{background:var(--highlight-color)}.name > span:first-child{white-space:nowrap}.name.class > span:nth-child(2){margin-left:.4em}.inherited{color:#999;border-left:5px solid #eee;padding-left:1em}.inheritance em{font-style:normal;font-weight:bold}.desc h2{font-weight:400;font-size:1.25em}.desc h3{font-size:1em}.desc dt code{background:inherit}.source summary,.git-link-div{color:#666;text-align:right;font-weight:400;font-size:.8em;text-transform:uppercase}.source summary > *{white-space:nowrap;cursor:pointer}.git-link{color:inherit;margin-left:1em}.source pre{max-height:500px;overflow:auto;margin:0}.source pre code{font-size:12px;overflow:visible}.hlist{list-style:none}.hlist li{display:inline}.hlist li:after{content:',\2002'}.hlist li:last-child:after{content:none}.hlist .hlist{display:inline;padding-left:1em}img{max-width:100%}td{padding:0 .5em}.admonition{padding:.1em .5em;margin-bottom:1em}.admonition-title{font-weight:bold}.admonition.note,.admonition.info,.admonition.important{background:#aef}.admonition.todo,.admonition.versionadded,.admonition.tip,.admonition.hint{background:#dfd}.admonition.warning,.admonition.versionchanged,.admonition.deprecated{background:#fd4}.admonition.error,.admonition.danger,.admonition.caution{background:lightpink}</style>
+<style media="screen and (min-width: 700px)">@media screen and (min-width:700px){#sidebar{width:30%;height:100vh;overflow:auto;position:sticky;top:0}#content{width:70%;max-width:100ch;padding:3em 4em;border-left:1px solid #ddd}pre code{font-size:1em}.item .name{font-size:1em}main{display:flex;flex-direction:row-reverse;justify-content:flex-end}.toc ul ul,#index ul{padding-left:1.5em}.toc > ul > li{margin-top:.5em}}</style>
+<style media="print">@media print{#sidebar h1{page-break-before:always}.source{display:none}}@media print{*{background:transparent !important;color:#000 !important;box-shadow:none !important;text-shadow:none !important}a[href]:after{content:" (" attr(href) ")";font-size:90%}a[href][title]:after{content:none}abbr[title]:after{content:" (" attr(title) ")"}.ir a:after,a[href^="javascript:"]:after,a[href^="#"]:after{content:""}pre,blockquote{border:1px solid #999;page-break-inside:avoid}thead{display:table-header-group}tr,img{page-break-inside:avoid}img{max-width:100% !important}@page{margin:0.5cm}p,h2,h3{orphans:3;widows:3}h1,h2,h3,h4,h5,h6{page-break-after:avoid}}</style>
+<script defer src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/10.1.1/highlight.min.js" integrity="sha256-Uv3H6lx7dJmRfRvH8TH6kJD1TSK1aFcwgx+mdg3epi8=" crossorigin></script>
+<script>window.addEventListener('DOMContentLoaded', () => hljs.initHighlighting())</script>
+</head>
+<body>
+<main>
+<article id="content">
+<header>
+<h1 class="title">Module <code>molgri.parsers</code></h1>
+</header>
+<section id="section-intro">
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">import re
+import numbers
+
+import numpy as np
+from mendeleev.fetch import fetch_table
+from ast import literal_eval
+
+from .bodies import Molecule
+from .constants import MOLECULE_NAMES, SIX_METHOD_NAMES, FULL_RUN_NAME
+
+
+class NameParser:
+
+    def __init__(self, name: str or dict):
+        &#34;&#34;&#34;
+        Correct ordering: &#39;[H2O_HF_]ico[_NO]_500_full_openMM[_extra]
+
+        Args:
+            string with a label used eg. for naming files, usually stating two molecules, grid type and size
+        &#34;&#34;&#34;
+        # define all properties
+        self.central_molecule = None
+        self.rotating_molecule = None
+        self.grid_type = None
+        self.ordering = True
+        self.num_grid_points = None
+        self.traj_type = None
+        self.open_MM = False
+        self.is_real_run = False
+        self.additional_data = None
+        self.ending = None
+        # parse name
+        if isinstance(name, str):
+            self._read_str(name)
+        elif isinstance(name, dict):
+            self._read_dict(name)
+
+    def _read_str(self, name):
+        try:
+            if &#34;.&#34; in name:
+                name, self.ending = name.split(&#34;.&#34;)
+        except ValueError:
+            pass
+        split_str = name.split(&#34;_&#34;)
+        for split_item in split_str:
+            if split_item in MOLECULE_NAMES:
+                if self.central_molecule is None:
+                    self.central_molecule = split_item
+                else:
+                    self.rotating_molecule = split_item
+        for method_name in SIX_METHOD_NAMES:
+            if method_name in split_str:
+                self.grid_type = method_name
+        if &#34;_NO&#34; in name:
+            self.ordering = False
+        for split_item in split_str:
+            if split_item.isnumeric():
+                self.num_grid_points = int(split_item)
+                break
+        for traj_type in [&#34;circular&#34;, &#34;full&#34;]:
+            if traj_type in split_str:
+                self.traj_type = traj_type
+        if &#34;openMM&#34; in split_str:
+            self.open_MM = True
+        if FULL_RUN_NAME in name:
+            self.is_real_run = True
+        # get the remainder of the string
+        if self.central_molecule:
+            split_str.remove(self.central_molecule)
+        if self.rotating_molecule:
+            split_str.remove(self.rotating_molecule)
+        if self.grid_type:
+            split_str.remove(self.grid_type)
+        if self.num_grid_points:
+            split_str.remove(str(self.num_grid_points))
+        if self.traj_type:
+            split_str.remove(self.traj_type)
+        if not self.ordering:
+            split_str.remove(&#34;NO&#34;)
+        if self.is_real_run:
+            split_str.remove(FULL_RUN_NAME)
+        if self.open_MM:
+            split_str.remove(&#34;openMM&#34;)
+        self.additional_data = &#34;_&#34;.join(split_str)
+
+    def _read_dict(self, dict_name):
+        self.central_molecule = dict_name.pop(&#34;central_molecule&#34;, None)
+        self.rotating_molecule = dict_name.pop(&#34;rotating_molecule&#34;, None)
+        self.grid_type = dict_name.pop(&#34;grid_type&#34;, None)
+        self.ordering = dict_name.pop(&#34;ordering&#34;, True)
+        self.num_grid_points = dict_name.pop(&#34;num_grid_points&#34;, None)
+        self.traj_type = dict_name.pop(&#34;traj_type&#34;, None)
+        self.open_MM = dict_name.pop(&#34;open_MM&#34;, False)
+        self.is_real_run = dict_name.pop(&#34;is_real_run&#34;, False)
+        self.additional_data = dict_name.pop(&#34;additional_data&#34;, None)
+        self.ending = dict_name.pop(&#34;ending&#34;, None)
+
+    def get_dict_properties(self):
+        return vars(self)
+
+    def get_standard_name(self):
+        standard_name = &#34;&#34;
+        if self.central_molecule:
+            standard_name += self.central_molecule + &#34;_&#34;
+        if self.rotating_molecule:
+            standard_name += self.rotating_molecule + &#34;_&#34;
+        if self.is_real_run:
+            standard_name += FULL_RUN_NAME + &#34;_&#34;
+        if self.grid_type:
+            standard_name += self.grid_type + &#34;_&#34;
+        if not self.ordering:
+            standard_name += &#34;NO_&#34;
+        if self.num_grid_points:
+            standard_name += str(self.num_grid_points) + &#34;_&#34;
+        if self.traj_type:
+            standard_name += self.traj_type + &#34;_&#34;
+        if self.open_MM:
+            standard_name += &#34;openMM_&#34;
+        if standard_name.endswith(&#34;_&#34;):
+            standard_name = standard_name[:-1]
+        return standard_name
+
+    def get_human_readable_name(self):
+        # TODO: name eg H2O-H2O system, icosahedron grid, 22 rotations
+        pass
+
+    def get_grid_type(self):
+        if not self.grid_type:
+            raise ValueError(f&#34;No grid type given!&#34;)
+        return self.grid_type
+
+    def get_traj_type(self):
+        if not self.traj_type:
+            raise ValueError(f&#34;No traj type given!&#34;)
+        return self.traj_type
+
+    def get_num(self):
+        if not self.num_grid_points:
+            raise ValueError(f&#34;No number given!&#34;)
+        return self.num_grid_points
+
+
+def particle_type2element(particle_type: str) -&gt; str:
+    &#34;&#34;&#34;
+    A helper function to convert gromacs particle type to element name readable by mendeleev.
+
+    Args:
+        particle_type: text written at characters 10:15 in a standard GROMACS line.
+
+    Returns:
+        element name, one of the names in periodic system (or ValueError)
+    &#34;&#34;&#34;
+    ptable = fetch_table(&#39;elements&#39;)
+    all_symbols = ptable[&#34;symbol&#34;]
+    # option 1: atom_name written in gro file is equal to element name (N, Na, Cl ...) -&gt; directly use as element
+    if particle_type in all_symbols.values:
+        element_name = particle_type
+    # option 2 (special case): CA is a symbol of alpha-carbon
+    elif particle_type.startswith(&#34;CA&#34;):
+        element_name = &#34;C&#34;
+    # option 3: first two letters are the name of a typical ion in upper case
+    elif particle_type[:2] in [&#34;CL&#34;, &#34;MG&#34;, &#34;RB&#34;, &#34;CS&#34;, &#34;LI&#34;, &#34;ZN&#34;, &#34;NA&#34;]:
+        element_name = particle_type.capitalize()[:2]
+    # option 4: special case for calcium = C0
+    elif particle_type[:2] == &#34;C0&#34;:
+        element_name = &#34;Ca&#34;
+    # option 5: first letter is the name of the element in upper case
+    elif particle_type[0] in all_symbols.values:
+        element_name = particle_type[0]
+    # error if still unable to determine the element
+    else:
+        message = f&#34;I do not know how to extract element name from GROMACS atom type {particle_type}.&#34;
+        raise ValueError(message)
+    return element_name
+
+
+class BaseGroParser:
+
+    def __init__(self, gro_read: str, parse_atoms: bool = True):
+        &#34;&#34;&#34;
+        This parser reads the data from a .gro file. If multiple time steps are written, it only reads the first one.
+
+        If you want to access or copy parts of the .gro file (comment, number of atoms, atom position lines, box)
+        to another file, select parse_atoms=False (this is faster) and use the data saved in self.comment,
+        self.num_atoms, self.atom_lines_nm and self.box.
+
+        If you want to read the .gro file in order to translate/rotate atoms in it, select parse_atoms=True and
+        access the Molecule object under self.molecule_set.
+
+        Args:
+            gro_read: the path to the .gro file to be parsed
+            parse_atoms: select True if you want to manipulate (rotate/translate) any atoms from this .gro file;
+                         select False if you only want to copy the atom position lines as-provided
+        &#34;&#34;&#34;
+        self.gro_file = open(gro_read, &#34;r&#34;)
+        self.comment = self.gro_file.readline().strip()
+        self.num_atoms = int(self.gro_file.readline().strip())
+        self.atom_lines_nm = []
+        for line in range(self.num_atoms):
+            # Append exact copy of the current line in self.gro_file to self.atom_lines_nm (including \n at the end).
+            line = self.gro_file.readline()
+            self.atom_lines_nm.append(line)
+        if parse_atoms:
+            a_labels, a_names, a_pos = self._parse_atoms()
+            a_pos = np.array(a_pos)
+            self.molecule_set = Molecule(atom_names=a_names, centers=a_pos, center_at_origin=False,
+                                         gro_labels=a_labels)
+        else:
+            self.molecule_set = None
+        self.box = tuple([literal_eval(x) for x in self.gro_file.readline().strip().split()])
+        assert len(self.atom_lines_nm) == self.num_atoms
+        self.gro_file.close()
+
+    def _parse_atoms(self) -&gt; tuple:
+        list_gro_labels = []
+        list_atom_names = []
+        list_atom_pos = []
+        for line in self.atom_lines_nm:
+            # read out each individual part of the atom position line
+            # residue_num = int(line[0:5])
+            # residue_name = line[5:10].strip()
+            atom_name = line[10:15].strip()
+            element_name = particle_type2element(atom_name)
+            # atom_num = int(line[15:20])
+            x_pos_nm = float(line[20:28])
+            y_pos_nm = float(line[28:36])
+            z_pos_nm = float(line[36:44])
+            # optionally velocities in nm/ps are writen at characters 44:52, 52:60, 60:68 of the line
+            list_gro_labels.append(atom_name)
+            list_atom_names.append(element_name)
+            list_atom_pos.append([x_pos_nm, y_pos_nm, z_pos_nm])
+        return list_gro_labels, list_atom_names, list_atom_pos
+
+
+class TranslationParser(object):
+
+    def __init__(self, user_input: str):
+        self.user_input = user_input
+        if &#34;linspace&#34; in self.user_input:
+            bracket_input = self._read_within_brackets()
+            self.trans_grid = np.linspace(*bracket_input)
+        elif &#34;range&#34; in self.user_input:
+            bracket_input = self._read_within_brackets()
+            self.trans_grid = np.arange(*bracket_input)
+        else:
+            self.trans_grid = literal_eval(self.user_input)
+            self.trans_grid = np.array(self.trans_grid)
+            self.trans_grid = np.sort(self.trans_grid, axis=None)
+
+    def get_trans_grid(self) -&gt; np.ndarray:
+        return self.trans_grid
+
+    def get_increments(self):
+        increment_grid = [self.trans_grid[0]]
+        for start, stop in zip(self.trans_grid, self.trans_grid[1:]):
+            increment_grid.append(stop-start)
+        increment_grid = np.array(increment_grid)
+        assert np.all(increment_grid &gt; 0), &#34;Negative or zero increments in translation grid make no sense!&#34;
+        return increment_grid
+
+    def _read_within_brackets(self) -&gt; tuple:
+        str_in_brackets = self.user_input.split(&#39;(&#39;, 1)[1].split(&#39;)&#39;)[0]
+        str_in_brackets = literal_eval(str_in_brackets)
+        if isinstance(str_in_brackets,numbers.Number):
+            str_in_brackets = tuple((str_in_brackets,))
+        return str_in_brackets</code></pre>
+</details>
+</section>
+<section>
+</section>
+<section>
+</section>
+<section>
+<h2 class="section-title" id="header-functions">Functions</h2>
+<dl>
+<dt id="molgri.parsers.particle_type2element"><code class="name flex">
+<span>def <span class="ident">particle_type2element</span></span>(<span>particle_type: str) ‑> str</span>
+</code></dt>
+<dd>
+<div class="desc"><p>A helper function to convert gromacs particle type to element name readable by mendeleev.</p>
+<h2 id="args">Args</h2>
+<dl>
+<dt><strong><code>particle_type</code></strong></dt>
+<dd>text written at characters 10:15 in a standard GROMACS line.</dd>
+</dl>
+<h2 id="returns">Returns</h2>
+<p>element name, one of the names in periodic system (or ValueError)</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def particle_type2element(particle_type: str) -&gt; str:
+    &#34;&#34;&#34;
+    A helper function to convert gromacs particle type to element name readable by mendeleev.
+
+    Args:
+        particle_type: text written at characters 10:15 in a standard GROMACS line.
+
+    Returns:
+        element name, one of the names in periodic system (or ValueError)
+    &#34;&#34;&#34;
+    ptable = fetch_table(&#39;elements&#39;)
+    all_symbols = ptable[&#34;symbol&#34;]
+    # option 1: atom_name written in gro file is equal to element name (N, Na, Cl ...) -&gt; directly use as element
+    if particle_type in all_symbols.values:
+        element_name = particle_type
+    # option 2 (special case): CA is a symbol of alpha-carbon
+    elif particle_type.startswith(&#34;CA&#34;):
+        element_name = &#34;C&#34;
+    # option 3: first two letters are the name of a typical ion in upper case
+    elif particle_type[:2] in [&#34;CL&#34;, &#34;MG&#34;, &#34;RB&#34;, &#34;CS&#34;, &#34;LI&#34;, &#34;ZN&#34;, &#34;NA&#34;]:
+        element_name = particle_type.capitalize()[:2]
+    # option 4: special case for calcium = C0
+    elif particle_type[:2] == &#34;C0&#34;:
+        element_name = &#34;Ca&#34;
+    # option 5: first letter is the name of the element in upper case
+    elif particle_type[0] in all_symbols.values:
+        element_name = particle_type[0]
+    # error if still unable to determine the element
+    else:
+        message = f&#34;I do not know how to extract element name from GROMACS atom type {particle_type}.&#34;
+        raise ValueError(message)
+    return element_name</code></pre>
+</details>
+</dd>
+</dl>
+</section>
+<section>
+<h2 class="section-title" id="header-classes">Classes</h2>
+<dl>
+<dt id="molgri.parsers.BaseGroParser"><code class="flex name class">
+<span>class <span class="ident">BaseGroParser</span></span>
+<span>(</span><span>gro_read: str, parse_atoms: bool = True)</span>
+</code></dt>
+<dd>
+<div class="desc"><p>This parser reads the data from a .gro file. If multiple time steps are written, it only reads the first one.</p>
+<p>If you want to access or copy parts of the .gro file (comment, number of atoms, atom position lines, box)
+to another file, select parse_atoms=False (this is faster) and use the data saved in self.comment,
+self.num_atoms, self.atom_lines_nm and self.box.</p>
+<p>If you want to read the .gro file in order to translate/rotate atoms in it, select parse_atoms=True and
+access the Molecule object under self.molecule_set.</p>
+<h2 id="args">Args</h2>
+<dl>
+<dt><strong><code>gro_read</code></strong></dt>
+<dd>the path to the .gro file to be parsed</dd>
+<dt><strong><code>parse_atoms</code></strong></dt>
+<dd>select True if you want to manipulate (rotate/translate) any atoms from this .gro file;
+select False if you only want to copy the atom position lines as-provided</dd>
+</dl></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">class BaseGroParser:
+
+    def __init__(self, gro_read: str, parse_atoms: bool = True):
+        &#34;&#34;&#34;
+        This parser reads the data from a .gro file. If multiple time steps are written, it only reads the first one.
+
+        If you want to access or copy parts of the .gro file (comment, number of atoms, atom position lines, box)
+        to another file, select parse_atoms=False (this is faster) and use the data saved in self.comment,
+        self.num_atoms, self.atom_lines_nm and self.box.
+
+        If you want to read the .gro file in order to translate/rotate atoms in it, select parse_atoms=True and
+        access the Molecule object under self.molecule_set.
+
+        Args:
+            gro_read: the path to the .gro file to be parsed
+            parse_atoms: select True if you want to manipulate (rotate/translate) any atoms from this .gro file;
+                         select False if you only want to copy the atom position lines as-provided
+        &#34;&#34;&#34;
+        self.gro_file = open(gro_read, &#34;r&#34;)
+        self.comment = self.gro_file.readline().strip()
+        self.num_atoms = int(self.gro_file.readline().strip())
+        self.atom_lines_nm = []
+        for line in range(self.num_atoms):
+            # Append exact copy of the current line in self.gro_file to self.atom_lines_nm (including \n at the end).
+            line = self.gro_file.readline()
+            self.atom_lines_nm.append(line)
+        if parse_atoms:
+            a_labels, a_names, a_pos = self._parse_atoms()
+            a_pos = np.array(a_pos)
+            self.molecule_set = Molecule(atom_names=a_names, centers=a_pos, center_at_origin=False,
+                                         gro_labels=a_labels)
+        else:
+            self.molecule_set = None
+        self.box = tuple([literal_eval(x) for x in self.gro_file.readline().strip().split()])
+        assert len(self.atom_lines_nm) == self.num_atoms
+        self.gro_file.close()
+
+    def _parse_atoms(self) -&gt; tuple:
+        list_gro_labels = []
+        list_atom_names = []
+        list_atom_pos = []
+        for line in self.atom_lines_nm:
+            # read out each individual part of the atom position line
+            # residue_num = int(line[0:5])
+            # residue_name = line[5:10].strip()
+            atom_name = line[10:15].strip()
+            element_name = particle_type2element(atom_name)
+            # atom_num = int(line[15:20])
+            x_pos_nm = float(line[20:28])
+            y_pos_nm = float(line[28:36])
+            z_pos_nm = float(line[36:44])
+            # optionally velocities in nm/ps are writen at characters 44:52, 52:60, 60:68 of the line
+            list_gro_labels.append(atom_name)
+            list_atom_names.append(element_name)
+            list_atom_pos.append([x_pos_nm, y_pos_nm, z_pos_nm])
+        return list_gro_labels, list_atom_names, list_atom_pos</code></pre>
+</details>
+</dd>
+<dt id="molgri.parsers.NameParser"><code class="flex name class">
+<span>class <span class="ident">NameParser</span></span>
+<span>(</span><span>name: str)</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Correct ordering: '[H2O_HF_]ico[_NO]_500_full_openMM[_extra]</p>
+<h2 id="args">Args</h2>
+<p>string with a label used eg. for naming files, usually stating two molecules, grid type and size</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">class NameParser:
+
+    def __init__(self, name: str or dict):
+        &#34;&#34;&#34;
+        Correct ordering: &#39;[H2O_HF_]ico[_NO]_500_full_openMM[_extra]
+
+        Args:
+            string with a label used eg. for naming files, usually stating two molecules, grid type and size
+        &#34;&#34;&#34;
+        # define all properties
+        self.central_molecule = None
+        self.rotating_molecule = None
+        self.grid_type = None
+        self.ordering = True
+        self.num_grid_points = None
+        self.traj_type = None
+        self.open_MM = False
+        self.is_real_run = False
+        self.additional_data = None
+        self.ending = None
+        # parse name
+        if isinstance(name, str):
+            self._read_str(name)
+        elif isinstance(name, dict):
+            self._read_dict(name)
+
+    def _read_str(self, name):
+        try:
+            if &#34;.&#34; in name:
+                name, self.ending = name.split(&#34;.&#34;)
+        except ValueError:
+            pass
+        split_str = name.split(&#34;_&#34;)
+        for split_item in split_str:
+            if split_item in MOLECULE_NAMES:
+                if self.central_molecule is None:
+                    self.central_molecule = split_item
+                else:
+                    self.rotating_molecule = split_item
+        for method_name in SIX_METHOD_NAMES:
+            if method_name in split_str:
+                self.grid_type = method_name
+        if &#34;_NO&#34; in name:
+            self.ordering = False
+        for split_item in split_str:
+            if split_item.isnumeric():
+                self.num_grid_points = int(split_item)
+                break
+        for traj_type in [&#34;circular&#34;, &#34;full&#34;]:
+            if traj_type in split_str:
+                self.traj_type = traj_type
+        if &#34;openMM&#34; in split_str:
+            self.open_MM = True
+        if FULL_RUN_NAME in name:
+            self.is_real_run = True
+        # get the remainder of the string
+        if self.central_molecule:
+            split_str.remove(self.central_molecule)
+        if self.rotating_molecule:
+            split_str.remove(self.rotating_molecule)
+        if self.grid_type:
+            split_str.remove(self.grid_type)
+        if self.num_grid_points:
+            split_str.remove(str(self.num_grid_points))
+        if self.traj_type:
+            split_str.remove(self.traj_type)
+        if not self.ordering:
+            split_str.remove(&#34;NO&#34;)
+        if self.is_real_run:
+            split_str.remove(FULL_RUN_NAME)
+        if self.open_MM:
+            split_str.remove(&#34;openMM&#34;)
+        self.additional_data = &#34;_&#34;.join(split_str)
+
+    def _read_dict(self, dict_name):
+        self.central_molecule = dict_name.pop(&#34;central_molecule&#34;, None)
+        self.rotating_molecule = dict_name.pop(&#34;rotating_molecule&#34;, None)
+        self.grid_type = dict_name.pop(&#34;grid_type&#34;, None)
+        self.ordering = dict_name.pop(&#34;ordering&#34;, True)
+        self.num_grid_points = dict_name.pop(&#34;num_grid_points&#34;, None)
+        self.traj_type = dict_name.pop(&#34;traj_type&#34;, None)
+        self.open_MM = dict_name.pop(&#34;open_MM&#34;, False)
+        self.is_real_run = dict_name.pop(&#34;is_real_run&#34;, False)
+        self.additional_data = dict_name.pop(&#34;additional_data&#34;, None)
+        self.ending = dict_name.pop(&#34;ending&#34;, None)
+
+    def get_dict_properties(self):
+        return vars(self)
+
+    def get_standard_name(self):
+        standard_name = &#34;&#34;
+        if self.central_molecule:
+            standard_name += self.central_molecule + &#34;_&#34;
+        if self.rotating_molecule:
+            standard_name += self.rotating_molecule + &#34;_&#34;
+        if self.is_real_run:
+            standard_name += FULL_RUN_NAME + &#34;_&#34;
+        if self.grid_type:
+            standard_name += self.grid_type + &#34;_&#34;
+        if not self.ordering:
+            standard_name += &#34;NO_&#34;
+        if self.num_grid_points:
+            standard_name += str(self.num_grid_points) + &#34;_&#34;
+        if self.traj_type:
+            standard_name += self.traj_type + &#34;_&#34;
+        if self.open_MM:
+            standard_name += &#34;openMM_&#34;
+        if standard_name.endswith(&#34;_&#34;):
+            standard_name = standard_name[:-1]
+        return standard_name
+
+    def get_human_readable_name(self):
+        # TODO: name eg H2O-H2O system, icosahedron grid, 22 rotations
+        pass
+
+    def get_grid_type(self):
+        if not self.grid_type:
+            raise ValueError(f&#34;No grid type given!&#34;)
+        return self.grid_type
+
+    def get_traj_type(self):
+        if not self.traj_type:
+            raise ValueError(f&#34;No traj type given!&#34;)
+        return self.traj_type
+
+    def get_num(self):
+        if not self.num_grid_points:
+            raise ValueError(f&#34;No number given!&#34;)
+        return self.num_grid_points</code></pre>
+</details>
+<h3>Methods</h3>
+<dl>
+<dt id="molgri.parsers.NameParser.get_dict_properties"><code class="name flex">
+<span>def <span class="ident">get_dict_properties</span></span>(<span>self)</span>
+</code></dt>
+<dd>
+<div class="desc"></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def get_dict_properties(self):
+    return vars(self)</code></pre>
+</details>
+</dd>
+<dt id="molgri.parsers.NameParser.get_grid_type"><code class="name flex">
+<span>def <span class="ident">get_grid_type</span></span>(<span>self)</span>
+</code></dt>
+<dd>
+<div class="desc"></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def get_grid_type(self):
+    if not self.grid_type:
+        raise ValueError(f&#34;No grid type given!&#34;)
+    return self.grid_type</code></pre>
+</details>
+</dd>
+<dt id="molgri.parsers.NameParser.get_human_readable_name"><code class="name flex">
+<span>def <span class="ident">get_human_readable_name</span></span>(<span>self)</span>
+</code></dt>
+<dd>
+<div class="desc"></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def get_human_readable_name(self):
+    # TODO: name eg H2O-H2O system, icosahedron grid, 22 rotations
+    pass</code></pre>
+</details>
+</dd>
+<dt id="molgri.parsers.NameParser.get_num"><code class="name flex">
+<span>def <span class="ident">get_num</span></span>(<span>self)</span>
+</code></dt>
+<dd>
+<div class="desc"></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def get_num(self):
+    if not self.num_grid_points:
+        raise ValueError(f&#34;No number given!&#34;)
+    return self.num_grid_points</code></pre>
+</details>
+</dd>
+<dt id="molgri.parsers.NameParser.get_standard_name"><code class="name flex">
+<span>def <span class="ident">get_standard_name</span></span>(<span>self)</span>
+</code></dt>
+<dd>
+<div class="desc"></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def get_standard_name(self):
+    standard_name = &#34;&#34;
+    if self.central_molecule:
+        standard_name += self.central_molecule + &#34;_&#34;
+    if self.rotating_molecule:
+        standard_name += self.rotating_molecule + &#34;_&#34;
+    if self.is_real_run:
+        standard_name += FULL_RUN_NAME + &#34;_&#34;
+    if self.grid_type:
+        standard_name += self.grid_type + &#34;_&#34;
+    if not self.ordering:
+        standard_name += &#34;NO_&#34;
+    if self.num_grid_points:
+        standard_name += str(self.num_grid_points) + &#34;_&#34;
+    if self.traj_type:
+        standard_name += self.traj_type + &#34;_&#34;
+    if self.open_MM:
+        standard_name += &#34;openMM_&#34;
+    if standard_name.endswith(&#34;_&#34;):
+        standard_name = standard_name[:-1]
+    return standard_name</code></pre>
+</details>
+</dd>
+<dt id="molgri.parsers.NameParser.get_traj_type"><code class="name flex">
+<span>def <span class="ident">get_traj_type</span></span>(<span>self)</span>
+</code></dt>
+<dd>
+<div class="desc"></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def get_traj_type(self):
+    if not self.traj_type:
+        raise ValueError(f&#34;No traj type given!&#34;)
+    return self.traj_type</code></pre>
+</details>
+</dd>
+</dl>
+</dd>
+<dt id="molgri.parsers.TranslationParser"><code class="flex name class">
+<span>class <span class="ident">TranslationParser</span></span>
+<span>(</span><span>user_input: str)</span>
+</code></dt>
+<dd>
+<div class="desc"></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">class TranslationParser(object):
+
+    def __init__(self, user_input: str):
+        self.user_input = user_input
+        if &#34;linspace&#34; in self.user_input:
+            bracket_input = self._read_within_brackets()
+            self.trans_grid = np.linspace(*bracket_input)
+        elif &#34;range&#34; in self.user_input:
+            bracket_input = self._read_within_brackets()
+            self.trans_grid = np.arange(*bracket_input)
+        else:
+            self.trans_grid = literal_eval(self.user_input)
+            self.trans_grid = np.array(self.trans_grid)
+            self.trans_grid = np.sort(self.trans_grid, axis=None)
+
+    def get_trans_grid(self) -&gt; np.ndarray:
+        return self.trans_grid
+
+    def get_increments(self):
+        increment_grid = [self.trans_grid[0]]
+        for start, stop in zip(self.trans_grid, self.trans_grid[1:]):
+            increment_grid.append(stop-start)
+        increment_grid = np.array(increment_grid)
+        assert np.all(increment_grid &gt; 0), &#34;Negative or zero increments in translation grid make no sense!&#34;
+        return increment_grid
+
+    def _read_within_brackets(self) -&gt; tuple:
+        str_in_brackets = self.user_input.split(&#39;(&#39;, 1)[1].split(&#39;)&#39;)[0]
+        str_in_brackets = literal_eval(str_in_brackets)
+        if isinstance(str_in_brackets,numbers.Number):
+            str_in_brackets = tuple((str_in_brackets,))
+        return str_in_brackets</code></pre>
+</details>
+<h3>Methods</h3>
+<dl>
+<dt id="molgri.parsers.TranslationParser.get_increments"><code class="name flex">
+<span>def <span class="ident">get_increments</span></span>(<span>self)</span>
+</code></dt>
+<dd>
+<div class="desc"></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def get_increments(self):
+    increment_grid = [self.trans_grid[0]]
+    for start, stop in zip(self.trans_grid, self.trans_grid[1:]):
+        increment_grid.append(stop-start)
+    increment_grid = np.array(increment_grid)
+    assert np.all(increment_grid &gt; 0), &#34;Negative or zero increments in translation grid make no sense!&#34;
+    return increment_grid</code></pre>
+</details>
+</dd>
+<dt id="molgri.parsers.TranslationParser.get_trans_grid"><code class="name flex">
+<span>def <span class="ident">get_trans_grid</span></span>(<span>self) ‑> numpy.ndarray</span>
+</code></dt>
+<dd>
+<div class="desc"></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def get_trans_grid(self) -&gt; np.ndarray:
+    return self.trans_grid</code></pre>
+</details>
+</dd>
+</dl>
+</dd>
+</dl>
+</section>
+</article>
+<nav id="sidebar">
+<h1>Index</h1>
+<div class="toc">
+<ul></ul>
+</div>
+<ul id="index">
+<li><h3>Super-module</h3>
+<ul>
+<li><code><a title="molgri" href="index.html">molgri</a></code></li>
+</ul>
+</li>
+<li><h3><a href="#header-functions">Functions</a></h3>
+<ul class="">
+<li><code><a title="molgri.parsers.particle_type2element" href="#molgri.parsers.particle_type2element">particle_type2element</a></code></li>
+</ul>
+</li>
+<li><h3><a href="#header-classes">Classes</a></h3>
+<ul>
+<li>
+<h4><code><a title="molgri.parsers.BaseGroParser" href="#molgri.parsers.BaseGroParser">BaseGroParser</a></code></h4>
+</li>
+<li>
+<h4><code><a title="molgri.parsers.NameParser" href="#molgri.parsers.NameParser">NameParser</a></code></h4>
+<ul class="">
+<li><code><a title="molgri.parsers.NameParser.get_dict_properties" href="#molgri.parsers.NameParser.get_dict_properties">get_dict_properties</a></code></li>
+<li><code><a title="molgri.parsers.NameParser.get_grid_type" href="#molgri.parsers.NameParser.get_grid_type">get_grid_type</a></code></li>
+<li><code><a title="molgri.parsers.NameParser.get_human_readable_name" href="#molgri.parsers.NameParser.get_human_readable_name">get_human_readable_name</a></code></li>
+<li><code><a title="molgri.parsers.NameParser.get_num" href="#molgri.parsers.NameParser.get_num">get_num</a></code></li>
+<li><code><a title="molgri.parsers.NameParser.get_standard_name" href="#molgri.parsers.NameParser.get_standard_name">get_standard_name</a></code></li>
+<li><code><a title="molgri.parsers.NameParser.get_traj_type" href="#molgri.parsers.NameParser.get_traj_type">get_traj_type</a></code></li>
+</ul>
+</li>
+<li>
+<h4><code><a title="molgri.parsers.TranslationParser" href="#molgri.parsers.TranslationParser">TranslationParser</a></code></h4>
+<ul class="">
+<li><code><a title="molgri.parsers.TranslationParser.get_increments" href="#molgri.parsers.TranslationParser.get_increments">get_increments</a></code></li>
+<li><code><a title="molgri.parsers.TranslationParser.get_trans_grid" href="#molgri.parsers.TranslationParser.get_trans_grid">get_trans_grid</a></code></li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+</nav>
+</main>
+<footer id="footer">
+<p>Generated by <a href="https://pdoc3.github.io/pdoc" title="pdoc: Python API documentation generator"><cite>pdoc</cite> 0.10.0</a>.</p>
+</footer>
+</body>
+</html>
