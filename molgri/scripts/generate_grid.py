@@ -26,6 +26,8 @@ parser.add_argument('--statistics', action='store_true',
                     help='Write out statistics and draw statistics plots about this grid.')
 parser.add_argument('--draw', action='store_true',
                     help='Draw this grid and display a figure.')
+parser.add_argument('--background', action='store_true',
+                    help='Select this option if you are drawing grids and you want them to display axes and ticks.')
 parser.add_argument('--animate', action='store_true',
                     help='Provide an animation of the grid display.')
 parser.add_argument('--animate_ordering', action='store_true',
@@ -61,7 +63,11 @@ def run_generate_grid():
     if my_args.animate or my_args.animate_ordering:
         my_args.draw = True
     if my_args.draw:
-        my_gp = GridPlot(grid_name, style_type=["talk", "empty"])
+        if my_args.background:
+            style_type = ["talk"]
+        else:
+            style_type = ["talk", "empty"]
+        my_gp = GridPlot(grid_name, style_type=style_type)
         my_gp.create()
         print(f"Grid drawn and figure saved to {PATH_OUTPUT_PLOTS}.")
         if my_args.animate:
@@ -81,6 +87,7 @@ def run_generate_grid():
         AlphaConvergencePlot(grid_name).create()
         print(f"A convergence plot with number of points between 3 and {nap.num_grid_points} saved "
               f"to {PATH_OUTPUT_PLOTS}.")
+
 
 if __name__ == '__main__':
     run_generate_grid()

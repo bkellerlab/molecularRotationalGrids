@@ -9,6 +9,7 @@ from matplotlib.animation import FuncAnimation, PillowWriter
 from matplotlib.axes import Axes
 from matplotlib import ticker
 from mpl_toolkits.mplot3d.axes3d import Axes3D
+import mpl_toolkits
 from seaborn import color_palette
 
 from .grids import build_grid, Polytope, IcosahedronPolytope, CubePolytope
@@ -107,7 +108,7 @@ class AbstractPlot(ABC):
         self.fig = plt.figure(figsize=self.figsize)
         if self.ax is None:
             if self.dimensions == 3:
-                self.ax = self.fig.add_subplot(111, projection='3d')
+                self.ax = self.fig.add_subplot(111, projection='3d', computed_zorder=False)
             elif self.dimensions == 2:
                 self.ax = self.fig.add_subplot(111)
             else:
@@ -246,6 +247,7 @@ class GridPlot(AbstractPlot):
         if style_type is None:
             style_type = ["talk"]
         super().__init__(data_name, style_type=style_type, plot_type=plot_type, **kwargs)
+        self.grid = self._prepare_data()
 
     def _prepare_data(self) -> np.ndarray:
         num = self.parsed_data_name.get_num()
@@ -254,8 +256,7 @@ class GridPlot(AbstractPlot):
         return my_grid
 
     def _plot_data(self, **kwargs):
-        my_grid = self._prepare_data()
-        self.ax.scatter(*my_grid.T, color="black", s=4)
+        self.sc = self.ax.scatter(*self.grid.T, color="black", s=30) #, s=4)
         self.ax.view_init(elev=10, azim=30)
 
     def create(self, **kwargs):
@@ -271,29 +272,27 @@ class GridPlot(AbstractPlot):
     def animate_grid_sequence(self):
         """
         Animate how a grid is constructed - how each individual point is added.
+
+        WARNING - I am not sure that this method always displays correct order/depth coloring - mathplotlib
+        is not the most reliable tool for 3d plots and it may change the plotting order for rendering some
+        points above others!
         """
-        # TODO: to not replot but hide points?
-        self.ax = None
-        self._create_fig_ax()
-        self._set_up_empty()
-        grid = self._prepare_data()
 
         def update(i):
-            grayscale_color = 0.8 * (grid_plot[0, i] + 1) / 2 + 0.2 * (grid_plot[1, i] + 1) / 2
-            new_point = self.ax.scatter(*grid_plot[:, i], color=str(grayscale_color),
-                                   alpha=(1 - grayscale_color + 0.5) / 1.5)
-            return new_point,
+            current_colors = np.concatenate([facecolors_before[:i], all_white[i:]])
+            self.sc.set_facecolors(current_colors)
+            self.sc.set_edgecolors(current_colors)
+            return self.sc,
 
-        # noinspection PyUnresolvedReferences
-        if len(grid.shape) == 2:
-            grid_plot = grid.T
-        else:
-            grid_plot = grid
 
-        self.ax.view_init(elev=30, azim=30)
+        facecolors_before = self.sc.get_facecolors()
+        shape_colors = facecolors_before.shape
+        all_white = np.zeros(shape_colors)
+
+        self.ax.view_init(elev=10, azim=30)
         self._equalize_axes(pos_limit=1, neg_limit=-1)
-        ani = FuncAnimation(self.fig, func=update, frames=grid_plot.shape[1], interval=50, repeat=False)
-        writergif = PillowWriter(fps=1, bitrate=-1)
+        ani = FuncAnimation(self.fig, func=update, frames=len(facecolors_before), interval=5, repeat=False)
+        writergif = PillowWriter(fps=3, bitrate=-1)
         # noinspection PyTypeChecker
         ani.save(f"{self.ani_path}{self.data_name}_{self.plot_type}_ord.gif", writer=writergif, dpi=400)
         plt.close()
