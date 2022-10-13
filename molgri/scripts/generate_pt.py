@@ -4,9 +4,6 @@ This is a user-friendly script for generating a pseudotrajectory.
 
 import argparse
 from os.path import exists
-from ast import literal_eval
-
-import numpy as np
 
 from ..paths import PATH_INPUT_BASEGRO
 from molgri.parsers import NameParser, TranslationParser
@@ -20,17 +17,18 @@ from molgri.pts import Pseudotrajectory
 parser = argparse.ArgumentParser()
 requiredNamed = parser.add_argument_group('required named arguments')
 requiredNamed.add_argument('-m1', type=str, nargs='?', required=True,
-                    help='Which molecule should be fixed at the center (eg. H2O)?')
+                    help='name of the .gro file containing the fixed molecule')
 requiredNamed.add_argument('-m2', type=str, nargs='?', required=True,
-                    help='Which molecule should be rotating around the first (eg. H2O)?')
+                    help='name of the .gro file containing the mobile molecule')
 requiredNamed.add_argument('-rotgrid', metavar='rg', type=str, nargs='?', required=True,
-                    help='Name of the rotation grid file.')
+                    help='name of the rotation grid in the form algorithm_N (eg. ico_50)')
 requiredNamed.add_argument('-transgrid', metavar='tg', type=str, nargs='?', required=True,
-                    help='Radii of rotation of one molecule around the other [nm].')
+                    help='translation grid provided as a list of distances, as linspace(start, stop, num) '
+                         'or range(start, stop, step) in nanometers')
 parser.add_argument('--only_origin', action='store_true',
-                    help='Only include rotations around the origin.')
+                    help='only include rotations around the origin, not around the body')
 parser.add_argument('--recalculate', action='store_true',
-                    help='Even if a saved version of this grid already exists, recalculate it.')
+                    help='recalculate the grid even if a saved version already exists')
 
 
 def check_file_existence(args):

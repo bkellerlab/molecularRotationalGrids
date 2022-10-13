@@ -16,24 +16,24 @@ from ..scripts.set_up_io import freshly_create_all_folders
 parser = argparse.ArgumentParser()
 requiredNamed = parser.add_argument_group('required named arguments')
 requiredNamed.add_argument('-N', metavar='N', type=int, nargs='?', required=True,
-                           help='Number of points per rotational grid.')
+                           help='the number of points in your rotational grid')
 requiredNamed.add_argument('-algorithm', metavar='a', type=str, nargs='?', required=True,
-                           help='Which grid-generating algorithm to use?\
-                    (ico, cube3D, cube4D, randomQ, randomE, systemE)')
+                           help='name of the grid-generating algorithm to use'
+                                '(ico, cube3D, cube4D, randomQ, randomE, systemE)')
 parser.add_argument('--recalculate', action='store_true',
-                    help='Even if a saved version of this grid already exists, recalculate it.')
+                    help='recalculate the grid even if a saved version already exists')
 parser.add_argument('--statistics', action='store_true',
-                    help='Write out statistics and draw statistics plots about this grid.')
+                    help='write out statistics and draw uniformity and convergence plots')
 parser.add_argument('--draw', action='store_true',
-                    help='Draw this grid and display a figure.')
+                    help='draw the grid and save the plot')
 parser.add_argument('--background', action='store_true',
-                    help='Select this option if you are drawing grids and you want them to display axes and ticks.')
+                    help='when drawing a grid, display axes and ticks.')
 parser.add_argument('--animate', action='store_true',
-                    help='Provide an animation of the grid display.')
+                    help='provide an animation of the grid rotating in 3D')
 parser.add_argument('--animate_ordering', action='store_true',
-                    help='Provide an animation of the grid ordering.')
+                    help='provide an animation of the grid generation')
 parser.add_argument('--readable', action='store_true',
-                    help='Also save the grid in a human-readable.txt format.')
+                    help='save the grid file in a txt format as well')
 
 
 def prepare_grid(args, parsed_name: NameParser) -> Grid:
