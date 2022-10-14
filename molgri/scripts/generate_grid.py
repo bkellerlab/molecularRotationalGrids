@@ -48,9 +48,13 @@ def prepare_grid(args, parsed_name: NameParser) -> Grid:
         my_grid = build_grid(algo, n_points, use_saved=False, time_generation=True)
         my_grid.save_grid()
         print(f"Generated a {my_grid.decorator_label} with {my_grid.N} points.")
-    if args.readable:
-        my_grid.save_grid_txt()
-        print(f"Saved a human-readable version of rotation grid to {PATH_OUTPUT_ROTGRIDS}{name}.txt")
+    # if running from another script, args may not include the readable attribute
+    try:
+        if args.readable:
+            my_grid.save_grid_txt()
+            print(f"Saved a human-readable version of rotation grid to {PATH_OUTPUT_ROTGRIDS}{name}.txt")
+    except AttributeError:
+        pass
     return my_grid
 
 

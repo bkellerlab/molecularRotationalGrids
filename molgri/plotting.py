@@ -13,7 +13,7 @@ import mpl_toolkits
 from seaborn import color_palette
 
 from .grids import build_grid, Polytope, IcosahedronPolytope, CubePolytope
-from .constants import DIM_SQUARE, DEFAULT_DPI, COLORS, DEFAULT_NS
+from .constants import DIM_SQUARE, DEFAULT_DPI, COLORS, DEFAULT_NS, ENDING_FIGURES
 from .parsers import NameParser
 from .paths import PATH_OUTPUT_PLOTS, PATH_OUTPUT_ANIS
 
@@ -63,7 +63,7 @@ class AbstractPlot(ABC):
 
     def create(self, *args, equalize=False, neg_limit=None, pos_limit=None, x_label=None, y_label=None, z_label=None,
                title=None, save_fig=True, animate_rot=False, animate_seq=False, sci_limit_min=-4, sci_limit_max=4,
-               save_ending="pdf", dpi=600, labelpad=0, pad_inches=0, sharex="all", sharey="all", close_fig=True,
+               save_ending=ENDING_FIGURES, dpi=600, labelpad=0, pad_inches=0, sharex="all", sharey="all", close_fig=True,
                azim=-60, elev=30, main_ticks_only=False):
         """
         This is the only function the user should call on subclasses. It performs the entire plotting and
@@ -221,7 +221,7 @@ class AbstractPlot(ABC):
         anim.save(f"{self.ani_path}{self.data_name}_{self.plot_type}.gif", writer=writergif, dpi=400)
         return anim
 
-    def _save_plot(self, save_ending: str = "pdf", dpi: int = DEFAULT_DPI, **kwargs):
+    def _save_plot(self, save_ending: str = ENDING_FIGURES, dpi: int = DEFAULT_DPI, **kwargs):
         self.fig.tight_layout()
         if self.fig_path:
             standard_name = self.parsed_data_name.get_standard_name()

@@ -1,6 +1,16 @@
 # molecularRotationalGrids
 package to generate relative rotational positions and orientations of two molecular structures
 
+![violin plots demonstrating uniformity](readme_images/ico_630_grid.gif)
+
+<img src="/readme_images/ico_630_grid.gif" width="200">
+
+
+<img src="/readme_images/ico_630_grid.png" width="200">
+
+<img src="/readme_images/systemE_1000_convergence.png">
+
+
 ## Installation
 
 Currently the project is private but it is possible to install it with the command
@@ -15,6 +25,35 @@ project using
 ```
 pip install molgri
 ```
+
+
+
+## Running examples
+
+To explore the capabilities of the package, the user is encouraged to run
+the following example commands (the commands should all be executed in the
+same directory, we recommend an initially empty directory).
+
+```
+molgri-io --examples
+molgri-grid -N 250 -algo ico --draw --animate --animate_ordering --statistics
+molgri-pt -m1 H2O -m2 NH3 -rotgrid cube3D_15 -transgrid "range(1, 5, 2)"
+```
+
+The first-line command ```molgri-io``` creates the 📂 input/ and
+📂 output/ folder structure. This command should be run in each new
+directory before running other commands. The optional
+flag ```--examples``` provides some sample input files that we will use later.
+
+The second command ```molgri-grid``` is used to generate rotation grids. It is
+necessary to specify the number of grid points ```-N``` and the algorithm 
+```-algo``` (select from: systemE, randomE, randomQ, cube4D, cube3D, ico; we
+recommend ico). Other flags describe optional figures and gifs to save. All
+generated files can be found in the output/ folder.
+
+All flags starting with ```--``` are optional and can be omitted for faster
+calculations. Remember that you can always add the flag ```--help``` to get
+further instructions.
 
 ## Units
 

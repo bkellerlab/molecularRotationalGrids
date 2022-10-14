@@ -1,0 +1,3 @@
+include molgri/examples/*
+recursive-include examples *.gro
+include *.gro

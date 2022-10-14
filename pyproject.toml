@@ -1,7 +1,7 @@
 [project]
 name = "molgri"
 version = "0.0.1"
-description = "Generate pseudotrajectories based on rotaional molecular grids."
+description = "Generate molecular pseudotrajectories based on rotational grids."
 authors = [{name="Hana Zupan", email="hana.zupan@fu-berlin.de"}]
 license = {file = "LICENSE"}
 readme = "README.md"
@@ -18,9 +18,12 @@ build-backend = "setuptools.build_meta"
 
 
 [project.scripts]
-gen-grid = "molgri.scripts.generate_grid:run_generate_grid"
-gen-pt = "molgri.scripts.generate_pt:run_generate_pt"
-define-io = "molgri.scripts.set_up_io:freshly_create_all_folders"
+molgri-grid = "molgri.scripts.generate_grid:run_generate_grid"
+molgri-pt = "molgri.scripts.generate_pt:run_generate_pt"
+molgri-io = "molgri.scripts.set_up_io:parse_and_create"
 
 [tool.setuptools.dynamic]
 dependencies = {file = "requirements.txt"}
+
+[tool.setuptools.package-data]
+mypkg = ["*.gro"]

@@ -16,9 +16,11 @@ DEFAULT_SEED = 1
 UNIQUE_TOL = 5
 
 ENDING_GRID_FILES = "npy"
+ENDING_FIGURES = "png"
 
 # here write non-user-defined paths
 PATH_USER_PATHS = resource_filename("molgri", "paths.py")
+PATH_EXAMPLES = resource_filename("molgri", "examples/")
 
 SIX_METHOD_NAMES = ("systemE", "randomE", "randomQ", "cube4D", "cube3D", "ico")
 PRETTY_METHOD_NAMES = ("systematic Euler angles", "random Euler angles", "random quaternions", "4D cube grid",

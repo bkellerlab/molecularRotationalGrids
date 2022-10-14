@@ -5,7 +5,7 @@ from molgri.parsers import NameParser, BaseGroParser, TranslationParser
 
 
 def test_atom_gro_file():
-    file_name = f"tests/example_NA.gro"
+    file_name = f"molgri/examples/NA.gro"
     my_parser = BaseGroParser(file_name)
     assert my_parser.num_atoms == 1
     assert my_parser.comment == "Na+ ion"
@@ -17,7 +17,7 @@ def test_atom_gro_file():
 
 
 def test_water_gro_file():
-    file_name = f"tests/example_H2O.gro"
+    file_name = f"molgri/examples/H2O.gro"
     my_parser = BaseGroParser(file_name)
     assert my_parser.num_atoms == 3
     assert my_parser.comment == "Water"
@@ -42,7 +42,7 @@ def test_protein_gro_file():
     Example in which more than one time step is accidentally provided to the parser. Intended behaviour: read the
     first time step, ignore all subsequent ones.
     """
-    file_name = f"tests/example_protein.gro"
+    file_name = f"molgri/examples/example_protein.gro"
     my_parser = BaseGroParser(file_name)
     assert my_parser.num_atoms == 902
     assert my_parser.comment == "Protein in water t=   0.00000 step= 0"
