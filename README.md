@@ -55,6 +55,27 @@ necessary to specify the number of grid points ```-N``` and the algorithm
 recommend ico). Other flags describe optional figures and gifs to save. All
 generated files can be found in the output/ folder.
 
+The last command ```molgri-pt``` creates a pseudotrajectory. This scripts needs
+two file inputs that should be provided in inputs/base_gro_files. Both must be
+.gro files, each containing a single molecule. Due to the flag
+```-m1 H2O``` the program will look for a file inputs/base_gro_files/H2O.gro
+and use it as a fixed molecule in the pseudotrajectory. The flag ```-m2```
+gives the name of the file with the other molecule, which will be mobile
+in the simulation. Finally, the user needs to specify the rotational grid
+in form ```-rotgrid algorithm_N``` and the translational grid after the
+flag ```-transgrid``` in one of the
+following formats: a list of distances (in nm), linspace(start, stop, num) 
+or range(start, stop, step). The argument should be surrounded by quotation
+marks. Some acceptable translation grid arguments would be:
+
+```-transgrid "(1, 3, 5)"``` -> use distances 1nm, 3nm and 5nm
+
+```-transgrid "linspace(1, 3, 5)"``` -> use 5 equally spaced points
+between 1nm and 3nm
+
+```-transgrid "range(1, 3, 0.5)"``` -> use distances between 1nm and 3nm
+in 0.5nm increments
+
 All flags starting with ```--``` are optional and can be omitted for faster
 calculations. Remember that you can always add the flag ```--help``` to get
 further instructions.
