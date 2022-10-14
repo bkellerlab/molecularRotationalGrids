@@ -3,12 +3,14 @@ package to generate relative rotational positions and orientations of two molecu
 
 ![violin plots demonstrating uniformity](readme_images/ico_630_grid.gif)
 
-<img src="/readme_images/ico_630_grid.gif" width="200">
+<img src="/readme_images/ico_630_grid.gif" width="400">
 
 
-<img src="/readme_images/ico_630_grid.png" width="200">
+<img src="/readme_images/ico_630_grid.png" width="400">
 
-<img src="/readme_images/systemE_1000_convergence.png">
+<img src="/readme_images/systemE_1000_uniformity.png" width="400">
+
+<img src="/readme_images/systemE_1000_convergence.png" width="400">
 
 
 ## Installation
