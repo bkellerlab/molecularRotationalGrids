@@ -1,19 +1,16 @@
 # molecularRotationalGrids
 package to generate relative rotational positions and orientations of two molecular structures
 
-![violin plots demonstrating uniformity](readme_images/ico_630_grid.gif)
+:-------------------------:|:-------------------------:
+![](readme_images/ico_630_grid.gif)  |  ![](readme_images/systemE_1000_grid.gif)
 
- <div class="row">
-  <div class="column">
-    <img src="/readme_images/ico_630_grid.png" width="200">
-  </div>
-  <div class="column">
-    <img src="/readme_images/systemE_1000_uniformity.png" width="200">
-  </div>
-  <div class="column">
-    <img src="/readme_images/systemE_1000_convergence.png" width="200">
-  </div>
-</div>
+
+<p float="left">
+   <img src="/readme_images/ico_630_grid.png" width="30%">
+  <img src="/readme_images/systemE_1000_uniformity.png" width="30%">
+  <img src="/readme_images/systemE_1000_convergence.png" width="30%">
+</p>
+
 
 
 ## Installation
