@@ -1,9 +1,11 @@
 # molecularRotationalGrids
 package to generate relative rotational positions and orientations of two molecular structures
 
-:-------------------------:|:-------------------------:
-![](readme_images/ico_630_grid.gif)  |  ![](readme_images/systemE_1000_grid.gif)
 
+<p float="left">
+   <img src="/readme_images/ico_630_grid.gif" width="48%">
+  <img src="/readme_images/systemE_1000_grid.gif" width="48%">
+</p>
 
 <p float="left">
    <img src="/readme_images/ico_630_grid.png" width="30%">
