@@ -12,14 +12,14 @@ using VMD.
 
 
 <p float="left">
-   <img src="/readme_images/ico_630_grid.gif" alt="grid ico_630" width="48%">
-  <img src="/readme_images/systemE_1000_grid.gif" alt="grid systemE_100" width="48%">
+    <img src="/readme_images/ico_630_grid.gif" width="48%">
+    <img src="/readme_images/systemE_1000_grid.gif" width="48%">
 </p>
 
 <p float="left">
-   <img src="/readme_images/set_up_30_full_color.png" alt="protein-ion PT" width="30%">
-  <img src="/readme_images/systemE_1000_uniformity.png" alt="grid uniformity measure" width="30%">
-  <img src="/readme_images/systemE_1000_convergence.png" alt="grid convergence measure" width="30%">
+    <img src="/readme_images/systemE_1000_uniformity.png" width="30%">
+    <img src="/readme_images/set_up_30_full_color.png" width="30%">
+    <img src="/readme_images/systemE_1000_convergence.png" width="30%">
 </p>
 
 
@@ -46,7 +46,7 @@ molgri-grid -N 250 -algo ico --draw --animate --animate_ordering --statistics
 molgri-pt -m1 H2O -m2 NH3 -rotgrid cube3D_15 -transgrid "range(1, 5, 2)"
 ```
 
-The first-line command ```molgri-io``` creates the 📂 input/ and
+****The first-line command ```molgri-io``` creates the 📂 input/ and
 📂 output/ folder structure. This command should be run in each new
 directory before running other commands. The optional
 flag ```--examples``` provides some sample input files that we will use later.
@@ -58,9 +58,9 @@ recommend ico). Other flags describe optional figures and animations to save. Al
 generated files can be found in the output/ folder.
 
 The last command ```molgri-pt``` creates a pseudotrajectory. This scripts needs
-two file inputs that should be provided in inputs/base_gro_files. Both must be
+two file inputs that should be provided in input/. Both must be
 .gro files, each containing a single molecule. Due to the flag
-```-m1 H2O``` the program will look for a file inputs/base_gro_files/H2O.gro
+```-m1 H2O``` the program will look for a file input/H2O.gro
 and use it as a fixed molecule in the pseudotrajectory. The flag ```-m2```
 gives the name of the file with the other molecule, which will be mobile
 in the simulation. Finally, the user needs to specify the rotational grid
@@ -80,7 +80,7 @@ in 0.5nm increments
 
 All flags starting with ```--``` are optional and can be omitted for faster
 calculations. Remember that you can always add the flag ```--help``` to get
-further instructions.
+further instructions.****
 
 
 ## Using outputs

@@ -16,7 +16,7 @@ parser.add_argument('--examples', action='store_true',
 # if you introduce new IO folders, add them to next three lines, keep the order the same!
 IO_FOLDER_PURPUSES = ["rotational grids", "pseudotrajectory files", "base gro files", "plots", "animations",
                       "grid statistics"]
-IO_FOLDER_DEFAULTS = ["output/grid_files/", "output/pt_files/", "input/base_gro_files/", "output/figures/",
+IO_FOLDER_DEFAULTS = ["output/grid_files/", "output/pt_files/", "input/", "output/figures/",
                       "output/animations/", "output/statistics_files/"]
 IO_VARIABLE_NAMES = ["PATH_OUTPUT_ROTGRIDS", "PATH_OUTPUT_PT", "PATH_INPUT_BASEGRO", "PATH_OUTPUT_PLOTS",
                      "PATH_OUTPUT_ANIS", "PATH_OUTPUT_STAT"]
