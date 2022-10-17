@@ -1,5 +1,14 @@
 # molecularRotationalGrids
-package to generate relative rotational positions and orientations of two molecular structures
+The python package ```molgri``` has three main purposes: 1) generation of rotation grids, 2) analysis of
+said grids and 3) generation of pseudotrajectories (PTs). PTs are .gro files with several timesteps in
+which the interaction space of two molecules is systematically explored. We provide user-friendly,
+one-line scripts for rotation grid generation and analysis as well as pseudotrajectory generation and
+give instructions how to use PTS with external tools like VMD and GROMACS for further analysis.
+
+Below, we show examples of rotation grids created with different algorithms and figures of
+a protein-ion pseudotrajectory as well as some analysis plots. All plots and animations are created
+directly with the ```molgri``` package, except the PT plot where the output of ```molgri``` is drawn
+using VMD.
 
 
 <p float="left">
@@ -8,7 +17,7 @@ package to generate relative rotational positions and orientations of two molecu
 </p>
 
 <p float="left">
-   <img src="/readme_images/ico_630_grid.png" width="30%">
+   <img src="/readme_images/set_up_30_full_color.png" width="30%">
   <img src="/readme_images/systemE_1000_uniformity.png" width="30%">
   <img src="/readme_images/systemE_1000_convergence.png" width="30%">
 </p>
@@ -186,16 +195,16 @@ tool.
 
 #### Displaying pseudotrajectory
 
-To display the generated pseudotrajectory with VMD, run
+To display the example pseudotrajectory we created in the previous section with VMD, run
 
 ```
-vmd <path-to-pt>
+vmd output/pt_files/H2O_NH3_cube3D_15_full.gro
 ```
 
 or on a windows computer
 
 ```
-start vmd <path-to-pt>
+start vmd output/pt_files/H2O_NH3_cube3D_15_full.gro
 ```
 
 Then, to fully display a pseudotrajectory, it is often helpful to change the display style and to display
@@ -203,7 +212,7 @@ several or all frames at once. We suggest using the following commands within th
 
 ```
 mol modstyle 0 0 VDW
-mol drawframes 0 0 1:<step>:<num_frames>
+mol drawframes 0 0 1:1:241
 ```
 
 A useful trick is to use the number of rotations as &lt;step> - this displays one structure per mass point
@@ -228,3 +237,8 @@ gmx22 energy -f ener.edr -o full_energy.xvg
 With these commands, energy along each point of the pseudotrajectory is recorded.
 
 ## Complex applications: using python package
+
+Users who would like to build custom grids,  pseudotrajectories or sets of rotations can import ```molgri```
+as a python package (following installation described above) and work with all provided modules. Documentation
+is provided in form of docstrings or available in a compiled version at our github repository 
+[in docs folder](https://github.com/bkellerlab/molecularRotationalGrids/tree/main/docs/molgri).
