@@ -123,15 +123,10 @@ class Pseudotrajectory(TwoMoleculeGro):
         self.rotating_parser.molecule_set.translate([0, 0, trans_increments[0]])
         self._write_current_frame(index)
         index += 1
-        if self.traj_type == "circular":
-            self._gen_trajectory(frame_index=index)
-        elif self.traj_type == "full":
-            # go over different radii
-            for shell_d in trans_increments[1:]:
-                index = self._gen_trajectory(frame_index=index)
-                self.rotating_parser.molecule_set.translate([0, 0, shell_d])
-        else:
-            raise ValueError(f"{self.traj_type} not correct trajectory type, try 'full' or 'circular'.")
+        # go over different radii
+        for shell_d in trans_increments[1:]:
+            index = self._gen_trajectory(frame_index=index)
+            self.rotating_parser.molecule_set.translate([0, 0, shell_d])
         self.f.close()
         return index
 
