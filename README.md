@@ -26,14 +26,7 @@ using VMD.
 
 ## Installation
 
-Currently the project is private but it is possible to install it with the command
-
-```
-pip install git+https://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@github.com/bkellerlab/molecularRotationalGrids.git@main
-```
-
-Once released to PyPI, you should be able to install the
-project using
+This is a python library that can be easily installed using:
 
 ```
 pip install molgri
