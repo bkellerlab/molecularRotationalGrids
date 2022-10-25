@@ -1,6 +1,6 @@
 [project]
 name = "molgri"
-version = "0.0.1"
+version = "1.0.0"
 description = "Generate molecular pseudotrajectories based on rotational grids."
 authors = [{name="Hana Zupan", email="hana.zupan@fu-berlin.de"}]
 license = {file = "LICENSE"}
