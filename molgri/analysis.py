@@ -68,3 +68,14 @@ def random_axes_count_points(grid, alpha: float, num_random_points: int = 1000):
     return all_ratios
 
 
+if __name__ == '__main__':
+    from .grids import IcoGrid
+    my_grid = IcoGrid(1000).get_grid()
+    min_radius = 0.5  # nm
+    min_alpha = np.inf
+    for i in range(1000):
+        for j in range(i+1, 1000):
+            alpha = unit_dist_on_sphere(my_grid[i], my_grid[j])
+            if alpha < min_alpha:
+                min_alpha = alpha
+    print(min_radius*min_alpha*10, " angstrom")
