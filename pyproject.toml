@@ -15,14 +15,14 @@ repository = "https://github.com/bkellerlab/molecularRotationalGrids"
 homepage = "https://www.bcp.fu-berlin.de/en/chemie/chemie/forschung/PhysTheoChem/agkeller/index.html"
 
 [tool.poetry.dependencies]
-python = ">=3.6"
-matplotlib = "*"
+python = ">=3.7"
+matplotlib = ">=3.0"
 mendeleev = "*"
-networkx = "*"
-numpy = "*"
-pandas = "*"
-scipy = "*"
-seaborn = "*"
+networkx = ">=2.6"
+numpy = ">=1.0"
+pandas = ">=1.0"
+scipy = ">=1.0"
+seaborn = ">=0.12"
 
 [build-system]
 requires = ["poetry-core>=1.0.0"]
