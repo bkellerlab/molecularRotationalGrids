@@ -1,8 +1,8 @@
-matplotlib~=3.6.1
-mendeleev~=0.11.0
-networkx~=2.8.4
-numpy~=1.23.3
-pandas~=1.4.3
-scipy~=1.9.2
-seaborn~=0.12.0
-setuptools~=62.6.0
+matplotlib=3.*
+mendeleev^=0.11
+networkx^=2.6
+numpy^=1.22
+pandas^=1.4
+scipy^=1
+seaborn^=0.12.0
+poetry-core
