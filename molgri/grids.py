@@ -353,8 +353,11 @@ class Grid(ABC):
                                 {euler_seq.shape} instead of {(self.N, 33)}"
         return euler_seq
 
-    def save_grid(self):
-        np.save(f"{PATH_OUTPUT_ROTGRIDS}{self.standard_name}.{ENDING_GRID_FILES}", self.grid)
+    def save_grid(self, grid_path: str = None):
+        if not grid_path:
+            np.save(f"{PATH_OUTPUT_ROTGRIDS}{self.standard_name}.{ENDING_GRID_FILES}", self.grid)
+        else:
+            np.save(grid_path, self.grid)
 
     def save_grid_txt(self):
         np.savetxt(f"{PATH_OUTPUT_ROTGRIDS}{self.standard_name}.txt", self.grid)
