@@ -437,6 +437,9 @@ def project_grid_on_sphere(grid: np.ndarray) -> np.ndarray:
     Returns:
         a (N, d) array where each row has been scaled to length 1
     """
+    assert isinstance(grid, np.ndarray), "Grid must be a numpy array!"
+    assert len(grid.shape) == 2, "Grid must have exactly two dimensions of shape: (num of points, num of dimensions)"
+    assert not np.any(np.all(np.isclose(grid, 0), axis=1)), "There is a row with length zero, cannot normalise."
     largest_abs = np.max(np.abs(grid), axis=1)[:, np.newaxis]
     grid = np.divide(grid, largest_abs)
     norms = np.linalg.norm(grid, axis=1)[:, np.newaxis]
