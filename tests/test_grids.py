@@ -1,6 +1,8 @@
-from molgri.grids import build_grid, project_grid_on_sphere
+from molgri.grids import build_grid, project_grid_on_sphere, second_neighbours, Cube3DGrid
 from molgri.constants import SIX_METHOD_NAMES
+import networkx as nx
 import numpy as np
+from scipy.spatial import distance_matrix
 import pytest
 
 
@@ -45,6 +47,65 @@ def test_project_grid_on_sphere():
                                   [-12/17, -12/17, 0, 1/17]])
     results3 = project_grid_on_sphere(array_vectors3)
     assert np.allclose(results3, expected_results3)
+
+
+def test_second_neighbours():
+    G = nx.Graph([(5, 1), (5, 6), (6, 1), (1, 2), (2, 7), (1, 3), (1, 9), (3, 4),
+                  (4, 9), (3, 10), (3, 8), (8, 10), (10, 11)])
+    # uncomment next three lines if you need to check how it looks
+    # import matplotlib.pyplot as plt
+    # nx.draw_networkx(G)
+    # plt.show()
+    expected_neig_1 = [5, 6, 2, 3, 9]
+    # expected second neighbours that are NOT first neighbours
+    expected_sec_neig_1 = [4, 7, 10, 8]
+    sec_neig_1 = list(second_neighbours(G, 1))
+    assert np.all([x in list(G.neighbors(1)) for x in expected_neig_1]), "First neighbours wrong."
+    assert np.all([x in sec_neig_1 for x in expected_sec_neig_1]), "Some second neighbours missing."
+    assert not np.any([x in sec_neig_1 for x in expected_neig_1]), "Some first neighbours in second neighbours"
+    # the example given there
+    G2 = nx.Graph([(5, 6), (5, 2), (2, 1), (6, 1), (1, 3), (3, 7), (1, 8), (8, 3)])
+    exp_1 = [2, 6, 3, 8]
+    exp_2 = [5, 7]
+    real_1 = list(set(G2.neighbors(1)))
+    real_2 = list(set(second_neighbours(G2, 1)))
+    assert len(exp_1) == len(real_1) and sorted(exp_1) == sorted(real_1), "Something wrong with first neighbours."
+    assert len(exp_2) == len(real_2) and sorted(exp_2) == sorted(real_2), "Something wrong with second neighbours."
+
+
+def test_general_grid_properties():
+    for alg in SIX_METHOD_NAMES:
+        for number in (3, 15, 26):
+            grid_obj = build_grid(alg, number)
+            grid = grid_obj.get_grid()
+            assert isinstance(grid, np.ndarray), "Grid must be a numpy array."
+            assert grid.shape == (number, 3), "Wrong grid shape."
+
+
+def test_cube_3d_grid():
+    cube_3d = Cube3DGrid(8)
+    grid = cube_3d.get_grid()
+    distances = distance_matrix(grid, grid)
+    # diagonal should be zero
+    assert np.allclose(np.diagonal(distances), 0)
+    a = 2/np.sqrt(3)
+    # 24 elements should be vertice lengths
+    assert np.count_nonzero(np.isclose(distances, a)) == 24
+    # 24 elemens are face diagonals
+    assert np.count_nonzero(np.isclose(distances, a*np.sqrt(2))) == 24
+    # 8 elements should be volume diagonals
+    assert np.count_nonzero(np.isclose(distances, a * np.sqrt(3))) == 8
+    # rows have the right elements
+    for row in distances:
+        assert sorted(row) == sorted([0, a, a, a, a*np.sqrt(2), a*np.sqrt(2), a*np.sqrt(2), a*np.sqrt(3)])
+    # only selected angles possible
+    for vec1 in grid:
+        for vec2 in grid:
+            angle_points = np.arccos(np.clip(np.dot(vec1, vec2), -1.0, 1.0))
+            tetrahedron_a1 = np.arccos(-1/3)
+            tetrahedron_a2 = np.arccos(1 / 3)
+            assert np.any(np.isclose(angle_points, [0, np.pi/2, np.pi, np.pi/3, tetrahedron_a1, tetrahedron_a2]))
+            #assert np.dot(vec1, vec2) == 0 or np.allclose(np.cross(vec1, vec2), 0)
 
 
 def test_ordering():

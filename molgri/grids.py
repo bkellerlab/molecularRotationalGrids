@@ -261,12 +261,25 @@ def _calc_edges(vertices: np.ndarray, side_len: float) -> dict:
 
 
 def second_neighbours(graph: nx.Graph, node):
-    """Yield second neighbors of node in graph.
-    Neighbors are not not unique!
+    """Yield second neighbors of node in graph. Ignore second neighbours that are also first neighbours.
+    Second neighbors may repeat!
+
+    Example:
+
+        5------6
+        |      |
+        2 ---- 1 ---- 3 ---- 7
+               |      |
+               \--8--/
+
+    First neighbours of 1: 2, 6, 3, 8
+    Second neighbours of 1: 5, 7
     """
-    for neighbor_list in [graph.neighbors(n) for n in graph.neighbors(node)]:
+    direct_neighbours = list(graph.neighbors(node))
+    for neighbor_list in [graph.neighbors(n) for n in direct_neighbours]:
         for n in neighbor_list:
-            yield n
+            if n != node and n not in direct_neighbours:
+                yield n
 
 
 class Grid(ABC):
