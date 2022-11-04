@@ -38,7 +38,7 @@ class Polytope(ABC):
         Plot the networkx graph of self.G.
         """
         node_labels = {i: tuple(np.round(i, 3)) for i in self.G.nodes}
-        nx.draw(self.G, pos=nx.circular_layout(self.G), with_labels=True, labels=node_labels)
+        nx.draw_networkx(self.G, pos=nx.circular_layout(self.G), with_labels=True, labels=node_labels)
 
     def plot_points(self, ax, select_faces: set = None, projection: bool = False):
         """

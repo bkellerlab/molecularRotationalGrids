@@ -1,4 +1,4 @@
-from molgri.grids import build_grid, project_grid_on_sphere, second_neighbours, Cube3DGrid
+from molgri.grids import build_grid, project_grid_on_sphere, second_neighbours, Cube3DGrid, CubePolytope, IcosahedronPolytope
 from molgri.constants import SIX_METHOD_NAMES
 import networkx as nx
 import numpy as np
@@ -49,6 +49,31 @@ def test_project_grid_on_sphere():
     assert np.allclose(results3, expected_results3)
 
 
+def test_polytope():
+    for polytope_type in (CubePolytope, IcosahedronPolytope):
+        polytope = polytope_type()
+        for level in range(3):
+            graph_before = polytope.G.copy()
+            nodes_before = list(graph_before.nodes(data=False))
+            edges_before = list(graph_before.edges)
+            polytope.divide_edges()
+            graph_after = polytope.G.copy()
+            nodes_after = list(graph_after.nodes(data=False))
+            # no nodes should disappear
+            for x in nodes_before:
+                if x not in nodes_after:
+                    raise Exception("No nodes should disappear when subdividing!")
+            # now the remaining points should be midpoints of edges
+            all_midpoints = []
+            for edge in edges_before:
+                midpoint = (np.array(edge[0]) + np.array(edge[1]))/2
+                midpoint = tuple(midpoint)
+                all_midpoints.append(midpoint)
+                if midpoint not in nodes_after:
+                    raise Exception("At least one of the midpoints was not added to grid!")
+            assert set(all_midpoints).union(set(nodes_before)) == set(nodes_after)
+
+
 def test_second_neighbours():
     G = nx.Graph([(5, 1), (5, 6), (6, 1), (1, 2), (2, 7), (1, 3), (1, 9), (3, 4),
                   (4, 9), (3, 10), (3, 8), (8, 10), (10, 11)])
@@ -84,6 +109,7 @@ def test_general_grid_properties():
 
 def test_cube_3d_grid():
     cube_3d = Cube3DGrid(8)
+    assert len(cube_3d.polyhedron.faces) == 6
     grid = cube_3d.get_grid()
     distances = distance_matrix(grid, grid)
     # diagonal should be zero
@@ -105,7 +131,7 @@ def test_cube_3d_grid():
             tetrahedron_a1 = np.arccos(-1/3)
             tetrahedron_a2 = np.arccos(1 / 3)
             assert np.any(np.isclose(angle_points, [0, np.pi/2, np.pi, np.pi/3, tetrahedron_a1, tetrahedron_a2]))
-            #assert np.dot(vec1, vec2) == 0 or np.allclose(np.cross(vec1, vec2), 0)
+    # subdivision must be checked by polytope tester
 
 
 def test_ordering():
