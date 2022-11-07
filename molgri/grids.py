@@ -484,8 +484,8 @@ class ZeroGrid(Grid):
     Use this rotation grid if you want no rotations at all. Consists of only one point, a nit vector in z-direction.
     """
 
-    def __init__(self, **kwargs):
-        super().__init__(N=1, gen_alg="zero", **kwargs)
+    def __init__(self, N=1, **kwargs):
+        super().__init__(N, gen_alg="zero", **kwargs)
         self.standard_name = "zero"
 
     def generate_grid(self):

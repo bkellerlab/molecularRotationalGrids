@@ -55,6 +55,7 @@ class NameParser:
                 self.grid_type = method_name
         if "zero" in split_str:
             self.grid_type = "zero"
+            self.num_grid_points = 1
         if "_NO" in name:
             self.ordering = False
         for split_item in split_str:
