@@ -64,6 +64,22 @@ class AbstractShape(ABC):
         self.position += vector
         self.drawing_points += np.hstack(vector)
 
+    def translate_radially(self, distance_change: float):
+        """
+        Moves the object away from the origin in radial direction for the amount specified by distance_change (or
+        towards the origin if a negative distance_change is given). If the object is at origin, translate in z-direction
+        of the internal coordinate system.
+
+        Args:
+            distance_change: the change in length of the vector origin-object
+        """
+        initial_vector = self.position
+        if np.allclose(initial_vector, [0]*self.dimension):
+            initial_vector = self.basis[-1]
+        len_initial = np.linalg.norm(initial_vector)
+        rescaled_vector = distance_change*initial_vector/len_initial
+        self.translate(rescaled_vector)
+
     # noinspection PyUnusedLocal
     def _rotate(self, angles: ArrayLike, method: str, **kwargs) -> Rotation:
         """
@@ -442,6 +458,10 @@ class Molecule(AbstractShape):
         for atom in self.atoms:
             atom.translate(vector)
 
+    def translate_radially(self, distance_change: float):
+        super().translate_radially(distance_change)
+        # here no changes to individual atoms!
+
     def rotate_about_origin(self, angles: np.ndarray, **kwargs):
         super().rotate_about_origin(angles, **kwargs)
         for atom in self.atoms:
@@ -508,7 +528,8 @@ class ShapeSet(object):
         Selects appropriate which_action and forwards to the corresponding function.
 
         Args:
-            which_action: options: ['translate', 'rotate_objects_about_origin', 'rotate_objects_about_body']
+            which_action: options: ['translate', 'rotate_objects_about_origin', 'rotate_objects_about_body',
+                                    'translate_radially']
             vector: vector for translation or vector/float of rotational angles
             which: list of 1s and 0s as long as self.all_objects or None - which objects should be drawn. If None, all
             method: what method of rotation
@@ -518,9 +539,12 @@ class ShapeSet(object):
                 if which_action == "translate":
                     self.all_objects[j].translate(vector)
                 elif which_action == "rotate_about_body":
-                    return self.all_objects[j].rotate_about_body(vector, method=method, inverse=inverse)
+                    self.all_objects[j].rotate_about_body(vector, method=method, inverse=inverse)
                 elif which_action == "rotate_about_origin":
-                    return self.all_objects[j].rotate_about_origin(vector, method=method, inverse=inverse)
+                    self.all_objects[j].rotate_about_origin(vector, method=method, inverse=inverse)
+                elif which_action == "translate_radially":
+                    assert isinstance(vector, np.floating)
+                    self.all_objects[j].translate_radially(vector)
                 else:
                     raise NotImplementedError("Only actions translate, rotate_about_body and" +
                                               "rotate_abut_origin are implemented.")
@@ -550,6 +574,9 @@ class ShapeSet(object):
         self._manipulate_objects for details.
         """
         self._manipulate_objects("translate", vector, which=which, **kwargs)
+
+    def translate_objects_radially(self, distance_change: float, which: list = None, **kwargs):
+        self._manipulate_objects("translate_radially", distance_change, which=which, **kwargs)
 
     def rotate_objects_about_origin(self, vector: ArrayLike, which: list = None, **kwargs):
         """
