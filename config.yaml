@@ -1,0 +1,3 @@
+ALGORITHMS = ["ico", "cube3D", "cube4D", "randomQ", "randomE", "systemE"]
+
+algorithms:

@@ -1,10 +1,13 @@
+configfile: "config.yaml"
+
 import os
 import matplotlib
-matplotlib.use('pdf')
+from molgri.paths import *
+matplotlib.use('pdf')  # necessary so matplotlib doesn't warn about threading
 from molgri.grids import build_grid
 from molgri.plotting import GridPlot
 
-ALGORITHMS = ["ico", "cube3D", "cube4D", "randomQ", "randomE", "systemE"]
+
 
 def get_bwa_map_input_fastqs(wildcards):
     print(os.getcwd())
@@ -18,6 +21,8 @@ rule generate_grid:
         my_grid.save_grid(output[0])
 
 rule generate_grid_figures:
+    input:
+        "molgri/output/grid_files/{algorithm}_{N}.npy"
     output:
         "molgri/output/figures_grids/{algorithm}_{N}_grid.{ending}"
     threads: 1
