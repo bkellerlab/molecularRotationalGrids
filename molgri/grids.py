@@ -298,7 +298,7 @@ class Grid(ABC):
         """
         self.rn_gen = np.random.default_rng(DEFAULT_SEED)
         np.random.seed(DEFAULT_SEED)
-        if gen_alg not in SIX_METHOD_NAMES:
+        if gen_alg not in SIX_METHOD_NAMES and gen_alg != "zero":
             raise ValueError(f"{gen_alg} is not a valid generation algorithm name. Try 'ico', 'cube3D' ...")
         self.ordered = ordered
         self.N = N
@@ -477,6 +477,18 @@ def select_next_gridpoint(set_grid_points, i):
     index_max = np.argmax(nn_dist)
     set_grid_points[[i, i + index_max]] = set_grid_points[[i + index_max, i]]
     return set_grid_points
+
+
+class ZeroGrid(Grid):
+    """
+    Use this rotation grid if you want no rotations at all. Consists of only one point, a nit vector in z-direction.
+    """
+
+    def __init__(self, **kwargs):
+        super().__init__(N=1, gen_alg="zero", **kwargs)
+
+    def generate_grid(self):
+        self.grid = np.array([[0, 0, 1]])
 
 
 class RandomQGrid(Grid):

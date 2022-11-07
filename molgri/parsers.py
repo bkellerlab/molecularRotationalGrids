@@ -1,4 +1,5 @@
 import re
+import hashlib
 import numbers
 
 import numpy as np
@@ -7,6 +8,7 @@ from ast import literal_eval
 
 from .bodies import Molecule
 from .constants import MOLECULE_NAMES, SIX_METHOD_NAMES, FULL_RUN_NAME
+from .paths import PATH_OUTPUT_TRANSGRIDS
 
 
 class NameParser:
@@ -238,17 +240,28 @@ class TranslationParser(object):
         self.user_input = user_input
         if "linspace" in self.user_input:
             bracket_input = self._read_within_brackets()
-            self.trans_grid = np.linspace(*bracket_input)
+            self.trans_grid = np.linspace(*bracket_input, dtype=float)
         elif "range" in self.user_input:
             bracket_input = self._read_within_brackets()
-            self.trans_grid = np.arange(*bracket_input)
+            self.trans_grid = np.arange(*bracket_input, dtype=float)
         else:
             self.trans_grid = literal_eval(self.user_input)
-            self.trans_grid = np.array(self.trans_grid)
+            self.trans_grid = np.array(self.trans_grid, dtype=float)
             self.trans_grid = np.sort(self.trans_grid, axis=None)
+        # we use a (shortened) hash value to uniquely identify the grid used, no matter how it's generated
+        self.grid_hash = int(hashlib.md5(self.trans_grid).hexdigest()[:8], 16)
+        # save the grid (for record purposes)
+        path = f"{PATH_OUTPUT_TRANSGRIDS}trans_{self.grid_hash}.txt"
+        np.savetxt(path, self.trans_grid)
 
     def get_trans_grid(self) -> np.ndarray:
         return self.trans_grid
+
+    def get_N_trans(self) -> int:
+        return len(self.trans_grid)
+
+    def sum_increments_from_first_radius(self):
+        return np.sum(self.get_increments()[1:])
 
     def get_increments(self):
         increment_grid = [self.trans_grid[0]]

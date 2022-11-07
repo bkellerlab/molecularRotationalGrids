@@ -1,4 +1,5 @@
-from molgri.grids import build_grid, project_grid_on_sphere, second_neighbours, Cube3DGrid, CubePolytope, IcosahedronPolytope
+from molgri.grids import build_grid, project_grid_on_sphere, second_neighbours, Cube3DGrid, \
+    CubePolytope, IcosahedronPolytope, IcoGrid
 from molgri.constants import SIX_METHOD_NAMES
 import networkx as nx
 import numpy as np
@@ -132,6 +133,11 @@ def test_cube_3d_grid():
             tetrahedron_a2 = np.arccos(1 / 3)
             assert np.any(np.isclose(angle_points, [0, np.pi/2, np.pi, np.pi/3, tetrahedron_a1, tetrahedron_a2]))
     # subdivision must be checked by polytope tester
+
+
+def test_zero_grid():
+    ico = IcoGrid(0)
+    ico.get_grid()
 
 
 def test_ordering():

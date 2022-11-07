@@ -99,6 +99,17 @@ def test_trans_parser():
     assert np.allclose(TranslationParser("[5, 6.5, 7, 12]").get_increments(), np.array([5, 1.5, 0.5, 5]))
     assert np.allclose(TranslationParser("[5, 12, 6.5, 7]").get_increments(), np.array([5, 1.5, 0.5, 5]))
     assert np.allclose(TranslationParser("[12, 5, 6.5, 7]").get_increments(), np.array([5, 1.5, 0.5, 5]))
+    # sum of increments
+    assert np.allclose(TranslationParser("[2, 2.5, 2.77, 3.4]").sum_increments_from_first_radius(), 1.4)
+    # hash
+    tp = TranslationParser("[2, 2.5, 2.77, 3.4]")
+    assert tp.grid_hash == 1772331579
+    tp2 = TranslationParser("range(2, 7, 2)")
+    assert tp2.grid_hash == 481270436
+    tp3 = TranslationParser("[2, 4, 6]")
+    assert tp3.grid_hash == 481270436
+    tp4 = TranslationParser("linspace(2, 6, 3)")
+    assert tp4.grid_hash == 481270436
 
 
 if __name__ == '__main__':

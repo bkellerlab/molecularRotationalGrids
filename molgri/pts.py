@@ -1,6 +1,6 @@
 import numpy as np
 
-from .grids import Grid
+from .grids import Grid, ZeroGrid
 from .constants import DEFAULT_DISTANCES
 from .parsers import BaseGroParser, TranslationParser
 from .paths import PATH_INPUT_BASEGRO, PATH_OUTPUT_PT
@@ -78,55 +78,81 @@ class TwoMoleculeGro:
 
 class Pseudotrajectory(TwoMoleculeGro):
 
-    def __init__(self, name_central_gro: str, name_rotating_gro: str, rot_grid: Grid, trans_grid: TranslationParser,
-                 traj_type="full"):
-        grid_name = rot_grid.standard_name  # for example ico_500
-        pseudo_name = f"{name_central_gro}_{name_rotating_gro}_{grid_name}_{traj_type}"
+    def __init__(self, name_central_gro: str, name_rotating_gro: str, rot_grid_origin: Grid,
+                 trans_grid: TranslationParser, rot_grid_body: Grid or None):
+        """
+
+        Args:
+            name_central_gro: name of the .gro file with the central (fixed) molecule that can be found at location
+                              specified by PATH_INPUT_BASEGRO (in paths.py)
+            name_rotating_gro: name of the .gro file with the second (movable) molecule that can be found at location
+                              specified by PATH_INPUT_BASEGRO (in paths.py)
+            rot_grid_origin: name of the grid for rotation around origin, eg. ico_15
+            trans_grid: a parser for translations
+            rot_grid_body: name of the grid for rotation around origin, eg. ico_20, or None if no body rotations
+                           are included (e.g. for spherically symmetrical rotating particles
+        """
+        # TODO: name must reflect all grids
+        grid_name = rot_grid_origin.standard_name  # for example ico_500
+        pseudo_name = f"{name_central_gro}_{name_rotating_gro}_{grid_name}"
         self.pt_name = pseudo_name
         super().__init__(name_central_gro, name_rotating_gro, result_name_gro=pseudo_name)
-        self.quaternions = rot_grid.as_quaternion()
         self.trans_grid = trans_grid
-        self.traj_type = traj_type
+        self.rot_grid_origin = rot_grid_origin.as_quaternion()
+        if not rot_grid_body:
+            zg = ZeroGrid()
+            self.rot_grid_body = zg.as_quaternion()
+        else:
+            self.rot_grid_body = rot_grid_body.as_quaternion()
         self.name_rotating = name_rotating_gro
         self.decorator_label = f"pseudotrajectory {pseudo_name}"
 
-    def _gen_trajectory(self, frame_index=0) -> int:
-        """
-        This does not deal with any radii yet, only with rotations.
-        Args:
-            frame_index: index of the last frame written
-
-        Returns:
-            the new frame index after all rotations completed
-        """
-        frame_index = frame_index
-        for one_rotation in self.quaternions:
-            initial_atom_set = self.rotating_parser.molecule_set
-            initial_atom_set.rotate_about_origin(one_rotation, method="quaternion")
-            self._write_current_frame(frame_num=frame_index)
-            frame_index += 1
-            if self.traj_type == "full":
-                for body_rotation in self.quaternions:
-                    # rotate there
-                    initial_atom_set.rotate_about_body(body_rotation, method="quaternion")
-                    self._write_current_frame(frame_num=frame_index)
-                    # rotate back
-                    initial_atom_set.rotate_about_body(body_rotation, method="quaternion", inverse=True)
-                    frame_index += 1
-            initial_atom_set.rotate_about_origin(one_rotation, method="quaternion", inverse=True)
-        return frame_index
+    # def _gen_trajectory(self, frame_index=0) -> int:
+    #     """
+    #     This does not deal with any radii yet, only with rotations.
+    #     Args:
+    #         frame_index: index of the last frame written
+    #
+    #     Returns:
+    #         the new frame index after all rotations completed
+    #     """
+    #     frame_index = frame_index
+    #     for one_rotation in self.quaternions:
+    #         initial_atom_set = self.rotating_parser.molecule_set
+    #         initial_atom_set.rotate_about_origin(one_rotation, method="quaternion")
+    #         self._write_current_frame(frame_num=frame_index)
+    #         frame_index += 1
+    #         if self.traj_type == "full":
+    #             for body_rotation in self.quaternions:
+    #                 # rotate there
+    #                 initial_atom_set.rotate_about_body(body_rotation, method="quaternion")
+    #                 self._write_current_frame(frame_num=frame_index)
+    #                 # rotate back
+    #                 initial_atom_set.rotate_about_body(body_rotation, method="quaternion", inverse=True)
+    #                 frame_index += 1
+    #         initial_atom_set.rotate_about_origin(one_rotation, method="quaternion", inverse=True)
+    #     return frame_index
 
     def generate_pseudotrajectory(self) -> int:
         index = 0
         trans_increments = self.trans_grid.get_increments()
-        # initial set-up of molecules
-        self.rotating_parser.molecule_set.translate([0, 0, trans_increments[0]])
-        self._write_current_frame(index)
-        index += 1
-        # go over different radii
-        for shell_d in trans_increments[1:]:
-            index = self._gen_trajectory(frame_index=index)
-            self.rotating_parser.molecule_set.translate([0, 0, shell_d])
+        increment_sum = self.trans_grid.sum_increments_from_first_radius()
+        self.rotating_parser.molecule_set.translate_radially(trans_increments[0])
+        for origin_rotation in self.rot_grid_origin:
+            initial_atom_set = self.rotating_parser.molecule_set
+            initial_atom_set.rotate_about_origin(origin_rotation, method="quaternion")
+            for body_rotation in self.rot_grid_body:
+                initial_atom_set.rotate_about_body(body_rotation, method="quaternion")
+                # write the frame at initial distance
+                self._write_current_frame(frame_num=index)
+                index += 1
+                for translation in trans_increments[1:]:
+                    self.rotating_parser.molecule_set.translate_radially(translation)
+                    self._write_current_frame(frame_num=index)
+                    index += 1
+                self.rotating_parser.molecule_set.translate_radially(-increment_sum)
+                initial_atom_set.rotate_about_body(body_rotation, method="quaternion", inverse=True)
+            initial_atom_set.rotate_about_origin(origin_rotation, method="quaternion", inverse=True)
         self.f.close()
         return index
 
