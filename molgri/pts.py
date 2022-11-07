@@ -92,46 +92,24 @@ class Pseudotrajectory(TwoMoleculeGro):
             rot_grid_body: name of the grid for rotation around origin, eg. ico_20, or None if no body rotations
                            are included (e.g. for spherically symmetrical rotating particles
         """
-        # TODO: name must reflect all grids
-        grid_name = rot_grid_origin.standard_name  # for example ico_500
-        pseudo_name = f"{name_central_gro}_{name_rotating_gro}_{grid_name}"
-        self.pt_name = pseudo_name
-        super().__init__(name_central_gro, name_rotating_gro, result_name_gro=pseudo_name)
+
         self.trans_grid = trans_grid
-        self.rot_grid_origin = rot_grid_origin.as_quaternion()
+        self.rot_grid_origin = rot_grid_origin
         if not rot_grid_body:
             zg = ZeroGrid()
-            self.rot_grid_body = zg.as_quaternion()
+            self.rot_grid_body = zg
         else:
-            self.rot_grid_body = rot_grid_body.as_quaternion()
+            self.rot_grid_body = rot_grid_body
         self.name_rotating = name_rotating_gro
+        origin_grid_name = self.rot_grid_origin.standard_name  # for example ico_500
+        body_grid_name = self.rot_grid_body.standard_name
+        pseudo_name = f"{name_central_gro}_{name_rotating_gro}_o_{origin_grid_name}_b_{body_grid_name}_t_{trans_grid.grid_hash}"
+        self.pt_name = pseudo_name
         self.decorator_label = f"pseudotrajectory {pseudo_name}"
-
-    # def _gen_trajectory(self, frame_index=0) -> int:
-    #     """
-    #     This does not deal with any radii yet, only with rotations.
-    #     Args:
-    #         frame_index: index of the last frame written
-    #
-    #     Returns:
-    #         the new frame index after all rotations completed
-    #     """
-    #     frame_index = frame_index
-    #     for one_rotation in self.quaternions:
-    #         initial_atom_set = self.rotating_parser.molecule_set
-    #         initial_atom_set.rotate_about_origin(one_rotation, method="quaternion")
-    #         self._write_current_frame(frame_num=frame_index)
-    #         frame_index += 1
-    #         if self.traj_type == "full":
-    #             for body_rotation in self.quaternions:
-    #                 # rotate there
-    #                 initial_atom_set.rotate_about_body(body_rotation, method="quaternion")
-    #                 self._write_current_frame(frame_num=frame_index)
-    #                 # rotate back
-    #                 initial_atom_set.rotate_about_body(body_rotation, method="quaternion", inverse=True)
-    #                 frame_index += 1
-    #         initial_atom_set.rotate_about_origin(one_rotation, method="quaternion", inverse=True)
-    #     return frame_index
+        super().__init__(name_central_gro, name_rotating_gro, result_name_gro=pseudo_name)
+        # convert to quaternions
+        self.rot_grid_body = self.rot_grid_body.as_quaternion()
+        self.rot_grid_origin = self.rot_grid_origin.as_quaternion()
 
     def generate_pseudotrajectory(self) -> int:
         index = 0

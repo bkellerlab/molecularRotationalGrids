@@ -53,6 +53,8 @@ class NameParser:
         for method_name in SIX_METHOD_NAMES:
             if method_name in split_str:
                 self.grid_type = method_name
+        if "zero" in split_str:
+            self.grid_type = "zero"
         if "_NO" in name:
             self.ordering = False
         for split_item in split_str:
@@ -252,6 +254,7 @@ class TranslationParser(object):
         self.grid_hash = int(hashlib.md5(self.trans_grid).hexdigest()[:8], 16)
         # save the grid (for record purposes)
         path = f"{PATH_OUTPUT_TRANSGRIDS}trans_{self.grid_hash}.txt"
+        # noinspection PyTypeChecker
         np.savetxt(path, self.trans_grid)
 
     def get_trans_grid(self) -> np.ndarray:

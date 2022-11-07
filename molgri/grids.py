@@ -486,6 +486,7 @@ class ZeroGrid(Grid):
 
     def __init__(self, **kwargs):
         super().__init__(N=1, gen_alg="zero", **kwargs)
+        self.standard_name = "zero"
 
     def generate_grid(self):
         self.grid = np.array([[0, 0, 1]])
@@ -645,7 +646,8 @@ def build_grid(grid_type: str, N: int, **kwargs) -> Grid:
                  "cube4D": Cube4DGrid,
                  "systemE": SystemEGrid,
                  "cube3D": Cube3DGrid,
-                 "ico": IcoGrid}
+                 "ico": IcoGrid,
+                 "zero": ZeroGrid}
     if grid_type not in name2grid.keys():
         raise ValueError(f"{grid_type} is not a valid grid type. Try 'ico', 'cube3D' ...")
     grid_obj = name2grid[grid_type]
