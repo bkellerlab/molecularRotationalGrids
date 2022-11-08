@@ -43,7 +43,7 @@ same directory, we recommend an initially empty directory).
 ```
 molgri-io --examples
 molgri-grid -N 250 -algo ico --draw --animate --animate_ordering --statistics
-molgri-pt -m1 H2O -m2 NH3 -rotgrid cube3D_15 -transgrid "range(1, 5, 2)"
+molgri-pt -m1 H2O -m2 NH3 -origingrid cube3D_15 -bodygrid ico_10 -transgrid "range(1, 5, 2)"
 ```
 
 ****The first-line command ```molgri-io``` creates the 📂 input/ and
@@ -63,9 +63,10 @@ two file inputs that should be provided in input/. Both must be
 ```-m1 H2O``` the program will look for a file input/H2O.gro
 and use it as a fixed molecule in the pseudotrajectory. The flag ```-m2```
 gives the name of the file with the other molecule, which will be mobile
-in the simulation. Finally, the user needs to specify the rotational grid
-in form ```-rotgrid algorithm_N``` (see algorithm names above) and the translational grid after the
-flag ```-transgrid``` in one of the
+in the simulation. Finally, the user needs to specify the two rotational grids
+in form ```-origingrid algorithm_N``` (for rotations around the origin) and 
+```-bodygrid algorithm_N``` , see algorithm names above. Finally, the translational grid after the
+flag ```-transgrid``` should be supplied in one of the
 following formats: a list of distances (in nm), linspace(start, stop, num) 
 or range(start, stop, step). The argument should be surrounded by quotation
 marks. Some acceptable translation grid arguments would be:
