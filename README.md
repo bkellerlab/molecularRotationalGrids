@@ -1,4 +1,8 @@
 # molecularRotationalGrids
+This repository is connected to the publication:
+Hana Zupan, Frederick Heinz, Bettina G. Keller: "Grid-based state space exploration for molecular binding",
+arXiv preprint: [https://arxiv.org/abs/2211.00566](https://arxiv.org/abs/2211.00566)
+
 The python package ```molgri``` has three main purposes: 1) generation of rotation grids, 2) analysis of
 said grids and 3) generation of pseudotrajectories (PTs). PTs are .gro files with several timesteps in
 which the interaction space of two molecules is systematically explored. We provide user-friendly,

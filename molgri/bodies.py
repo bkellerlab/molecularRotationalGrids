@@ -643,6 +643,10 @@ class MoleculeSet(AtomSet):
         self.belongings = {f"molecule_{i}": key.atoms for i, key in enumerate(self.all_objects)}
         # changing from AtomSet
         self.num_atoms = sum([len(self.all_objects[i].atoms) for i in range(len(self.all_objects))])
+        # list atoms in which all atoms of all molecules in the set are saved
+        self.atoms = []
+        for molecule in self.all_objects:
+            self.atoms.extend(molecule.atoms)
 
     def save_atom_lines_gro(self, residue: str = "SOL", atom_num=1, residue_num=1):
         num_atom = atom_num

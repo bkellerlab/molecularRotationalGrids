@@ -208,6 +208,14 @@ class BaseGroParser:
         else:
             self.gro_file = gro_file_read
         self.comment = self.gro_file.readline().strip()
+        if "c_num" in self.comment and "r_num" in self.comment:
+            split_comment = self.comment.split("=")
+            _c_num = split_comment[1].split(",")[0]
+            self.c_num = int(_c_num)
+            _r_num = split_comment[2].split(",")[0]
+            self.r_num = int(_r_num)
+        else:
+            self.c_num, self.r_num = None, None
         self.num_atoms = int(self.gro_file.readline().strip())
         self.atom_lines_nm = []
         for line in range(self.num_atoms):
@@ -245,28 +253,23 @@ class BaseGroParser:
             list_gro_labels.append(atom_name)
             list_atom_names.append(element_name)
             list_atom_pos.append([x_pos_nm, y_pos_nm, z_pos_nm])
-        return list_residues, list_gro_labels, list_atom_names, list_atom_pos
+        return list_gro_labels, list_atom_names, list_atom_pos
 
-    def _create_molecule_set(self, list_residues, list_gro_labels, list_atom_names, list_atom_pos) -> MoleculeSet:
+    def _create_molecule_set(self, list_gro_labels, list_atom_names, list_atom_pos) -> MoleculeSet:
         array_atom_pos = np.array(list_atom_pos)
-        _indices = defaultdict(list)
-        # find the indices of atoms that belong to the same molecule and put them in a dict where keys are
-        # residue numbers and values a list of atomic indices
-        for index, item in enumerate(list_residues):
-            _indices[item].append(index)
         molecule_list = []
-        # create a list of molecules from these collections of atoms
-        for key, value in _indices.items():
-            # you need the following lines so that you catch both the case where the molecule consists of one particle
-            # or of many of them (you can't just convert to list because that would slice up your strings).
-            atom_names = []
-            _atom_names = itemgetter(*value)(list_atom_names)
-            atom_names.extend(_atom_names if type(_atom_names) == tuple else [_atom_names])
-            gro_labels = []
-            _gro_labels = itemgetter(*value)(list_gro_labels)
-            gro_labels.extend(_gro_labels if type(_gro_labels) == tuple else [_gro_labels])
-            molecule_list.append(Molecule(atom_names=atom_names, centers=array_atom_pos[value], center_at_origin=False,
-                                          gro_labels=gro_labels))
+        # option 1 - normal gro file, not a PT
+        if not self.c_num:
+            molecule_list.append(Molecule(atom_names=list_atom_names, centers=array_atom_pos, center_at_origin=False,
+                                          gro_labels=list_gro_labels))
+        else:
+            molecule_list.append(Molecule(atom_names=list_atom_names[0:self.c_num],
+                                          centers=array_atom_pos[0:self.c_num], center_at_origin=False,
+                                          gro_labels=list_gro_labels[0:self.c_num]))
+            assert self.c_num+self.r_num == self.num_atoms
+            molecule_list.append(Molecule(atom_names=list_atom_names[self.c_num:],
+                                          centers=array_atom_pos[self.c_num:], center_at_origin=False,
+                                          gro_labels=list_gro_labels[self.c_num:]))
         return MoleculeSet(molecule_list)
 
 
