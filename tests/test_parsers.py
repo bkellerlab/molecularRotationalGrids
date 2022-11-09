@@ -11,7 +11,8 @@ def test_atom_gro_file():
     assert my_parser.comment == "Na+ ion"
     assert np.allclose(my_parser.box, [30, 30, 30])
     assert isinstance(my_parser.box[0], int)
-    my_molecule = my_parser.molecule_set
+    my_molecule_set = my_parser.molecule_set
+    my_molecule = my_molecule_set.all_objects[0]
     assert np.allclose(my_molecule.position, [0, 0, 0])
     assert my_molecule.atoms[0].element == element("Na")
 
@@ -22,7 +23,7 @@ def test_water_gro_file():
     assert my_parser.num_atoms == 3
     assert my_parser.comment == "Water"
     assert np.allclose(my_parser.box, [30, 30, 30])
-    my_molecule = my_parser.molecule_set
+    my_molecule = my_parser.molecule_set.all_objects[0]
     # the atomic positions
     assert np.allclose(my_molecule.atoms[0].position, [0.000, -0.005, 0.004])
     assert np.allclose(my_molecule.atoms[1].position, [0.000,  -0.005,  -0.092])
@@ -48,7 +49,7 @@ def test_protein_gro_file():
     assert my_parser.comment == "Protein in water t=   0.00000 step= 0"
     assert np.allclose(my_parser.box, [6.38830,  6.16418,   8.18519])
     assert isinstance(my_parser.box[0], float)
-    my_molecule = my_parser.molecule_set
+    my_molecule = my_parser.molecule_set.all_objects[0]
     assert np.allclose(my_molecule.atoms[0].position, [-0.421,  -0.191,  -1.942])
     assert np.allclose(my_molecule.atoms[1].position, [-0.450,  -0.287,  -1.946])
     assert np.allclose(my_molecule.atoms[901].position, [0.065,  -0.214,   2.135])

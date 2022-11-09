@@ -250,12 +250,21 @@ class BaseGroParser:
     def _create_molecule_set(self, list_residues, list_gro_labels, list_atom_names, list_atom_pos) -> MoleculeSet:
         array_atom_pos = np.array(list_atom_pos)
         _indices = defaultdict(list)
+        # find the indices of atoms that belong to the same molecule and put them in a dict where keys are
+        # residue numbers and values a list of atomic indices
         for index, item in enumerate(list_residues):
             _indices[item].append(index)
         molecule_list = []
-        for value in _indices.values():
-            atom_names = list(itemgetter(*value)(list_atom_names))
-            gro_labels = list(itemgetter(*value)(list_gro_labels))
+        # create a list of molecules from these collections of atoms
+        for key, value in _indices.items():
+            # you need the following lines so that you catch both the case where the molecule consists of one particle
+            # or of many of them (you can't just convert to list because that would slice up your strings).
+            atom_names = []
+            _atom_names = itemgetter(*value)(list_atom_names)
+            atom_names.extend(_atom_names if type(_atom_names) == tuple else [_atom_names])
+            gro_labels = []
+            _gro_labels = itemgetter(*value)(list_gro_labels)
+            gro_labels.extend(_gro_labels if type(_gro_labels) == tuple else [_gro_labels])
             molecule_list.append(Molecule(atom_names=atom_names, centers=array_atom_pos[value], center_at_origin=False,
                                           gro_labels=gro_labels))
         return MoleculeSet(molecule_list)

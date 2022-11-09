@@ -629,26 +629,6 @@ class AtomSet(ShapeSet):
             assert all([x in [1, 0] for x in which]), "which cannot have values other than 1 or 0"
         return which
 
-    # move to MoleculeSet
-    def _save_atom_lines_gro(self, residue: str = "SOL", atom_num=1, residue_num=1):
-        num_atom = atom_num
-        num_molecule = residue_num
-        for molecule_name, molecule_atoms in self.belongings.items():
-            hydrogen_counter = 1
-            for atom in molecule_atoms:
-                pos_nm = atom.position
-                if atom.element.symbol == "O":
-                    name = "OW"
-                elif atom.element.symbol == "H":
-                    name = "HW" + str(hydrogen_counter)
-                    hydrogen_counter += 1
-                else:
-                    name = atom.element.symbol
-                self.file_gro.write(f"{num_molecule:5}{residue:5}{name:>5}{num_atom:5}{pos_nm[0]:8.3f}{pos_nm[1]:8.3f}"
-                                    f"{pos_nm[2]:8.3f}{0:8.4f}{0:8.4f}{0:8.4f}\n")
-                num_atom += 1
-            num_molecule += 1
-
     def _manipulate_objects(self, *args, save_to_gro=False, ** kwargs):
         super()._manipulate_objects(*args, **kwargs)
 
@@ -663,6 +643,18 @@ class MoleculeSet(AtomSet):
         self.belongings = {f"molecule_{i}": key.atoms for i, key in enumerate(self.all_objects)}
         # changing from AtomSet
         self.num_atoms = sum([len(self.all_objects[i].atoms) for i in range(len(self.all_objects))])
+
+    def save_atom_lines_gro(self, residue: str = "SOL", atom_num=1, residue_num=1):
+        num_atom = atom_num
+        num_molecule = residue_num
+        for molecule in self.all_objects:
+            for atom in molecule:
+                pos_nm = atom.position
+                name = atom.element.gro_label
+                self.file_gro.write(f"{num_molecule:5}{residue:5}{name:>5}{num_atom:5}{pos_nm[0]:8.3f}{pos_nm[1]:8.3f}"
+                                    f"{pos_nm[2]:8.3f}{0:8.4f}{0:8.4f}{0:8.4f}\n")
+                num_atom += 1
+            num_molecule += 1
 
 
 def join_shapes(list_shapes_or_shape_sets: list, as_molecule_set=False, as_atom_set=False) -> ShapeSet:
