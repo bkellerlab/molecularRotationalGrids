@@ -1,12 +1,15 @@
 import re
 import hashlib
 import numbers
+from typing import TextIO
+from collections import defaultdict
+from operator import itemgetter
 
 import numpy as np
 from mendeleev.fetch import fetch_table
 from ast import literal_eval
 
-from .bodies import Molecule
+from .bodies import Molecule, MoleculeSet
 from .constants import MOLECULE_NAMES, SIX_METHOD_NAMES, FULL_RUN_NAME
 from .paths import PATH_OUTPUT_TRANSGRIDS
 
@@ -181,7 +184,7 @@ def particle_type2element(particle_type: str) -> str:
 
 class BaseGroParser:
 
-    def __init__(self, gro_read: str, parse_atoms: bool = True):
+    def __init__(self, gro_read: str, parse_atoms: bool = True, gro_file_read: TextIO = None):
         """
         This parser reads the data from a .gro file. If multiple time steps are written, it only reads the first one.
 
@@ -196,8 +199,14 @@ class BaseGroParser:
             gro_read: the path to the .gro file to be parsed
             parse_atoms: select True if you want to manipulate (rotate/translate) any atoms from this .gro file;
                          select False if you only want to copy the atom position lines as-provided
+            gro_file_read: (optional) if gro file already opened, it can be provided here, in this case, gro_read
+                            argument ignored
+
         """
-        self.gro_file = open(gro_read, "r")
+        if not gro_file_read:
+            self.gro_file = open(gro_read, "r")
+        else:
+            self.gro_file = gro_file_read
         self.comment = self.gro_file.readline().strip()
         self.num_atoms = int(self.gro_file.readline().strip())
         self.atom_lines_nm = []
@@ -206,23 +215,24 @@ class BaseGroParser:
             line = self.gro_file.readline()
             self.atom_lines_nm.append(line)
         if parse_atoms:
-            a_labels, a_names, a_pos = self._parse_atoms()
-            a_pos = np.array(a_pos)
-            self.molecule_set = Molecule(atom_names=a_names, centers=a_pos, center_at_origin=False,
-                                         gro_labels=a_labels)
+            self.molecule_set = self._create_molecule_set(*self._parse_atoms())
+            # TODO: make an actual molecule set consisting of first molecule that does not change and second that does
+            # self.molecule_set = Molecule(atom_names=a_names, centers=a_pos, center_at_origin=False,
+            #                              gro_labels=a_labels)
         else:
             self.molecule_set = None
         self.box = tuple([literal_eval(x) for x in self.gro_file.readline().strip().split()])
         assert len(self.atom_lines_nm) == self.num_atoms
-        self.gro_file.close()
+        #self.gro_file.close()
 
     def _parse_atoms(self) -> tuple:
+        list_residues = []
         list_gro_labels = []
         list_atom_names = []
         list_atom_pos = []
         for line in self.atom_lines_nm:
             # read out each individual part of the atom position line
-            # residue_num = int(line[0:5])
+            residue_num = int(line[0:5])
             # residue_name = line[5:10].strip()
             atom_name = line[10:15].strip()
             element_name = particle_type2element(atom_name)
@@ -231,11 +241,41 @@ class BaseGroParser:
             y_pos_nm = float(line[28:36])
             z_pos_nm = float(line[36:44])
             # optionally velocities in nm/ps are writen at characters 44:52, 52:60, 60:68 of the line
+            list_residues.append(residue_num)
             list_gro_labels.append(atom_name)
             list_atom_names.append(element_name)
             list_atom_pos.append([x_pos_nm, y_pos_nm, z_pos_nm])
-        return list_gro_labels, list_atom_names, list_atom_pos
+        return list_residues, list_gro_labels, list_atom_names, list_atom_pos
 
+    def _create_molecule_set(self, list_residues, list_gro_labels, list_atom_names, list_atom_pos) -> MoleculeSet:
+        array_atom_pos = np.array(list_atom_pos)
+        _indices = defaultdict(list)
+        for index, item in enumerate(list_residues):
+            _indices[item].append(index)
+        molecule_list = []
+        for value in _indices.values():
+            atom_names = list(itemgetter(*value)(list_atom_names))
+            gro_labels = list(itemgetter(*value)(list_gro_labels))
+            molecule_list.append(Molecule(atom_names=atom_names, centers=array_atom_pos[value], center_at_origin=False,
+                                          gro_labels=gro_labels))
+        return MoleculeSet(molecule_list)
+
+
+class MultiframeGroParser:
+
+    def __init__(self, gro_read: str, parse_atoms: bool = True, gro_file_read: TextIO = None):
+        # if not gro_file_read:
+        #     self.gro_file = open(gro_read, "r")
+        # else:
+        #     self.gro_file = gro_file_read
+        self.timesteps = []
+        with open(gro_read) as f:
+            while True:
+                try:
+                    bgp = BaseGroParser(gro_read, parse_atoms=parse_atoms, gro_file_read=f)
+                except ValueError:
+                    break
+                self.timesteps.append(bgp)
 
 class TranslationParser(object):
 

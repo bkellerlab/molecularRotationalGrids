@@ -48,7 +48,7 @@ class TwoMoleculeGro:
         num_atom = num_atoms_cen + 1
         num_molecule = 2
         hydrogen_counter = 1
-        for atom in self.rotating_parser.molecule_set.atoms:
+        for atom in self.rotating_parser.molecule_set.all_objects[0].atoms:
             pos_nm = atom.position
             name = atom.gro_label
             self.f.write(f"{num_molecule:5}{residue:5}{name:>5}{num_atom:5}{pos_nm[0]:8.3f}{pos_nm[1]:8.3f}"
@@ -115,22 +115,24 @@ class Pseudotrajectory(TwoMoleculeGro):
         index = 0
         trans_increments = self.trans_grid.get_increments()
         increment_sum = self.trans_grid.sum_increments_from_first_radius()
-        self.rotating_parser.molecule_set.translate_radially(trans_increments[0])
+        #initial_atom_set = self.rotating_parser.molecule_set.all_objects[0].atoms
+        self.rotating_parser.molecule_set.translate_objects_radially(trans_increments[0])
         for origin_rotation in self.rot_grid_origin:
-            initial_atom_set = self.rotating_parser.molecule_set
-            initial_atom_set.rotate_about_origin(origin_rotation, method="quaternion")
+            #print()
+            initial_mol_set = self.rotating_parser.molecule_set
+            initial_mol_set.rotate_objects_about_origin(origin_rotation, method="quaternion")
             for body_rotation in self.rot_grid_body:
-                initial_atom_set.rotate_about_body(body_rotation, method="quaternion")
+                initial_mol_set.rotate_objects_about_body(body_rotation, method="quaternion")
                 # write the frame at initial distance
                 self._write_current_frame(frame_num=index)
                 index += 1
                 for translation in trans_increments[1:]:
-                    self.rotating_parser.molecule_set.translate_radially(translation)
+                    self.rotating_parser.molecule_set.translate_objects_radially(translation)
                     self._write_current_frame(frame_num=index)
                     index += 1
-                self.rotating_parser.molecule_set.translate_radially(-increment_sum)
-                initial_atom_set.rotate_about_body(body_rotation, method="quaternion", inverse=True)
-            initial_atom_set.rotate_about_origin(origin_rotation, method="quaternion", inverse=True)
+                self.rotating_parser.molecule_set.translate_objects_radially(-increment_sum)
+                initial_mol_set.rotate_objects_about_body(body_rotation, method="quaternion", inverse=True)
+            initial_mol_set.rotate_objects_about_origin(origin_rotation, method="quaternion", inverse=True)
         self.f.close()
         return index
 

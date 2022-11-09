@@ -1,6 +1,6 @@
 from molgri.pts import Pseudotrajectory
 from molgri.grids import IcoGrid, Cube4DGrid, ZeroGrid
-from molgri.parsers import TranslationParser
+from molgri.parsers import TranslationParser, MultiframeGroParser
 from molgri.scripts.set_up_io import freshly_create_all_folders, copy_examples
 from molgri.paths import PATH_OUTPUT_PT
 
@@ -67,6 +67,12 @@ def test_pt_translations():
     pt.generate_pseudotrajectory()
     file_name = f"{PATH_OUTPUT_PT}{pt.pt_name}.gro"
     # TODO: assert distances written in a file
+    ts = MultiframeGroParser(file_name).timesteps
+    for i, t in enumerate(ts):
+        #print("molecule 2", t.molecule_set.all_objects[1].position, distances[i])
+        for molecule in t.molecule_set.all_objects:
+            for atom in molecule.atoms:
+                print(atom.position)
     with open(file_name, "r") as f:
         lines = f.readlines()
 

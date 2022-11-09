@@ -1,4 +1,4 @@
-from molgri.bodies import AbstractShape, ShapeSet, Cuboid, Molecule
+from molgri.bodies import AbstractShape, ShapeSet, Cuboid, Molecule, MoleculeSet, join_shapes, Atom, AtomSet
 import numpy as np
 
 
@@ -55,6 +55,41 @@ def test_translate_radially():
     assert np.allclose(m.position[2], dist)
     for i, atom in enumerate(m.atoms):
         assert np.allclose(atom.position[2], centers[i][2]-initial_com[2]+dist)
+
+
+def test_join_shapes():
+    c1 = Cuboid()
+    c2 = Cuboid(2, 4, 5)
+    m1 = Molecule(["O"], np.array([[0, 0, 5]]), center_at_origin=False)
+    # a list of simple objects
+    joined_set1 = join_shapes([c1, c2, m1])
+    assert joined_set1.all_objects[0] is c1
+    assert joined_set1.all_objects[1] is c2
+    assert joined_set1.all_objects[2] is m1
+    assert joined_set1.all_objects[2].atoms[0].element.symbol == "O"
+    assert np.allclose(joined_set1.all_objects[2].atoms[0].position, np.array([[0, 0, 5]]))
+    assert np.allclose(joined_set1.all_objects[0].position, np.array([[0, 0, 0]]))
+    # mixed objects and sets
+    set1 = ShapeSet([c1, c1, c2])
+    m2 = Molecule(["O", "H"], np.array([[0, 0, 5], [3, 2, 1]]), center_at_origin=False)
+    set2 = MoleculeSet([m2, m1])
+    joined_set2 = join_shapes([set1, m1, set2])
+    assert len(joined_set2.all_objects) == 6
+    assert np.all([c1, c1, c2, m1, m2, m1] == joined_set2.all_objects)
+    # generate a molecule set
+    joined_set3 = join_shapes([set2, m1], as_molecule_set=True)
+    assert isinstance(joined_set3, MoleculeSet)
+    assert len(joined_set3.all_objects) == 3
+    assert np.all([m2, m1, m1] == joined_set3.all_objects)
+    assert joined_set3.num_atoms == 2 + 1 + 1
+    # generate an atom set
+    a1 = Atom("H")
+    a2 = Atom("O")
+    joined_set4 = join_shapes([a1, a2], as_atom_set=True)
+    assert isinstance(joined_set4, AtomSet)
+    assert len(joined_set4.all_objects) == 2
+    assert np.all([a1, a2] == joined_set4.all_objects)
+    assert joined_set4.num_atoms == 2
 
 
 if __name__ == '__main__':

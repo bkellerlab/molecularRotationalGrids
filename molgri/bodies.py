@@ -495,6 +495,7 @@ class ShapeSet(object):
         assert [x.dimension == self.num_dim for x in self.all_objects], "All objects must have the same" \
                                                                         "number of dimensions as the set"
 
+
     def draw_objects(self, axis: Axis, which: list = None, **kwargs) -> list:
         """
         The only method that actually draws. All other methods should call this method to draw.
@@ -628,6 +629,7 @@ class AtomSet(ShapeSet):
             assert all([x in [1, 0] for x in which]), "which cannot have values other than 1 or 0"
         return which
 
+    # move to MoleculeSet
     def _save_atom_lines_gro(self, residue: str = "SOL", atom_num=1, residue_num=1):
         num_atom = atom_num
         num_molecule = residue_num
@@ -656,10 +658,44 @@ class MoleculeSet(AtomSet):
     def __init__(self, all_objects: list or AbstractShape, file_gro: TextIO = None, file_xyz: TextIO = None, **kwargs):
         super().__init__(all_objects, file_gro=file_gro, file_xyz=file_xyz, **kwargs)
         assert [type(x) == Molecule for x in self.all_objects], "All objects must be Molecules"
+        # TODO: enable atoms but convert them to molecules immediately
         # changing from AtomSet
         self.belongings = {f"molecule_{i}": key.atoms for i, key in enumerate(self.all_objects)}
         # changing from AtomSet
         self.num_atoms = sum([len(self.all_objects[i].atoms) for i in range(len(self.all_objects))])
+
+
+def join_shapes(list_shapes_or_shape_sets: list, as_molecule_set=False, as_atom_set=False) -> ShapeSet:
+    """
+    Given a list of objects that all derive from Shape or ShapeSet, create a ShapeSet that have all these objects
+    listed and they are all equal.
+
+    Args:
+        list_shapes_or_shape_sets: a list of inputs
+        as_atom_set: try to convert in AtomSet and raise an error if not possible
+        as_molecule_set: try to convert in MoleculeSet and raise an error if not possible
+
+    Returns:
+        A ShapeSet whose property .all_objects is a flattened list of all individual objects contained in input
+    """
+    all_objects = []
+    if len(list_shapes_or_shape_sets) <= 1:
+        all_objects = list_shapes_or_shape_sets
+    else:
+        for subshape in list_shapes_or_shape_sets:
+            if issubclass(type(subshape), AbstractShape):
+                all_objects.append(subshape)
+            elif issubclass(type(subshape), ShapeSet):
+                all_objects.extend(subshape.all_objects)
+            else:
+                raise AttributeError(f"Input contains elements that are neither Shapes nor ShapeSets: {subshape}.")
+    # if all atoms convert in AtomSet, if all atoms or molecules convert in molecule_set
+    if as_molecule_set:
+        return MoleculeSet(all_objects=all_objects)
+    elif as_atom_set:
+        return AtomSet(all_objects=all_objects)
+    else:
+        return ShapeSet(all_objects=all_objects)
 
 
 if __name__ == '__main__':
