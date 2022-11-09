@@ -1,3 +1,5 @@
+import numpy as np
+
 from molgri.pts import Pseudotrajectory
 from molgri.grids import IcoGrid, Cube4DGrid, ZeroGrid
 from molgri.parsers import TranslationParser, MultiframeGroParser
@@ -67,14 +69,16 @@ def test_pt_translations():
     pt.generate_pseudotrajectory()
     file_name = f"{PATH_OUTPUT_PT}{pt.pt_name}.gro"
     # TODO: assert distances written in a file
+    # center of mass of the second molecule moves in z direction
     ts = MultiframeGroParser(file_name).timesteps
     for i, t in enumerate(ts):
-        #print("molecule 2", t.molecule_set.all_objects[1].position, distances[i])
-        for molecule in t.molecule_set.all_objects:
-            for atom in molecule.atoms:
-                print(atom.position)
-    with open(file_name, "r") as f:
-        lines = f.readlines()
+        molecule1 = t.molecule_set.all_objects[0]
+        molecule2 = t.molecule_set.all_objects[1]
+        # molecule 2 should be translated along the z coordinate
+        assert np.allclose(molecule2.position[2], distances[i], atol=1e-3)
+        # x and y coordinates should not change
+        assert np.allclose(molecule2.position[0], molecule1.position[0], atol=1e-3)
+        assert np.allclose(molecule2.position[1], molecule1.position[1], atol=1e-3)
 
 
 if __name__ == '__main__':

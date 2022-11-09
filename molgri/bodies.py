@@ -73,8 +73,9 @@ class AbstractShape(ABC):
         Args:
             distance_change: the change in length of the vector origin-object
         """
-        initial_vector = self.position
-        if np.allclose(initial_vector, [0]*self.dimension):
+        # need to work with rounding because gromacs files only have 3-point precision
+        initial_vector = np.round(self.position, 3)
+        if np.allclose(initial_vector, [0]*self.dimension, atol=1e-3):
             initial_vector = self.basis[-1]
         len_initial = np.linalg.norm(initial_vector)
         rescaled_vector = distance_change*initial_vector/len_initial
@@ -494,7 +495,6 @@ class ShapeSet(object):
         assert [type(x) == AbstractShape for x in self.all_objects], "All simulated objects must be type(AbstractShape)"
         assert [x.dimension == self.num_dim for x in self.all_objects], "All objects must have the same" \
                                                                         "number of dimensions as the set"
-
 
     def draw_objects(self, axis: Axis, which: list = None, **kwargs) -> list:
         """
