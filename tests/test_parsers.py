@@ -54,7 +54,7 @@ def test_protein_gro_file():
     my_molecule26 = my_parser.molecule_set.all_objects[25]
     assert np.allclose(my_molecule.atoms[0].position, [-0.421,  -0.191,  -1.942])
     assert np.allclose(my_molecule.atoms[1].position, [-0.450,  -0.287,  -1.946])
-    assert np.allclose(my_molecule.atoms[901].position, [0.065,  -0.214,   2.135])
+    assert np.allclose(my_molecule26.atoms[16].position, [0.065,  -0.214,   2.135])
     assert my_molecule.atoms[0].element == element("N")
     assert my_molecule.atoms[0].gro_label == "N"
     assert my_molecule.atoms[1].element == element("H")
