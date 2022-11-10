@@ -9,6 +9,13 @@ from molgri.utils import angle_between_vectors
 
 
 def test_pt_len():
+    """
+    Test that PTs are of correct length in various cases, including zero rotational grids. Check this in three
+    ways, so that the product of n_o*n_b*n_t is equal to:
+     - index returned by pt.generate_pseudotrajectory()
+     - last t=value comment in the PT file minus one
+     - length of the PT file when you consider how many lines each frame takes
+    """
     # origin rot grid = body rot grid
     num_rotations = 55
     rot_grid = IcoGrid(num_rotations)
@@ -62,6 +69,9 @@ def test_pt_len():
 
 
 def test_pt_translations():
+    """
+    Test that if there are no rotations of any kind, translation occurs at correct distances in the z-direction.
+    """
     # on a zero rotation grids
     zg = ZeroGrid()
     trans_grid = TranslationParser("range(1, 5, 0.5)")
@@ -83,6 +93,11 @@ def test_pt_translations():
 
 
 def test_pt_rotations_origin():
+    """
+    Test that if there is no body rotation grid,
+        1) distances to COM are equal to those prescribed by translational grid
+        2) angles between vector to COM and vectors to individual atoms stay constant
+    """
     num_rot = 12
     ico_grid = IcoGrid(num_rot)
     zg = ZeroGrid()
@@ -114,6 +129,11 @@ def test_pt_rotations_origin():
 
 
 def test_pt_rotations_body():
+    """
+    test that if there is no orientational grid,
+        1) distances to COM are equal to those prescribed by translational grid
+        2) COM only moves in the z-direction, x and y coordinates of COM stay at 0
+    """
     num_rot = 4
     ico_grid = IcoGrid(num_rot)
     zg = ZeroGrid()
@@ -140,10 +160,26 @@ def test_pt_rotations_body():
         assert np.isclose(com_2[0], 0, atol=1e-3)
         assert np.isclose(com_2[1], 0, atol=1e-3)
         assert np.isclose(com_2[2], dist, atol=1e-3)
-        basis = ts[frame_i].molecule_set.all_objects[1].basis
-        vec_atom1 = ts[frame_i].molecule_set.all_objects[1].atoms[0].position
-        print(basis, vec_atom1)
 
+
+def test_order_of_operations():
+    """
+    If you have n_o rotational orientations, n_b body rotations and n_t translations, the first n_b*n_t elements
+    should have the same space orientation, the first n_t also the same body orientation and this pattern
+    continuous to repeat.
+    """
+    n_b = 4
+    grid_b = IcoGrid(n_b)
+    n_o = 8
+    grid_o = IcoGrid(n_o)
+    n_t = 3
+    trans_grid = TranslationParser("[1, 2, 3]")
+    distances = trans_grid.get_trans_grid()
+    pt = Pseudotrajectory("H2O", "NH3", rot_grid_origin=grid_o, trans_grid=trans_grid, rot_grid_body=grid_b)
+    len_traj = pt.generate_pseudotrajectory()
+    file_name = f"{PATH_OUTPUT_PT}{pt.pt_name}.gro"
+    ts = MultiframeGroParser(file_name, parse_atoms=True).timesteps
+    # TODO
 
 if __name__ == '__main__':
     freshly_create_all_folders()
