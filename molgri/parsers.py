@@ -1,9 +1,6 @@
-import re
 import hashlib
 import numbers
 from typing import TextIO
-from collections import defaultdict
-from operator import itemgetter
 
 import numpy as np
 from mendeleev.fetch import fetch_table
@@ -208,7 +205,7 @@ class BaseGroParser:
         else:
             self.gro_file = gro_file_read
         self.comment = self.gro_file.readline().strip()
-        if "c_num" in self.comment and "r_num" in self.comment:
+        if "c_num=" in self.comment and "r_num=" in self.comment:
             split_comment = self.comment.split("=")
             _c_num = split_comment[1].split(",")[0]
             self.c_num = int(_c_num)
@@ -216,6 +213,12 @@ class BaseGroParser:
             self.r_num = int(_r_num)
         else:
             self.c_num, self.r_num = None, None
+        if "t=" in self.comment:
+            split_comment = self.comment.split("=")
+            _t = split_comment[-1].strip()
+            self.t = float(_t)
+        else:
+            self.t = None
         self.num_atoms = int(self.gro_file.readline().strip())
         self.atom_lines_nm = []
         for line in range(self.num_atoms):
@@ -275,11 +278,7 @@ class BaseGroParser:
 
 class MultiframeGroParser:
 
-    def __init__(self, gro_read: str, parse_atoms: bool = True, gro_file_read: TextIO = None):
-        # if not gro_file_read:
-        #     self.gro_file = open(gro_read, "r")
-        # else:
-        #     self.gro_file = gro_file_read
+    def __init__(self, gro_read: str, parse_atoms: bool = True):
         self.timesteps = []
         with open(gro_read) as f:
             while True:

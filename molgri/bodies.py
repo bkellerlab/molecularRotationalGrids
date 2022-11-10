@@ -647,6 +647,7 @@ class MoleculeSet(AtomSet):
         self.atoms = []
         for molecule in self.all_objects:
             self.atoms.extend(molecule.atoms)
+        self.position = self._calc_center_of_mass()
 
     def save_atom_lines_gro(self, residue: str = "SOL", atom_num=1, residue_num=1):
         num_atom = atom_num
@@ -659,6 +660,15 @@ class MoleculeSet(AtomSet):
                                     f"{pos_nm[2]:8.3f}{0:8.4f}{0:8.4f}{0:8.4f}\n")
                 num_atom += 1
             num_molecule += 1
+
+    # this is repetition of Molecule class, not good!
+    def _calc_center_of_mass(self):
+        total_mass = 0
+        com = np.zeros(3)
+        for i, atom in enumerate(self.atoms):
+            total_mass += atom.element.atomic_weight
+            com += atom.element.atomic_weight * self.atoms[i].position
+        return com/total_mass
 
 
 def join_shapes(list_shapes_or_shape_sets: list, as_molecule_set=False, as_atom_set=False) -> ShapeSet:

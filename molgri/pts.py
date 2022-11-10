@@ -92,7 +92,6 @@ class Pseudotrajectory(TwoMoleculeGro):
             rot_grid_body: name of the grid for rotation around origin, eg. ico_20, or None if no body rotations
                            are included (e.g. for spherically symmetrical rotating particles
         """
-
         self.trans_grid = trans_grid
         self.rot_grid_origin = rot_grid_origin
         if not rot_grid_body:
@@ -112,6 +111,9 @@ class Pseudotrajectory(TwoMoleculeGro):
         self.rot_grid_origin = self.rot_grid_origin.as_quaternion()
 
     def generate_pseudotrajectory(self) -> int:
+        # center second molecule if not centered yet
+        dist_origin = np.linalg.norm(self.rotating_parser.molecule_set.position)
+        self.rotating_parser.molecule_set.translate_objects_radially(-dist_origin)
         index = 0
         trans_increments = self.trans_grid.get_increments()
         increment_sum = self.trans_grid.sum_increments_from_first_radius()

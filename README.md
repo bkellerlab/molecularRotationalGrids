@@ -114,7 +114,7 @@ several or all frames at once. We suggest using the following commands within th
 
 ```
 mol modstyle 0 0 VDW
-mol drawframes 0 0 1:1:241
+mol drawframes 0 0 0:1:241
 ```
 
 The first one displays the molecules as spheres with van der Waals radii and the second draws frames of

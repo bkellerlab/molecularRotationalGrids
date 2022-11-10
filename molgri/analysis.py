@@ -1,6 +1,8 @@
 import numpy as np
 from scipy.constants import pi
 
+from molgri.utils import unit_vector, angle_between_vectors
+
 
 def unit_dist_on_sphere(vector1: np.ndarray, vector2: np.ndarray) -> np.ndarray:
     """
@@ -37,16 +39,8 @@ def random_sphere_points(n: int = 1000) -> np.ndarray:
     return np.concatenate((x, y, z), axis=1)
 
 
-def unit_vector(vector):
-    """ Returns the unit vector of the vector.  """
-    return vector / np.linalg.norm(vector)
-
-
 def vector_within_alpha(central_vec: np.ndarray, side_vector: np.ndarray, alpha: float):
-    v1_u = unit_vector(central_vec)
-    v2_u = unit_vector(side_vector)
-    angle_vectors = np.arccos(np.clip(np.dot(v1_u, v2_u), -1.0, 1.0))
-    return angle_vectors < alpha
+    return angle_between_vectors(central_vec, side_vector) < alpha
 
 
 def count_points_within_alpha(grid, central_vec: np.ndarray, alpha: float):
