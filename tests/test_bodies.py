@@ -35,11 +35,11 @@ def test_translate_radially():
     shape_s.rotate_objects_about_body((0, 0, np.pi/6), method="euler_123")
     shape_s.translate_objects_radially(5)
     for shape in shape_s.all_objects:
-        assert np.allclose(shape.position[2], 5*np.cos(np.pi/6)), "Objects in ShapeSet not correctly translated from\
+        assert np.allclose(shape.position[2], 5*np.cos(np.pi/6), atol=1e-3), "Objects in ShapeSet not correctly translated from\
          origin with tilted basis."
     shape_s.translate_objects_radially(-5)
     for shape in shape_s.all_objects:
-        assert np.allclose(shape.position, (0, 0, 0)),"Objects in ShapeSet not correctly translated \
+        assert np.allclose(shape.position, (0, 0, 0), atol=1e-3),"Objects in ShapeSet not correctly translated \
              with tilted basis in backward direction."
     # molecules
     centers = np.array([[0, 0, 0,],
