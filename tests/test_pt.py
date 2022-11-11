@@ -1,11 +1,41 @@
 import numpy as np
 
+from molgri.bodies import Molecule
 from molgri.pts import Pseudotrajectory
 from molgri.grids import IcoGrid, Cube4DGrid, ZeroGrid
 from molgri.parsers import TranslationParser, MultiframeGroParser
 from molgri.scripts.set_up_io import freshly_create_all_folders, copy_examples
 from molgri.paths import PATH_OUTPUT_PT
-from molgri.utils import angle_between_vectors
+from molgri.utils import angle_between_vectors, unit_vector
+
+
+def same_distance(mol1: Molecule, mol2: Molecule):
+    """Check that two molecules have the same distance from COM to origin."""
+    dist1 = np.linalg.norm(mol1.position)
+    dist2 = np.linalg.norm(mol2.position)
+    assert np.isclose(dist1, dist2, atol=1e-3)
+
+
+def same_body_orientation(mol1: Molecule, mol2: Molecule):
+    """Check that two molecules (that should have the same atoms) have the same internal body orientation."""
+    assert np.shape(mol1.atoms) == np.shape(mol2.atoms)
+    assert np.all([atom1.element == atom2.element for atom1, atom2 in zip(mol1.atoms, mol2.atoms)])
+    for atom1, atom2 in zip(mol1.atoms, mol2.atoms):
+        vec_com1 = mol1.position
+        vec_atom1 = atom1.position - vec_com1
+        angle1 = angle_between_vectors(vec_com1, vec_atom1)
+        vec_com2 = mol2.position
+        vec_atom2 = atom2.position - vec_com2
+        angle2 = angle_between_vectors(vec_com2, vec_atom2)
+        assert np.isclose(angle1, angle2, atol=0.05)
+
+
+def same_origin_orientation(mol1: Molecule, mol2: Molecule):
+    """Check that two molecules have COM on the same vector from the origin (have the same orientation with respect
+    to origin)"""
+    unit_pos1 = unit_vector(mol1.position)
+    unit_pos2 = unit_vector(mol2.position)
+    assert np.allclose(unit_pos1, unit_pos2, atol=1e-3)
 
 
 def test_pt_len():
@@ -179,12 +209,27 @@ def test_order_of_operations():
     len_traj = pt.generate_pseudotrajectory()
     file_name = f"{PATH_OUTPUT_PT}{pt.pt_name}.gro"
     ts = MultiframeGroParser(file_name, parse_atoms=True).timesteps
-    # TODO
+    # each batch of n_b*n_t elements should have the same space orientation
+    for o in range(0, len_traj, n_b*n_t):
+        for i in range(o, o+n_b*n_t):
+            mol2_ts_i = ts[i].molecule_set.all_objects[1]
+            for j in range(i+1, o+n_b*n_t):
+                mol2_ts_j = ts[j].molecule_set.all_objects[1]
+                same_origin_orientation(mol2_ts_i, mol2_ts_j)
+    # each batch of n_t also the same body orientation
+    for o in range(0, len_traj, n_t):
+        for i in range(o, o+n_t):
+            mol2_ts_i = ts[i].molecule_set.all_objects[1]
+            for j in range(i+1, o+n_t):
+                mol2_ts_j = ts[j].molecule_set.all_objects[1]
+                same_body_orientation(mol2_ts_i, mol2_ts_j)
+
 
 if __name__ == '__main__':
     freshly_create_all_folders()
     copy_examples()
-    test_pt_len()
-    test_pt_translations()
-    test_pt_rotations_origin()
-    test_pt_rotations_body()
+    # test_pt_len()
+    # test_pt_translations()
+    # test_pt_rotations_origin()
+    # test_pt_rotations_body()
+    test_order_of_operations()
