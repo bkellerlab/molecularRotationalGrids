@@ -205,14 +205,6 @@ class BaseGroParser:
         else:
             self.gro_file = gro_file_read
         self.comment = self.gro_file.readline().strip()
-        if "c_num=" in self.comment and "r_num=" in self.comment:
-            split_comment = self.comment.split("=")
-            _c_num = split_comment[1].split(",")[0]
-            self.c_num = int(_c_num)
-            _r_num = split_comment[2].split(",")[0]
-            self.r_num = int(_r_num)
-        else:
-            self.c_num, self.r_num = None, None
         if "t=" in self.comment:
             split_comment = self.comment.split("=")
             _t = split_comment[-1].strip()
@@ -227,9 +219,6 @@ class BaseGroParser:
             self.atom_lines_nm.append(line)
         if parse_atoms:
             self.molecule_set = self._create_molecule_set(*self._parse_atoms())
-            # TODO: make an actual molecule set consisting of first molecule that does not change and second that does
-            # self.molecule_set = Molecule(atom_names=a_names, centers=a_pos, center_at_origin=False,
-            #                              gro_labels=a_labels)
         else:
             self.molecule_set = None
         self.box = tuple([literal_eval(x) for x in self.gro_file.readline().strip().split()])
@@ -260,33 +249,55 @@ class BaseGroParser:
 
     def _create_molecule_set(self, list_gro_labels, list_atom_names, list_atom_pos) -> MoleculeSet:
         array_atom_pos = np.array(list_atom_pos)
-        molecule_list = []
-        # option 1 - normal gro file, not a PT
-        if not self.c_num:
-            molecule_list.append(Molecule(atom_names=list_atom_names, centers=array_atom_pos, center_at_origin=False,
-                                          gro_labels=list_gro_labels))
+        molecule_list = [Molecule(atom_names=list_atom_names, centers=array_atom_pos, center_at_origin=False,
+                                  gro_labels=list_gro_labels)]
+        return MoleculeSet(molecule_list)
+
+
+class PtFrameParser(BaseGroParser):
+
+    def __init__(self, gro_read: str, parse_atoms: bool = True, gro_file_read: TextIO = None):
+        super().__init__(gro_read, parse_atoms=parse_atoms, gro_file_read=gro_file_read)
+        if "c_num=" in self.comment and "r_num=" in self.comment:
+            split_comment = self.comment.split("=")
+            _c_num = split_comment[1].split(",")[0]
+            self.c_num = int(_c_num)
+            _r_num = split_comment[2].split(",")[0]
+            self.r_num = int(_r_num)
         else:
-            molecule_list.append(Molecule(atom_names=list_atom_names[0:self.c_num],
-                                          centers=array_atom_pos[0:self.c_num], center_at_origin=False,
-                                          gro_labels=list_gro_labels[0:self.c_num]))
-            assert self.c_num+self.r_num == self.num_atoms
-            molecule_list.append(Molecule(atom_names=list_atom_names[self.c_num:],
-                                          centers=array_atom_pos[self.c_num:], center_at_origin=False,
-                                          gro_labels=list_gro_labels[self.c_num:]))
+            raise ValueError(f"Cannot find c_num and/or r_nu in comment line: {self.comment}")
+
+    def _create_molecule_set(self, list_gro_labels, list_atom_names, list_atom_pos) -> MoleculeSet:
+        """
+        Redefine this function so that the molecular set consists of exactly two molecules, one fixed, one rotated.
+        """
+        array_atom_pos = np.array(list_atom_pos)
+        molecule_list = [Molecule(atom_names=list_atom_names[0:self.c_num],
+                                  centers=array_atom_pos[0:self.c_num], center_at_origin=False,
+                                  gro_labels=list_gro_labels[0:self.c_num])]
+        assert self.c_num+self.r_num == self.num_atoms
+        molecule_list.append(Molecule(atom_names=list_atom_names[self.c_num:],
+                                      centers=array_atom_pos[self.c_num:], center_at_origin=False,
+                                      gro_labels=list_gro_labels[self.c_num:]))
         return MoleculeSet(molecule_list)
 
 
 class MultiframeGroParser:
 
-    def __init__(self, gro_read: str, parse_atoms: bool = True):
+    def __init__(self, gro_read: str, parse_atoms: bool = True, is_pt=True):
         self.timesteps = []
         with open(gro_read) as f:
             while True:
                 try:
-                    bgp = BaseGroParser(gro_read, parse_atoms=parse_atoms, gro_file_read=f)
+                    if is_pt:
+                        bgp = PtFrameParser(gro_read, parse_atoms=parse_atoms, gro_file_read=f)
+                    else:
+                        bgp = BaseGroParser(gro_read, parse_atoms=parse_atoms, gro_file_read=f)
                 except ValueError:
+                    # this occurs at the end of the file when no more timesteps to read.
                     break
                 self.timesteps.append(bgp)
+
 
 class TranslationParser(object):
 
