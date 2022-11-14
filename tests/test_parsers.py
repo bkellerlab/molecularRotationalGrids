@@ -123,7 +123,7 @@ def test_trans_parser():
 
 
 if __name__ == '__main__':
-    test_atom_gro_file()
+    #test_atom_gro_file()
     test_parsing_pt_gro()
     #test_water_gro_file()
     #test_protein_gro_file()

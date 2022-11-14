@@ -257,7 +257,8 @@ class BaseGroParser:
 class PtFrameParser(BaseGroParser):
 
     def __init__(self, gro_read: str, parse_atoms: bool = True, gro_file_read: TextIO = None):
-        super().__init__(gro_read, parse_atoms=parse_atoms, gro_file_read=gro_file_read)
+        # don't parse atoms in super() since you don't know yet which atoms belong to molecule 1 and which to 2.
+        super().__init__(gro_read, parse_atoms=False, gro_file_read=gro_file_read)
         if "c_num=" in self.comment and "r_num=" in self.comment:
             split_comment = self.comment.split("=")
             _c_num = split_comment[1].split(",")[0]
@@ -266,6 +267,8 @@ class PtFrameParser(BaseGroParser):
             self.r_num = int(_r_num)
         else:
             raise ValueError(f"Cannot find c_num and/or r_nu in comment line: {self.comment}")
+        if parse_atoms:
+            self.molecule_set = self._create_molecule_set(*self._parse_atoms())
 
     def _create_molecule_set(self, list_gro_labels, list_atom_names, list_atom_pos) -> MoleculeSet:
         """
