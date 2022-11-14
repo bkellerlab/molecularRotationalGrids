@@ -6,7 +6,7 @@ from molgri.grids import IcoGrid, Cube4DGrid, ZeroGrid
 from molgri.parsers import TranslationParser, MultiframeGroParser
 from molgri.scripts.set_up_io import freshly_create_all_folders, copy_examples
 from molgri.paths import PATH_OUTPUT_PT
-from molgri.utils import angle_between_vectors, unit_vector
+from molgri.utils import angle_between_vectors, normalise_vectors
 
 
 def same_distance(mol1: Molecule, mol2: Molecule):
@@ -33,8 +33,8 @@ def same_body_orientation(mol1: Molecule, mol2: Molecule):
 def same_origin_orientation(mol1: Molecule, mol2: Molecule):
     """Check that two molecules have COM on the same vector from the origin (have the same orientation with respect
     to origin)"""
-    unit_pos1 = unit_vector(mol1.position)
-    unit_pos2 = unit_vector(mol2.position)
+    unit_pos1 = normalise_vectors(mol1.position)
+    unit_pos2 = normalise_vectors(mol2.position)
     assert np.allclose(unit_pos1, unit_pos2, atol=1e-3)
 
 

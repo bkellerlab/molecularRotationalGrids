@@ -1,22 +1,7 @@
 import numpy as np
 from scipy.constants import pi
 
-from molgri.utils import unit_vector, angle_between_vectors
-
-
-def unit_dist_on_sphere(vector1: np.ndarray, vector2: np.ndarray) -> np.ndarray:
-    """
-    Same as dist_on_sphere, but accepts and returns arrays and should only be used for already unitary vectors.
-
-    Args:
-        vector1: vector shape (n1, d)
-        vector2: vector shape (n2, d)
-
-    Returns:
-        an array the shape (n1, n2) containing distances between both sets of points on sphere
-    """
-    angle = np.arccos(np.clip(np.dot(vector1, vector2.T), -1.0, 1.0))  # in radians
-    return angle
+from molgri.utils import angle_between_vectors
 
 
 def random_sphere_points(n: int = 1000) -> np.ndarray:
@@ -60,16 +45,3 @@ def random_axes_count_points(grid, alpha: float, num_random_points: int = 1000):
         num_within = count_points_within_alpha(grid, central_vector, alpha)
         all_ratios[i] = num_within/grid.N
     return all_ratios
-
-
-if __name__ == '__main__':
-    from .grids import IcoGrid
-    my_grid = IcoGrid(1000).get_grid()
-    min_radius = 0.5  # nm
-    min_alpha = np.inf
-    for i in range(1000):
-        for j in range(i+1, 1000):
-            alpha = unit_dist_on_sphere(my_grid[i], my_grid[j])
-            if alpha < min_alpha:
-                min_alpha = alpha
-    print(min_radius*min_alpha*10, " angstrom")

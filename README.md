@@ -3,10 +3,12 @@
 ![activity](https://img.shields.io/github/last-commit/bkellerlab/molecularRotationalGrids)
 ![pypi](https://img.shields.io/pypi/format/molgri)
 ![release](https://img.shields.io/github/v/release/bkellerlab/molecularRotationalGrids)
-# molecularRotationalGrids
+
 This repository is connected to the publication:
 Hana Zupan, Frederick Heinz, Bettina G. Keller: "Grid-based state space exploration for molecular binding",
 arXiv preprint: [https://arxiv.org/abs/2211.00566](https://arxiv.org/abs/2211.00566)
+
+# molecularRotationalGrids
 
 The python package ```molgri``` has three main purposes: 1) generation of rotation grids, 2) analysis of
 said grids and 3) generation of pseudotrajectories (PTs). PTs are .gro files with several timesteps in

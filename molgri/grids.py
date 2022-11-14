@@ -7,7 +7,8 @@ from scipy.spatial import distance_matrix
 from scipy.spatial.distance import cdist
 import pandas as pd
 
-from .analysis import random_sphere_points, unit_dist_on_sphere, random_axes_count_points
+from .analysis import random_sphere_points, random_axes_count_points
+from .utils import dist_on_sphere
 from .constants import DEFAULT_SEED, SIX_METHOD_NAMES, UNIQUE_TOL, ENDING_GRID_FILES
 from .parsers import NameParser
 from .paths import PATH_OUTPUT_ROTGRIDS, PATH_OUTPUT_STAT
@@ -108,11 +109,11 @@ class Polytope(ABC):
                                 face=set(faces_node_vector).intersection(faces_neighbour_vector),
                                 projection=project_grid_on_sphere(np.array(new_point)[np.newaxis, :]))
             self.G.add_edge(new_point, neighbour_vector,
-                            length=unit_dist_on_sphere(self.G.nodes[new_point]["projection"],
-                                                       self.G.nodes[neighbour_vector]["projection"]))
+                            length=dist_on_sphere(self.G.nodes[new_point]["projection"],
+                                                  self.G.nodes[neighbour_vector]["projection"]))
             self.G.add_edge(new_point, node_vector,
-                            length=unit_dist_on_sphere(self.G.nodes[new_point]["projection"],
-                                                       self.G.nodes[neighbour_vector]["projection"]))
+                            length=dist_on_sphere(self.G.nodes[new_point]["projection"],
+                                                  self.G.nodes[neighbour_vector]["projection"]))
             # self.G.remove_edge(node_vector, neighbour_vector)
         # also add edges between new nodes at distance side_len or sqrt(2)*side_len
         new_level = [x for x, y in self.G.nodes(data=True) if y['level'] == self.current_level+1]
@@ -125,8 +126,8 @@ class Polytope(ABC):
                 # check distance criterion
                 if np.isclose(node_dist, self.side_len) or np.isclose(node_dist, self.side_len*np.sqrt(2)):
                     self.G.add_edge(new_node, other_node,
-                                    length=unit_dist_on_sphere(self.G.nodes[new_node]["projection"],
-                                                               self.G.nodes[other_node]["projection"])
+                                    length=dist_on_sphere(self.G.nodes[new_node]["projection"],
+                                                          self.G.nodes[other_node]["projection"])
                                     )
         self.current_level += 1
         self.side_len = self.side_len / 2
@@ -179,8 +180,8 @@ class IcosahedronPolytope(Polytope):
         for key, value in point_connections.items():
             for vi in value:
                 self.G.add_edge(key, tuple(vi),
-                                length=unit_dist_on_sphere(self.G.nodes[key]["projection"],
-                                                           self.G.nodes[tuple(vi)]["projection"]))
+                                length=dist_on_sphere(self.G.nodes[key]["projection"],
+                                                      self.G.nodes[tuple(vi)]["projection"]))
         # just to check ...
         assert self.G.number_of_nodes() == 12
         assert self.G.number_of_edges() == 30
@@ -226,8 +227,8 @@ class CubePolytope(Polytope):
         for key, value in point_connections.items():
             for vi in value:
                 self.G.add_edge(key, tuple(vi),
-                                length=unit_dist_on_sphere(self.G.nodes[key]["projection"],
-                                                           self.G.nodes[tuple(vi)]["projection"]))
+                                length=dist_on_sphere(self.G.nodes[key]["projection"],
+                                                      self.G.nodes[tuple(vi)]["projection"]))
         # just to check ...
         assert self.G.number_of_nodes() == 8
         assert self.G.number_of_edges() == 24
