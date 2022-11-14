@@ -1,3 +1,8 @@
+https://img.shields.io/github/issues/bkellerlab/molecularRotationalGrids
+https://img.shields.io/github/license/bkellerlab/molecularRotationalGrids
+https://img.shields.io/github/last-commit/bkellerlab/molecularRotationalGrids
+https://img.shields.io/pypi/format/molgri
+https://img.shields.io/github/v/release/bkellerlab/molecularRotationalGrids
 # molecularRotationalGrids
 This repository is connected to the publication:
 Hana Zupan, Frederick Heinz, Bettina G. Keller: "Grid-based state space exploration for molecular binding",
