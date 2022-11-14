@@ -1,7 +1,7 @@
 import numpy as np
 from mendeleev import element
 
-from molgri.parsers import NameParser, BaseGroParser, TranslationParser, MultiframeGroParser
+from molgri.parsers import NameParser, BaseGroParser, TranslationParser, MultiframeGroParser, PtFrameParser
 
 
 def test_atom_gro_file():
@@ -73,7 +73,7 @@ def test_protein_gro_file():
 
 def test_parsing_pt_gro():
     file_name = "molgri/examples/H2O_NH3_o_cube3D_15_b_ico_10_t_2189828055.gro"
-    my_parser = BaseGroParser(file_name)
+    my_parser = PtFrameParser(file_name)
     assert my_parser.c_num == 3
     assert my_parser.r_num == 4
     multiparser = MultiframeGroParser(file_name)

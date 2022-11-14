@@ -110,7 +110,7 @@ def test_pt_translations():
     pt.generate_pseudotrajectory()
     file_name = f"{PATH_OUTPUT_PT}{pt.pt_name}.gro"
     # center of mass of the second molecule moves in z direction
-    ts = MultiframeGroParser(file_name).timesteps
+    ts = MultiframeGroParser(file_name, is_pt=True).timesteps
     for i, t in enumerate(ts):
         molecule1 = t.molecule_set.all_objects[0]
         molecule2 = t.molecule_set.all_objects[1]
@@ -139,7 +139,7 @@ def test_pt_rotations_origin():
     file_name = f"{PATH_OUTPUT_PT}{pt.pt_name}.gro"
     assert len_traj == num_trans*num_rot
     # assert every uneven structure has distance 1 and every even one distance 2
-    ts = MultiframeGroParser(file_name, parse_atoms=True).timesteps
+    ts = MultiframeGroParser(file_name, parse_atoms=True, is_pt=True).timesteps
     for frame_i in range(num_rot*num_trans):
         # distance of COM of second molecule to origin
         dist = np.linalg.norm(ts[frame_i].molecule_set.all_objects[1].position)
@@ -175,7 +175,7 @@ def test_pt_rotations_body():
     file_name = f"{PATH_OUTPUT_PT}{pt.pt_name}.gro"
     assert len_traj == num_trans*num_rot
     # assert every uneven structure has distance 1 and every even one distance 2
-    ts = MultiframeGroParser(file_name, parse_atoms=True).timesteps
+    ts = MultiframeGroParser(file_name, parse_atoms=True, is_pt=True).timesteps
     for frame_i in range(num_rot*num_trans):
         # distance of COM of second molecule to origin
         dist = np.linalg.norm(ts[frame_i].molecule_set.all_objects[1].position)
@@ -208,7 +208,7 @@ def test_order_of_operations():
     pt = Pseudotrajectory("H2O", "NH3", rot_grid_origin=grid_o, trans_grid=trans_grid, rot_grid_body=grid_b)
     len_traj = pt.generate_pseudotrajectory()
     file_name = f"{PATH_OUTPUT_PT}{pt.pt_name}.gro"
-    ts = MultiframeGroParser(file_name, parse_atoms=True).timesteps
+    ts = MultiframeGroParser(file_name, parse_atoms=True, is_pt=True).timesteps
     # each batch of n_b*n_t elements should have the same space orientation
     for o in range(0, len_traj, n_b*n_t):
         for i in range(o, o+n_b*n_t):
@@ -228,8 +228,8 @@ def test_order_of_operations():
 if __name__ == '__main__':
     freshly_create_all_folders()
     copy_examples()
-    # test_pt_len()
-    # test_pt_translations()
-    # test_pt_rotations_origin()
-    # test_pt_rotations_body()
+    test_pt_len()
+    test_pt_translations()
+    test_pt_rotations_origin()
+    test_pt_rotations_body()
     test_order_of_operations()
