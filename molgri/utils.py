@@ -1,6 +1,20 @@
 import numpy as np
 
+
 def norm_per_axis(array: np.ndarray, axis: int = None) -> np.ndarray:
+    """
+    Returns the norm of the vector or along some axis of an array.
+    Default behaviour: if axis not specified, normalise a 1D vector or normalise 2D array row-wise. If axis specified,
+    axis=0 normalises column-wise and axis=1 row-wise.
+
+    Args:
+        array: numpy array containing a vector or a set of vectors that should be normalised - per default assuming
+               every row in an array is a vector
+        axis: optionally specify along which axis the normalisation should occur
+
+    Returns:
+        an array of the same shape as the input array where each value is the norm of the corresponding vector/row/column
+    """
     if axis is None:
         if len(array.shape) > 1:
             axis = 1

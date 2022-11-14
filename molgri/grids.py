@@ -403,7 +403,7 @@ class Grid(ABC):
         for i, alpha in enumerate(alphas):
             cone_area = 2 * pi * (1-np.cos(alpha))
             ideal_coverage = cone_area / sphere_surface
-            actual_coverages = random_axes_count_points(self, alpha, num_random_points=num_rand_points)
+            actual_coverages = random_axes_count_points(self.get_grid(), alpha, num_random_points=num_rand_points)
             ratios[0].extend(actual_coverages)
             ratios[1].extend([alpha]*num_rand_points)
             ratios[2].extend([ideal_coverage]*num_rand_points)
