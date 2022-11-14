@@ -4,6 +4,7 @@ from typing import Union
 import numpy as np
 import pandas as pd
 import seaborn as sns
+from scipy.constants import pi
 from matplotlib import pyplot as plt
 from matplotlib.animation import FuncAnimation, PillowWriter
 from matplotlib.axes import Axes
@@ -12,6 +13,7 @@ from mpl_toolkits.mplot3d.axes3d import Axes3D
 import mpl_toolkits
 from seaborn import color_palette
 
+from molgri.analysis import vector_within_alpha
 from .grids import build_grid, Polytope, IcosahedronPolytope, CubePolytope
 from .constants import DIM_SQUARE, DEFAULT_DPI, COLORS, DEFAULT_NS, ENDING_FIGURES
 from .parsers import NameParser
@@ -298,6 +300,31 @@ class GridPlot(AbstractPlot):
         plt.close()
 
 
+class GridColoredWithAlphaPlot(GridPlot):
+    def __init__(self, data_name, vector: np.ndarray, alpha_set: list, plot_type: str = "colorful_grid", **kwargs):
+        super().__init__(data_name, plot_type=plot_type, **kwargs)
+        self.alpha_central_vector = vector
+        self.alpha_set = alpha_set
+        self.alpha_set.sort()
+        self.alpha_set.append(pi)
+
+    def _plot_data(self, **kwargs):
+        # plot vector
+        self.ax.scatter(*self.alpha_central_vector, marker="x", c="k", s=30)
+        # determine color palette
+        cp = sns.color_palette("Spectral", n_colors=len(self.alpha_set))
+        # sort points which point in which alpha area
+        already_plotted = []
+        for i, alpha in enumerate(self.alpha_set):
+            possible_points = np.array([vec for vec in self.grid if tuple(vec) not in already_plotted])
+            within_alpha = vector_within_alpha(self.alpha_central_vector, possible_points, alpha)
+            selected_points = [tuple(vec) for i, vec in enumerate(possible_points) if within_alpha[i]]
+            array_sel_points = np.array(selected_points)
+            self.sc = self.ax.scatter(*array_sel_points.T, color=cp[i], s=30)  # , s=4)
+            already_plotted.extend(selected_points)
+        self.ax.view_init(elev=10, azim=30)
+
+
 class AlphaViolinPlot(AbstractPlot):
 
     def __init__(self, data_name: str, *, plot_type: str = "uniformity", style_type: list = None, **kwargs):
@@ -406,6 +433,8 @@ class PolytopePlot(AbstractPlot):
 
 if __name__ == "__main__":
     # examples of grid plots and animations
+    GridColoredWithAlphaPlot("ico_85", vector=np.array([0, 0, 1]), alpha_set=[pi/6, pi/3, pi/2, 2*pi/3],
+                             style_type=["talk", "empty"]).create()
     GridPlot("ico_22").create(title="Icosahedron, 22 points", x_label="x", y_label="y", z_label="z", animate_rot=True,
                               animate_seq=True, main_ticks_only=True)
     GridPlot("cube3D_500", style_type=["talk", "empty"]).create()
