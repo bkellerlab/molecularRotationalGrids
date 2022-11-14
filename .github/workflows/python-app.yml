@@ -39,3 +39,6 @@ jobs:
     - name: Test with pytest
       run: |
         pytest
+    - name: Code Coverage Summary
+      uses: irongut/CodeCoverageSummary@v1.3.0
+      badge: true
