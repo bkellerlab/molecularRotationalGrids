@@ -31,8 +31,7 @@ class Polytope(ABC):
 
     @abstractmethod
     def _create_level0(self):
-        # this is implemented by each subclass since they have different edges, vertices and faces
-        pass
+        """This is implemented by each subclass since they have different edges, vertices and faces"""
 
     def plot_graph(self):
         """

@@ -173,12 +173,10 @@ class AbstractPlot(ABC):
         Returns:
             dataframe, grid or similar construction
         """
-        pass
 
     @abstractmethod
     def _plot_data(self, **kwargs):
         """Here, the plotting is implemented in subclasses."""
-        pass
 
     def _create_labels(self, x_label: str = None, y_label: str = None, z_label: str = None, **kwargs):
         if x_label:
@@ -225,12 +223,9 @@ class AbstractPlot(ABC):
 
     def _save_plot(self, save_ending: str = ENDING_FIGURES, dpi: int = DEFAULT_DPI, **kwargs):
         self.fig.tight_layout()
-        if self.fig_path:
-            standard_name = self.parsed_data_name.get_standard_name()
-            plt.savefig(f"{self.fig_path}{standard_name}_{self.plot_type}.{save_ending}", dpi=dpi, bbox_inches='tight',
-                        **kwargs)
-        else:
-            raise ValueError("path to save the figure has not been selected!")
+        standard_name = self.parsed_data_name.get_standard_name()
+        plt.savefig(f"{self.fig_path}{standard_name}_{self.plot_type}.{save_ending}", dpi=dpi, bbox_inches='tight',
+                    **kwargs)
         plt.close()
 
 
@@ -396,7 +391,7 @@ class AlphaConvergencePlot(AlphaViolinPlot):
 
 class PolytopePlot(AbstractPlot):
 
-    def __init__(self, data_name: str, num_divisions=3, faces=None, **kwargs):
+    def __init__(self, data_name: str, num_divisions=3, faces=None, projection=False, **kwargs):
         """
         Plotting (some faces of) polyhedra, demonstrating the subdivision of faces with points.
 
@@ -404,10 +399,12 @@ class PolytopePlot(AbstractPlot):
             data_name:
             num_divisions: how many levels of faces subdivisions should be drawn
             faces: a set of indices indicating which faces to draw
+            projection: if True display points projected on a sphere, not on faces
             **kwargs:
         """
         self.num_divisions = num_divisions
         self.faces = faces
+        self.projection = projection
         plot_type = f"polytope_{num_divisions}"
         super().__init__(data_name, fig_path=PATH_OUTPUT_PLOTS, plot_type=plot_type, style_type=["empty"], dimensions=3,
                          **kwargs)
@@ -427,21 +424,5 @@ class PolytopePlot(AbstractPlot):
         elif self.faces is None:
             self.faces = {3}
         ico = self._prepare_data()
-        ico.plot_points(self.ax, select_faces=self.faces, projection=False)
+        ico.plot_points(self.ax, select_faces=self.faces, projection=self.projection)
         ico.plot_edges(self.ax, select_faces=self.faces)
-
-
-if __name__ == "__main__":
-    # examples of grid plots and animations
-    GridColoredWithAlphaPlot("ico_85", vector=np.array([0, 0, 1]), alpha_set=[pi/6, pi/3, pi/2, 2*pi/3],
-                             style_type=["talk", "empty"]).create()
-    GridPlot("ico_22").create(title="Icosahedron, 22 points", x_label="x", y_label="y", z_label="z", animate_rot=True,
-                              animate_seq=True, main_ticks_only=True)
-    GridPlot("cube3D_500", style_type=["talk", "empty"]).create()
-    # examples of statistics/convergence plots
-    AlphaViolinPlot("ico_250", style_type=["talk"]).create(title="ico grid, 250")
-    AlphaConvergencePlot("systemE", style_type=["talk"]).create(title="Convergence of systemE")
-    # examples of polyhedra
-    PolytopePlot("ico", num_divisions=2, faces={0, 1, 2, 3, 4}).create(equalize=True, elev=190, azim=120,
-                                                                       pos_limit=0.55, neg_limit=-0.6)
-    PolytopePlot("cube3D", num_divisions=3).create(equalize=True, elev=0, azim=0, pos_limit=0.7, neg_limit=-0.7)

@@ -117,10 +117,8 @@ class Pseudotrajectory(TwoMoleculeGro):
         index = 0
         trans_increments = self.trans_grid.get_increments()
         increment_sum = self.trans_grid.sum_increments_from_first_radius()
-        #initial_atom_set = self.rotating_parser.molecule_set.all_objects[0].atoms
         self.rotating_parser.molecule_set.translate_objects_radially(trans_increments[0])
         for origin_rotation in self.rot_grid_origin:
-            #print()
             initial_mol_set = self.rotating_parser.molecule_set
             initial_mol_set.rotate_objects_about_origin(origin_rotation, method="quaternion")
             for body_rotation in self.rot_grid_body:
