@@ -137,3 +137,6 @@ dmypy.json
 **/output/*
 
 .snakemake/*
+
+# figures
+*.svg

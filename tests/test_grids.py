@@ -1,10 +1,12 @@
 from molgri.grids import build_grid, project_grid_on_sphere, second_neighbours, Cube3DGrid, \
-    CubePolytope, IcosahedronPolytope, IcoGrid
+    CubePolytope, IcosahedronPolytope, IcoGrid, order_grid_points, Grid
 from molgri.constants import SIX_METHOD_NAMES
 import networkx as nx
 import numpy as np
 from scipy.spatial import distance_matrix
 import pytest
+import pandas as pd
+from scipy.constants import pi
 
 
 def test_project_grid_on_sphere():
@@ -138,6 +140,55 @@ def test_cube_3d_grid():
 def test_zero_grid():
     ico = IcoGrid(0)
     ico.get_grid()
+
+
+def test_errors_and_assertions():
+    with pytest.raises(ValueError):
+        build_grid("icosahedron", 15)
+    with pytest.raises(ValueError):
+        build_grid("grid", 15)
+    with pytest.raises(AssertionError):
+        build_grid("ico", -15)
+    with pytest.raises(AssertionError):
+        build_grid("ico", 15.3)
+    grid = build_grid("ico", 20).get_grid()
+    with pytest.raises(ValueError):
+        order_grid_points(grid, 25)
+
+
+def test_everything_runs():
+    cp = CubePolytope()
+    cp.divide_edges()
+    cp.plot_graph()
+    ip = IcosahedronPolytope()
+    ip.divide_edges()
+    ip.divide_edges()
+    ip.plot_graph()
+    ig = IcoGrid(35, use_saved=True)
+    ig.generate_and_time()
+    ig.save_grid()
+    ig.save_grid_txt()
+    ig = IcoGrid(35, use_saved=True)
+    ig.generate_and_time()
+    ig = IcoGrid(22, ordered=False)
+    ig.generate_grid()
+
+
+def test_statistics():
+    num_points = 35
+    num_random = 50
+    icog = IcoGrid(num_points)
+    icog.generate_grid()
+    default_alphas = [pi/6, 2*pi/6, 3*pi/6, 4*pi/6, 5*pi/6]
+    icog.save_statistics(num_random=num_random, alphas=default_alphas)
+    statistics_csv = pd.read_csv(icog.statistics_path, index_col=0, header=0, dtype=float)
+    assert len(statistics_csv) == len(default_alphas)*num_random
+    expected_coverages = [0.0669872981077806, 0.2499999999999999,
+                          0.4999999999999999, 0.7499999999999999, 0.9330127018922194]
+    ideal_coverage = statistics_csv["ideal coverage"].to_numpy(dtype=float).flatten()
+    for i, _ in enumerate(default_alphas):
+        written_id_coverage = ideal_coverage[i*num_random:(i+1)*num_random-1]
+        assert np.allclose(written_id_coverage, expected_coverages[i])
 
 
 def test_ordering():

@@ -329,15 +329,6 @@ class Grid(ABC):
     def get_grid(self) -> np.ndarray:
         return self.grid
 
-    def reduce_N(self, reduce_by=1):
-        if reduce_by <= 0:
-            return
-        self.grid = self.grid[:-reduce_by]
-        self.N = self.N - reduce_by
-        self.time = 0
-        self.nn_dist_arch = None
-        self.nn_dist_cup = None
-
     @abstractmethod
     def generate_grid(self):
         # order or truncate
@@ -373,7 +364,9 @@ class Grid(ABC):
     def save_grid_txt(self):
         np.savetxt(f"{PATH_OUTPUT_ROTGRIDS}{self.standard_name}.txt", self.grid)
 
-    def save_statistics(self, num_random: int = 100, print_message=False):
+    def save_statistics(self, num_random: int = 100, print_message=False, alphas=None):
+        if alphas is None:
+            alphas = [pi / 6, 2 * pi / 6, 3 * pi / 6, 4 * pi / 6, 5 * pi / 6]
         # first message (what measure you are using)
         newline = "\n"
         m1 = f"STATISTICS: Testing the coverage of grid {self.standard_name} using {num_random} " \
@@ -382,7 +375,7 @@ class Grid(ABC):
              f"alpha (selected from [pi / 6, 2 * pi / 6, 3 * pi / 6, 4 * pi / 6, 5 * pi / 6]) of this axis. For an" \
              f"ideally uniform grid, we expect the ratio of num_within_alpha/total_num_points to equal the ratio" \
              f"area_of_alpha_spherical_cap/area_of_sphere, which we call ideal coverage."
-        stat_data, full_data = self._generate_statistics(num_rand_points=num_random)
+        stat_data, full_data = self._generate_statistics(alphas, num_rand_points=num_random)
         if print_message:
             print(m1)
             print(stat_data)
@@ -392,11 +385,10 @@ class Grid(ABC):
         stat_data.to_csv(self.short_statistics_path, mode="a")
         full_data.to_csv(self.statistics_path, mode="w")
 
-    def _generate_statistics(self, num_rand_points: int = 100) -> tuple:
-        # write out short version ("N points", "min", "max", "average", "SD")
+    def _generate_statistics(self, alphas, num_rand_points: int = 100) -> tuple:
+        # write out short version ("N points", "min", "max", "average", "SD"
         columns = ["alphas", "ideal coverages", "min coverage", "avg coverage", "max coverage", "standard deviation"]
         ratios_columns = ["coverages", "alphas", "ideal coverage"]
-        alphas = [pi/6, 2*pi/6, 3*pi/6, 4*pi/6, 5*pi/6]
         ratios = [[], [], []]
         sphere_surface = 4 * pi
         data = np.zeros((len(alphas), 6))  # 5 data columns for: alpha, ideal coverage, min, max, average, sd
@@ -433,7 +425,7 @@ def order_grid_points(grid: np.ndarray, N: int, start_i: int = 1) -> np.ndarray:
         an array of shape (N, 3) ordered in such a way that these N points have the best possible coverage.
     """
     if N > len(grid):
-        print(f"Warning! N>len(grid)! Only {len(grid)} points will be returned!")
+        raise ValueError(f"N>len(grid)! Only {len(grid)} points can be returned!")
     for index in range(start_i, min(len(grid), N)):
         grid = select_next_gridpoint(grid, index)
     return grid[:N]
@@ -564,8 +556,7 @@ class Cube4DGrid(Grid):
         np.random.set_state(state_before)
         super().generate_grid()
 
-    def _full_d_dim_grid(self, cheb: bool = False, change_start: float = 0, change_end: float = 0,
-                         dtype=np.float64) -> np.ndarray:
+    def _full_d_dim_grid(self, dtype=np.float64) -> np.ndarray:
         """
         This is a function to create a classical grid of a d-dimensional cube. It creates a grid over the entire
         (hyper)volume of the (hyper)cube.
@@ -573,20 +564,12 @@ class Cube4DGrid(Grid):
         This is a unit cube between -sqrt(1/d) and sqrt(1/d) in all dimensions where d = num of dimensions.
 
         Args:
-            cheb: use Chebyscheff points instead of equally spaced points
-            change_start: add or subtract from -sqrt(1/d) as the start of the grid
-            change_end: add or subtract from sqrt(1/d) as the end of the grid
             dtype: forwarded to linspace while creating a grid
 
         Returns:
             a meshgrid of dimension (d, n, n, .... n) where n is repeated d times
         """
-        if cheb:
-            from numpy.polynomial.chebyshev import chebpts1
-            side = chebpts1(self.N)
-        else:
-            # np.sqrt(1/d)
-            side = np.linspace(-1 + change_start, 1 - change_end, self.N, dtype=dtype)
+        side = np.linspace(-1, 1, self.N, dtype=dtype)
         # repeat the same n points d times and then make a new line of the array every d elements
         sides = np.tile(side, self.d)
         sides = sides[np.newaxis, :].reshape((self.d, self.N))
@@ -651,5 +634,7 @@ def build_grid(grid_type: str, N: int, **kwargs) -> Grid:
                  "zero": ZeroGrid}
     if grid_type not in name2grid.keys():
         raise ValueError(f"{grid_type} is not a valid grid type. Try 'ico', 'cube3D' ...")
+    assert isinstance(N, int), "Number of grid points must be an integer."
+    assert N >= 0, f"Number of grid points cannot be negative, currently N={N}"
     grid_obj = name2grid[grid_type]
     return grid_obj(N, **kwargs)
