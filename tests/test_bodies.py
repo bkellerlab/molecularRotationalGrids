@@ -1,5 +1,21 @@
-from molgri.bodies import AbstractShape, ShapeSet, Cuboid, Molecule, MoleculeSet, join_shapes, Atom, AtomSet
+from molgri.bodies import AbstractShape, ShapeSet, Cuboid, Molecule, MoleculeSet, join_shapes, Atom, AtomSet, Circle, \
+    Rectangle, Cylinder, Sphere, Point
 import numpy as np
+import matplotlib.pyplot as plt
+from scipy.constants import pi
+from mpl_toolkits.mplot3d import Axes3D
+
+
+# molecule for testing
+class H2O(Molecule):
+    def __init__(self):
+        distance = 0.0957
+        angle = np.deg2rad(104.50 - 90)
+        dist1 = distance * np.cos(angle)
+        dist2 = distance * np.sin(angle)
+        super().__init__(atom_names=["O", "H", "H"],
+                         centers=np.array([[0, 0, distance], [0, 0, 0], [0, dist1, distance + dist2]]),
+                         connections=np.array([[0, 1, 1], [1, 0, 0], [1, 0, 0]]))
 
 
 def test_translate_radially():
@@ -57,6 +73,20 @@ def test_translate_radially():
         assert np.allclose(atom.position[2], centers[i][2]-initial_com[2]+dist)
 
 
+# TODO: test rotations and normal translations function as expected for Shapes and ShapeSets
+
+
+def test_naming():
+    c1 = Cuboid()
+    assert c1.__str__() == "blue Cuboid at [0. 0. 0.] with sides [1. 2. 4.]"
+    cic = Circle(color="green")
+    assert cic.__str__() == "green Circle at [0. 0.] with radius 1"
+    rec = Rectangle(3, 4)
+    assert rec.__str__() == "blue Rectangle at [0. 0.] with sides [3 4]"
+    cyl = Cylinder(color="black")
+    assert cyl.__str__() == "black Cylinder at [0. 0. 0.] with radius 1 & height 3"
+
+
 def test_join_shapes():
     c1 = Cuboid()
     c2 = Cuboid(2, 4, 5)
@@ -90,6 +120,50 @@ def test_join_shapes():
     assert len(joined_set4.all_objects) == 2
     assert np.all([a1, a2] == joined_set4.all_objects)
     assert joined_set4.num_atoms == 2
+
+
+def test_everything_runs():
+    """Make sure you can create and manipulate all bodies. Test drawing. """
+    # 2D
+    for obj_2d in [Rectangle, Circle]:
+        fig = plt.figure()
+        ax = fig.add_subplot(111)
+        red_rectangle = obj_2d(color="red")
+        red_rectangle.draw(ax)
+        red_rectangle.rotate_about_body(-pi/3)
+        red_rectangle.draw(ax, show_labels=True)
+        red_rectangle.translate([2, 7])
+        red_rectangle.draw(ax, show_labels=True)
+        red_rectangle.translate([-1, 2])
+        red_rectangle.draw(ax, show_labels=True)
+        red_rectangle.rotate_about_origin(7*pi/3, inverse=True)
+        red_rectangle.draw(ax, show_labels=True, show_basis=True)
+        plt.close()
+
+    # 3D
+    for obj_3d in [Cuboid, Cylinder, Sphere]:
+        fig = plt.figure()
+        ax = fig.add_subplot(111, projection='3d')
+        my_cylinder = obj_3d()
+        my_cylinder.draw(ax, show_basis=False)
+        my_cylinder.translate(np.array([-3, 3, -4]))
+        my_cylinder.rotate_about_origin(np.array([pi / 4, pi / 6, pi / 3]))
+        my_cylinder.draw(ax, show_basis=True)
+        my_cylinder.rotate_about_body(np.array([pi / 4, pi / 6, pi / 3]))
+        my_cylinder.draw(ax, show_basis=False)
+        plt.close()
+    obj1 = Atom("O")
+    obj2 = H2O()
+    for atomic_obj in [obj2, obj1]:
+        fig = plt.figure()
+        ax = fig.add_subplot(111, projection='3d')
+        atomic_obj.draw(ax, show_basis=False)
+        atomic_obj.translate(np.array([-3, 3, -4]))
+        atomic_obj.rotate_about_origin(np.array([pi / 4, pi / 6, pi / 3]))
+        atomic_obj.draw(ax, show_basis=True)
+        atomic_obj.rotate_about_body(np.array([pi / 4, pi / 6, pi / 3]))
+        atomic_obj.draw(ax, show_basis=False)
+        plt.show()
 
 
 if __name__ == '__main__':

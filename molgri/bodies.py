@@ -473,6 +473,7 @@ class Molecule(AbstractShape):
         inverse = kwargs.pop("inverse", False)
         for atom in self.atoms:
             points_at_origin = atom.position - self.position
+            # TODO: what is happening here?
             rot = atom._rotate(angles, **kwargs)
             atom.position = rot.apply(points_at_origin, inverse=inverse) + self.position
 
@@ -702,25 +703,3 @@ def join_shapes(list_shapes_or_shape_sets: list, as_molecule_set=False, as_atom_
         return AtomSet(all_objects=all_objects)
     else:
         return ShapeSet(all_objects=all_objects)
-
-
-if __name__ == '__main__':
-    import matplotlib.pyplot as plt
-    # noinspection PyUnresolvedReferences
-    from mpl_toolkits.mplot3d import Axes3D
-
-    fig = plt.figure()
-    ax = fig.add_subplot(111, projection='3d')
-    ax.set_xlim(-5, 5)
-    ax.set_ylim(-5, 5)
-    ax.set_zlim(-5, 5)
-
-    my_cylinder = Cylinder()
-    my_cylinder.draw(ax, show_basis=False)
-    my_cylinder.translate(np.array([-3, 3, -4]))
-    my_cylinder.rotate_about_origin(np.array([pi / 4, pi / 6, pi / 3]))
-    my_cylinder.draw(ax, show_basis=False)
-    my_cylinder.rotate_about_body(np.array([pi / 4, pi / 6, pi / 3]))
-    my_cylinder.draw(ax, show_basis=False)
-    print(my_cylinder)
-    plt.show()
