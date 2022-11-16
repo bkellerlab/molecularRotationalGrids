@@ -1,5 +1,4 @@
 import numpy as np
-from numpy.typing import ArrayLike
 from scipy.spatial.transform import Rotation
 
 
@@ -14,14 +13,16 @@ def quaternion2grid(array_quaternions: np.ndarray) -> np.ndarray:
         an array (N, 3) where each row is a coordinate on a 3D sphere
     """
     base_vector = np.array([0, 0, 1])
+    assert array_quaternions.shape[1] == 4, "quaternions must have 4 dimensions"
     points = np.zeros(array_quaternions[:, 1:].shape)
     for i, quat in enumerate(array_quaternions):
         my_rotation = Rotation.from_quat(quat)
         points[i] = my_rotation.apply(base_vector)
+    assert points.shape[1] == 3, "points on a 3D sphere must have 3 dimensions"
     return points
 
 
-def grid2quaternion(grid_3D):
+def grid2quaternion(grid_3D: np.ndarray) -> np.ndarray:
     """
     Take an array where each row is a point on a unit sphere and convert each rotation into a set of euler_123 angles.
 
@@ -29,16 +30,18 @@ def grid2quaternion(grid_3D):
         grid_3D: an array (N, 3) where each row is a coordinate on a 3D sphere
 
     Returns:
-        an array (N, 3) where each row is a set of the 3 euler angles needed for a rotation
+        an array (N, 4) where each row is a quaternion needed for a rotation
     """
 
     assert np.allclose(np.linalg.norm(grid_3D, axis=1), 1), "Points on a grid must be unit vectors!"
+    assert grid_3D.shape[1] == 3, "points on a 3D sphere must have 3 dimensions"
     base_vector = np.array([0, 0, 1])
     points = np.zeros((grid_3D.shape[0], 4))
     for i, point in enumerate(grid_3D):
         my_matrix = two_vectors2rot(base_vector, point)
         my_rotation = Rotation.from_matrix(my_matrix)
         points[i] = my_rotation.as_quat()
+    assert points.shape[1] == 4, "quaternions must have 4 dimensions"
     return points
 
 
@@ -127,7 +130,7 @@ def two_vectors2rot(x: np.ndarray, y: np.ndarray) -> np.ndarray:
 
 class Rotation2D:
 
-    def __init__(self, alpha: float or ArrayLike):
+    def __init__(self, alpha: float):
         """
         Initializes 2D rotation matrix with an angle. Rotates in counterclockwise direction.
 
@@ -138,21 +141,21 @@ class Rotation2D:
                                [np.sin(alpha), np.cos(alpha)]])
         self.rot_matrix = rot_matrix
 
-    def apply(self, vector_set: ArrayLike, inverse: bool = False) -> ArrayLike:
+    def apply(self, vector_set: np.ndarray, inverse: bool = False) -> np.ndarray:
         """
-        Applies 2D rotational matrix to a set of vectors of shape (N, 2)
+        Applies 2D rotational matrix to a set of vectors of shape (N, 2) or a single vector with shape (2, )
 
         Args:
-            vector_set: array (each column a vector) that should be rotated
-            inverse: True if the rotation should be inverted
+            vector_set: array (each row a vector) that should be rotated
+            inverse: True if the rotation should be inverted (eg in clockwise direction)
 
         Returns:
-            rotated vector of shape (N, 2)
+            rotated vector set of the same shape as the initial vector set
         """
         if inverse:
             inverted_mat = self.rot_matrix.T
-            result = vector_set.dot(inverted_mat)
+            result = inverted_mat.dot(vector_set.T)
         else:
-            result = vector_set.dot(self.rot_matrix)
+            result = self.rot_matrix.dot(vector_set.T)
         result = result.squeeze()
-        return result
+        return result.T
