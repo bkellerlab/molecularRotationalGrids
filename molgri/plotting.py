@@ -366,7 +366,7 @@ class AlphaConvergencePlot(AlphaViolinPlot):
         """
         nap = NameParser(data_name)
         if nap.num_grid_points is None:
-            self.ns_list = DEFAULT_NS
+            self.ns_list = np.array(DEFAULT_NS, dtype=int)
         else:
             self.ns_list = np.logspace(np.log10(3), np.log10(nap.num_grid_points), dtype=int)
             self.ns_list = np.unique(self.ns_list)
@@ -374,9 +374,8 @@ class AlphaConvergencePlot(AlphaViolinPlot):
 
     def _plot_data(self, **kwargs):
         full_df = []
-
         for N in self.ns_list:
-            self.parsed_data_name.num_grid_points = N
+            self.parsed_data_name.num_grid_points = int(N)
             df = self._prepare_data()
             df["N"] = N
             full_df.append(df)

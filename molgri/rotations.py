@@ -129,13 +129,13 @@ class Rotation2D:
 
     def __init__(self, alpha: float or ArrayLike):
         """
-        Initializes 2D rotation matrix with an angle.
+        Initializes 2D rotation matrix with an angle. Rotates in counterclockwise direction.
 
         Args:
             alpha: angle in radians
         """
-        rot_matrix = np.array([[np.cos(alpha), np.sin(alpha)],
-                               [-np.sin(alpha), np.cos(alpha)]])
+        rot_matrix = np.array([[np.cos(alpha), -np.sin(alpha)],
+                               [np.sin(alpha), np.cos(alpha)]])
         self.rot_matrix = rot_matrix
 
     def apply(self, vector_set: ArrayLike, inverse: bool = False) -> ArrayLike:

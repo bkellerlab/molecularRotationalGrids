@@ -22,5 +22,4 @@ def test_everything_runs():
                                                                        pos_limit=0.55, neg_limit=-0.6)
     PolytopePlot("ico", num_divisions=2, projection=True).create(equalize=True, elev=190, azim=120,
                                                                  pos_limit=0.55, neg_limit=-0.6)
-    PolytopePlot("cube3D", num_divisions=3).create(equalize=True, elev=0, azim=0, pos_limit=0.7,
-                                                                    neg_limit=-0.7)
+    PolytopePlot("cube3D", num_divisions=3).create(equalize=True, elev=0, azim=0, pos_limit=0.7, neg_limit=-0.7)
