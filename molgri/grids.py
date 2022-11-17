@@ -298,8 +298,7 @@ class Grid(ABC):
         """
         self.rn_gen = np.random.default_rng(DEFAULT_SEED)
         np.random.seed(DEFAULT_SEED)
-        if gen_alg not in SIX_METHOD_NAMES and gen_alg != "zero":
-            raise ValueError(f"{gen_alg} is not a valid generation algorithm name. Try 'ico', 'cube3D' ...")
+        assert gen_alg in SIX_METHOD_NAMES or gen_alg == "zero", f"{gen_alg} is not a valid generation algorithm name"
         self.ordered = ordered
         self.N = N
         name_properties = {"grid_type": gen_alg, "num_grid_points": N, "ordering": ordered}
@@ -354,7 +353,7 @@ class Grid(ABC):
         euler_seq = grid2euler(self.grid)
         assert isinstance(euler_seq, np.ndarray), "An Euler sequence must be a numpy array!"
         assert euler_seq.shape == (self.N, 3), f"An Euler sequence not of correct shape!\
-                                {euler_seq.shape} instead of {(self.N, 33)}"
+                                {euler_seq.shape} instead of {(self.N, 3)}"
         return euler_seq
 
     def save_grid(self):

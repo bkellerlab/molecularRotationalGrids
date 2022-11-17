@@ -47,6 +47,7 @@ class AbstractPlot(ABC):
         self.fig_path = fig_path
         self.ani_path = ani_path
         self.dimensions = dimensions
+        assert self.dimensions in [2, 3]
         self.style_type = style_type
         self.data_name = data_name
         self.parsed_data_name = NameParser(self.data_name)
@@ -111,10 +112,8 @@ class AbstractPlot(ABC):
         if self.ax is None:
             if self.dimensions == 3:
                 self.ax = self.fig.add_subplot(111, projection='3d', computed_zorder=False)
-            elif self.dimensions == 2:
-                self.ax = self.fig.add_subplot(111)
             else:
-                raise ValueError("Only 2 or 3 dimensions possible.")
+                self.ax = self.fig.add_subplot(111)
 
     def _set_up_empty(self):
         """
