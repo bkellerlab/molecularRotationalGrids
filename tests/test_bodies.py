@@ -58,7 +58,7 @@ def test_translate_radially():
         assert np.allclose(shape.position, (0, 0, 0), atol=1e-3),"Objects in ShapeSet not correctly translated \
              with tilted basis in backward direction."
     # molecules
-    centers = np.array([[0, 0, 0,],
+    centers = np.array([[0, 0, 0],
                         [-0.5, 0.5, -1],
                         [0.3, -0.5, -1],
                         [0.3, 0.5, -1]])
