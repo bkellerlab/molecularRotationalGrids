@@ -164,6 +164,22 @@ def test_everything_runs():
         atomic_obj.rotate_about_body(np.array([pi / 4, pi / 6, pi / 3]))
         atomic_obj.draw(ax, show_basis=False)
         plt.close()
+    # object sets
+    objset1 = AtomSet([Atom("N"), Atom("P"), Atom("S")])
+    objset2 = MoleculeSet([H2O(), H2O(), H2O()])
+    objset4 = ShapeSet([Cuboid(43, 2, 1), Cylinder(2, 1), Sphere(3)])
+    for objset in (objset1, objset2, objset4):
+        fig = plt.figure()
+        ax = fig.add_subplot(111, projection='3d')
+        objset.draw_objects(axis=ax, which=None)
+        objset.translate_objects_radially(0.5, which=[0, 1, 0])
+        objset.draw_objects(axis=ax, which=None)
+        objset.rotate_objects_about_body(np.array([pi / 4, pi / 6, pi / 3]), which=[1, 1, 0])
+        objset.draw_objects(axis=ax, which=[1, 0, 0])
+        objset.rotate_objects_about_origin(np.array([pi / 4, pi / 6, pi / 3]), which=None)
+        objset.draw_objects(axis=ax, which=[1, 1, 0])
+        objset.translate_objects(np.array([1, 0, 2]))
+        plt.close()
 
 
 if __name__ == '__main__':
