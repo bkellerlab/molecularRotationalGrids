@@ -11,7 +11,6 @@ from ..scripts.generate_grid import prepare_grid
 from ..scripts.set_up_io import freshly_create_all_folders
 
 # TODO: define total_N and generate in all dimensions uniform grid?
-# TODO: allow different rotation grids for two types of rotation
 from molgri.pts import Pseudotrajectory
 
 parser = argparse.ArgumentParser()

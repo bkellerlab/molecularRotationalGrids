@@ -1,4 +1,4 @@
-[![Coverage Status](https://coveralls.io/repos/github/bkellerlab/molecularRotationalGrids/badge.svg?branch=main)](https://coveralls.io/github/bkellerlab/molecularRotationalGrids?branch=main)
+[![Coverage Status](https://coveralls.io/repos/github/bkellerlab/molecularRotationalGrids/badge.svg)](https://coveralls.io/github/bkellerlab/molecularRotationalGrids)
 ![issues](https://img.shields.io/github/issues/bkellerlab/molecularRotationalGrids)
 ![license](https://img.shields.io/github/license/bkellerlab/molecularRotationalGrids)
 ![activity](https://img.shields.io/github/last-commit/bkellerlab/molecularRotationalGrids)

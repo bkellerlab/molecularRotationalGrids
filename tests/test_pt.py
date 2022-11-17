@@ -157,7 +157,6 @@ def test_pt_rotations_origin():
             assert np.isclose(dist, distances[1], atol=1e-3)
         else:   # even indices, lower orbit
             assert np.isclose(dist, distances[0], atol=1e-3)
-        # TODO: assert orientation in internal basis is always the same?
         # calculate angles from atom positions to coordinate axes
         vec_com = ts[frame_i].molecule_set.all_objects[1].position
         vec_atom1 = ts[frame_i].molecule_set.all_objects[1].atoms[0].position - vec_com
