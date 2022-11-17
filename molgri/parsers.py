@@ -24,6 +24,9 @@ class NameParser:
         self.central_molecule = None
         self.rotating_molecule = None
         self.grid_type = None
+        self.o_grid = None
+        self.b_grid = None
+        self.t_grid = None
         self.ordering = True
         self.num_grid_points = None
         self.traj_type = None
@@ -53,6 +56,14 @@ class NameParser:
         for method_name in SIX_METHOD_NAMES:
             if method_name in split_str:
                 self.grid_type = method_name
+        # _o_, _b_ and _t_
+        for i, sub_str in enumerate(split_str):
+            if "o" == sub_str:
+                self.o_grid = split_str[i+1]
+            if "b" == sub_str:
+                self.b_grid = split_str[i+1]
+            if "t" == sub_str:
+                self.t_grid = int(split_str[i+1])
         if "zero" in split_str:
             self.grid_type = "zero"
             self.num_grid_points = 1

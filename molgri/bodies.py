@@ -649,18 +649,6 @@ class MoleculeSet(AtomSet):
             self.atoms.extend(molecule.atoms)
         self.position = self._calc_center_of_mass()
 
-    def save_atom_lines_gro(self, residue: str = "SOL", atom_num=1, residue_num=1):
-        num_atom = atom_num
-        num_molecule = residue_num
-        for molecule in self.all_objects:
-            for atom in molecule:
-                pos_nm = atom.position
-                name = atom.element.gro_label
-                self.file_gro.write(f"{num_molecule:5}{residue:5}{name:>5}{num_atom:5}{pos_nm[0]:8.3f}{pos_nm[1]:8.3f}"
-                                    f"{pos_nm[2]:8.3f}{0:8.4f}{0:8.4f}{0:8.4f}\n")
-                num_atom += 1
-            num_molecule += 1
-
     # this is repetition of Molecule class, not good!
     def _calc_center_of_mass(self):
         total_mass = 0

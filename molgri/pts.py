@@ -62,7 +62,7 @@ class TwoMoleculeGro:
 
     def generate_two_molecule_gro(self, translation_nm=0.3):
         # move second molecule for initial dist
-        self.rotating_parser.molecule_set.translate([0, 0, translation_nm])
+        self.rotating_parser.molecule_set.translate_objects_radially(translation_nm)
         self._write_current_frame(frame_num=0)
         self.f.close()
 
@@ -71,9 +71,6 @@ class TwoMoleculeGro:
         self._write_first_molecule()
         self._write_current_second_molecule()
         self._write_box()
-
-    def _add_pseudo_line(self):
-        pass
 
 
 class Pseudotrajectory(TwoMoleculeGro):

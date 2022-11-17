@@ -1,7 +1,8 @@
 import numpy as np
+import pytest
 from mendeleev import element
 
-from molgri.parsers import NameParser, BaseGroParser, TranslationParser, MultiframeGroParser, PtFrameParser
+from molgri.parsers import NameParser, BaseGroParser, TranslationParser, MultiframeGroParser, PtFrameParser, particle_type2element
 
 
 def test_atom_gro_file():
@@ -69,6 +70,9 @@ def test_protein_gro_file():
     organic_elements = ["N", "O", "C", "H", "S", "P", "F"]
     for el in all_elements:
         assert el in organic_elements, f"{el} not correctly identified as organic element"
+    # with multiframe parser you can read more
+    multi_parser = MultiframeGroParser(file_name, parse_atoms=False, is_pt=False)
+    assert len(multi_parser.timesteps) == 2
 
 
 def test_parsing_pt_gro():
@@ -88,6 +92,29 @@ def test_name_parser():
     assert np1.get_standard_name() == example_names[0]
     assert np2.get_standard_name() == example_names[1]
     assert np3.get_standard_name() == "CL_NA_ico_5_full"
+
+
+def test_special_names_parser():
+    name1 = "protein0_CL_ico_30_full_NO.gro"
+    name3 = "run_openMM"
+    name2 = "H2O_NH3_o_zero_b_ico_4_t_4186227062"
+    np1 = NameParser(name1)
+    assert np1.central_molecule == "protein0"
+    assert np1.rotating_molecule == "CL"
+    assert np1.grid_type == "ico"
+    assert np1.num_grid_points == 30
+    assert np1.traj_type == "full"
+    assert not np1.ordering
+    assert np1.ending == "gro"
+    np2 = NameParser(name2)
+    assert np2.o_grid == "zero"
+    assert np2.b_grid == "ico"
+    assert np2.t_grid == 4186227062
+    np3 = NameParser(name3)
+    assert np3.is_real_run
+    assert np3.open_MM
+    assert np3.get_dict_properties()["central_molecule"] is None
+    assert np3.get_dict_properties()["ordering"]
 
 
 def test_trans_parser():
@@ -122,10 +149,26 @@ def test_trans_parser():
     assert tp4.grid_hash == 481270436
 
 
+def test_expected_errors():
+    name3 = "run_openMM"
+    np3 = NameParser(name3)
+    with pytest.raises(ValueError):
+        np3.get_traj_type()
+    with pytest.raises(ValueError):
+        np3.get_grid_type()
+    with pytest.raises(ValueError):
+        np3.get_num()
+    with pytest.raises(ValueError):
+        particle_type2element("Z")
+    with pytest.raises(ValueError):
+        PtFrameParser(f"molgri/examples/example_protein.gro")
+
+
 if __name__ == '__main__':
     #test_atom_gro_file()
-    test_parsing_pt_gro()
+    #test_parsing_pt_gro()
     #test_water_gro_file()
     #test_protein_gro_file()
     #test_name_parser()
     #test_trans_parser()
+    test_expected_errors()

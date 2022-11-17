@@ -1,7 +1,7 @@
 import numpy as np
 
 from molgri.bodies import Molecule
-from molgri.pts import Pseudotrajectory
+from molgri.pts import Pseudotrajectory, TwoMoleculeGro
 from molgri.grids import IcoGrid, Cube4DGrid, ZeroGrid
 from molgri.parsers import TranslationParser, MultiframeGroParser
 from molgri.scripts.set_up_io import freshly_create_all_folders, copy_examples
@@ -36,6 +36,16 @@ def same_origin_orientation(mol1: Molecule, mol2: Molecule):
     unit_pos1 = normalise_vectors(mol1.position)
     unit_pos2 = normalise_vectors(mol2.position)
     assert np.allclose(unit_pos1, unit_pos2, atol=1e-3)
+
+
+def test_two_molecule_gro():
+    pt = TwoMoleculeGro("H2O", "H2O")
+    pt.generate_two_molecule_gro(translation_nm=0.5)
+    with open(f"{PATH_OUTPUT_PT}H2O_H2O_run.gro", "r") as f:
+        lines = f.readlines()
+        num_atoms = 3 + 3
+        num_oth_lines = 3
+        assert len(lines) == (num_atoms + num_oth_lines), "Wrong number of lines in .gro file"
 
 
 def test_pt_len():
@@ -206,7 +216,7 @@ def test_order_of_operations():
     trans_grid = TranslationParser("[1, 2, 3]")
     distances = trans_grid.get_trans_grid()
     pt = Pseudotrajectory("H2O", "NH3", rot_grid_origin=grid_o, trans_grid=trans_grid, rot_grid_body=grid_b)
-    len_traj = pt.generate_pseudotrajectory()
+    len_traj = pt.generate_pt_and_time()
     file_name = f"{PATH_OUTPUT_PT}{pt.pt_name}.gro"
     ts = MultiframeGroParser(file_name, parse_atoms=True, is_pt=True).timesteps
     # each batch of n_b*n_t elements should have the same space orientation
