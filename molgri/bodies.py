@@ -141,8 +141,7 @@ class AbstractShape(ABC):
         self.drawing_points += np.hstack(self.position)
         return rotation_mat
 
-    def draw(self, axis: Axes, show_labels=False, show_basis=False, rotational_axis=None, rotational_center="origin")\
-            -> list:
+    def draw(self, axis: Axes, show_labels=False, show_basis=False) -> list:
         """
         Draw the object in the given axis (2D or 3D). Possibly also draws the label with atom position, the
         body coordinate axes and/or the axis of rotation. Should be appended by subclasses for drawing the objects.
@@ -151,23 +150,10 @@ class AbstractShape(ABC):
             axis: ax on which the object should be drown
             show_labels: show a label with the position of the point
             show_basis: show the basis attached to the object
-            rotational_axis: the 3D vector representing the axis around which to rotate
-            rotational_center: 'origin' or 'body', where the rotational axis should be drawn.
         Returns:
             list of all objects to be plotted
         """
         to_return = []
-        # draw rotational axis
-        if np.any(rotational_axis):
-            if rotational_center == 'body':
-                origin = self.position
-            elif rotational_center == 'origin':
-                origin = np.array([0, 0, 0])
-            else:
-                raise ValueError(f"Unknown argument {rotational_center} for rotational center (try 'body' or 'origin')")
-            normed = rotational_axis / np.linalg.norm(rotational_axis)
-            axis_pic = axis.quiver(*origin, *normed, color="black", length=3, arrow_length_ratio=0.1)
-            to_return.append(axis_pic)
         # draw label with the position of the body at the center of the body
         if show_labels:
             center_labels = self._draw_center_label(axis)

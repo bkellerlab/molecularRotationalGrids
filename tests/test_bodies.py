@@ -55,7 +55,7 @@ def test_translate_radially():
          origin with tilted basis."
     shape_s.translate_objects_radially(-5)
     for shape in shape_s.all_objects:
-        assert np.allclose(shape.position, (0, 0, 0), atol=1e-3),"Objects in ShapeSet not correctly translated \
+        assert np.allclose(shape.position, (0, 0, 0), atol=1e-3), "Objects in ShapeSet not correctly translated \
              with tilted basis in backward direction."
     # molecules
     centers = np.array([[0, 0, 0],
@@ -152,10 +152,10 @@ def test_everything_runs():
         fig = plt.figure()
         ax = fig.add_subplot(111, projection='3d')
         my_cylinder = obj_3d()
-        my_cylinder.draw(ax, show_basis=False, rotational_axis=True, rotational_center="origin")
+        my_cylinder.draw(ax, show_basis=False)
         my_cylinder.translate(np.array([-3, 3, -4]))
         my_cylinder.rotate_about_origin(np.array([pi / 4, pi / 6, pi / 3]))
-        my_cylinder.draw(ax, show_basis=True, rotational_axis=True, rotational_center="body")
+        my_cylinder.draw(ax, show_basis=True)
         my_cylinder.rotate_about_body(np.array([pi / 4, pi / 6, pi / 3]))
         my_cylinder.draw(ax, show_basis=False, show_labels=True)
         plt.close()
