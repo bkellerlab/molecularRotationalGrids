@@ -163,7 +163,7 @@ def test_everything_runs():
         atomic_obj.draw(ax, show_basis=True)
         atomic_obj.rotate_about_body(np.array([pi / 4, pi / 6, pi / 3]))
         atomic_obj.draw(ax, show_basis=False)
-        plt.show()
+        plt.close()
 
 
 if __name__ == '__main__':

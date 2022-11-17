@@ -468,13 +468,12 @@ class Molecule(AbstractShape):
         for atom in self.atoms:
             atom.rotate_about_origin(angles, **kwargs)
 
-    def rotate_about_body(self, angles: np.ndarray or float, **kwargs):
-        super().rotate_about_body(angles, **kwargs)
+    def rotate_about_body(self, angles: np.ndarray or float, method="euler_123", **kwargs):
+        super().rotate_about_body(angles, method=method, **kwargs)
         inverse = kwargs.pop("inverse", False)
         for atom in self.atoms:
             points_at_origin = atom.position - self.position
-            # TODO: what is happening here?
-            rot = atom._rotate(angles, **kwargs)
+            rot = atom._rotate(angles, method=method, **kwargs)
             atom.position = rot.apply(points_at_origin, inverse=inverse) + self.position
 
 
