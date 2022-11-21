@@ -1,8 +1,9 @@
 from typing import Tuple
+import os
 
 from molgri.bodies import Molecule
 from molgri.grids import ZeroGrid, FullGrid
-from molgri.parsers import BaseGroParser, NameParser, TranslationParser
+from molgri.parsers import BaseGroParser, TranslationParser
 from molgri.paths import PATH_INPUT_BASEGRO, PATH_OUTPUT_PT
 from molgri.pts import Pseudotrajectory
 
@@ -102,21 +103,50 @@ class PtWriter(GroWriter):
             self.write_frame(i, second_molecule)
         self.f.close()
 
+    def write_frames_in_directory(self):
+        self.f.close()
+        directory = f"{PATH_OUTPUT_PT}{self.get_output_name()}"
+        os.mkdir(directory)
+        for i, second_molecule in self.pt.generate_pseudotrajectory():
+            self.f = open(f"{directory}{i}.gro", "w")
+            self.write_frame(i, second_molecule)
+            self.f.close()
+
 
 class TwoMoleculeGroWriter(PtWriter):
 
     def __init__(self, name_central_gro: str, name_rotating_gro: str, translation_nm: float):
+        """
+        A class to create a 'PT' that contains only one frame, namely of the two molecules separated by the distance
+        translation_nm in z-direction.
+
+        Args:
+            name_central_gro: name of the molecule that stays fixed
+            name_rotating_gro: name of the molecule that moves in a pseudotrajectory
+            translation_nm: how far away molecules should be in the end
+        """
         trans_grid = TranslationParser(f"[{translation_nm}]")
         full_grid = FullGrid(b_grid=ZeroGrid(), o_grid=ZeroGrid(), t_grid=trans_grid)
         super().__init__(name_central_gro, name_rotating_gro, full_grid)
 
 
-
-
-
-#class GroDirectoryWriter:
-    # self.directory = f"{PATH_OUTPUT_PT}{pseudo_name}"
-    # os.mkdir(self.directory)
-    #
-    # super().__init__(parsed_central_file, parsed_rotating_file, rot_grid_origin, trans_grid, rot_grid_body)
-    #def get_output_path(self):
+# class PtFrameWriter(PtWriter):
+#
+#     def __init__(self, name_central_gro: str, name_rotating_gro: str, full_grid: FullGrid, frame_num: int):
+#         self.frame_num = frame_num
+#         super().__init__(name_central_gro, name_rotating_gro, full_grid)
+#
+#     def get_output_name(self):
+#         return self.frame_num
+#
+#
+# class GroDirectoryWriter(PtWriter):
+#
+#     def __init__(self, name_central_gro: str, name_rotating_gro: str, full_grid: FullGrid):
+#         super().__init__(name_central_gro, name_rotating_gro, full_grid)
+#         #pseudo_name = f"{name_central_gro}_{name_rotating_gro}_{full_grid.get_full_grid_name()}"
+#         self.directory = f"{PATH_OUTPUT_PT}{self.get_output_name()}"
+#         os.mkdir(self.directory)
+#         self.f.close()
+#
+#     def

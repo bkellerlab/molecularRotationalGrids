@@ -43,13 +43,16 @@ class Pseudotrajectory:
         increment_sum = self.trans_grid.sum_increments_from_first_radius()
         # move in z-direction for first increment
         self.molecule.translate_radially(trans_increments[0])
+        # first step: rotation around origin
         for origin_rotation in self.rot_grid_origin:
             self.molecule.rotate_about_origin(origin_rotation, method="quaternion")
+            # second step: rotation around body
             for body_rotation in self.rot_grid_body:
                 self.molecule.rotate_about_body(body_rotation, method="quaternion")
                 # write the frame at initial distance
                 yield self.current_frame, self.molecule
                 self.current_frame += 1
+                # final step: translation for the rest of increments
                 for translation in trans_increments[1:]:
                     self.molecule.translate_radially(translation)
                     yield self.current_frame, self.molecule

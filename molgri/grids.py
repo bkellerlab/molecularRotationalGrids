@@ -625,6 +625,14 @@ class IcoGrid(Polyhedron3DGrid):
 class FullGrid:
 
     def __init__(self, b_grid: Grid, o_grid: Grid, t_grid: TranslationParser):
+        """
+        In preparation. A combination object that enables work with a set of grids.
+
+        Args:
+            b_grid: body rotation grid
+            o_grid: origin rotation grid
+            t_grid: translation grid
+        """
         self.b_grid = b_grid
         self.o_grid = o_grid
         self.t_grid = t_grid
