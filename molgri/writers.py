@@ -1,13 +1,15 @@
 from typing import Tuple
 
 from molgri.bodies import Molecule
-from molgri.parsers import BaseGroParser
+from molgri.grids import ZeroGrid, FullGrid
+from molgri.parsers import BaseGroParser, NameParser, TranslationParser
 from molgri.paths import PATH_INPUT_BASEGRO, PATH_OUTPUT_PT
 from molgri.pts import Pseudotrajectory
 
+
 class GroWriter:
 
-    def __init__(self, file_name : str):
+    def __init__(self, file_name: str):
         """
         This simple class determines only the format of how data is written to the .gro file, all information
         is directly provided as arguments
@@ -15,7 +17,8 @@ class GroWriter:
         Args:
             file_name: entire name of the file where the gro file should be saved including path and ending
         """
-        self.f = open(file_name, "w")
+        self.file_name = file_name
+        self.f = open(self.file_name, "w")
 
     def write_comment_num(self,  num_atoms: int, comment: str = ""):
         """
@@ -43,7 +46,7 @@ class GroWriter:
 
 class PtWriter(GroWriter):
 
-    def __init__(self, name_central_gro: str, name_rotating_gro: str, result_name_gro=None):
+    def __init__(self, name_central_gro: str, name_rotating_gro: str, full_grid: FullGrid):
         """
         We read in two base gro files, each containing one molecule. Capable of writing a new gro file that
         contains one or more time steps in which the second molecule moves around. First molecule is only read
@@ -53,19 +56,24 @@ class PtWriter(GroWriter):
         Args:
             name_central_gro: name of the molecule that stays fixed
             name_rotating_gro: name of the molecule that moves in a pseudotrajectory
+            full_grid: consists of unter-grids that span state space
         """
+
         central_file_path = f"{PATH_INPUT_BASEGRO}{name_central_gro}.gro"
-        rotating_file_path = f"{PATH_INPUT_BASEGRO}{name_rotating_gro}.gro"
-        if result_name_gro is None:
-            result_file_path = f"{PATH_OUTPUT_PT}{name_central_gro}_{name_rotating_gro}_run.gro"
-        else:
-            result_file_path = f"{PATH_OUTPUT_PT}{result_name_gro}.gro"
-        super().__init__(result_file_path)
         self.central_parser = BaseGroParser(central_file_path, parse_atoms=False)
-        self.c_num = self.central_parser.num_atoms
-        # parse rotating file as Atoms
+        rotating_file_path = f"{PATH_INPUT_BASEGRO}{name_rotating_gro}.gro"
         self.rotating_parser = BaseGroParser(rotating_file_path, parse_atoms=True)
+        self.full_grid = full_grid
+        self.pt = Pseudotrajectory(self.rotating_parser.molecule_set, full_grid)
+        super().__init__(f"{PATH_OUTPUT_PT}{self.get_output_name()}.gro")
+        self.c_num = self.central_parser.num_atoms
         self.r_num = self.rotating_parser.num_atoms
+
+    def get_output_name(self):
+        mol_name1 = self.central_parser.molecule_name
+        mol_name2 = self.rotating_parser.molecule_name
+        result_file_path = f"{mol_name1}_{mol_name2}_{self.full_grid.get_full_grid_name()}"
+        return result_file_path
 
     def write_frame(self, frame_num: int, second_molecule: Molecule):
         comment = f"c_num={self.c_num}, r_num={self.r_num}, t={frame_num}"
@@ -89,16 +97,26 @@ class PtWriter(GroWriter):
                                  pos_nm_z=pos_nm[2])
             num_atom += 1
 
-    def write_full_pt_gro(self, pt_generator: ):
-
+    def write_full_pt_gro(self):
+        for i, second_molecule in self.pt.generate_pseudotrajectory():
+            self.write_frame(i, second_molecule)
         self.f.close()
-        pass
 
-    def generate_two_molecule_gro(self, translation_nm=0.3):
-        # move second molecule for initial dist
-        self.rotating_parser.molecule_set.translate_objects_radially(translation_nm)
-        self.write_frame(frame_num=0, second_molecule=self.rotating_parser.molecule_set.all_objects[0])
-        self.f.close()
+
+class TwoMoleculeGroWriter(PtWriter):
+
+    def __init__(self, name_central_gro: str, name_rotating_gro: str, translation_nm: float):
+        trans_grid = TranslationParser(f"[{translation_nm}]")
+        full_grid = FullGrid(b_grid=ZeroGrid(), o_grid=ZeroGrid(), t_grid=trans_grid)
+        super().__init__(name_central_gro, name_rotating_gro, full_grid)
+
+
+
 
 
 #class GroDirectoryWriter:
+    # self.directory = f"{PATH_OUTPUT_PT}{pseudo_name}"
+    # os.mkdir(self.directory)
+    #
+    # super().__init__(parsed_central_file, parsed_rotating_file, rot_grid_origin, trans_grid, rot_grid_body)
+    #def get_output_path(self):

@@ -403,9 +403,10 @@ class Atom(Sphere):
 class Molecule(AbstractShape):
 
     def __init__(self, atom_names: list, centers: np.ndarray, connections: np.ndarray = None, center_at_origin=False,
-                 gro_labels: list = None, residue_name: str = "SOL"):
+                 gro_labels: list = None, residue_name: str = "SOL", molecule_name="molecule"):
         if gro_labels is None:
             gro_labels = atom_names
+        self.molecule_name = molecule_name
         self.residue_name = residue_name
         self.atoms = []      # saving the Atom objects for easy plotting and access to properties
         for i, atom_name in enumerate(atom_names):

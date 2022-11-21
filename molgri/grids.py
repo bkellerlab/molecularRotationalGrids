@@ -10,7 +10,7 @@ import pandas as pd
 from .analysis import random_sphere_points, random_axes_count_points
 from .utils import dist_on_sphere
 from .constants import DEFAULT_SEED, SIX_METHOD_NAMES, UNIQUE_TOL, ENDING_GRID_FILES
-from .parsers import NameParser
+from .parsers import NameParser, TranslationParser
 from .paths import PATH_OUTPUT_ROTGRIDS, PATH_OUTPUT_STAT
 from .rotations import grid2quaternion, grid2euler, quaternion2grid, euler2grid
 from .wrappers import time_method
@@ -620,6 +620,19 @@ class IcoGrid(Polyhedron3DGrid):
 
     def __init__(self, N: int, **kwargs):
         super().__init__(N, polyhedron=IcosahedronPolytope, gen_alg="ico", **kwargs)
+
+
+class FullGrid:
+
+    def __init__(self, b_grid: Grid, o_grid: Grid, t_grid: TranslationParser):
+        self.b_grid = b_grid
+        self.o_grid = o_grid
+        self.t_grid = t_grid
+
+    def get_full_grid_name(self):
+        nap = NameParser({"o_grid": self.o_grid.standard_name, "b_grid": self.b_grid.standard_name,
+                          "t_grid": self.t_grid.grid_hash})
+        return nap.get_standard_name()
 
 
 def build_grid(grid_type: str, N: int, **kwargs) -> Grid:

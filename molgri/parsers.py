@@ -1,5 +1,6 @@
 import hashlib
 import numbers
+import os
 from typing import TextIO
 
 import numpy as np
@@ -100,8 +101,12 @@ class NameParser:
         self.additional_data = "_".join(split_str)
 
     def _read_dict(self, dict_name):
+        # TODO: it must be possible to refactor dict parsing for NameParser
         self.central_molecule = dict_name.pop("central_molecule", None)
         self.rotating_molecule = dict_name.pop("rotating_molecule", None)
+        self.t_grid = dict_name.pop("t_grid", None)
+        self.o_grid = dict_name.pop("o_grid", None)
+        self.b_grid = dict_name.pop("b_grid", None)
         self.grid_type = dict_name.pop("grid_type", None)
         self.ordering = dict_name.pop("ordering", True)
         self.num_grid_points = dict_name.pop("num_grid_points", None)
@@ -124,6 +129,10 @@ class NameParser:
             standard_name += FULL_RUN_NAME + "_"
         if self.grid_type:
             standard_name += self.grid_type + "_"
+        if self.t_grid and self.o_grid and self.b_grid:
+            standard_name += f"o_{self.o_grid}_"
+            standard_name += f"b_{self.b_grid}_"
+            standard_name += f"t_{self.t_grid}_"
         if not self.ordering:
             standard_name += "NO_"
         if self.num_grid_points:
@@ -211,6 +220,8 @@ class BaseGroParser:
                             argument ignored
 
         """
+        head, tail = os.path.split(gro_read)
+        self.molecule_name = tail.split(".")[0]
         if not gro_file_read:
             self.gro_file = open(gro_read, "r")
         else:
@@ -229,7 +240,7 @@ class BaseGroParser:
             line = self.gro_file.readline()
             self.atom_lines_nm.append(line)
         if parse_atoms:
-            self.molecule_set = self._create_molecule_set(*self._parse_atoms())
+            self.molecule_set = self._create_molecule(*self._parse_atoms())
         else:
             self.molecule_set = None
         self.box = tuple([literal_eval(x) for x in self.gro_file.readline().strip().split()])
@@ -258,11 +269,10 @@ class BaseGroParser:
             list_atom_pos.append([x_pos_nm, y_pos_nm, z_pos_nm])
         return list_gro_labels, list_atom_names, list_atom_pos
 
-    def _create_molecule_set(self, list_gro_labels, list_atom_names, list_atom_pos) -> MoleculeSet:
+    def _create_molecule(self, list_gro_labels, list_atom_names, list_atom_pos) -> Molecule:
         array_atom_pos = np.array(list_atom_pos)
-        molecule_list = [Molecule(atom_names=list_atom_names, centers=array_atom_pos, center_at_origin=False,
-                                  gro_labels=list_gro_labels)]
-        return MoleculeSet(molecule_list)
+        return Molecule(atom_names=list_atom_names, centers=array_atom_pos, center_at_origin=False,
+                        gro_labels=list_gro_labels)
 
 
 class PtFrameParser(BaseGroParser):

@@ -1,9 +1,10 @@
 import numpy as np
 
 from molgri.bodies import Molecule
-from molgri.pts import Pseudotrajectory, TwoMoleculeGro
-from molgri.grids import IcoGrid, Cube4DGrid, ZeroGrid
-from molgri.parsers import TranslationParser, MultiframeGroParser
+from molgri.pts import Pseudotrajectory
+from molgri.writers import TwoMoleculeGroWriter, PtWriter
+from molgri.grids import IcoGrid, Cube4DGrid, ZeroGrid, FullGrid
+from molgri.parsers import TranslationParser, MultiframeGroParser, BaseGroParser
 from molgri.scripts.set_up_io import freshly_create_all_folders, copy_examples
 from molgri.paths import PATH_OUTPUT_PT
 from molgri.utils import angle_between_vectors, normalise_vectors
@@ -39,9 +40,9 @@ def same_origin_orientation(mol1: Molecule, mol2: Molecule):
 
 
 def test_two_molecule_gro():
-    pt = TwoMoleculeGro("H2O", "H2O")
-    pt.generate_two_molecule_gro(translation_nm=0.5)
-    with open(f"{PATH_OUTPUT_PT}H2O_H2O_run.gro", "r") as f:
+    pt = TwoMoleculeGroWriter("H2O", "H2O", 0.5)
+    pt.write_full_pt_gro()
+    with open(pt.file_name, "r") as f:
         lines = f.readlines()
         num_atoms = 3 + 3
         num_oth_lines = 3
@@ -61,9 +62,11 @@ def test_pt_len():
     rot_grid = IcoGrid(num_rotations)
     trans_grid = TranslationParser("linspace(1, 5, 10)")
     num_translations = trans_grid.get_N_trans()
-    pt = Pseudotrajectory("H2O", "H2O", rot_grid_origin=rot_grid, trans_grid=trans_grid, rot_grid_body=rot_grid)
-    file_name = f"{PATH_OUTPUT_PT}{pt.pt_name}.gro"
-    end_index = pt.generate_pseudotrajectory()
+    full_grid = FullGrid(b_grid=rot_grid, o_grid=rot_grid, t_grid=trans_grid)
+    writer = PtWriter("H2O", "H2O", full_grid)
+    writer.write_full_pt_gro()
+    file_name = writer.file_name
+    end_index = writer.pt.current_frame
     assert end_index == num_translations*num_rotations*num_rotations
     with open(file_name, "r") as f:
         lines = f.readlines()
@@ -79,9 +82,11 @@ def test_pt_len():
     origin_grid = Cube4DGrid(num_origin)
     trans_grid = TranslationParser("range(1, 5, 0.5)")
     num_translations = trans_grid.get_N_trans()
-    pt = Pseudotrajectory("H2O", "NH3", rot_grid_origin=origin_grid, trans_grid=trans_grid, rot_grid_body=body_grid)
-    file_name = f"{PATH_OUTPUT_PT}{pt.pt_name}.gro"
-    end_index = pt.generate_pseudotrajectory()
+    full_grid = FullGrid(b_grid=body_grid, o_grid=origin_grid, t_grid=trans_grid)
+    writer = PtWriter("H2O", "NH3", full_grid=full_grid)
+    writer.write_full_pt_gro()
+    file_name = writer.file_name
+    end_index = writer.pt.current_frame
     assert end_index == num_translations * num_body * num_origin
     with open(file_name, "r") as f:
         lines = f.readlines()
@@ -95,9 +100,11 @@ def test_pt_len():
     origin_grid = Cube4DGrid(num_origin)
     trans_grid = TranslationParser("range(1, 5, 0.5)")
     num_translations = trans_grid.get_N_trans()
-    pt = Pseudotrajectory("H2O", "NH3", rot_grid_origin=origin_grid, trans_grid=trans_grid, rot_grid_body=None)
-    file_name = f"{PATH_OUTPUT_PT}{pt.pt_name}.gro"
-    end_index = pt.generate_pseudotrajectory()
+    full_grid = FullGrid(b_grid=ZeroGrid(), o_grid=origin_grid, t_grid=trans_grid)
+    writer = PtWriter("H2O", "NH3", full_grid)
+    writer.write_full_pt_gro()
+    file_name = writer.file_name
+    end_index = writer.pt.current_frame
     assert end_index == num_translations * num_origin
     with open(file_name, "r") as f:
         lines = f.readlines()
@@ -113,12 +120,12 @@ def test_pt_translations():
     Test that if there are no rotations of any kind, translation occurs at correct distances in the z-direction.
     """
     # on a zero rotation grids
-    zg = ZeroGrid()
     trans_grid = TranslationParser("range(1, 5, 0.5)")
+    full_grid = FullGrid(t_grid=trans_grid, b_grid=ZeroGrid(), o_grid=ZeroGrid())
     distances = trans_grid.get_trans_grid()
-    pt = Pseudotrajectory("H2O", "H2O", rot_grid_origin=zg, trans_grid=trans_grid, rot_grid_body=zg)
-    pt.generate_pseudotrajectory()
-    file_name = f"{PATH_OUTPUT_PT}{pt.pt_name}.gro"
+    writer = PtWriter("H2O", "H2O", full_grid)
+    writer.write_full_pt_gro()
+    file_name = writer.file_name
     # center of mass of the second molecule moves in z direction
     ts = MultiframeGroParser(file_name, is_pt=True).timesteps
     for i, t in enumerate(ts):
@@ -140,13 +147,14 @@ def test_pt_rotations_origin():
     """
     num_rot = 12
     ico_grid = IcoGrid(num_rot)
-    zg = ZeroGrid()
     num_trans = 2
     trans_grid = TranslationParser("[1, 2]")
     distances = trans_grid.get_trans_grid()
-    pt = Pseudotrajectory("H2O", "H2O", rot_grid_origin=ico_grid, trans_grid=trans_grid, rot_grid_body=zg)
-    len_traj = pt.generate_pseudotrajectory()
-    file_name = f"{PATH_OUTPUT_PT}{pt.pt_name}.gro"
+    full_grid = FullGrid(t_grid=trans_grid, b_grid=ZeroGrid(), o_grid=ico_grid)
+    writer = PtWriter("H2O", "H2O", full_grid)
+    writer.write_full_pt_gro()
+    file_name = writer.file_name
+    len_traj = writer.pt.current_frame
     assert len_traj == num_trans*num_rot
     # assert every uneven structure has distance 1 and every even one distance 2
     ts = MultiframeGroParser(file_name, parse_atoms=True, is_pt=True).timesteps
@@ -175,13 +183,14 @@ def test_pt_rotations_body():
     """
     num_rot = 4
     ico_grid = IcoGrid(num_rot)
-    zg = ZeroGrid()
     num_trans = 3
     trans_grid = TranslationParser("[1, 2, 3]")
     distances = trans_grid.get_trans_grid()
-    pt = Pseudotrajectory("H2O", "NH3", rot_grid_origin=zg, trans_grid=trans_grid, rot_grid_body=ico_grid)
-    len_traj = pt.generate_pseudotrajectory()
-    file_name = f"{PATH_OUTPUT_PT}{pt.pt_name}.gro"
+    full_grid = FullGrid(t_grid=trans_grid, b_grid=ico_grid, o_grid=ZeroGrid())
+    writer = PtWriter("H2O", "NH3", full_grid)
+    writer.write_full_pt_gro()
+    file_name = writer.file_name
+    len_traj = writer.pt.current_frame
     assert len_traj == num_trans*num_rot
     # assert every uneven structure has distance 1 and every even one distance 2
     ts = MultiframeGroParser(file_name, parse_atoms=True, is_pt=True).timesteps
@@ -213,10 +222,11 @@ def test_order_of_operations():
     grid_o = IcoGrid(n_o)
     n_t = 3
     trans_grid = TranslationParser("[1, 2, 3]")
-    distances = trans_grid.get_trans_grid()
-    pt = Pseudotrajectory("H2O", "NH3", rot_grid_origin=grid_o, trans_grid=trans_grid, rot_grid_body=grid_b)
-    len_traj = pt.generate_pt_and_time()
-    file_name = f"{PATH_OUTPUT_PT}{pt.pt_name}.gro"
+    full_grid = FullGrid(t_grid=trans_grid, b_grid=grid_b, o_grid=grid_o)
+    writer = PtWriter("H2O", "NH3", full_grid)
+    writer.write_full_pt_gro()
+    file_name = writer.file_name
+    len_traj = writer.pt.current_frame
     ts = MultiframeGroParser(file_name, parse_atoms=True, is_pt=True).timesteps
     # each batch of n_b*n_t elements should have the same space orientation
     for o in range(0, len_traj, n_b*n_t):
