@@ -1,7 +1,10 @@
+import os
+from typing import Tuple, Generator
+
 import numpy as np
 
+from .bodies import Molecule
 from .grids import Grid, ZeroGrid
-from .constants import DEFAULT_DISTANCES
 from .parsers import BaseGroParser, TranslationParser
 from .paths import PATH_INPUT_BASEGRO, PATH_OUTPUT_PT
 from .wrappers import time_method
@@ -9,7 +12,7 @@ from .wrappers import time_method
 
 class TwoMoleculeGro:
 
-    def __init__(self, name_central_gro: str, name_rotating_gro: str, result_name_gro=None):
+    def __init__(self, name_central_gro: str, name_rotating_gro: str, result_name_gro=None, f=None):
         """
         We read in two base gro files, each containing one molecule. Capable of writing a new gro file that
         contains one or more time steps in which the second molecule moves around. First molecule is only read
@@ -26,7 +29,10 @@ class TwoMoleculeGro:
             result_file_path = f"{PATH_OUTPUT_PT}{name_central_gro}_{name_rotating_gro}_run.gro"
         else:
             result_file_path = f"{PATH_OUTPUT_PT}{result_name_gro}.gro"
-        self.f = open(result_file_path, "w")
+        if f:
+            self.f = f
+        else:
+            self.f = open(result_file_path, "w")
         self.central_parser = BaseGroParser(central_file_path, parse_atoms=False)
         # parse rotating file as Atoms
         self.rotating_parser = BaseGroParser(rotating_file_path, parse_atoms=True)
@@ -47,7 +53,6 @@ class TwoMoleculeGro:
         num_atoms_cen = self.central_parser.num_atoms
         num_atom = num_atoms_cen + 1
         num_molecule = 2
-        hydrogen_counter = 1
         for atom in self.rotating_parser.molecule_set.all_objects[0].atoms:
             pos_nm = atom.position
             name = atom.gro_label
@@ -76,7 +81,7 @@ class TwoMoleculeGro:
 class Pseudotrajectory(TwoMoleculeGro):
 
     def __init__(self, name_central_gro: str, name_rotating_gro: str, rot_grid_origin: Grid,
-                 trans_grid: TranslationParser, rot_grid_body: Grid or None):
+                 trans_grid: TranslationParser, rot_grid_body: Grid or None, save_in_pieces=False):
         """
 
         Args:
@@ -88,6 +93,7 @@ class Pseudotrajectory(TwoMoleculeGro):
             trans_grid: a parser for translations
             rot_grid_body: name of the grid for rotation around origin, eg. ico_20, or None if no body rotations
                            are included (e.g. for spherically symmetrical rotating particles
+            save_in_pieces: select True iff you want to save PT as a folder full of single-frame gro-files
         """
         self.trans_grid = trans_grid
         self.rot_grid_origin = rot_grid_origin
@@ -104,10 +110,14 @@ class Pseudotrajectory(TwoMoleculeGro):
         self.decorator_label = f"pseudotrajectory {pseudo_name}"
         super().__init__(name_central_gro, name_rotating_gro, result_name_gro=pseudo_name)
         # convert to quaternions
+        self.save_in_pieces = save_in_pieces
+        if self.save_in_pieces:
+            self.directory = f"{PATH_OUTPUT_PT}{pseudo_name}"
+            os.mkdir(self.directory)
         self.rot_grid_body = self.rot_grid_body.as_quaternion()
         self.rot_grid_origin = self.rot_grid_origin.as_quaternion()
 
-    def generate_pseudotrajectory(self) -> int:
+    def generate_pseudotrajectory(self) -> Generator[Tuple[int, Molecule], None, None]:
         # center second molecule if not centered yet
         dist_origin = np.linalg.norm(self.rotating_parser.molecule_set.position)
         self.rotating_parser.molecule_set.translate_objects_radially(-dist_origin)
