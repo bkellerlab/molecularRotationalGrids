@@ -1,5 +1,6 @@
 from typing import Tuple
 import os
+import shutil
 
 from molgri.bodies import Molecule
 from molgri.grids import ZeroGrid, FullGrid
@@ -98,17 +99,28 @@ class PtWriter(GroWriter):
                                  pos_nm_z=pos_nm[2])
             num_atom += 1
 
-    def write_full_pt_gro(self):
-        for i, second_molecule in self.pt.generate_pseudotrajectory():
+    def write_full_pt_gro(self, measure_time: bool = False):
+        if measure_time:
+            generating_func = self.pt.generate_pt_and_time
+        else:
+            generating_func = self.pt.generate_pseudotrajectory
+        for i, second_molecule in generating_func():
             self.write_frame(i, second_molecule)
         self.f.close()
 
     def write_frames_in_directory(self):
         self.f.close()
         directory = f"{PATH_OUTPUT_PT}{self.get_output_name()}"
-        os.mkdir(directory)
+
+        try:
+            os.mkdir(directory)
+        except FileExistsError:
+            # delete contents if folder already exist
+            filelist = [f for f in os.listdir(directory) if f.endswith(".gro")]
+            for f in filelist:
+                os.remove(os.path.join(directory, f))
         for i, second_molecule in self.pt.generate_pseudotrajectory():
-            self.f = open(f"{directory}{i}.gro", "w")
+            self.f = open(f"{directory}/{i}.gro", "w")
             self.write_frame(i, second_molecule)
             self.f.close()
 
@@ -130,23 +142,19 @@ class TwoMoleculeGroWriter(PtWriter):
         super().__init__(name_central_gro, name_rotating_gro, full_grid)
 
 
-# class PtFrameWriter(PtWriter):
-#
-#     def __init__(self, name_central_gro: str, name_rotating_gro: str, full_grid: FullGrid, frame_num: int):
-#         self.frame_num = frame_num
-#         super().__init__(name_central_gro, name_rotating_gro, full_grid)
-#
-#     def get_output_name(self):
-#         return self.frame_num
-#
-#
-# class GroDirectoryWriter(PtWriter):
-#
-#     def __init__(self, name_central_gro: str, name_rotating_gro: str, full_grid: FullGrid):
-#         super().__init__(name_central_gro, name_rotating_gro, full_grid)
-#         #pseudo_name = f"{name_central_gro}_{name_rotating_gro}_{full_grid.get_full_grid_name()}"
-#         self.directory = f"{PATH_OUTPUT_PT}{self.get_output_name()}"
-#         os.mkdir(self.directory)
-#         self.f.close()
-#
-#     def
+def directory2full_pt(directory_path: str):
+    path_to_dir, dir_name = os.path.split(directory_path)
+    print(path_to_dir, dir_name)
+    filelist = [f for f in os.listdir(directory_path) if f.endswith(".gro")]
+    filelist.sort(key=lambda x: int(x.split(".")[0]))
+    # TODO: from_directory_to_full_pt
+    print(f"{path_to_dir}{dir_name}.gro")
+    with open(f"{path_to_dir}{dir_name}.gro", 'wb') as wfd:
+        for f in filelist:
+            with open(f"{directory_path}/{f}", 'rb') as fd:
+                shutil.copyfileobj(fd, wfd)
+
+
+def full_pt2directory(full_pt_path: str):
+    # TODO: full pt to directory
+    pass

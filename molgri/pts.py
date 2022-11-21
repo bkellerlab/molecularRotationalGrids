@@ -30,6 +30,7 @@ class Pseudotrajectory:
         self.pt_o_name = self.rot_grid_origin.standard_name
         self.pt_b_name = self.rot_grid_body.standard_name
         self.pt_t_name = self.trans_grid.grid_hash
+        self.decorator_label = f"Pseudotrajectory {full_grid.get_full_grid_name()}"
         # convert grids to quaternions
         self.rot_grid_body = self.rot_grid_body.as_quaternion()
         self.rot_grid_origin = self.rot_grid_origin.as_quaternion()

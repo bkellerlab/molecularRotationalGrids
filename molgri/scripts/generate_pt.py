@@ -8,6 +8,8 @@ from os.path import exists
 from ..paths import PATH_INPUT_BASEGRO
 from molgri.parsers import NameParser, TranslationParser
 from ..scripts.generate_grid import prepare_grid
+from molgri.grids import FullGrid
+from molgri.writers import PtWriter
 from ..scripts.set_up_io import freshly_create_all_folders
 
 # TODO: define total_N and generate in all dimensions uniform grid?
@@ -67,9 +69,10 @@ def run_generate_pt():
     freshly_create_all_folders()
     my_args = parser.parse_args()
     my_og, my_bg, my_tg = check_file_existence(my_args)
-    pt = Pseudotrajectory(my_args.m1, my_args.m2, rot_grid_origin=my_og, trans_grid=my_tg, rot_grid_body=my_bg)
-    end_index = pt.generate_pt_and_time()
-    print(f"Generated a {pt.decorator_label} with {end_index} timesteps.")
+    full_grid = FullGrid(b_grid=my_bg, o_grid=my_og, t_grid=my_tg)
+    pt_writer = PtWriter(my_args.m1, my_args.m2, full_grid)
+    pt_writer.write_full_pt_gro()
+    print(f"Generated a Pseudotrajectory with {end_index} timesteps.")
 
 
 if __name__ == '__main__':

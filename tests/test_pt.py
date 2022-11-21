@@ -1,14 +1,14 @@
+import os
+
 import numpy as np
 
 from molgri.bodies import Molecule
-from molgri.pts import Pseudotrajectory
-from molgri.writers import TwoMoleculeGroWriter, PtWriter
+from molgri.writers import TwoMoleculeGroWriter, PtWriter, directory2full_pt
 from molgri.grids import IcoGrid, Cube4DGrid, ZeroGrid, FullGrid
-from molgri.parsers import TranslationParser, MultiframeGroParser, BaseGroParser
+from molgri.parsers import TranslationParser, MultiframeGroParser
 from molgri.scripts.set_up_io import freshly_create_all_folders, copy_examples
-from molgri.paths import PATH_OUTPUT_PT
 from molgri.utils import angle_between_vectors, normalise_vectors
-
+from molgri.paths import PATH_OUTPUT_PT
 
 def same_distance(mol1: Molecule, mol2: Molecule):
     """Check that two molecules have the same distance from COM to origin."""
@@ -188,7 +188,7 @@ def test_pt_rotations_body():
     distances = trans_grid.get_trans_grid()
     full_grid = FullGrid(t_grid=trans_grid, b_grid=ico_grid, o_grid=ZeroGrid())
     writer = PtWriter("H2O", "NH3", full_grid)
-    writer.write_full_pt_gro()
+    writer.write_full_pt_gro(measure_time=True)
     file_name = writer.file_name
     len_traj = writer.pt.current_frame
     assert len_traj == num_trans*num_rot
@@ -244,11 +244,41 @@ def test_order_of_operations():
                 same_body_orientation(mol2_ts_i, mol2_ts_j)
 
 
+# def test_frames_in_directory():
+#     n_b = 4
+#     grid_b = IcoGrid(n_b)
+#     n_o = 2
+#     grid_o = IcoGrid(n_o)
+#     n_t = 3
+#     trans_grid = TranslationParser("[1, 2, 3]")
+#     full_grid = FullGrid(t_grid=trans_grid, b_grid=grid_b, o_grid=grid_o)
+#     writer = PtWriter("H2O", "NH3", full_grid)
+#     writer.write_frames_in_directory()
+#     directory2full_pt(writer.file_name.split('.')[0]+"/")
+#     file_path, file_itself = os.path.split(writer.file_name)
+#     old_file = os.path.join("output/", file_itself)
+#     new_file = os.path.join("output/", "joined_" + file_itself)
+#     os.rename(old_file, new_file)
+#     #ts1 = MultiframeGroParser(writer.file_name, parse_atoms=True, is_pt=True).timesteps
+#     filelist = [f for f in os.listdir(f"{writer.file_name.split('.')[0]}") if f.endswith(".gro")]
+#     assert len(filelist) == n_b*n_o*n_t, "Not correct number of .gro files in a directory."
+#     # compare contents of individual files mit the single all-frame PT
+#     writer2 = PtWriter("H2O", "NH3", full_grid)
+#     writer2.write_full_pt_gro()
+#     #ts2 = MultiframeGroParser(writer2.file_name, parse_atoms=True, is_pt=True).timesteps
+#     with open(os.path.join("output/", "joined_" + file_itself), "r") as f1:
+#         with open(os.path.join("output/", file_itself), "r") as f2:
+#             l1 = f1.readlines()
+#             l2 = f2.readlines()
+#         assert np.all(l1 == l2)
+
+
 if __name__ == '__main__':
     freshly_create_all_folders()
     copy_examples()
-    test_pt_len()
-    test_pt_translations()
-    test_pt_rotations_origin()
-    test_pt_rotations_body()
-    test_order_of_operations()
+    # test_pt_len()
+    # test_pt_translations()
+    # test_pt_rotations_origin()
+    # test_pt_rotations_body()
+    # test_order_of_operations()
+    test_frames_in_directory()
