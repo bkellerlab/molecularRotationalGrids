@@ -6,7 +6,8 @@ from typing import TextIO
 import numpy as np
 from mendeleev.fetch import fetch_table
 from ast import literal_eval
-from chemfiles import Trajectory
+import mdtraj as md
+from mdtraj.formats import GroTrajectoryFile
 
 from .bodies import Molecule, MoleculeSet
 from .constants import MOLECULE_NAMES, SIX_METHOD_NAMES, FULL_RUN_NAME
@@ -202,21 +203,18 @@ def particle_type2element(particle_type: str) -> str:
 
 class TrajectoryParser:
     #TODO: use MDTraj instead
-
     def __init__(self, path: str):
-        self.trajectory = Trajectory(path)
-        self.num_atoms = None
-        self.box = None
+        self.trajectory = md.load(path)
+        self.num_atoms = self.trajectory.n_atoms
+        #self.box = self.trajectory.unitcell_lengths
 
     def generate_frame_as_molecule(self):
-        for _ in range(self.trajectory.nsteps):
-            frame = self.trajectory.read()
-            self.num_atoms = len(frame.atoms)
-            print(frame.cell)
-            self.box = frame.cell.lengths
-            gro_labels = [atom.name for atom in frame.atoms]
-            names = [particle_type2element(atom.name) for atom in frame.atoms]
-            yield Molecule(atom_names=names, centers=frame.positions, center_at_origin=False, gro_labels=gro_labels)
+        for frame in self.trajectory:
+            print(frame.xyz)
+            # frame = self.trajectory.read()
+            # gro_labels = [atom.name for atom in frame.atoms]
+            # names = [particle_type2element(atom.name) for atom in frame.atoms]
+            # yield Molecule(atom_names=names, centers=frame.positions, center_at_origin=False, gro_labels=gro_labels)
 
 
 class BaseGroParser:
@@ -391,5 +389,7 @@ class TranslationParser(object):
 
 if __name__ == "__main__":
     tp = TrajectoryParser("/home/zupanhana/PAPER_MOLECULAR_ROTATIONS_2022/molgri/output/pt_files/H2O_NH3_o_zero_b_ico_4_t_4186227062.gro")
-    for el in tp.generate_frame_as_molecule():
-        print(el)
+    print(tp.num_atoms)
+    #tp2 = TrajectoryParser("/home/zupanhana/PAPER_MOLECULAR_ROTATIONS_2022/molgri/input/NA.gro")
+    #for el in tp.generate_frame_as_molecule():
+    #    print(el)
