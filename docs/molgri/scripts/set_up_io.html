@@ -35,18 +35,31 @@ This script should be run to define input and output directories if the user wan
 than default ones. It can also be run at any later point to move the contents from previously selected directories
 to new ones.
 &#34;&#34;&#34;
-
+import argparse
 import os
+import shutil
 
-from ..constants import PATH_USER_PATHS
+from ..constants import PATH_USER_PATHS, PATH_EXAMPLES
 
-# if you introduce new IO folders, add them to next three lines
+parser = argparse.ArgumentParser()
+parser.add_argument(&#39;--examples&#39;, action=&#39;store_true&#39;,
+                    help=&#39;copy example inputs&#39;)
+
+# if you introduce new IO folders, add them to next three lines, keep the order the same!
 IO_FOLDER_PURPUSES = [&#34;rotational grids&#34;, &#34;pseudotrajectory files&#34;, &#34;base gro files&#34;, &#34;plots&#34;, &#34;animations&#34;,
-                      &#34;grid statistics&#34;]
-IO_FOLDER_DEFAULTS = [&#34;output/grid_files/&#34;, &#34;output/pt_files/&#34;, &#34;input/base_gro_files/&#34;, &#34;output/figures/&#34;,
-                      &#34;output/animations/&#34;, &#34;output/statistics_files/&#34;]
+                      &#34;grid statistics&#34;, &#34;translational grids&#34;]
+IO_FOLDER_DEFAULTS = [&#34;output/rot_grids/&#34;, &#34;output/pt_files/&#34;, &#34;input/&#34;, &#34;output/figures/&#34;,
+                      &#34;output/animations/&#34;, &#34;output/statistics_files/&#34;, &#34;output/trans_grids/&#34;]
 IO_VARIABLE_NAMES = [&#34;PATH_OUTPUT_ROTGRIDS&#34;, &#34;PATH_OUTPUT_PT&#34;, &#34;PATH_INPUT_BASEGRO&#34;, &#34;PATH_OUTPUT_PLOTS&#34;,
-                     &#34;PATH_OUTPUT_ANIS&#34;, &#34;PATH_OUTPUT_STAT&#34;]
+                     &#34;PATH_OUTPUT_ANIS&#34;, &#34;PATH_OUTPUT_STAT&#34;, &#34;PATH_OUTPUT_TRANSGRIDS&#34;]
+
+
+def parse_and_create():
+    my_args = parser.parse_args()
+    freshly_create_all_folders()
+    # copy example inputs if option selected
+    if my_args.examples:
+        copy_examples()
 
 
 def freshly_create_all_folders():
@@ -58,8 +71,16 @@ def freshly_create_all_folders():
             f.write(f&#34;{varname} = &#39;{new_value}&#39;\n&#34;)
 
 
+def copy_examples():
+    src_files = os.listdir(PATH_EXAMPLES)
+    for file_name in src_files:
+        full_file_name = os.path.join(PATH_EXAMPLES, file_name)
+        if os.path.isfile(full_file_name) and full_file_name.endswith(&#34;.gro&#34;):
+            shutil.copy(full_file_name, IO_FOLDER_DEFAULTS[2])
+
+
 if __name__ == &#39;__main__&#39;:
-    freshly_create_all_folders()</code></pre>
+    parse_and_create()</code></pre>
 </details>
 </section>
 <section>
@@ -69,6 +90,23 @@ if __name__ == &#39;__main__&#39;:
 <section>
 <h2 class="section-title" id="header-functions">Functions</h2>
 <dl>
+<dt id="molgri.scripts.set_up_io.copy_examples"><code class="name flex">
+<span>def <span class="ident">copy_examples</span></span>(<span>)</span>
+</code></dt>
+<dd>
+<div class="desc"></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def copy_examples():
+    src_files = os.listdir(PATH_EXAMPLES)
+    for file_name in src_files:
+        full_file_name = os.path.join(PATH_EXAMPLES, file_name)
+        if os.path.isfile(full_file_name) and full_file_name.endswith(&#34;.gro&#34;):
+            shutil.copy(full_file_name, IO_FOLDER_DEFAULTS[2])</code></pre>
+</details>
+</dd>
 <dt id="molgri.scripts.set_up_io.freshly_create_all_folders"><code class="name flex">
 <span>def <span class="ident">freshly_create_all_folders</span></span>(<span>)</span>
 </code></dt>
@@ -85,6 +123,23 @@ if __name__ == &#39;__main__&#39;:
     with open(PATH_USER_PATHS, &#34;w&#34;) as f:
         for varname, new_value in zip(IO_VARIABLE_NAMES, IO_FOLDER_DEFAULTS):
             f.write(f&#34;{varname} = &#39;{new_value}&#39;\n&#34;)</code></pre>
+</details>
+</dd>
+<dt id="molgri.scripts.set_up_io.parse_and_create"><code class="name flex">
+<span>def <span class="ident">parse_and_create</span></span>(<span>)</span>
+</code></dt>
+<dd>
+<div class="desc"></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def parse_and_create():
+    my_args = parser.parse_args()
+    freshly_create_all_folders()
+    # copy example inputs if option selected
+    if my_args.examples:
+        copy_examples()</code></pre>
 </details>
 </dd>
 </dl>
@@ -105,7 +160,9 @@ if __name__ == &#39;__main__&#39;:
 </li>
 <li><h3><a href="#header-functions">Functions</a></h3>
 <ul class="">
+<li><code><a title="molgri.scripts.set_up_io.copy_examples" href="#molgri.scripts.set_up_io.copy_examples">copy_examples</a></code></li>
 <li><code><a title="molgri.scripts.set_up_io.freshly_create_all_folders" href="#molgri.scripts.set_up_io.freshly_create_all_folders">freshly_create_all_folders</a></code></li>
+<li><code><a title="molgri.scripts.set_up_io.parse_and_create" href="#molgri.scripts.set_up_io.parse_and_create">parse_and_create</a></code></li>
 </ul>
 </li>
 </ul>

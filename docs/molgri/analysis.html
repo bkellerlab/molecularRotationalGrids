@@ -29,20 +29,7 @@
 <pre><code class="python">import numpy as np
 from scipy.constants import pi
 
-
-def unit_dist_on_sphere(vector1: np.ndarray, vector2: np.ndarray) -&gt; np.ndarray:
-    &#34;&#34;&#34;
-    Same as dist_on_sphere, but accepts and returns arrays and should only be used for already unitary vectors.
-
-    Args:
-        vector1: vector shape (n1, d)
-        vector2: vector shape (n2, d)
-
-    Returns:
-        an array the shape (n1, n2) containing distances between both sets of points on sphere
-    &#34;&#34;&#34;
-    angle = np.arccos(np.clip(np.dot(vector1, vector2.T), -1.0, 1.0))  # in radians
-    return angle
+from molgri.utils import angle_between_vectors
 
 
 def random_sphere_points(n: int = 1000) -&gt; np.ndarray:
@@ -65,34 +52,35 @@ def random_sphere_points(n: int = 1000) -&gt; np.ndarray:
     return np.concatenate((x, y, z), axis=1)
 
 
-def unit_vector(vector):
-    &#34;&#34;&#34; Returns the unit vector of the vector.  &#34;&#34;&#34;
-    return vector / np.linalg.norm(vector)
+def vector_within_alpha(central_vec: np.ndarray, side_vector: np.ndarray, alpha: float) -&gt; bool or np.ndarray:
+    &#34;&#34;&#34;
+    Answers the question: which angles between both vectors or sets of vectors are within angle angle alpha?
+
+    Args:
+        central_vec: a single vector of shape (d,) or an array of vectors of shape (n1, d)
+        side_vector: a single vector of shape (d,) or an array of vectors of shape (n2, d)
+        alpha: in radians, angle around central_vec where we check if side_vectors occur
+
+    Returns:
+        array of bools of shape (n1, n2) if both vectors are 2D
+                       of shape (n2,) if central_vec is 1D and side_vec 2D
+                       of shape (n1,) if central_vec is 2D and side_vec 1D
+                       of shape (1,) if both vectors are 1D
+    &#34;&#34;&#34;
+    return angle_between_vectors(central_vec, side_vector) &lt; alpha
 
 
-def vector_within_alpha(central_vec: np.ndarray, side_vector: np.ndarray, alpha: float):
-    v1_u = unit_vector(central_vec)
-    v2_u = unit_vector(side_vector)
-    angle_vectors = np.arccos(np.clip(np.dot(v1_u, v2_u), -1.0, 1.0))
-    return angle_vectors &lt; alpha
+def count_points_within_alpha(array_points: np.ndarray, central_vec: np.ndarray, alpha: float):
+    # since a list of True or False is returned, the sum gives the total number of True elements
+    return np.sum(vector_within_alpha(central_vec, array_points, alpha))
 
 
-def count_points_within_alpha(grid, central_vec: np.ndarray, alpha: float):
-    grid_points = grid.get_grid()
-    num_points = 0
-    for point in grid_points:
-        if vector_within_alpha(central_vec, point, alpha):
-            num_points += 1
-    return num_points
-
-
-def random_axes_count_points(grid, alpha: float, num_random_points: int = 1000):
+def random_axes_count_points(array_points: np.ndarray, alpha: float, num_random_points: int = 1000):
     central_vectors = random_sphere_points(num_random_points)
     all_ratios = np.zeros(num_random_points)
-
     for i, central_vector in enumerate(central_vectors):
-        num_within = count_points_within_alpha(grid, central_vector, alpha)
-        all_ratios[i] = num_within/grid.N
+        num_within = count_points_within_alpha(array_points, central_vector, alpha)
+        all_ratios[i] = num_within/len(array_points)
     return all_ratios</code></pre>
 </details>
 </section>
@@ -104,7 +92,7 @@ def random_axes_count_points(grid, alpha: float, num_random_points: int = 1000):
 <h2 class="section-title" id="header-functions">Functions</h2>
 <dl>
 <dt id="molgri.analysis.count_points_within_alpha"><code class="name flex">
-<span>def <span class="ident">count_points_within_alpha</span></span>(<span>grid, central_vec: numpy.ndarray, alpha: float)</span>
+<span>def <span class="ident">count_points_within_alpha</span></span>(<span>array_points: numpy.ndarray, central_vec: numpy.ndarray, alpha: float)</span>
 </code></dt>
 <dd>
 <div class="desc"></div>
@@ -112,17 +100,13 @@ def random_axes_count_points(grid, alpha: float, num_random_points: int = 1000):
 <summary>
 <span>Expand source code</span>
 </summary>
-<pre><code class="python">def count_points_within_alpha(grid, central_vec: np.ndarray, alpha: float):
-    grid_points = grid.get_grid()
-    num_points = 0
-    for point in grid_points:
-        if vector_within_alpha(central_vec, point, alpha):
-            num_points += 1
-    return num_points</code></pre>
+<pre><code class="python">def count_points_within_alpha(array_points: np.ndarray, central_vec: np.ndarray, alpha: float):
+    # since a list of True or False is returned, the sum gives the total number of True elements
+    return np.sum(vector_within_alpha(central_vec, array_points, alpha))</code></pre>
 </details>
 </dd>
 <dt id="molgri.analysis.random_axes_count_points"><code class="name flex">
-<span>def <span class="ident">random_axes_count_points</span></span>(<span>grid, alpha: float, num_random_points: int = 1000)</span>
+<span>def <span class="ident">random_axes_count_points</span></span>(<span>array_points: numpy.ndarray, alpha: float, num_random_points: int = 1000)</span>
 </code></dt>
 <dd>
 <div class="desc"></div>
@@ -130,13 +114,12 @@ def random_axes_count_points(grid, alpha: float, num_random_points: int = 1000):
 <summary>
 <span>Expand source code</span>
 </summary>
-<pre><code class="python">def random_axes_count_points(grid, alpha: float, num_random_points: int = 1000):
+<pre><code class="python">def random_axes_count_points(array_points: np.ndarray, alpha: float, num_random_points: int = 1000):
     central_vectors = random_sphere_points(num_random_points)
     all_ratios = np.zeros(num_random_points)
-
     for i, central_vector in enumerate(central_vectors):
-        num_within = count_points_within_alpha(grid, central_vector, alpha)
-        all_ratios[i] = num_within/grid.N
+        num_within = count_points_within_alpha(array_points, central_vector, alpha)
+        all_ratios[i] = num_within/len(array_points)
     return all_ratios</code></pre>
 </details>
 </dd>
@@ -176,67 +159,45 @@ def random_axes_count_points(grid, alpha: float, num_random_points: int = 1000):
     return np.concatenate((x, y, z), axis=1)</code></pre>
 </details>
 </dd>
-<dt id="molgri.analysis.unit_dist_on_sphere"><code class="name flex">
-<span>def <span class="ident">unit_dist_on_sphere</span></span>(<span>vector1: numpy.ndarray, vector2: numpy.ndarray) ‑> numpy.ndarray</span>
+<dt id="molgri.analysis.vector_within_alpha"><code class="name flex">
+<span>def <span class="ident">vector_within_alpha</span></span>(<span>central_vec: numpy.ndarray, side_vector: numpy.ndarray, alpha: float) ‑> bool</span>
 </code></dt>
 <dd>
-<div class="desc"><p>Same as dist_on_sphere, but accepts and returns arrays and should only be used for already unitary vectors.</p>
+<div class="desc"><p>Answers the question: which angles between both vectors or sets of vectors are within angle angle alpha?</p>
 <h2 id="args">Args</h2>
 <dl>
-<dt><strong><code>vector1</code></strong></dt>
-<dd>vector shape (n1, d)</dd>
-<dt><strong><code>vector2</code></strong></dt>
-<dd>vector shape (n2, d)</dd>
+<dt><strong><code>central_vec</code></strong></dt>
+<dd>a single vector of shape (d,) or an array of vectors of shape (n1, d)</dd>
+<dt><strong><code>side_vector</code></strong></dt>
+<dd>a single vector of shape (d,) or an array of vectors of shape (n2, d)</dd>
+<dt><strong><code>alpha</code></strong></dt>
+<dd>in radians, angle around central_vec where we check if side_vectors occur</dd>
 </dl>
 <h2 id="returns">Returns</h2>
-<p>an array the shape (n1, n2) containing distances between both sets of points on sphere</p></div>
+<p>array of bools of shape (n1, n2) if both vectors are 2D
+of shape (n2,) if central_vec is 1D and side_vec 2D
+of shape (n1,) if central_vec is 2D and side_vec 1D
+of shape (1,) if both vectors are 1D</p></div>
 <details class="source">
 <summary>
 <span>Expand source code</span>
 </summary>
-<pre><code class="python">def unit_dist_on_sphere(vector1: np.ndarray, vector2: np.ndarray) -&gt; np.ndarray:
+<pre><code class="python">def vector_within_alpha(central_vec: np.ndarray, side_vector: np.ndarray, alpha: float) -&gt; bool or np.ndarray:
     &#34;&#34;&#34;
-    Same as dist_on_sphere, but accepts and returns arrays and should only be used for already unitary vectors.
+    Answers the question: which angles between both vectors or sets of vectors are within angle angle alpha?
 
     Args:
-        vector1: vector shape (n1, d)
-        vector2: vector shape (n2, d)
+        central_vec: a single vector of shape (d,) or an array of vectors of shape (n1, d)
+        side_vector: a single vector of shape (d,) or an array of vectors of shape (n2, d)
+        alpha: in radians, angle around central_vec where we check if side_vectors occur
 
     Returns:
-        an array the shape (n1, n2) containing distances between both sets of points on sphere
+        array of bools of shape (n1, n2) if both vectors are 2D
+                       of shape (n2,) if central_vec is 1D and side_vec 2D
+                       of shape (n1,) if central_vec is 2D and side_vec 1D
+                       of shape (1,) if both vectors are 1D
     &#34;&#34;&#34;
-    angle = np.arccos(np.clip(np.dot(vector1, vector2.T), -1.0, 1.0))  # in radians
-    return angle</code></pre>
-</details>
-</dd>
-<dt id="molgri.analysis.unit_vector"><code class="name flex">
-<span>def <span class="ident">unit_vector</span></span>(<span>vector)</span>
-</code></dt>
-<dd>
-<div class="desc"><p>Returns the unit vector of the vector.</p></div>
-<details class="source">
-<summary>
-<span>Expand source code</span>
-</summary>
-<pre><code class="python">def unit_vector(vector):
-    &#34;&#34;&#34; Returns the unit vector of the vector.  &#34;&#34;&#34;
-    return vector / np.linalg.norm(vector)</code></pre>
-</details>
-</dd>
-<dt id="molgri.analysis.vector_within_alpha"><code class="name flex">
-<span>def <span class="ident">vector_within_alpha</span></span>(<span>central_vec: numpy.ndarray, side_vector: numpy.ndarray, alpha: float)</span>
-</code></dt>
-<dd>
-<div class="desc"></div>
-<details class="source">
-<summary>
-<span>Expand source code</span>
-</summary>
-<pre><code class="python">def vector_within_alpha(central_vec: np.ndarray, side_vector: np.ndarray, alpha: float):
-    v1_u = unit_vector(central_vec)
-    v2_u = unit_vector(side_vector)
-    angle_vectors = np.arccos(np.clip(np.dot(v1_u, v2_u), -1.0, 1.0))
-    return angle_vectors &lt; alpha</code></pre>
+    return angle_between_vectors(central_vec, side_vector) &lt; alpha</code></pre>
 </details>
 </dd>
 </dl>
@@ -260,8 +221,6 @@ def random_axes_count_points(grid, alpha: float, num_random_points: int = 1000):
 <li><code><a title="molgri.analysis.count_points_within_alpha" href="#molgri.analysis.count_points_within_alpha">count_points_within_alpha</a></code></li>
 <li><code><a title="molgri.analysis.random_axes_count_points" href="#molgri.analysis.random_axes_count_points">random_axes_count_points</a></code></li>
 <li><code><a title="molgri.analysis.random_sphere_points" href="#molgri.analysis.random_sphere_points">random_sphere_points</a></code></li>
-<li><code><a title="molgri.analysis.unit_dist_on_sphere" href="#molgri.analysis.unit_dist_on_sphere">unit_dist_on_sphere</a></code></li>
-<li><code><a title="molgri.analysis.unit_vector" href="#molgri.analysis.unit_vector">unit_vector</a></code></li>
 <li><code><a title="molgri.analysis.vector_within_alpha" href="#molgri.analysis.vector_within_alpha">vector_within_alpha</a></code></li>
 </ul>
 </li>

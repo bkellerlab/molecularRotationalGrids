@@ -37,10 +37,11 @@ from os.path import exists
 from ..paths import PATH_INPUT_BASEGRO
 from molgri.parsers import NameParser, TranslationParser
 from ..scripts.generate_grid import prepare_grid
+from molgri.grids import FullGrid
+from molgri.writers import PtWriter
 from ..scripts.set_up_io import freshly_create_all_folders
 
 # TODO: define total_N and generate in all dimensions uniform grid?
-# TODO: allow different rotation grids for two types of rotation
 from molgri.pts import Pseudotrajectory
 
 parser = argparse.ArgumentParser()
@@ -49,26 +50,37 @@ requiredNamed.add_argument(&#39;-m1&#39;, type=str, nargs=&#39;?&#39;, required=
                     help=&#39;name of the .gro file containing the fixed molecule&#39;)
 requiredNamed.add_argument(&#39;-m2&#39;, type=str, nargs=&#39;?&#39;, required=True,
                     help=&#39;name of the .gro file containing the mobile molecule&#39;)
-requiredNamed.add_argument(&#39;-rotgrid&#39;, metavar=&#39;rg&#39;, type=str, nargs=&#39;?&#39;, required=True,
-                    help=&#39;name of the rotation grid in the form algorithm_N (eg. ico_50)&#39;)
+requiredNamed.add_argument(&#39;-origingrid&#39;, metavar=&#39;og&#39;, type=str, nargs=&#39;?&#39;, required=True,
+                    help=&#39;name of the rotation grid for rotations around origin in the form algorithm_N (eg. ico_50)&#39;)
+requiredNamed.add_argument(&#39;-bodygrid&#39;, metavar=&#39;bg&#39;, type=str, nargs=&#39;?&#39;, required=True,
+                    help=&#39;name of the rotation grid for rotations around body in the form algorithm_N (eg. ico_50)&#39;
+                         &#39;OR None if you only want rotations arount origin&#39;)
 requiredNamed.add_argument(&#39;-transgrid&#39;, metavar=&#39;tg&#39;, type=str, nargs=&#39;?&#39;, required=True,
                     help=&#39;translation grid provided as a list of distances, as linspace(start, stop, num) &#39;
                          &#39;or range(start, stop, step) in nanometers&#39;)
-parser.add_argument(&#39;--only_origin&#39;, action=&#39;store_true&#39;,
-                    help=&#39;only include rotations around the origin, not around the body&#39;)
 parser.add_argument(&#39;--recalculate&#39;, action=&#39;store_true&#39;,
                     help=&#39;recalculate the grid even if a saved version already exists&#39;)
+parser.add_argument(&#39;--as_dir&#39;, action=&#39;store_true&#39;,
+                    help=&#39;Save the PT as a directory of frames&#39;)
 
 
 def check_file_existence(args):
     path_c_mol = f&#34;{PATH_INPUT_BASEGRO}{args.m1}.gro&#34;
     path_r_mol = f&#34;{PATH_INPUT_BASEGRO}{args.m2}.gro&#34;
-    # check if rotgrid name a valid name
-    nap = NameParser(args.rotgrid)
-    N = nap.num_grid_points
-    algo = nap.grid_type
-    assert algo is not None, f&#34;Rotation grid algorithm not recognised, check rotgrid argument: {args.rotgrid}&#34;
-    assert N is not None, f&#34;Num of grid points not recognised, check rotgrid argument: {args.rotgrid}&#34;
+    # check rotational grid names
+    nap1 = NameParser(args.origingrid)
+    N = nap1.num_grid_points
+    algo = nap1.grid_type
+    assert algo is not None, f&#34;Rotation grid algorithm not recognised, check origingrid argument: {args.origingrid}&#34;
+    assert N is not None, f&#34;Num of grid points not recognised, check origingrid argument: {args.origingrid}&#34;
+    if args.bodygrid in [&#34;None&#34;, &#34;none&#34;, &#34;NONE&#34;, &#34;zero&#34;, &#34;ZERO&#34;]:
+        nap2 = NameParser(&#34;zero_1&#34;)
+    else:
+        nap2 = NameParser(args.bodygrid)
+    N = nap2.num_grid_points
+    algo = nap2.grid_type
+    assert algo is not None, f&#34;Rotation grid algorithm not recognised, check bodygrid argument: {args.bodygrid}&#34;
+    assert N is not None, f&#34;Num of grid points not recognised, check bodygrid argument: {args.bodygrid}&#34;
     # check if input rotgrid files exist
     if not exists(path_c_mol):
         raise FileNotFoundError(f&#34;Could not find the file {args.m1}.gro at {PATH_INPUT_BASEGRO}. &#34;
@@ -77,27 +89,25 @@ def check_file_existence(args):
         raise FileNotFoundError(f&#34;Could not find the file {args.m2}.gro at {PATH_INPUT_BASEGRO}. &#34;
                                 &#34;Please provide a valid .gro file name as the second script parameter.&#34;)
     # if the rotational grid file doesn&#39;t exist, create it
-    rot_grid = prepare_grid(args, nap)
+    origin_grid = prepare_grid(args, nap1)
+    body_grid = prepare_grid(args, nap2)
     # parse translational grid
     trans_grid = TranslationParser(args.transgrid)
-    return rot_grid, trans_grid
-
-
-def prepare_pseudotrajectory(args, r_grid, t_grid):
-    if args.only_origin:
-        traj_type = &#34;circular&#34;
-    else:
-        traj_type = &#34;full&#34;
-    pt = Pseudotrajectory(args.m1, args.m2, rot_grid=r_grid, trans_grid=t_grid, traj_type=traj_type)
-    end_index = pt.generate_pt_and_time()
-    print(f&#34;Generated a {pt.decorator_label} with {end_index} timesteps.&#34;)
+    return origin_grid, body_grid, trans_grid
 
 
 def run_generate_pt():
     freshly_create_all_folders()
     my_args = parser.parse_args()
-    my_rg, my_tg = check_file_existence(my_args)
-    prepare_pseudotrajectory(my_args, my_rg, my_tg)
+    my_og, my_bg, my_tg = check_file_existence(my_args)
+    full_grid = FullGrid(b_grid=my_bg, o_grid=my_og, t_grid=my_tg)
+    pt_writer = PtWriter(my_args.m1, my_args.m2, full_grid)
+    if my_args.as_dir:
+        pt_writer.write_frames_in_directory()
+        print(f&#34;Generated a PT in form of a directory filled with single-frame .gro files.&#34;)
+    else:
+        pt_writer.write_full_pt_gro()
+        print(f&#34;Generated a Pseudotrajectory with {pt_writer.pt.current_frame} timesteps.&#34;)
 
 
 if __name__ == &#39;__main__&#39;:
@@ -123,12 +133,20 @@ if __name__ == &#39;__main__&#39;:
 <pre><code class="python">def check_file_existence(args):
     path_c_mol = f&#34;{PATH_INPUT_BASEGRO}{args.m1}.gro&#34;
     path_r_mol = f&#34;{PATH_INPUT_BASEGRO}{args.m2}.gro&#34;
-    # check if rotgrid name a valid name
-    nap = NameParser(args.rotgrid)
-    N = nap.num_grid_points
-    algo = nap.grid_type
-    assert algo is not None, f&#34;Rotation grid algorithm not recognised, check rotgrid argument: {args.rotgrid}&#34;
-    assert N is not None, f&#34;Num of grid points not recognised, check rotgrid argument: {args.rotgrid}&#34;
+    # check rotational grid names
+    nap1 = NameParser(args.origingrid)
+    N = nap1.num_grid_points
+    algo = nap1.grid_type
+    assert algo is not None, f&#34;Rotation grid algorithm not recognised, check origingrid argument: {args.origingrid}&#34;
+    assert N is not None, f&#34;Num of grid points not recognised, check origingrid argument: {args.origingrid}&#34;
+    if args.bodygrid in [&#34;None&#34;, &#34;none&#34;, &#34;NONE&#34;, &#34;zero&#34;, &#34;ZERO&#34;]:
+        nap2 = NameParser(&#34;zero_1&#34;)
+    else:
+        nap2 = NameParser(args.bodygrid)
+    N = nap2.num_grid_points
+    algo = nap2.grid_type
+    assert algo is not None, f&#34;Rotation grid algorithm not recognised, check bodygrid argument: {args.bodygrid}&#34;
+    assert N is not None, f&#34;Num of grid points not recognised, check bodygrid argument: {args.bodygrid}&#34;
     # check if input rotgrid files exist
     if not exists(path_c_mol):
         raise FileNotFoundError(f&#34;Could not find the file {args.m1}.gro at {PATH_INPUT_BASEGRO}. &#34;
@@ -137,29 +155,11 @@ if __name__ == &#39;__main__&#39;:
         raise FileNotFoundError(f&#34;Could not find the file {args.m2}.gro at {PATH_INPUT_BASEGRO}. &#34;
                                 &#34;Please provide a valid .gro file name as the second script parameter.&#34;)
     # if the rotational grid file doesn&#39;t exist, create it
-    rot_grid = prepare_grid(args, nap)
+    origin_grid = prepare_grid(args, nap1)
+    body_grid = prepare_grid(args, nap2)
     # parse translational grid
     trans_grid = TranslationParser(args.transgrid)
-    return rot_grid, trans_grid</code></pre>
-</details>
-</dd>
-<dt id="molgri.scripts.generate_pt.prepare_pseudotrajectory"><code class="name flex">
-<span>def <span class="ident">prepare_pseudotrajectory</span></span>(<span>args, r_grid, t_grid)</span>
-</code></dt>
-<dd>
-<div class="desc"></div>
-<details class="source">
-<summary>
-<span>Expand source code</span>
-</summary>
-<pre><code class="python">def prepare_pseudotrajectory(args, r_grid, t_grid):
-    if args.only_origin:
-        traj_type = &#34;circular&#34;
-    else:
-        traj_type = &#34;full&#34;
-    pt = Pseudotrajectory(args.m1, args.m2, rot_grid=r_grid, trans_grid=t_grid, traj_type=traj_type)
-    end_index = pt.generate_pt_and_time()
-    print(f&#34;Generated a {pt.decorator_label} with {end_index} timesteps.&#34;)</code></pre>
+    return origin_grid, body_grid, trans_grid</code></pre>
 </details>
 </dd>
 <dt id="molgri.scripts.generate_pt.run_generate_pt"><code class="name flex">
@@ -174,8 +174,15 @@ if __name__ == &#39;__main__&#39;:
 <pre><code class="python">def run_generate_pt():
     freshly_create_all_folders()
     my_args = parser.parse_args()
-    my_rg, my_tg = check_file_existence(my_args)
-    prepare_pseudotrajectory(my_args, my_rg, my_tg)</code></pre>
+    my_og, my_bg, my_tg = check_file_existence(my_args)
+    full_grid = FullGrid(b_grid=my_bg, o_grid=my_og, t_grid=my_tg)
+    pt_writer = PtWriter(my_args.m1, my_args.m2, full_grid)
+    if my_args.as_dir:
+        pt_writer.write_frames_in_directory()
+        print(f&#34;Generated a PT in form of a directory filled with single-frame .gro files.&#34;)
+    else:
+        pt_writer.write_full_pt_gro()
+        print(f&#34;Generated a Pseudotrajectory with {pt_writer.pt.current_frame} timesteps.&#34;)</code></pre>
 </details>
 </dd>
 </dl>
@@ -197,7 +204,6 @@ if __name__ == &#39;__main__&#39;:
 <li><h3><a href="#header-functions">Functions</a></h3>
 <ul class="">
 <li><code><a title="molgri.scripts.generate_pt.check_file_existence" href="#molgri.scripts.generate_pt.check_file_existence">check_file_existence</a></code></li>
-<li><code><a title="molgri.scripts.generate_pt.prepare_pseudotrajectory" href="#molgri.scripts.generate_pt.prepare_pseudotrajectory">prepare_pseudotrajectory</a></code></li>
 <li><code><a title="molgri.scripts.generate_pt.run_generate_pt" href="#molgri.scripts.generate_pt.run_generate_pt">run_generate_pt</a></code></li>
 </ul>
 </li>
