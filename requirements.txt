@@ -11,3 +11,4 @@ setuptools~=62.6.0
 pytest-cov>=4.0
 pytest-xdist>=3.0.2
 coverage>=6.5
+chemfiles>=0.10

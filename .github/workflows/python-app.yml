@@ -38,7 +38,7 @@ jobs:
         flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
     - name: Test with pytest
       run: |
-        pytest --cov=molgri tests/
+        pytest --cov=molgri tests/ --durations=10
         coverage lcov
     - name: Coveralls GitHub Action
       uses: coverallsapp/github-action@1.1.3

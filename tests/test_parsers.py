@@ -2,17 +2,17 @@ import numpy as np
 import pytest
 from mendeleev import element
 
-from molgri.parsers import NameParser, BaseGroParser, TranslationParser, MultiframeGroParser, PtFrameParser, particle_type2element
+from molgri.parsers import NameParser, BaseGroParser, TranslationParser, MultiframeGroParser, PtFrameParser, particle_type2element, TrajectoryParser
 
 
 def test_atom_gro_file():
     file_name = f"molgri/examples/NA.gro"
-    my_parser = BaseGroParser(file_name)
+    my_parser = TrajectoryParser(file_name)
     assert my_parser.num_atoms == 1
-    assert my_parser.comment == "Na+ ion"
+    #assert my_parser.comment == "Na+ ion"
     assert np.allclose(my_parser.box, [30, 30, 30])
     assert isinstance(my_parser.box[0], int)
-    my_molecule_set = my_parser.molecule_set
+    my_molecule_set = my_parser.generate_frame_as_molecule()
     my_molecule = my_molecule_set
     assert np.allclose(my_molecule.position, [0, 0, 0])
     assert my_molecule.atoms[0].element == element("Na")
@@ -165,10 +165,10 @@ def test_expected_errors():
 
 
 if __name__ == '__main__':
-    #test_atom_gro_file()
+    test_atom_gro_file()
     #test_parsing_pt_gro()
     #test_water_gro_file()
-    test_protein_gro_file()
+    #test_protein_gro_file()
     #test_name_parser()
     #test_trans_parser()
     #test_expected_errors()
