@@ -144,11 +144,8 @@ class TwoMoleculeGroWriter(PtWriter):
 
 def directory2full_pt(directory_path: str):
     path_to_dir, dir_name = os.path.split(directory_path)
-    print(path_to_dir, dir_name)
     filelist = [f for f in os.listdir(directory_path) if f.endswith(".gro")]
     filelist.sort(key=lambda x: int(x.split(".")[0]))
-    # TODO: from_directory_to_full_pt
-    print(f"{path_to_dir}{dir_name}.gro")
     with open(f"{path_to_dir}{dir_name}.gro", 'wb') as wfd:
         for f in filelist:
             with open(f"{directory_path}/{f}", 'rb') as fd:
@@ -156,5 +153,20 @@ def directory2full_pt(directory_path: str):
 
 
 def full_pt2directory(full_pt_path: str):
+    with open(full_pt_path, "r") as f_read:
+        lines = f_read.readlines()
+    num_atoms = int(lines[1].strip("\n").strip())
+    print(num_atoms)
     # TODO: full pt to directory
-    pass
+    directory = full_pt_path.split(".")[0]
+    try:
+        os.mkdir(directory)
+    except FileExistsError:
+        # delete contents if folder already exist
+        filelist = [f for f in os.listdir(directory) if f.endswith(".gro")]
+        for f in filelist:
+            os.remove(os.path.join(directory, f))
+    for i, second_molecule in self.pt.generate_pseudotrajectory():
+        self.f = open(f"{directory}/{i}.gro", "w")
+        self.write_frame(i, second_molecule)
+        self.f.close()

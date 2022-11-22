@@ -3,7 +3,7 @@ import os
 import numpy as np
 
 from molgri.bodies import Molecule
-from molgri.writers import TwoMoleculeGroWriter, PtWriter, directory2full_pt
+from molgri.writers import TwoMoleculeGroWriter, PtWriter, directory2full_pt, full_pt2directory
 from molgri.grids import IcoGrid, Cube4DGrid, ZeroGrid, FullGrid
 from molgri.parsers import TranslationParser, MultiframeGroParser
 from molgri.scripts.set_up_io import freshly_create_all_folders, copy_examples
@@ -244,33 +244,47 @@ def test_order_of_operations():
                 same_body_orientation(mol2_ts_i, mol2_ts_j)
 
 
-# def test_frames_in_directory():
-#     n_b = 4
-#     grid_b = IcoGrid(n_b)
-#     n_o = 2
-#     grid_o = IcoGrid(n_o)
-#     n_t = 3
-#     trans_grid = TranslationParser("[1, 2, 3]")
-#     full_grid = FullGrid(t_grid=trans_grid, b_grid=grid_b, o_grid=grid_o)
-#     writer = PtWriter("H2O", "NH3", full_grid)
-#     writer.write_frames_in_directory()
-#     directory2full_pt(writer.file_name.split('.')[0]+"/")
-#     file_path, file_itself = os.path.split(writer.file_name)
-#     old_file = os.path.join("output/", file_itself)
-#     new_file = os.path.join("output/", "joined_" + file_itself)
-#     os.rename(old_file, new_file)
-#     #ts1 = MultiframeGroParser(writer.file_name, parse_atoms=True, is_pt=True).timesteps
-#     filelist = [f for f in os.listdir(f"{writer.file_name.split('.')[0]}") if f.endswith(".gro")]
-#     assert len(filelist) == n_b*n_o*n_t, "Not correct number of .gro files in a directory."
-#     # compare contents of individual files mit the single all-frame PT
-#     writer2 = PtWriter("H2O", "NH3", full_grid)
-#     writer2.write_full_pt_gro()
-#     #ts2 = MultiframeGroParser(writer2.file_name, parse_atoms=True, is_pt=True).timesteps
-#     with open(os.path.join("output/", "joined_" + file_itself), "r") as f1:
-#         with open(os.path.join("output/", file_itself), "r") as f2:
-#             l1 = f1.readlines()
-#             l2 = f2.readlines()
-#         assert np.all(l1 == l2)
+def test_frames_in_directory():
+    n_b = 4
+    grid_b = IcoGrid(n_b)
+    n_o = 2
+    grid_o = IcoGrid(n_o)
+    n_t = 3
+    trans_grid = TranslationParser("[1, 2, 3]")
+    full_grid = FullGrid(t_grid=trans_grid, b_grid=grid_b, o_grid=grid_o)
+    writer = PtWriter("H2O", "NH3", full_grid)
+    writer.write_frames_in_directory()
+    directory2full_pt(writer.file_name.split('.')[0]+"/")
+    file_path, file_itself = os.path.split(writer.file_name)
+    old_file = os.path.join(file_path, file_itself)
+    new_file = os.path.join(file_path, "joined_" + file_itself)
+    os.rename(old_file, new_file)
+    filelist = [f for f in os.listdir(f"{writer.file_name.split('.')[0]}") if f.endswith(".gro")]
+    assert len(filelist) == n_b*n_o*n_t, "Not correct number of .gro files in a directory."
+    # compare contents of individual files mit the single all-frame PT
+    writer2 = PtWriter("H2O", "NH3", full_grid)
+    writer2.write_full_pt_gro()
+    # check that a directory joined version is the same as the normal one
+    with open(os.path.join(file_path, "joined_" + file_itself), "r") as f1:
+        with open(os.path.join(file_path, file_itself), "r") as f2:
+            l1 = f1.readlines()
+            l2 = f2.readlines()
+        assert np.all(l1 == l2)
+
+
+def test_directory_combined_to_pt():
+    # check that a full directory can be split
+    n_b = 7
+    grid_b = IcoGrid(n_b)
+    n_o = 1
+    grid_o = IcoGrid(n_o)
+    n_t = 3
+    trans_grid = TranslationParser("[1, 2, 3]")
+    full_grid = FullGrid(t_grid=trans_grid, b_grid=grid_b, o_grid=grid_o)
+    writer = PtWriter("H2O", "NH3", full_grid)
+    writer.write_full_pt_gro()
+    full_pt2directory()
+
 
 
 if __name__ == '__main__':
