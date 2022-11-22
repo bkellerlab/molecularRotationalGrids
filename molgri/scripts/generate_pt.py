@@ -44,7 +44,7 @@ def check_file_existence(args):
     algo = nap1.grid_type
     assert algo is not None, f"Rotation grid algorithm not recognised, check origingrid argument: {args.origingrid}"
     assert N is not None, f"Num of grid points not recognised, check origingrid argument: {args.origingrid}"
-    if args.bodygrid in ["None", "none", "NONE"]:
+    if args.bodygrid in ["None", "none", "NONE", "zero", "ZERO"]:
         nap2 = NameParser("zero_1")
     else:
         nap2 = NameParser(args.bodygrid)
