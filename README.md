@@ -69,7 +69,9 @@ necessary to specify the number of grid points ```-N``` and the algorithm
 recommend ico). Other flags describe optional figures and animations to save. All
 generated files can be found in the output/ folder.
 
-The last command ```molgri-pt``` creates a pseudotrajectory. This scripts needs
+The last command ```molgri-pt``` creates a pseudotrajectory. As a default, this is a single file with
+all frames, with an optional command ```--as_dir``` a directory of single-frame .gro files is
+created. This scripts needs
 two file inputs that should be provided in input/. Both must be
 .gro files, each containing a single molecule. Due to the flag
 ```-m1 H2O``` the program will look for a file input/H2O.gro

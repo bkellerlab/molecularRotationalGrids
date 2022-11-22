@@ -3,7 +3,8 @@ import os
 import numpy as np
 
 from molgri.bodies import Molecule
-from molgri.writers import TwoMoleculeGroWriter, PtWriter, directory2full_pt, full_pt2directory
+from molgri.writers import TwoMoleculeGroWriter, PtWriter, directory2full_pt, full_pt2directory, \
+    converter_gro_dir_gro_file_names
 from molgri.grids import IcoGrid, Cube4DGrid, ZeroGrid, FullGrid
 from molgri.parsers import TranslationParser, MultiframeGroParser
 from molgri.scripts.set_up_io import freshly_create_all_folders, copy_examples
@@ -254,19 +255,18 @@ def test_frames_in_directory():
     full_grid = FullGrid(t_grid=trans_grid, b_grid=grid_b, o_grid=grid_o)
     writer = PtWriter("H2O", "NH3", full_grid)
     writer.write_frames_in_directory()
-    directory2full_pt(writer.file_name.split('.')[0]+"/")
-    file_path, file_itself = os.path.split(writer.file_name)
-    old_file = os.path.join(file_path, file_itself)
-    new_file = os.path.join(file_path, "joined_" + file_itself)
-    os.rename(old_file, new_file)
-    filelist = [f for f in os.listdir(f"{writer.file_name.split('.')[0]}") if f.endswith(".gro")]
+    base_p, fn, fp, dp = converter_gro_dir_gro_file_names(pt_file_path=writer.file_name)
+    directory2full_pt(dp)
+    new_name = base_p + "joined_" + fn + ".gro"
+    os.rename(fp, new_name)
+    filelist = [f for f in os.listdir(f"{dp}") if f.endswith(".gro")]
     assert len(filelist) == n_b*n_o*n_t, "Not correct number of .gro files in a directory."
     # compare contents of individual files mit the single all-frame PT
     writer2 = PtWriter("H2O", "NH3", full_grid)
     writer2.write_full_pt_gro()
     # check that a directory joined version is the same as the normal one
-    with open(os.path.join(file_path, "joined_" + file_itself), "r") as f1:
-        with open(os.path.join(file_path, file_itself), "r") as f2:
+    with open(new_name, "r") as f1:
+        with open(fp, "r") as f2:
             l1 = f1.readlines()
             l2 = f2.readlines()
         assert np.all(l1 == l2)
@@ -283,8 +283,31 @@ def test_directory_combined_to_pt():
     full_grid = FullGrid(t_grid=trans_grid, b_grid=grid_b, o_grid=grid_o)
     writer = PtWriter("H2O", "NH3", full_grid)
     writer.write_full_pt_gro()
-    full_pt2directory()
-
+    base_p, fn, fp, dp = converter_gro_dir_gro_file_names(pt_file_path=writer.file_name)
+    full_pt2directory(fp)
+    new_dir_name = base_p + "split_" + fn + "/"
+    if os.path.exists(new_dir_name):
+        # delete contents if folder already exist
+        filelist = [f for f in os.listdir(new_dir_name) if f.endswith(".gro")]
+        for f in filelist:
+            os.remove(os.path.join(new_dir_name, f))
+        os.rmdir(new_dir_name)
+    os.rename(dp, new_dir_name)
+    # the non-split version / created during PT creation
+    writer2 = PtWriter("H2O", "NH3", full_grid)
+    writer2.write_frames_in_directory()
+    filelist1 = [f for f in os.listdir(f"{new_dir_name}") if f.endswith(".gro")]
+    filelist2 = [f for f in os.listdir(f"{dp}") if f.endswith(".gro")]
+    filelist1.sort(key=lambda x: int(x.split(".")[0]))
+    filelist2.sort(key=lambda x: int(x.split(".")[0]))
+    for file_name1, file_name2 in zip(filelist1, filelist2):
+        path1 = new_dir_name + file_name1
+        path2 = dp + file_name2
+        with open(path1, "r") as f1:
+            lines1 = f1.readlines()
+        with open(path2, "r") as f2:
+            lines2 = f2.readlines()
+        assert np.all(lines1 == lines2)
 
 
 if __name__ == '__main__':
@@ -295,4 +318,5 @@ if __name__ == '__main__':
     # test_pt_rotations_origin()
     # test_pt_rotations_body()
     # test_order_of_operations()
-    test_frames_in_directory()
+    # test_frames_in_directory()
+    test_directory_combined_to_pt()

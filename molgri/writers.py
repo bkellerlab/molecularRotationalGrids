@@ -142,6 +142,20 @@ class TwoMoleculeGroWriter(PtWriter):
         super().__init__(name_central_gro, name_rotating_gro, full_grid)
 
 
+def converter_gro_dir_gro_file_names(pt_file_path=None, pt_directory_path=None) -> tuple:
+    if pt_file_path:
+        without_ext, file_extension = os.path.splitext(pt_file_path)
+        file_path, file_name = os.path.split(without_ext)
+        pt_directory_path = os.path.join(file_path, file_name+"/")
+    elif pt_directory_path:
+        file_path, file_name = os.path.split(pt_directory_path)
+        file_with_ext = file_name + ".gro"
+        pt_file_path(file_path, file_with_ext)
+    else:
+        raise ValueError("pt_file_path nor pt_directory_path provided.")
+    return file_path + "/", file_name, pt_file_path, pt_directory_path
+
+
 def directory2full_pt(directory_path: str):
     path_to_dir, dir_name = os.path.split(directory_path)
     filelist = [f for f in os.listdir(directory_path) if f.endswith(".gro")]
@@ -156,8 +170,7 @@ def full_pt2directory(full_pt_path: str):
     with open(full_pt_path, "r") as f_read:
         lines = f_read.readlines()
     num_atoms = int(lines[1].strip("\n").strip())
-    print(num_atoms)
-    # TODO: full pt to directory
+    num_frame_lines = num_atoms + 3
     directory = full_pt_path.split(".")[0]
     try:
         os.mkdir(directory)
@@ -166,7 +179,6 @@ def full_pt2directory(full_pt_path: str):
         filelist = [f for f in os.listdir(directory) if f.endswith(".gro")]
         for f in filelist:
             os.remove(os.path.join(directory, f))
-    for i, second_molecule in self.pt.generate_pseudotrajectory():
-        self.f = open(f"{directory}/{i}.gro", "w")
-        self.write_frame(i, second_molecule)
-        self.f.close()
+    for i in range(len(lines) // num_frame_lines):
+        with open(f"{directory}/{i}.gro", "w") as f_write:
+            f_write.writelines(lines[num_frame_lines*i:num_frame_lines*(i+1)])

@@ -31,6 +31,8 @@ requiredNamed.add_argument('-transgrid', metavar='tg', type=str, nargs='?', requ
                          'or range(start, stop, step) in nanometers')
 parser.add_argument('--recalculate', action='store_true',
                     help='recalculate the grid even if a saved version already exists')
+parser.add_argument('--as_dir', action='store_true',
+                    help='Save the PT as a directory of frames')
 
 
 def check_file_existence(args):
@@ -71,8 +73,12 @@ def run_generate_pt():
     my_og, my_bg, my_tg = check_file_existence(my_args)
     full_grid = FullGrid(b_grid=my_bg, o_grid=my_og, t_grid=my_tg)
     pt_writer = PtWriter(my_args.m1, my_args.m2, full_grid)
-    pt_writer.write_full_pt_gro()
-    print(f"Generated a Pseudotrajectory with {end_index} timesteps.")
+    if my_args.as_dir:
+        pt_writer.write_frames_in_directory()
+        print(f"Generated a PT in form of a directory filled with single-frame .gro files.")
+    else:
+        pt_writer.write_full_pt_gro()
+        print(f"Generated a Pseudotrajectory with {pt_writer.pt.current_frame} timesteps.")
 
 
 if __name__ == '__main__':
