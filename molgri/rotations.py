@@ -1,4 +1,7 @@
+from typing import List
+
 import numpy as np
+from numpy.typing import NDArray
 from scipy.spatial.transform import Rotation
 
 
@@ -43,6 +46,17 @@ def grid2quaternion(grid_3D: np.ndarray) -> np.ndarray:
         points[i] = my_rotation.as_quat()
     assert points.shape[1] == 4, "quaternions must have 4 dimensions"
     return points
+
+
+def grid2rotation(grid_3D: np.ndarray) -> List[Rotation]:
+    assert np.allclose(np.linalg.norm(grid_3D, axis=1), 1), "Points on a grid must be unit vectors!"
+    assert grid_3D.shape[1] == 3, "points on a 3D sphere must have 3 dimensions"
+    base_vector = np.array([0, 0, 1])
+    rotations = []
+    for i, point in enumerate(grid_3D):
+        my_matrix = two_vectors2rot(base_vector, point)
+        rotations.append(Rotation.from_matrix(my_matrix))
+    return rotations
 
 
 def euler2grid(array_euler_angles: np.ndarray) -> np.ndarray:
@@ -103,6 +117,7 @@ def skew(x: np.ndarray) -> np.ndarray:
 
 
 def two_vectors2rot(x: np.ndarray, y: np.ndarray) -> np.ndarray:
+    #TODO: this could be done on arrays
     """
     Take vectors x and y and return the rotational matrix that transforms x into y.
 

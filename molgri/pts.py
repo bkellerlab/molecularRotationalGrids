@@ -9,13 +9,15 @@ from typing import Tuple, Generator
 import numpy as np
 
 from .bodies import Molecule
+from molgri.parsers import ParsedMolecule
+from .constants import NM2ANGSTROM
 from .grids import FullGrid
 from .wrappers import time_method
 
 
 class Pseudotrajectory:
 
-    def __init__(self, molecule: Molecule, full_grid: FullGrid):
+    def __init__(self, molecule: ParsedMolecule, full_grid: FullGrid):
         """
         Args:
             molecule: a molecule that will be moved/rotated into all combinations of stated defined by full_grid
@@ -32,24 +34,23 @@ class Pseudotrajectory:
         self.pt_t_name = self.trans_grid.grid_hash
         self.decorator_label = f"Pseudotrajectory {full_grid.get_full_grid_name()}"
         # convert grids to quaternions
-        self.rot_grid_body = self.rot_grid_body.as_quaternion()
-        self.rot_grid_origin = self.rot_grid_origin.as_quaternion()
+        self.rot_grid_body = self.rot_grid_body.as_rot_matrix()
+        self.rot_grid_origin = self.rot_grid_origin.as_rot_matrix()
         self.current_frame = 0
 
     def generate_pseudotrajectory(self) -> Generator[Tuple[int, Molecule], None, None]:
         # center second molecule if not centered yet
-        dist_origin = np.linalg.norm(self.molecule.position)
-        self.molecule.translate_radially(-dist_origin)
-        trans_increments = self.trans_grid.get_increments()
-        increment_sum = self.trans_grid.sum_increments_from_first_radius()
+        self.molecule.translate(-self.molecule.get_center_of_mass())
+        trans_increments = self.trans_grid.get_increments()*NM2ANGSTROM
+        increment_sum = self.trans_grid.sum_increments_from_first_radius()*NM2ANGSTROM
         # move in z-direction for first increment
         self.molecule.translate_radially(trans_increments[0])
         # first step: rotation around origin
         for origin_rotation in self.rot_grid_origin:
-            self.molecule.rotate_about_origin(origin_rotation, method="quaternion")
+            self.molecule.rotate_about_origin(origin_rotation)
             # second step: rotation around body
             for body_rotation in self.rot_grid_body:
-                self.molecule.rotate_about_body(body_rotation, method="quaternion")
+                self.molecule.rotate_about_body(body_rotation)
                 # write the frame at initial distance
                 yield self.current_frame, self.molecule
                 self.current_frame += 1
@@ -59,8 +60,8 @@ class Pseudotrajectory:
                     yield self.current_frame, self.molecule
                     self.current_frame += 1
                 self.molecule.translate_radially(-increment_sum)
-                self.molecule.rotate_about_body(body_rotation, method="quaternion", inverse=True)
-            self.molecule.rotate_about_origin(origin_rotation, method="quaternion", inverse=True)
+                self.molecule.rotate_about_body(body_rotation, inverse=True)
+            self.molecule.rotate_about_origin(origin_rotation, inverse=True)
 
     @time_method
     def generate_pt_and_time(self) -> Generator[Tuple[int, Molecule], None, None]:

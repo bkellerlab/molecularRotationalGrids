@@ -4,9 +4,10 @@ import shutil
 
 from molgri.bodies import Molecule
 from molgri.grids import ZeroGrid, FullGrid
-from molgri.parsers import BaseGroParser, TranslationParser
+from molgri.parsers import TranslationParser, TrajectoryParser, ParsedMolecule
 from molgri.paths import PATH_INPUT_BASEGRO, PATH_OUTPUT_PT
 from molgri.pts import Pseudotrajectory
+from molgri.constants import ANGSTROM2NM
 
 
 class GroWriter:
@@ -36,13 +37,15 @@ class GroWriter:
     def write_atom_line(self, residue_num: int, residue_name: str, atom_name: str, atom_num: str,
                         pos_nm_x: float, pos_nm_y: float, pos_nm_z: float,
                         vel_x: float = 0, vel_y: float = 0, vel_z: float = 0):
-        self.f.write(f"{residue_num:5}{residue_name:5}{atom_name:>5}{atom_num:5}{pos_nm_x:8.3f}{pos_nm_y:8.3f}"
-                     f"{pos_nm_z:8.3f}{vel_x:8.4f}{vel_y:8.4f}{vel_z:8.4f}\n")
+        self.f.write(f"{residue_num:5}{residue_name:5}{atom_name:>5}{atom_num:5}{pos_nm_x*ANGSTROM2NM:8.3f}"
+                     f"{pos_nm_y*ANGSTROM2NM:8.3f}{pos_nm_z*ANGSTROM2NM:8.3f}{vel_x:8.4f}{vel_y:8.4f}{vel_z:8.4f}\n")
 
     def write_box(self, box: Tuple[float]):
+        if len(box) == 6:
+            box = box[:3]
         assert len(box) == 3, "simulation box must have three dimensions"
         for box_el in box:
-            self.f.write(f"\t{box_el}")
+            self.f.write(f"\t{box_el*ANGSTROM2NM}")
         self.f.write("\n")
 
 
@@ -62,11 +65,11 @@ class PtWriter(GroWriter):
         """
 
         central_file_path = f"{PATH_INPUT_BASEGRO}{name_central_gro}.gro"
-        self.central_parser = BaseGroParser(central_file_path, parse_atoms=False)
+        self.central_parser = TrajectoryParser(central_file_path)
         rotating_file_path = f"{PATH_INPUT_BASEGRO}{name_rotating_gro}.gro"
-        self.rotating_parser = BaseGroParser(rotating_file_path, parse_atoms=True)
+        self.rotating_parser = TrajectoryParser(rotating_file_path)
         self.full_grid = full_grid
-        self.pt = Pseudotrajectory(self.rotating_parser.molecule_set, full_grid)
+        self.pt = Pseudotrajectory(self.rotating_parser.as_one_molecule(), full_grid)
         super().__init__(f"{PATH_OUTPUT_PT}{self.get_output_name()}.gro")
         self.c_num = self.central_parser.num_atoms
         self.r_num = self.rotating_parser.num_atoms
@@ -86,15 +89,24 @@ class PtWriter(GroWriter):
         self.write_box(box=self.central_parser.box)
 
     def _write_first_molecule(self):
-        self.f.writelines(self.central_parser.atom_lines_nm)
+        first_molecule = self.central_parser.as_one_molecule()
+        num_atom = 1
+        num_molecule = 2
+        for i, atom in enumerate(first_molecule.atoms):
+            pos_nm = atom.position
+            name = first_molecule.atom_labels[i]
+            self.write_atom_line(residue_num=num_molecule, residue_name="SOL",
+                                 atom_name=name, atom_num=num_atom, pos_nm_x=pos_nm[0], pos_nm_y=pos_nm[1],
+                                 pos_nm_z=pos_nm[2])
+            num_atom += 1
 
-    def _write_current_second_molecule(self, second_molecule: Molecule):
+    def _write_current_second_molecule(self, second_molecule: ParsedMolecule):
         num_atom = self.c_num + 1
         num_molecule = 2
-        for atom in second_molecule.atoms:
+        for i, atom in enumerate(second_molecule.atoms):
             pos_nm = atom.position
-            name = atom.gro_label
-            self.write_atom_line(residue_num=num_molecule, residue_name=second_molecule.residue_name,
+            name = second_molecule.atom_labels[i]
+            self.write_atom_line(residue_num=num_molecule, residue_name="SOL",
                                  atom_name=name, atom_num=num_atom, pos_nm_x=pos_nm[0], pos_nm_y=pos_nm[1],
                                  pos_nm_z=pos_nm[2])
             num_atom += 1

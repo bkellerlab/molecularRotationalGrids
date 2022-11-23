@@ -1,21 +1,22 @@
 import hashlib
 import numbers
 import os
+from pathlib import Path
 from typing import TextIO, Generator
 
 import numpy as np
 from mendeleev.fetch import fetch_table
 from ast import literal_eval
+
+from numpy._typing import NDArray
 from scipy.spatial.transform import Rotation
-import mdtraj as md
 import MDAnalysis as mda
-from mdtraj.formats import GroTrajectoryFile
 from MDAnalysis.core import AtomGroup
 
 from .bodies import Molecule, MoleculeSet
 from .constants import MOLECULE_NAMES, SIX_METHOD_NAMES, FULL_RUN_NAME
 from .paths import PATH_OUTPUT_TRANSGRIDS, PATH_OUTPUT_PT
-
+from molgri.constants import NM2ANGSTROM
 
 class NameParser:
 
@@ -211,17 +212,32 @@ class ParsedMolecule:
         self.num_atoms = len(atoms)
         self.atom_labels = atoms.names
         self.atom_types = atoms.types
-        self.center_of_mass = atoms.center_of_mass()
-        self.positions = atoms.positions
+
+    def get_center_of_mass(self) -> NDArray:
+        return self.atoms.center_of_mass()
+
+    def get_positions(self) -> NDArray:
+        return self.atoms.positions
 
     def __str__(self):
-        return f"<ParsedMolecule with atoms {self.atom_types} at {self.center_of_mass}>"
+        return f"<ParsedMolecule with atoms {self.atom_types} at {self.get_center_of_mass()}>"
 
-    def rotate_about_origin(self, rotational_obj: Rotation):
-        self.atoms.rotate(rotational_obj.as_matrix(), point=(0, 0, 0))
+    def _rotate(self, about_what: str, rotational_obj: Rotation, inverse: bool = False):
+        if about_what == "origin":
+            point = (0, 0, 0)
+        elif about_what == "body":
+            point = self.get_center_of_mass()
+        else:
+            raise ValueError(f"Rotation about {about_what} unknown, try 'origin' or 'body'.")
+        if inverse:
+            rotational_obj = rotational_obj.inv()
+        self.atoms.rotate(rotational_obj.as_matrix(), point=point)
 
-    def rotate_about_body(self, rotational_obj: Rotation):
-        self.atoms.rotate(rotational_obj.as_matrix(), point=self.center_of_mass)
+    def rotate_about_origin(self, rotational_obj: Rotation, inverse: bool = False):
+        self._rotate(about_what="origin", rotational_obj=rotational_obj, inverse=inverse)
+
+    def rotate_about_body(self, rotational_obj: Rotation, inverse: bool = False):
+        self._rotate(about_what="body", rotational_obj=rotational_obj, inverse=inverse)
 
     def translate(self, vector: np.ndarray):
         self.atoms.translate(vector)
@@ -236,7 +252,7 @@ class ParsedMolecule:
             distance_change: the change in length of the vector origin-object
         """
         # need to work with rounding because gromacs files only have 3-point precision
-        initial_vector = np.round(self.center_of_mass, 3)
+        initial_vector = np.round(self.get_center_of_mass(), 3)
         if np.allclose(initial_vector, [0, 0, 0], atol=1e-3):
             initial_vector = np.array([0, 0, 1])
         len_initial = np.linalg.norm(initial_vector)
@@ -247,6 +263,7 @@ class ParsedMolecule:
 class TrajectoryParser:
 
     def __init__(self, path: str):
+        self.molecule_name = Path(path).stem
         self.universe = mda.Universe(path)
         self.trajectory = self.universe.trajectory
         self.num_atoms = len(self.universe.atoms)

@@ -1,4 +1,5 @@
 from abc import ABC, abstractmethod
+from typing import List
 
 import networkx as nx
 import numpy as np
@@ -6,13 +7,14 @@ from scipy.constants import pi, golden
 from scipy.spatial import distance_matrix
 from scipy.spatial.distance import cdist
 import pandas as pd
+from scipy.spatial.transform import Rotation
 
 from .analysis import random_sphere_points, random_axes_count_points
 from .utils import dist_on_sphere
 from .constants import DEFAULT_SEED, SIX_METHOD_NAMES, UNIQUE_TOL, ENDING_GRID_FILES
 from .parsers import NameParser, TranslationParser
 from .paths import PATH_OUTPUT_ROTGRIDS, PATH_OUTPUT_STAT
-from .rotations import grid2quaternion, grid2euler, quaternion2grid, euler2grid
+from .rotations import grid2quaternion, grid2euler, quaternion2grid, euler2grid, grid2rotation
 from .wrappers import time_method
 
 
@@ -341,6 +343,9 @@ class Grid(ABC):
 
     def _order(self):
         self.grid = order_grid_points(self.grid, self.N)
+
+    def as_rot_matrix(self) -> List[Rotation]:
+        return grid2rotation(self.grid)
 
     def as_quaternion(self) -> np.ndarray:
         quaternion_seq = grid2quaternion(self.grid)

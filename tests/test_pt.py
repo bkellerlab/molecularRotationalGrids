@@ -11,6 +11,7 @@ from molgri.scripts.set_up_io import freshly_create_all_folders, copy_examples
 from molgri.utils import angle_between_vectors, normalise_vectors
 from molgri.paths import PATH_OUTPUT_PT
 
+
 def same_distance(mol1: Molecule, mol2: Molecule):
     """Check that two molecules have the same distance from COM to origin."""
     dist1 = np.linalg.norm(mol1.position)
@@ -315,8 +316,8 @@ if __name__ == '__main__':
     copy_examples()
     # test_pt_len()
     # test_pt_translations()
-    # test_pt_rotations_origin()
+    test_pt_rotations_origin()
     # test_pt_rotations_body()
     # test_order_of_operations()
     # test_frames_in_directory()
-    test_directory_combined_to_pt()
+    # test_directory_combined_to_pt()
