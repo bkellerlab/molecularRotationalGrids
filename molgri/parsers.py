@@ -1,7 +1,7 @@
 import hashlib
 import numbers
 import os
-from typing import TextIO
+from typing import TextIO, Generator
 
 import numpy as np
 from mendeleev.fetch import fetch_table
@@ -214,6 +214,9 @@ class ParsedMolecule:
         self.center_of_mass = atoms.center_of_mass()
         self.positions = atoms.positions
 
+    def __str__(self):
+        return f"<ParsedMolecule with atoms {self.atom_types} at {self.center_of_mass}>"
+
     def rotate_about_origin(self, rotational_obj: Rotation):
         self.atoms.rotate(rotational_obj.as_matrix(), point=(0, 0, 0))
 
@@ -242,28 +245,19 @@ class ParsedMolecule:
 
 
 class TrajectoryParser:
-    #TODO: use MDTraj instead
+
     def __init__(self, path: str):
         self.universe = mda.Universe(path)
         self.trajectory = self.universe.trajectory
         self.num_atoms = len(self.universe.atoms)
-        self.box = self.universe.dimensions[:3]
+        self.box = self.universe.dimensions
 
     def as_one_molecule(self) -> ParsedMolecule:
         return ParsedMolecule(self.universe.atoms)
-        # atoms = self.universe.atoms
-        # names = [particle_type2element(atom.name) for atom in atoms]
-        # print(atoms.center(weights=atoms.masses))
-        # print(atoms.masses)
-        # return Molecule(atom_names=names, centers=atoms.positions, center_at_origin=False, gro_labels=atoms.names)
 
-    def generate_frame_as_molecule(self):
+    def generate_frame_as_molecule(self) -> Generator[ParsedMolecule, None, None]:
         for frame in self.trajectory:
-            print(frame.xyz)
-            # frame = self.trajectory.read()
-            # gro_labels = [atom.name for atom in frame.atoms]
-            # names = [particle_type2element(atom.name) for atom in frame.atoms]
-            # yield Molecule(atom_names=names, centers=frame.positions, center_at_origin=False, gro_labels=gro_labels)
+            yield ParsedMolecule(self.universe.atoms)
 
 
 class BaseGroParser:

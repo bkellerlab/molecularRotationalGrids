@@ -1,8 +1,7 @@
 import numpy as np
 import pytest
-from mendeleev import element
 
-from molgri.parsers import NameParser, BaseGroParser, TranslationParser, MultiframeGroParser, PtFrameParser, particle_type2element, TrajectoryParser
+from molgri.parsers import NameParser, TranslationParser, MultiframeGroParser, PtFrameParser, particle_type2element, TrajectoryParser
 from molgri.constants import ANGSTROM2NM
 
 
@@ -10,7 +9,7 @@ def test_atom_gro_file():
     file_name = f"molgri/examples/NA.gro"
     my_parser = TrajectoryParser(file_name)
     assert my_parser.num_atoms == 1
-    assert np.allclose(my_parser.box*ANGSTROM2NM, [30, 30, 30])
+    assert np.allclose(my_parser.box[:3]*ANGSTROM2NM, [30, 30, 30])
     my_molecule_set = my_parser.as_one_molecule()
     my_molecule = my_molecule_set
     assert np.allclose(my_molecule.center_of_mass, [0, 0, 0])
@@ -22,7 +21,7 @@ def test_water_gro_file():
     file_name = f"molgri/examples/H2O.gro"
     my_parser = TrajectoryParser(file_name)
     assert my_parser.num_atoms == 3
-    assert np.allclose(my_parser.box*ANGSTROM2NM, [30, 30, 30])
+    assert np.allclose(my_parser.box[:3]*ANGSTROM2NM, [30, 30, 30])
     my_molecule = my_parser.as_one_molecule()
     # the atomic positions
     assert np.allclose(my_molecule.atoms[0].position*ANGSTROM2NM, [0.000, -0.005, 0.004])
@@ -46,7 +45,7 @@ def test_protein_gro_file():
     file_name = f"molgri/examples/example_protein.gro"
     my_parser = TrajectoryParser(file_name)
     assert my_parser.num_atoms == 902
-    assert np.allclose(my_parser.box*ANGSTROM2NM, [6.38830,  6.16418,   8.18519])
+    assert np.allclose(my_parser.box[:3]*ANGSTROM2NM, [6.38830,  6.16418,   8.18519])
     my_molecule = my_parser.as_one_molecule()
     assert np.allclose(my_molecule.atoms[0].position*ANGSTROM2NM, [-0.421,  -0.191,  -1.942])
     assert np.allclose(my_molecule.atoms[1].position*ANGSTROM2NM, [-0.450,  -0.287,  -1.946])
@@ -70,11 +69,43 @@ def test_protein_gro_file():
 
 def test_parsing_pt_gro():
     file_name = "molgri/examples/H2O_NH3_o_cube3D_15_b_ico_10_t_2189828055.gro"
-    my_parser = PtFrameParser(file_name)
-    assert my_parser.c_num == 3
-    assert my_parser.r_num == 4
-    multiparser = MultiframeGroParser(file_name)
-    assert len(multiparser.timesteps) == 300
+    my_parser = TrajectoryParser(file_name)
+    # TODO: try with a multiframe format
+    # for item in my_parser.generate_frame_as_molecule():
+    #     print(item.positions)
+    # my_parser = PtFrameParser(file_name)
+    # assert my_parser.c_num == 3
+    # assert my_parser.r_num == 4
+    # multiparser = MultiframeGroParser(file_name)
+    # assert len(multiparser.timesteps) == 300
+
+
+def test_parsing_xyz():
+    file_name = "molgri/examples/glucose.xyz"
+    my_parser = TrajectoryParser(file_name)
+    my_molecule = my_parser.as_one_molecule()
+    all_types = ["C"]*6
+    all_types.extend(["O"]*6)
+    assert np.all(my_molecule.atom_types == all_types)
+    assert np.allclose(my_molecule.positions[0], [35.884,  30.895,  49.120])
+    assert np.allclose(my_molecule.positions[1], [36.177,  29.853,  50.124])
+    assert np.allclose(my_molecule.positions[6], [34.968,  30.340,  48.234])
+    assert np.allclose(my_molecule.positions[11], [39.261,  32.018,  46.920])
+
+
+def test_parsing_pdb():
+    file_name = "molgri/examples/example_pdb.pdb"
+    my_parser = TrajectoryParser(file_name)
+    my_molecule = my_parser.as_one_molecule()
+    assert np.all(my_molecule.atom_types[0] == "N")
+    assert np.all(my_molecule.atom_types[1] == "C")
+    assert np.all(my_molecule.atom_types[10] == "H")
+    assert np.all(my_molecule.atom_types[60] == "H")
+    assert np.allclose(my_molecule.positions[0], [0.000,   0.000,   0.000])
+    assert np.allclose(my_molecule.positions[1], [1.456,   0.000,   0.000])
+    assert np.allclose(my_molecule.positions[6], [2.010,   1.208,  -0.746])
+    assert np.allclose(my_molecule.positions[11], [3.241,  -0.000,   1.742])
+    assert np.allclose(my_molecule.positions[60], [14.680,  -0.233,   5.690])
 
 
 def test_name_parser():
@@ -159,9 +190,11 @@ def test_expected_errors():
 
 if __name__ == '__main__':
     test_atom_gro_file()
-    #test_parsing_pt_gro()
+    test_parsing_pt_gro()
     test_water_gro_file()
     test_protein_gro_file()
+    test_parsing_xyz()
+    test_parsing_pdb()
     #test_name_parser()
     #test_trans_parser()
     #test_expected_errors()
