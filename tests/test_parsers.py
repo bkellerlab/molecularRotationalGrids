@@ -3,40 +3,39 @@ import pytest
 from mendeleev import element
 
 from molgri.parsers import NameParser, BaseGroParser, TranslationParser, MultiframeGroParser, PtFrameParser, particle_type2element, TrajectoryParser
+from molgri.constants import ANGSTROM2NM
 
 
 def test_atom_gro_file():
     file_name = f"molgri/examples/NA.gro"
     my_parser = TrajectoryParser(file_name)
     assert my_parser.num_atoms == 1
-    #assert my_parser.comment == "Na+ ion"
-    assert np.allclose(my_parser.box, [30, 30, 30])
-    assert isinstance(my_parser.box[0], int)
-    my_molecule_set = my_parser.generate_frame_as_molecule()
+    assert np.allclose(my_parser.box*ANGSTROM2NM, [30, 30, 30])
+    my_molecule_set = my_parser.as_one_molecule()
     my_molecule = my_molecule_set
-    assert np.allclose(my_molecule.position, [0, 0, 0])
-    assert my_molecule.atoms[0].element == element("Na")
+    assert np.allclose(my_molecule.center_of_mass, [0, 0, 0])
+    assert my_molecule.atom_labels[0] == "NA"
+    assert np.isclose(my_molecule.atoms.masses, [22.98977])
 
 
 def test_water_gro_file():
     file_name = f"molgri/examples/H2O.gro"
-    my_parser = BaseGroParser(file_name)
+    my_parser = TrajectoryParser(file_name)
     assert my_parser.num_atoms == 3
-    assert my_parser.comment == "Water"
-    assert np.allclose(my_parser.box, [30, 30, 30])
-    my_molecule = my_parser.molecule_set
+    assert np.allclose(my_parser.box*ANGSTROM2NM, [30, 30, 30])
+    my_molecule = my_parser.as_one_molecule()
     # the atomic positions
-    assert np.allclose(my_molecule.atoms[0].position, [0.000, -0.005, 0.004])
-    assert np.allclose(my_molecule.atoms[1].position, [0.000,  -0.005,  -0.092])
-    assert np.allclose(my_molecule.atoms[2].position, [0.000,   0.087,   0.028])
+    assert np.allclose(my_molecule.atoms[0].position*ANGSTROM2NM, [0.000, -0.005, 0.004])
+    assert np.allclose(my_molecule.atoms[1].position*ANGSTROM2NM, [0.000,  -0.005,  -0.092])
+    assert np.allclose(my_molecule.atoms[2].position*ANGSTROM2NM, [0.000,   0.087,   0.028])
     # test elements
-    assert my_molecule.atoms[0].element == element("O")
-    assert my_molecule.atoms[1].element == element("H")
-    assert my_molecule.atoms[1].element == element("H")
+    assert my_molecule.atom_types[0] == "O"
+    assert my_molecule.atom_types[1] == "H"
+    assert my_molecule.atom_types[2] == "H"
     # test gro labels
-    assert my_molecule.atoms[0].gro_label == "OW"
-    assert my_molecule.atoms[1].gro_label == "HW1"
-    assert my_molecule.atoms[2].gro_label == "HW2"
+    assert my_molecule.atom_labels[0] == "OW"
+    assert my_molecule.atom_labels[1] == "HW1"
+    assert my_molecule.atom_labels[2] == "HW2"
 
 
 def test_protein_gro_file():
@@ -45,34 +44,28 @@ def test_protein_gro_file():
     first time step, ignore all subsequent ones.
     """
     file_name = f"molgri/examples/example_protein.gro"
-    my_parser = BaseGroParser(file_name)
+    my_parser = TrajectoryParser(file_name)
     assert my_parser.num_atoms == 902
-    assert my_parser.comment == "Protein in water t=   0.00000 step= 0"
-    assert np.allclose(my_parser.box, [6.38830,  6.16418,   8.18519])
-    assert isinstance(my_parser.box[0], float)
-    my_molecule = my_parser.molecule_set
-    assert np.allclose(my_molecule.atoms[0].position, [-0.421,  -0.191,  -1.942])
-    assert np.allclose(my_molecule.atoms[1].position, [-0.450,  -0.287,  -1.946])
-    assert np.allclose(my_molecule.atoms[901].position, [0.065,  -0.214,   2.135])
-    assert my_molecule.atoms[0].element == element("N")
-    assert my_molecule.atoms[0].gro_label == "N"
-    assert my_molecule.atoms[1].element == element("H")
-    assert my_molecule.atoms[1].gro_label == "H1"
-    assert my_molecule.atoms[4].element == element("C")
-    assert my_molecule.atoms[4].gro_label == "CA"
-    assert my_molecule.atoms[5].element == element("H")
-    assert my_molecule.atoms[5].gro_label == "HA"
-    assert my_molecule.atoms[345].element == element("C")
-    assert my_molecule.atoms[345].gro_label == "CA"
-    assert my_molecule.atoms[901].element == element("O")
-    assert my_molecule.atoms[901].gro_label == "OC2"
-    all_elements = [at.element.symbol for at in my_molecule.atoms]
+    assert np.allclose(my_parser.box*ANGSTROM2NM, [6.38830,  6.16418,   8.18519])
+    my_molecule = my_parser.as_one_molecule()
+    assert np.allclose(my_molecule.atoms[0].position*ANGSTROM2NM, [-0.421,  -0.191,  -1.942])
+    assert np.allclose(my_molecule.atoms[1].position*ANGSTROM2NM, [-0.450,  -0.287,  -1.946])
+    assert np.allclose(my_molecule.atoms[901].position*ANGSTROM2NM, [0.065,  -0.214,   2.135])
+    assert my_molecule.atom_labels[0] == "N"
+    assert my_molecule.atom_types[0] == "N"
+    assert my_molecule.atom_labels[1] == "H1"
+    assert my_molecule.atom_types[1] == "H"
+    assert my_molecule.atom_labels[4] == "CA"
+    assert my_molecule.atom_types[4] == "C"
+    assert my_molecule.atom_labels[5] == "HA"
+    assert my_molecule.atom_types[5] == "H"
+    assert my_molecule.atom_labels[345] == "CA"
+    assert my_molecule.atom_types[345] == "C"
+    assert my_molecule.atom_labels[901] == "OC2"
+    assert my_molecule.atom_types[901] == "O"
     organic_elements = ["N", "O", "C", "H", "S", "P", "F"]
-    for el in all_elements:
+    for el in my_molecule.atom_types:
         assert el in organic_elements, f"{el} not correctly identified as organic element"
-    # with multiframe parser you can read more
-    multi_parser = MultiframeGroParser(file_name, parse_atoms=False, is_pt=False)
-    assert len(multi_parser.timesteps) == 2
 
 
 def test_parsing_pt_gro():
@@ -167,8 +160,8 @@ def test_expected_errors():
 if __name__ == '__main__':
     test_atom_gro_file()
     #test_parsing_pt_gro()
-    #test_water_gro_file()
-    #test_protein_gro_file()
+    test_water_gro_file()
+    test_protein_gro_file()
     #test_name_parser()
     #test_trans_parser()
     #test_expected_errors()

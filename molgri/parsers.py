@@ -6,8 +6,11 @@ from typing import TextIO
 import numpy as np
 from mendeleev.fetch import fetch_table
 from ast import literal_eval
+from scipy.spatial.transform import Rotation
 import mdtraj as md
+import MDAnalysis as mda
 from mdtraj.formats import GroTrajectoryFile
+from MDAnalysis.core import AtomGroup
 
 from .bodies import Molecule, MoleculeSet
 from .constants import MOLECULE_NAMES, SIX_METHOD_NAMES, FULL_RUN_NAME
@@ -201,12 +204,58 @@ def particle_type2element(particle_type: str) -> str:
     return element_name
 
 
+class ParsedMolecule:
+
+    def __init__(self, atoms: AtomGroup):
+        self.atoms = atoms
+        self.num_atoms = len(atoms)
+        self.atom_labels = atoms.names
+        self.atom_types = atoms.types
+        self.center_of_mass = atoms.center_of_mass()
+        self.positions = atoms.positions
+
+    def rotate_about_origin(self, rotational_obj: Rotation):
+        self.atoms.rotate(rotational_obj.as_matrix(), point=(0, 0, 0))
+
+    def rotate_about_body(self, rotational_obj: Rotation):
+        self.atoms.rotate(rotational_obj.as_matrix(), point=self.center_of_mass)
+
+    def translate(self, vector: np.ndarray):
+        self.atoms.translate(vector)
+
+    def translate_radially(self, distance_change: float):
+        """
+        Moves the object away from the origin in radial direction for the amount specified by distance_change (or
+        towards the origin if a negative distance_change is given). If the object is at origin, translate in z-direction
+        of the internal coordinate system.
+
+        Args:
+            distance_change: the change in length of the vector origin-object
+        """
+        # need to work with rounding because gromacs files only have 3-point precision
+        initial_vector = np.round(self.center_of_mass, 3)
+        if np.allclose(initial_vector, [0, 0, 0], atol=1e-3):
+            initial_vector = np.array([0, 0, 1])
+        len_initial = np.linalg.norm(initial_vector)
+        rescaled_vector = distance_change*initial_vector/len_initial
+        self.atoms.translate(rescaled_vector)
+
+
 class TrajectoryParser:
     #TODO: use MDTraj instead
     def __init__(self, path: str):
-        self.trajectory = md.load(path)
-        self.num_atoms = self.trajectory.n_atoms
-        #self.box = self.trajectory.unitcell_lengths
+        self.universe = mda.Universe(path)
+        self.trajectory = self.universe.trajectory
+        self.num_atoms = len(self.universe.atoms)
+        self.box = self.universe.dimensions[:3]
+
+    def as_one_molecule(self) -> ParsedMolecule:
+        return ParsedMolecule(self.universe.atoms)
+        # atoms = self.universe.atoms
+        # names = [particle_type2element(atom.name) for atom in atoms]
+        # print(atoms.center(weights=atoms.masses))
+        # print(atoms.masses)
+        # return Molecule(atom_names=names, centers=atoms.positions, center_at_origin=False, gro_labels=atoms.names)
 
     def generate_frame_as_molecule(self):
         for frame in self.trajectory:
