@@ -77,7 +77,7 @@ def run_generate_pt():
         pt_writer.write_frames_in_directory()
         print(f"Generated a PT in form of a directory filled with single-frame .gro files.")
     else:
-        pt_writer.write_full_pt_gro()
+        pt_writer.write_full_pt()
         print(f"Generated a Pseudotrajectory with {pt_writer.pt.current_frame} timesteps.")
 
 

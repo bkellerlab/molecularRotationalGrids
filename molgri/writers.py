@@ -4,54 +4,14 @@ import shutil
 
 import MDAnalysis as mda
 from MDAnalysis import Merge
+import numpy as np
 
 from molgri.grids import ZeroGrid, FullGrid
 from molgri.parsers import TranslationParser, TrajectoryParser, ParsedMolecule
 from molgri.paths import PATH_INPUT_BASEGRO, PATH_OUTPUT_PT
 from molgri.pts import Pseudotrajectory
-from molgri.constants import ANGSTROM2NM
 
-
-class GroWriter:
-
-    def __init__(self, file_name: str):
-        """
-        This simple class determines only the format of how data is written to the .gro file, all information
-        is directly provided as arguments
-
-        Args:
-            file_name: entire name of the file where the gro file should be saved including path and ending
-        """
-        self.file_name = file_name
-        self.f = open(self.file_name, "w")
-
-    def write_comment_num(self,  num_atoms: int, comment: str = ""):
-        """
-        Args:
-            num_atoms: required, number of atoms in this frame
-            comment: string of a comment without new line symbol
-        """
-        # write comment
-        self.f.write(f"{comment}\n")
-        # write total number of atoms
-        self.f.write(f"{num_atoms:5}\n")
-
-    def write_atom_line(self, residue_num: int, residue_name: str, atom_name: str, atom_num: str,
-                        pos_nm_x: float, pos_nm_y: float, pos_nm_z: float,
-                        vel_x: float = 0, vel_y: float = 0, vel_z: float = 0):
-        self.f.write(f"{residue_num:5}{residue_name:5}{atom_name:>5}{atom_num:5}{pos_nm_x*ANGSTROM2NM:8.3f}"
-                     f"{pos_nm_y*ANGSTROM2NM:8.3f}{pos_nm_z*ANGSTROM2NM:8.3f}{vel_x:8.4f}{vel_y:8.4f}{vel_z:8.4f}\n")
-
-    def write_box(self, box: Tuple[float]):
-        if len(box) == 6:
-            box = box[:3]
-        assert len(box) == 3, "simulation box must have three dimensions"
-        for box_el in box:
-            self.f.write(f"\t{box_el*ANGSTROM2NM}")
-        self.f.write("\n")
-
-
-class PtWriter(GroWriter):
+class PtWriter:
 
     def __init__(self, name_central_gro: str, name_rotating_gro: str, full_grid: FullGrid):
         """
@@ -68,20 +28,16 @@ class PtWriter(GroWriter):
 
         central_file_path = f"{PATH_INPUT_BASEGRO}{name_central_gro}.gro"
         self.central_parser = TrajectoryParser(central_file_path)
-        #self.central_atoms = self.central_parser.universe.atoms
+        self.central_atoms = self.central_parser.get_atoms()
         rotating_file_path = f"{PATH_INPUT_BASEGRO}{name_rotating_gro}.gro"
         self.rotating_parser = TrajectoryParser(rotating_file_path)
-        #NEW
-        # central_parsed_molecule = self.central_parser.as_one_molecule()
-        # rotating_parsed_molecule = self.rotating_parser.as_one_molecule()
-        # self.both_molecules = central_parsed_molecule.join_with(rotating_parsed_molecule)
-        #NEW
+        if not np.all(self.central_parser.box == self.rotating_parser.box):
+            print(f"Warning! Simulation boxes of both molecules are different. Selecting the box of"
+                  f"{self.central_parser.molecule_name} with dimensions {self.central_parser.get_box()}")
+        self.box = self.central_parser.get_box()
         self.full_grid = full_grid
         self.pt = Pseudotrajectory(self.rotating_parser.as_parsed_molecule(), full_grid)
-        #super().__init__(f"{PATH_OUTPUT_PT}{self.get_output_name()}.gro")
         self.file_name = self.get_output_name()
-        self.c_num = self.central_parser.num_atoms
-        self.r_num = self.rotating_parser.num_atoms
 
     def get_output_name(self):
         mol_name1 = self.central_parser.molecule_name
@@ -89,43 +45,12 @@ class PtWriter(GroWriter):
         result_file_path = f"{mol_name1}_{mol_name2}_{self.full_grid.get_full_grid_name()}"
         return result_file_path
 
-    def write_frame(self, frame_num: int, second_molecule: ParsedMolecule):
-        comment = f"c_num={self.c_num}, r_num={self.r_num}, t={frame_num}"
-        total_num = self.c_num + self.r_num
-        self.write_comment_num(comment=comment, num_atoms=total_num)
-        self._write_first_molecule()
-        self._write_current_second_molecule(second_molecule=second_molecule)
-        self.write_box(box=self.central_parser.box)
-
-    def _write_first_molecule(self):
-        first_molecule = self.central_parser.as_parsed_molecule()
-        num_atom = 1
-        num_molecule = 2
-        for i, atom in enumerate(first_molecule.atoms):
-            pos_nm = atom.position
-            name = first_molecule.atom_labels[i]
-            self.write_atom_line(residue_num=num_molecule, residue_name="SOL",
-                                 atom_name=name, atom_num=num_atom, pos_nm_x=pos_nm[0], pos_nm_y=pos_nm[1],
-                                 pos_nm_z=pos_nm[2])
-            num_atom += 1
-
-    def _write_current_second_molecule(self, second_molecule: ParsedMolecule):
-        num_atom = self.c_num + 1
-        num_molecule = 2
-        for i, atom in enumerate(second_molecule.atoms):
-            pos_nm = atom.position
-            name = second_molecule.atom_labels[i]
-            self.write_atom_line(residue_num=num_molecule, residue_name="SOL",
-                                 atom_name=name, atom_num=num_atom, pos_nm_x=pos_nm[0], pos_nm_y=pos_nm[1],
-                                 pos_nm_z=pos_nm[2])
-            num_atom += 1
-
-    def write_full_pt_gro(self, measure_time: bool = False):
-        output_path = f"{PATH_OUTPUT_PT}{self.file_name}.xtc"
-        structure_path = f"{PATH_OUTPUT_PT}{self.file_name}.gro"
+    def write_full_pt(self, ending_trajectory: str = "xtc", ending_structure: str = "gro", measure_time: bool = False):
+        output_path = f"{PATH_OUTPUT_PT}{self.file_name}.{ending_trajectory}"
+        structure_path = f"{PATH_OUTPUT_PT}{self.file_name}.{ending_structure}"
         with mda.Writer(structure_path) as structure_writer:
-            merged_universe = Merge(self.central_parser.as_parsed_molecule().get_atoms(), self.rotating_parser.as_parsed_molecule().get_atoms())
-            merged_universe.dimensions = self.central_parser.universe.dimensions
+            merged_universe = Merge(self.central_atoms, self.rotating_parser.get_atoms())
+            merged_universe.dimensions = self.box
             structure_writer.write(merged_universe)
         trajectory_writer = mda.Writer(output_path, multiframe=True)
         if measure_time:
@@ -133,12 +58,9 @@ class PtWriter(GroWriter):
         else:
             generating_func = self.pt.generate_pseudotrajectory
         for i, second_molecule in generating_func():
-            #print(type(self.central_parser.universe), type(second_molecule.get_universe()))
-            merged_universe = Merge(self.central_parser.as_parsed_molecule().get_atoms(), second_molecule.get_atoms())
-            merged_universe.dimensions = self.central_parser.universe.dimensions
+            merged_universe = Merge(self.central_atoms, second_molecule.get_atoms())
+            merged_universe.dimensions = self.box
             trajectory_writer.write(merged_universe)
-            #self.write_frame(i, second_molecule)
-        #self.f.close()
         trajectory_writer.close()
 
     def write_frames_in_directory(self):
@@ -221,4 +143,4 @@ if __name__ == '__main__':
     from molgri.grids import IcoGrid
     grid = FullGrid(b_grid=ZeroGrid(), o_grid=IcoGrid(15), t_grid=TranslationParser("[1, 2, 3]"))
     ptwriter = PtWriter("H2O", "CL", grid)
-    ptwriter.write_full_pt_gro(measure_time=True)
+    ptwriter.write_full_pt(measure_time=True)

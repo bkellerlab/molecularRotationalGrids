@@ -6,7 +6,7 @@ from molgri.bodies import Molecule
 from molgri.writers import TwoMoleculeGroWriter, PtWriter, directory2full_pt, full_pt2directory, \
     converter_gro_dir_gro_file_names
 from molgri.grids import IcoGrid, Cube4DGrid, ZeroGrid, FullGrid
-from molgri.parsers import TranslationParser, MultiframeGroParser
+from molgri.parsers import TranslationParser, MultiframeGroParser, TrajectoryParser
 from molgri.scripts.set_up_io import freshly_create_all_folders, copy_examples
 from molgri.utils import angle_between_vectors, normalise_vectors
 
@@ -42,7 +42,7 @@ def same_origin_orientation(mol1: Molecule, mol2: Molecule):
 
 def test_two_molecule_gro():
     pt = TwoMoleculeGroWriter("H2O", "H2O", 0.5)
-    pt.write_full_pt_gro()
+    pt.write_full_pt()
     with open(pt.file_name, "r") as f:
         lines = f.readlines()
         num_atoms = 3 + 3
@@ -65,7 +65,7 @@ def test_pt_len():
     num_translations = trans_grid.get_N_trans()
     full_grid = FullGrid(b_grid=rot_grid, o_grid=rot_grid, t_grid=trans_grid)
     writer = PtWriter("H2O", "H2O", full_grid)
-    writer.write_full_pt_gro()
+    writer.write_full_pt()
     file_name = writer.file_name
     end_index = writer.pt.current_frame
     assert end_index == num_translations*num_rotations*num_rotations
@@ -85,7 +85,7 @@ def test_pt_len():
     num_translations = trans_grid.get_N_trans()
     full_grid = FullGrid(b_grid=body_grid, o_grid=origin_grid, t_grid=trans_grid)
     writer = PtWriter("H2O", "NH3", full_grid=full_grid)
-    writer.write_full_pt_gro()
+    writer.write_full_pt()
     file_name = writer.file_name
     end_index = writer.pt.current_frame
     assert end_index == num_translations * num_body * num_origin
@@ -103,7 +103,7 @@ def test_pt_len():
     num_translations = trans_grid.get_N_trans()
     full_grid = FullGrid(b_grid=ZeroGrid(), o_grid=origin_grid, t_grid=trans_grid)
     writer = PtWriter("H2O", "NH3", full_grid)
-    writer.write_full_pt_gro()
+    writer.write_full_pt()
     file_name = writer.file_name
     end_index = writer.pt.current_frame
     assert end_index == num_translations * num_origin
@@ -125,7 +125,7 @@ def test_pt_translations():
     full_grid = FullGrid(t_grid=trans_grid, b_grid=ZeroGrid(), o_grid=ZeroGrid())
     distances = trans_grid.get_trans_grid()
     writer = PtWriter("H2O", "H2O", full_grid)
-    writer.write_full_pt_gro()
+    writer.write_full_pt()
     file_name = writer.file_name
     # center of mass of the second molecule moves in z direction
     ts = MultiframeGroParser(file_name, is_pt=True).timesteps
@@ -153,11 +153,12 @@ def test_pt_rotations_origin():
     distances = trans_grid.get_trans_grid()
     full_grid = FullGrid(t_grid=trans_grid, b_grid=ZeroGrid(), o_grid=ico_grid)
     writer = PtWriter("H2O", "H2O", full_grid)
-    writer.write_full_pt_gro()
+    writer.write_full_pt()
     file_name = writer.file_name
     len_traj = writer.pt.current_frame
     assert len_traj == num_trans*num_rot
     # assert every uneven structure has distance 1 and every even one distance 2
+    TrajectoryParser(writer.file_name) #TODO
     ts = MultiframeGroParser(file_name, parse_atoms=True, is_pt=True).timesteps
     for frame_i in range(num_rot*num_trans):
         # distance of COM of second molecule to origin
@@ -189,7 +190,7 @@ def test_pt_rotations_body():
     distances = trans_grid.get_trans_grid()
     full_grid = FullGrid(t_grid=trans_grid, b_grid=ico_grid, o_grid=ZeroGrid())
     writer = PtWriter("H2O", "NH3", full_grid)
-    writer.write_full_pt_gro(measure_time=True)
+    writer.write_full_pt(measure_time=True)
     file_name = writer.file_name
     len_traj = writer.pt.current_frame
     assert len_traj == num_trans*num_rot
@@ -225,7 +226,7 @@ def test_order_of_operations():
     trans_grid = TranslationParser("[1, 2, 3]")
     full_grid = FullGrid(t_grid=trans_grid, b_grid=grid_b, o_grid=grid_o)
     writer = PtWriter("H2O", "NH3", full_grid)
-    writer.write_full_pt_gro()
+    writer.write_full_pt()
     file_name = writer.file_name
     len_traj = writer.pt.current_frame
     ts = MultiframeGroParser(file_name, parse_atoms=True, is_pt=True).timesteps
@@ -263,7 +264,7 @@ def test_frames_in_directory():
     assert len(filelist) == n_b*n_o*n_t, "Not correct number of .gro files in a directory."
     # compare contents of individual files mit the single all-frame PT
     writer2 = PtWriter("H2O", "NH3", full_grid)
-    writer2.write_full_pt_gro()
+    writer2.write_full_pt()
     # check that a directory joined version is the same as the normal one
     with open(new_name, "r") as f1:
         with open(fp, "r") as f2:
@@ -282,7 +283,7 @@ def test_directory_combined_to_pt():
     trans_grid = TranslationParser("[1, 2, 3]")
     full_grid = FullGrid(t_grid=trans_grid, b_grid=grid_b, o_grid=grid_o)
     writer = PtWriter("H2O", "NH3", full_grid)
-    writer.write_full_pt_gro()
+    writer.write_full_pt()
     base_p, fn, fp, dp = converter_gro_dir_gro_file_names(pt_file_path=writer.file_name)
     full_pt2directory(fp)
     new_dir_name = base_p + "split_" + fn + "/"

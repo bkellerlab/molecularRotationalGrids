@@ -289,6 +289,12 @@ class TrajectoryParser:
     def as_parsed_molecule(self) -> ParsedMolecule:
         return ParsedMolecule(self.universe)
 
+    def get_atoms(self) -> AtomGroup:
+        return self.universe.atoms
+
+    def get_box(self):
+        return self.universe.dimensions
+
     def generate_frame_as_molecule(self) -> Generator[ParsedMolecule, None, None]:
         for frame in self.trajectory:
             yield ParsedMolecule(self.universe.atoms)
