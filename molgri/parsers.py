@@ -1,23 +1,19 @@
 import hashlib
 import numbers
-import os
 from pathlib import Path
-from typing import TextIO, Generator
+from typing import Generator, Tuple
 
 import numpy as np
 from mendeleev.fetch import fetch_table
 from ast import literal_eval
 
-from numpy._typing import NDArray
+from numpy.typing import NDArray
 from scipy.spatial.transform import Rotation
 import MDAnalysis as mda
 from MDAnalysis.core import AtomGroup
-from MDAnalysis import Merge, Universe
 
-from .bodies import Molecule, MoleculeSet
 from .constants import MOLECULE_NAMES, SIX_METHOD_NAMES, FULL_RUN_NAME
-from .paths import PATH_OUTPUT_TRANSGRIDS, PATH_OUTPUT_PT
-from molgri.constants import NM2ANGSTROM
+from .paths import PATH_OUTPUT_TRANSGRIDS
 
 
 class NameParser:
@@ -209,32 +205,27 @@ def particle_type2element(particle_type: str) -> str:
 
 class ParsedMolecule:
 
-    def __init__(self, universe: Universe):
-        self.universe = universe
+    def __init__(self, atoms: AtomGroup, box = None):
+        self.atoms = atoms
+        self.box = box
         self._update_attributes()
 
     def _update_attributes(self):
-        self.atoms = self.universe.atoms
         self.num_atoms = len(self.atoms)
         self.atom_labels = self.atoms.names
         self.atom_types = self.atoms.types
 
-    def join_with(self, other_molecule):
-        self.atoms = Merge(self.atoms, other_molecule.atoms).atoms
-        self._update_attributes()
-        return self
-
     def get_atoms(self) -> AtomGroup:
         return self.atoms
-
-    def get_universe(self) -> Universe:
-        return self.universe
 
     def get_center_of_mass(self) -> NDArray:
         return self.atoms.center_of_mass()
 
     def get_positions(self) -> NDArray:
         return self.atoms.positions
+
+    def get_box(self):
+        return self.box
 
     def __str__(self):
         return f"<ParsedMolecule with atoms {self.atom_types} at {self.get_center_of_mass()}>"
@@ -259,6 +250,10 @@ class ParsedMolecule:
     def translate(self, vector: np.ndarray):
         self.atoms.translate(vector)
 
+    def translate_to_origin(self):
+        current_position = self.get_center_of_mass()
+        self.translate(-current_position)
+
     def translate_radially(self, distance_change: float):
         """
         Moves the object away from the origin in radial direction for the amount specified by distance_change (or
@@ -279,149 +274,50 @@ class ParsedMolecule:
 
 class TrajectoryParser:
 
-    def __init__(self, path: str):
-        self.molecule_name = Path(path).stem
-        self.universe = mda.Universe(path)
-        self.trajectory = self.universe.trajectory
-        self.num_atoms = len(self.universe.atoms)
-        self.box = self.universe.dimensions
-
-    def as_parsed_molecule(self) -> ParsedMolecule:
-        return ParsedMolecule(self.universe)
-
-    def get_atoms(self) -> AtomGroup:
-        return self.universe.atoms
-
-    def get_box(self):
-        return self.universe.dimensions
-
-    def generate_frame_as_molecule(self) -> Generator[ParsedMolecule, None, None]:
-        for frame in self.trajectory:
-            yield ParsedMolecule(self.universe.atoms)
-
-
-class BaseGroParser:
-
-    def __init__(self, gro_read: str, parse_atoms: bool = True, gro_file_read: TextIO = None):
+    def __init__(self, path_topology: str, path_trajectory: str = None):
         """
-        This parser reads the data from a .gro file. If multiple time steps are written, it only reads the first one.
-
-        If you want to access or copy parts of the .gro file (comment, number of atoms, atom position lines, box)
-        to another file, select parse_atoms=False (this is faster) and use the data saved in self.comment,
-        self.num_atoms, self.atom_lines_nm and self.box.
-
-        If you want to read the .gro file in order to translate/rotate atoms in it, select parse_atoms=True and
-        access the Molecule object under self.molecule_set.
+        This module serves to load a structure or trajectory information and output it in a standard format of
+        a ParsedMolecule or a generator of ParsedMolecules (one per frame). No properties should be accessed directly,
+        all work in other modules should be based on attributes and methods of ParsedMolecule.
 
         Args:
-            gro_read: the path to the .gro file to be parsed
-            parse_atoms: select True if you want to manipulate (rotate/translate) any atoms from this .gro file;
-                         select False if you only want to copy the atom position lines as-provided
-            gro_file_read: (optional) if gro file already opened, it can be provided here, in this case, gro_read
-                            argument ignored
-
+            path: a full path to the structure or trajectory file (.gro, .xtc, .xyz ....) that should be read
         """
-        head, tail = os.path.split(gro_read)
-        self.molecule_name = tail.split(".")[0]
-        if not gro_file_read:
-            self.gro_file = open(gro_read, "r")
+        self.path_topology = path_topology
+        self.path_trajectory = path_trajectory
+        if path_trajectory is not None:
+            self.universe = mda.Universe(path_topology, path_trajectory)
         else:
-            self.gro_file = gro_file_read
-        self.comment = self.gro_file.readline().strip()
-        if "t=" in self.comment:
-            split_comment = self.comment.split("=")
-            _t = split_comment[-1].strip()
-            self.t = float(_t)
-        else:
-            self.t = None
-        self.num_atoms = int(self.gro_file.readline().strip())
-        self.atom_lines_nm = []
-        for line in range(self.num_atoms):
-            # Append exact copy of the current line in self.gro_file to self.atom_lines_nm (including \n at the end).
-            line = self.gro_file.readline()
-            self.atom_lines_nm.append(line)
-        if parse_atoms:
-            self.molecule_set = self._create_molecule(*self._parse_atoms())
-        else:
-            self.molecule_set = None
-        self.box = tuple([literal_eval(x) for x in self.gro_file.readline().strip().split()])
-        assert len(self.atom_lines_nm) == self.num_atoms
-        #self.gro_file.close()
+            self.universe = mda.Universe(path_topology)
 
-    def _parse_atoms(self) -> tuple:
-        list_residues = []
-        list_gro_labels = []
-        list_atom_names = []
-        list_atom_pos = []
-        for line in self.atom_lines_nm:
-            # read out each individual part of the atom position line
-            residue_num = int(line[0:5])
-            # residue_name = line[5:10].strip()
-            atom_name = line[10:15].strip()
-            element_name = particle_type2element(atom_name)
-            # atom_num = int(line[15:20])
-            x_pos_nm = float(line[20:28])
-            y_pos_nm = float(line[28:36])
-            z_pos_nm = float(line[36:44])
-            # optionally velocities in nm/ps are writen at characters 44:52, 52:60, 60:68 of the line
-            list_residues.append(residue_num)
-            list_gro_labels.append(atom_name)
-            list_atom_names.append(element_name)
-            list_atom_pos.append([x_pos_nm, y_pos_nm, z_pos_nm])
-        return list_gro_labels, list_atom_names, list_atom_pos
+    def get_file_path_trajectory(self):
+        return self.path_trajectory
 
-    def _create_molecule(self, list_gro_labels, list_atom_names, list_atom_pos) -> Molecule:
-        array_atom_pos = np.array(list_atom_pos)
-        return Molecule(atom_names=list_atom_names, centers=array_atom_pos, center_at_origin=False,
-                        gro_labels=list_gro_labels)
+    def get_file_path_topology(self):
+        return self.path_topology
+
+    def get_file_name(self):
+        return Path(self.path_topology).stem
+
+    def as_parsed_molecule(self) -> ParsedMolecule:
+        return ParsedMolecule(self.universe.atoms, box=self.universe.dimensions)
+
+    def generate_frame_as_molecule(self) -> Generator[ParsedMolecule, None, None]:
+        for _ in self.universe.trajectory:
+            yield ParsedMolecule(self.universe.atoms, box=self.universe.dimensions)
 
 
-class PtFrameParser(BaseGroParser):
+class PtParser(TrajectoryParser):
 
-    def __init__(self, gro_read: str, parse_atoms: bool = True, gro_file_read: TextIO = None):
-        # don't parse atoms in super() since you don't know yet which atoms belong to molecule 1 and which to 2.
-        super().__init__(gro_read, parse_atoms=False, gro_file_read=gro_file_read)
-        if "c_num=" in self.comment and "r_num=" in self.comment:
-            split_comment = self.comment.split("=")
-            _c_num = split_comment[1].split(",")[0]
-            self.c_num = int(_c_num)
-            _r_num = split_comment[2].split(",")[0]
-            self.r_num = int(_r_num)
-        else:
-            raise ValueError(f"Cannot find c_num and/or r_nu in comment line: {self.comment}")
-        if parse_atoms:
-            self.molecule_set = self._create_molecule_set(*self._parse_atoms())
+    def __init__(self, m1_path: str, m2_path: str, path_topology: str, path_trajectory: str = None):
+        super().__init__(path_topology, path_trajectory)
+        self.c_num = TrajectoryParser(m1_path).as_parsed_molecule().num_atoms
+        self.r_num = TrajectoryParser(m2_path).as_parsed_molecule().num_atoms
+        assert self.c_num + self.r_num == self.as_parsed_molecule().num_atoms
 
-    def _create_molecule_set(self, list_gro_labels, list_atom_names, list_atom_pos) -> MoleculeSet:
-        """
-        Redefine this function so that the molecular set consists of exactly two molecules, one fixed, one rotated.
-        """
-        array_atom_pos = np.array(list_atom_pos)
-        molecule_list = [Molecule(atom_names=list_atom_names[0:self.c_num],
-                                  centers=array_atom_pos[0:self.c_num], center_at_origin=False,
-                                  gro_labels=list_gro_labels[0:self.c_num])]
-        assert self.c_num+self.r_num == self.num_atoms
-        molecule_list.append(Molecule(atom_names=list_atom_names[self.c_num:],
-                                      centers=array_atom_pos[self.c_num:], center_at_origin=False,
-                                      gro_labels=list_gro_labels[self.c_num:]))
-        return MoleculeSet(molecule_list)
-
-
-class MultiframeGroParser:
-
-    def __init__(self, gro_read: str, parse_atoms: bool = True, is_pt=True):
-        self.timesteps = []
-        with open(gro_read) as f:
-            while True:
-                try:
-                    if is_pt:
-                        bgp = PtFrameParser(gro_read, parse_atoms=parse_atoms, gro_file_read=f)
-                    else:
-                        bgp = BaseGroParser(gro_read, parse_atoms=parse_atoms, gro_file_read=f)
-                except ValueError:
-                    # this occurs at the end of the file when no more timesteps to read.
-                    break
-                self.timesteps.append(bgp)
+    def generate_frame_as_molecule(self) -> Generator[Tuple[ParsedMolecule, ParsedMolecule], None, None]:
+        for _ in self.universe.trajectory:
+            yield ParsedMolecule(self.universe.atoms[:self.c_num], box=self.universe.dimensions), ParsedMolecule(self.universe.atoms[self.c_num:], box=self.universe.dimensions)
 
 
 class TranslationParser(object):
@@ -468,11 +364,3 @@ class TranslationParser(object):
         if isinstance(str_in_brackets,numbers.Number):
             str_in_brackets = tuple((str_in_brackets,))
         return str_in_brackets
-
-
-if __name__ == "__main__":
-    tp = TrajectoryParser("/home/zupanhana/PAPER_MOLECULAR_ROTATIONS_2022/molgri/output/pt_files/H2O_NH3_o_zero_b_ico_4_t_4186227062.gro")
-    print(tp.num_atoms)
-    #tp2 = TrajectoryParser("/home/zupanhana/PAPER_MOLECULAR_ROTATIONS_2022/molgri/input/NA.gro")
-    #for el in tp.generate_frame_as_molecule():
-    #    print(el)

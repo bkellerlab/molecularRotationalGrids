@@ -1,16 +1,16 @@
 import numpy as np
 import pytest
 
-from molgri.parsers import NameParser, TranslationParser, MultiframeGroParser, PtFrameParser, particle_type2element, TrajectoryParser
+from molgri.parsers import NameParser, TranslationParser, TrajectoryParser
 from molgri.constants import ANGSTROM2NM
 
 
 def test_atom_gro_file():
     file_name = f"molgri/examples/NA.gro"
-    my_parser = TrajectoryParser(file_name)
+    my_parser = TrajectoryParser(file_name).as_parsed_molecule()
     assert my_parser.num_atoms == 1
     assert np.allclose(my_parser.box[:3]*ANGSTROM2NM, [30, 30, 30])
-    my_molecule_set = my_parser.as_parsed_molecule()
+    my_molecule_set = my_parser
     my_molecule = my_molecule_set
     assert np.allclose(my_molecule.get_center_of_mass(), [0, 0, 0])
     assert my_molecule.atom_labels[0] == "NA"
@@ -19,10 +19,10 @@ def test_atom_gro_file():
 
 def test_water_gro_file():
     file_name = f"molgri/examples/H2O.gro"
-    my_parser = TrajectoryParser(file_name)
+    my_parser = TrajectoryParser(file_name).as_parsed_molecule()
     assert my_parser.num_atoms == 3
     assert np.allclose(my_parser.box[:3]*ANGSTROM2NM, [30, 30, 30])
-    my_molecule = my_parser.as_parsed_molecule()
+    my_molecule = my_parser
     # the atomic get_positions()
     assert np.allclose(my_molecule.atoms[0].position*ANGSTROM2NM, [0.000, -0.005, 0.004])
     assert np.allclose(my_molecule.atoms[1].position*ANGSTROM2NM, [0.000,  -0.005,  -0.092])
@@ -43,10 +43,10 @@ def test_protein_gro_file():
     first time step, ignore all subsequent ones.
     """
     file_name = f"molgri/examples/example_protein.gro"
-    my_parser = TrajectoryParser(file_name)
+    my_parser = TrajectoryParser(file_name).as_parsed_molecule()
     assert my_parser.num_atoms == 902
     assert np.allclose(my_parser.box[:3]*ANGSTROM2NM, [6.38830,  6.16418,   8.18519])
-    my_molecule = my_parser.as_parsed_molecule()
+    my_molecule = my_parser
     assert np.allclose(my_molecule.atoms[0].position*ANGSTROM2NM, [-0.421,  -0.191,  -1.942])
     assert np.allclose(my_molecule.atoms[1].position*ANGSTROM2NM, [-0.450,  -0.287,  -1.946])
     assert np.allclose(my_molecule.atoms[901].position*ANGSTROM2NM, [0.065,  -0.214,   2.135])
@@ -65,19 +65,6 @@ def test_protein_gro_file():
     organic_elements = ["N", "O", "C", "H", "S", "P", "F"]
     for el in my_molecule.atom_types:
         assert el in organic_elements, f"{el} not correctly identified as organic element"
-
-
-def test_parsing_pt_gro():
-    file_name = "molgri/examples/H2O_NH3_o_cube3D_15_b_ico_10_t_2189828055.gro"
-    my_parser = TrajectoryParser(file_name)
-    # TODO: try with a multiframe format
-    # for item in my_parser.generate_frame_as_molecule():
-    #     print(item.get_positions())
-    # my_parser = PtFrameParser(file_name)
-    # assert my_parser.c_num == 3
-    # assert my_parser.r_num == 4
-    # multiparser = MultiframeGroParser(file_name)
-    # assert len(multiparser.timesteps) == 300
 
 
 def test_parsing_xyz():
@@ -182,15 +169,10 @@ def test_expected_errors():
         np3.get_grid_type()
     with pytest.raises(ValueError):
         np3.get_num()
-    with pytest.raises(ValueError):
-        particle_type2element("Z")
-    with pytest.raises(ValueError):
-        PtFrameParser(f"molgri/examples/example_protein.gro")
 
 
 if __name__ == '__main__':
     test_atom_gro_file()
-    test_parsing_pt_gro()
     test_water_gro_file()
     test_protein_gro_file()
     test_parsing_xyz()
