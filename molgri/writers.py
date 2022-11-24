@@ -2,6 +2,9 @@ from typing import Tuple
 import os
 import shutil
 
+import MDAnalysis as mda
+from MDAnalysis import Merge
+
 from molgri.grids import ZeroGrid, FullGrid
 from molgri.parsers import TranslationParser, TrajectoryParser, ParsedMolecule
 from molgri.paths import PATH_INPUT_BASEGRO, PATH_OUTPUT_PT
@@ -65,11 +68,18 @@ class PtWriter(GroWriter):
 
         central_file_path = f"{PATH_INPUT_BASEGRO}{name_central_gro}.gro"
         self.central_parser = TrajectoryParser(central_file_path)
+        #self.central_atoms = self.central_parser.universe.atoms
         rotating_file_path = f"{PATH_INPUT_BASEGRO}{name_rotating_gro}.gro"
         self.rotating_parser = TrajectoryParser(rotating_file_path)
+        #NEW
+        # central_parsed_molecule = self.central_parser.as_one_molecule()
+        # rotating_parsed_molecule = self.rotating_parser.as_one_molecule()
+        # self.both_molecules = central_parsed_molecule.join_with(rotating_parsed_molecule)
+        #NEW
         self.full_grid = full_grid
-        self.pt = Pseudotrajectory(self.rotating_parser.as_one_molecule(), full_grid)
-        super().__init__(f"{PATH_OUTPUT_PT}{self.get_output_name()}.gro")
+        self.pt = Pseudotrajectory(self.rotating_parser.as_parsed_molecule(), full_grid)
+        #super().__init__(f"{PATH_OUTPUT_PT}{self.get_output_name()}.gro")
+        self.file_name = self.get_output_name()
         self.c_num = self.central_parser.num_atoms
         self.r_num = self.rotating_parser.num_atoms
 
@@ -88,7 +98,7 @@ class PtWriter(GroWriter):
         self.write_box(box=self.central_parser.box)
 
     def _write_first_molecule(self):
-        first_molecule = self.central_parser.as_one_molecule()
+        first_molecule = self.central_parser.as_parsed_molecule()
         num_atom = 1
         num_molecule = 2
         for i, atom in enumerate(first_molecule.atoms):
@@ -111,13 +121,25 @@ class PtWriter(GroWriter):
             num_atom += 1
 
     def write_full_pt_gro(self, measure_time: bool = False):
+        output_path = f"{PATH_OUTPUT_PT}{self.file_name}.xtc"
+        structure_path = f"{PATH_OUTPUT_PT}{self.file_name}.gro"
+        with mda.Writer(structure_path) as structure_writer:
+            merged_universe = Merge(self.central_parser.as_parsed_molecule().get_atoms(), self.rotating_parser.as_parsed_molecule().get_atoms())
+            merged_universe.dimensions = self.central_parser.universe.dimensions
+            structure_writer.write(merged_universe)
+        trajectory_writer = mda.Writer(output_path, multiframe=True)
         if measure_time:
             generating_func = self.pt.generate_pt_and_time
         else:
             generating_func = self.pt.generate_pseudotrajectory
         for i, second_molecule in generating_func():
-            self.write_frame(i, second_molecule)
-        self.f.close()
+            #print(type(self.central_parser.universe), type(second_molecule.get_universe()))
+            merged_universe = Merge(self.central_parser.as_parsed_molecule().get_atoms(), second_molecule.get_atoms())
+            merged_universe.dimensions = self.central_parser.universe.dimensions
+            trajectory_writer.write(merged_universe)
+            #self.write_frame(i, second_molecule)
+        #self.f.close()
+        trajectory_writer.close()
 
     def write_frames_in_directory(self):
         self.f.close()
@@ -193,3 +215,10 @@ def full_pt2directory(full_pt_path: str):
     for i in range(len(lines) // num_frame_lines):
         with open(f"{directory}/{i}.gro", "w") as f_write:
             f_write.writelines(lines[num_frame_lines*i:num_frame_lines*(i+1)])
+
+
+if __name__ == '__main__':
+    from molgri.grids import IcoGrid
+    grid = FullGrid(b_grid=ZeroGrid(), o_grid=IcoGrid(15), t_grid=TranslationParser("[1, 2, 3]"))
+    ptwriter = PtWriter("H2O", "CL", grid)
+    ptwriter.write_full_pt_gro(measure_time=True)

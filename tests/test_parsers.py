@@ -10,7 +10,7 @@ def test_atom_gro_file():
     my_parser = TrajectoryParser(file_name)
     assert my_parser.num_atoms == 1
     assert np.allclose(my_parser.box[:3]*ANGSTROM2NM, [30, 30, 30])
-    my_molecule_set = my_parser.as_one_molecule()
+    my_molecule_set = my_parser.as_parsed_molecule()
     my_molecule = my_molecule_set
     assert np.allclose(my_molecule.get_center_of_mass(), [0, 0, 0])
     assert my_molecule.atom_labels[0] == "NA"
@@ -22,7 +22,7 @@ def test_water_gro_file():
     my_parser = TrajectoryParser(file_name)
     assert my_parser.num_atoms == 3
     assert np.allclose(my_parser.box[:3]*ANGSTROM2NM, [30, 30, 30])
-    my_molecule = my_parser.as_one_molecule()
+    my_molecule = my_parser.as_parsed_molecule()
     # the atomic get_positions()
     assert np.allclose(my_molecule.atoms[0].position*ANGSTROM2NM, [0.000, -0.005, 0.004])
     assert np.allclose(my_molecule.atoms[1].position*ANGSTROM2NM, [0.000,  -0.005,  -0.092])
@@ -46,7 +46,7 @@ def test_protein_gro_file():
     my_parser = TrajectoryParser(file_name)
     assert my_parser.num_atoms == 902
     assert np.allclose(my_parser.box[:3]*ANGSTROM2NM, [6.38830,  6.16418,   8.18519])
-    my_molecule = my_parser.as_one_molecule()
+    my_molecule = my_parser.as_parsed_molecule()
     assert np.allclose(my_molecule.atoms[0].position*ANGSTROM2NM, [-0.421,  -0.191,  -1.942])
     assert np.allclose(my_molecule.atoms[1].position*ANGSTROM2NM, [-0.450,  -0.287,  -1.946])
     assert np.allclose(my_molecule.atoms[901].position*ANGSTROM2NM, [0.065,  -0.214,   2.135])
@@ -83,7 +83,7 @@ def test_parsing_pt_gro():
 def test_parsing_xyz():
     file_name = "molgri/examples/glucose.xyz"
     my_parser = TrajectoryParser(file_name)
-    my_molecule = my_parser.as_one_molecule()
+    my_molecule = my_parser.as_parsed_molecule()
     all_types = ["C"]*6
     all_types.extend(["O"]*6)
     assert np.all(my_molecule.atom_types == all_types)
@@ -96,7 +96,7 @@ def test_parsing_xyz():
 def test_parsing_pdb():
     file_name = "molgri/examples/example_pdb.pdb"
     my_parser = TrajectoryParser(file_name)
-    my_molecule = my_parser.as_one_molecule()
+    my_molecule = my_parser.as_parsed_molecule()
     assert np.all(my_molecule.atom_types[0] == "N")
     assert np.all(my_molecule.atom_types[1] == "C")
     assert np.all(my_molecule.atom_types[10] == "H")

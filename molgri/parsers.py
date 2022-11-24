@@ -12,11 +12,13 @@ from numpy._typing import NDArray
 from scipy.spatial.transform import Rotation
 import MDAnalysis as mda
 from MDAnalysis.core import AtomGroup
+from MDAnalysis import Merge, Universe
 
 from .bodies import Molecule, MoleculeSet
 from .constants import MOLECULE_NAMES, SIX_METHOD_NAMES, FULL_RUN_NAME
 from .paths import PATH_OUTPUT_TRANSGRIDS, PATH_OUTPUT_PT
 from molgri.constants import NM2ANGSTROM
+
 
 class NameParser:
 
@@ -207,11 +209,26 @@ def particle_type2element(particle_type: str) -> str:
 
 class ParsedMolecule:
 
-    def __init__(self, atoms: AtomGroup):
-        self.atoms = atoms
-        self.num_atoms = len(atoms)
-        self.atom_labels = atoms.names
-        self.atom_types = atoms.types
+    def __init__(self, universe: Universe):
+        self.universe = universe
+        self._update_attributes()
+
+    def _update_attributes(self):
+        self.atoms = self.universe.atoms
+        self.num_atoms = len(self.atoms)
+        self.atom_labels = self.atoms.names
+        self.atom_types = self.atoms.types
+
+    def join_with(self, other_molecule):
+        self.atoms = Merge(self.atoms, other_molecule.atoms).atoms
+        self._update_attributes()
+        return self
+
+    def get_atoms(self) -> AtomGroup:
+        return self.atoms
+
+    def get_universe(self) -> Universe:
+        return self.universe
 
     def get_center_of_mass(self) -> NDArray:
         return self.atoms.center_of_mass()
@@ -269,8 +286,8 @@ class TrajectoryParser:
         self.num_atoms = len(self.universe.atoms)
         self.box = self.universe.dimensions
 
-    def as_one_molecule(self) -> ParsedMolecule:
-        return ParsedMolecule(self.universe.atoms)
+    def as_parsed_molecule(self) -> ParsedMolecule:
+        return ParsedMolecule(self.universe)
 
     def generate_frame_as_molecule(self) -> Generator[ParsedMolecule, None, None]:
         for frame in self.trajectory:
