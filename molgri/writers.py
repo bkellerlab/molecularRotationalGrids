@@ -2,7 +2,6 @@ from typing import Tuple
 import os
 import shutil
 
-from molgri.bodies import Molecule
 from molgri.grids import ZeroGrid, FullGrid
 from molgri.parsers import TranslationParser, TrajectoryParser, ParsedMolecule
 from molgri.paths import PATH_INPUT_BASEGRO, PATH_OUTPUT_PT
@@ -80,7 +79,7 @@ class PtWriter(GroWriter):
         result_file_path = f"{mol_name1}_{mol_name2}_{self.full_grid.get_full_grid_name()}"
         return result_file_path
 
-    def write_frame(self, frame_num: int, second_molecule: Molecule):
+    def write_frame(self, frame_num: int, second_molecule: ParsedMolecule):
         comment = f"c_num={self.c_num}, r_num={self.r_num}, t={frame_num}"
         total_num = self.c_num + self.r_num
         self.write_comment_num(comment=comment, num_atoms=total_num)

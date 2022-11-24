@@ -6,9 +6,6 @@ For this purpose, Writers in molgri.writers module are provided.
 
 from typing import Tuple, Generator
 
-import numpy as np
-
-from .bodies import Molecule
 from molgri.parsers import ParsedMolecule
 from .constants import NM2ANGSTROM
 from .grids import FullGrid
@@ -38,7 +35,7 @@ class Pseudotrajectory:
         self.rot_grid_origin = self.rot_grid_origin.as_rot_matrix()
         self.current_frame = 0
 
-    def generate_pseudotrajectory(self) -> Generator[Tuple[int, Molecule], None, None]:
+    def generate_pseudotrajectory(self) -> Generator[Tuple[int, ParsedMolecule], None, None]:
         # center second molecule if not centered yet
         self.molecule.translate(-self.molecule.get_center_of_mass())
         trans_increments = self.trans_grid.get_increments()*NM2ANGSTROM
@@ -64,5 +61,5 @@ class Pseudotrajectory:
             self.molecule.rotate_about_origin(origin_rotation, inverse=True)
 
     @time_method
-    def generate_pt_and_time(self) -> Generator[Tuple[int, Molecule], None, None]:
+    def generate_pt_and_time(self) -> Generator[Tuple[int, ParsedMolecule], None, None]:
         return self.generate_pseudotrajectory()

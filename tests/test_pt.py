@@ -9,7 +9,6 @@ from molgri.grids import IcoGrid, Cube4DGrid, ZeroGrid, FullGrid
 from molgri.parsers import TranslationParser, MultiframeGroParser
 from molgri.scripts.set_up_io import freshly_create_all_folders, copy_examples
 from molgri.utils import angle_between_vectors, normalise_vectors
-from molgri.paths import PATH_OUTPUT_PT
 
 
 def same_distance(mol1: Molecule, mol2: Molecule):
