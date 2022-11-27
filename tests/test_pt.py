@@ -54,7 +54,7 @@ def test_pt_len():
     trans_grid = TranslationParser("linspace(1, 5, 10)")
     num_translations = trans_grid.get_N_trans()
     full_grid = FullGrid(b_grid=rot_grid, o_grid=rot_grid, t_grid=trans_grid)
-    writer = PtWriter("H2O", "H2O", full_grid)
+    writer = PtWriter("", None)
     writer.write_full_pt()
     end_index = writer.pt.current_frame
     assert end_index == num_translations*num_rotations*num_rotations
@@ -69,7 +69,7 @@ def test_pt_len():
     trans_grid = TranslationParser("range(1, 5, 0.5)")
     num_translations = trans_grid.get_N_trans()
     full_grid = FullGrid(b_grid=body_grid, o_grid=origin_grid, t_grid=trans_grid)
-    writer = PtWriter("H2O", "NH3", full_grid=full_grid)
+    writer = PtWriter("", None)
     writer.write_full_pt()
     end_index = writer.pt.current_frame
     assert end_index == num_translations * num_body * num_origin
@@ -84,7 +84,7 @@ def test_pt_len():
     trans_grid = TranslationParser("range(1, 5, 0.5)")
     num_translations = trans_grid.get_N_trans()
     full_grid = FullGrid(b_grid=ZeroGrid(), o_grid=origin_grid, t_grid=trans_grid)
-    writer = PtWriter("H2O", "NH3", full_grid)
+    writer = PtWriter("", None)
     writer.write_full_pt()
     end_index = writer.pt.current_frame
     assert end_index == num_translations * num_origin
@@ -104,7 +104,7 @@ def test_pt_translations():
     trans_grid = TranslationParser("range(1, 5, 0.5)")
     full_grid = FullGrid(t_grid=trans_grid, b_grid=ZeroGrid(), o_grid=ZeroGrid())
     distances = trans_grid.get_trans_grid()
-    writer = PtWriter("H2O", "H2O", full_grid)
+    writer = PtWriter("", None)
     writer.write_full_pt()
     file_name = writer.file_name
     # center of mass of the second molecule moves in z direction
@@ -132,7 +132,7 @@ def test_pt_rotations_origin():
     trans_grid = TranslationParser("[1, 2]")
     distances = trans_grid.get_trans_grid()
     full_grid = FullGrid(t_grid=trans_grid, b_grid=ZeroGrid(), o_grid=ico_grid)
-    writer = PtWriter("H2O", "H2O", full_grid)
+    writer = PtWriter("", None)
     writer.write_full_pt()
     len_traj = writer.pt.current_frame
     assert len_traj == num_trans*num_rot
@@ -169,7 +169,7 @@ def test_pt_rotations_body():
     trans_grid = TranslationParser("[1, 2, 3]")
     distances = trans_grid.get_trans_grid()
     full_grid = FullGrid(t_grid=trans_grid, b_grid=ico_grid, o_grid=ZeroGrid())
-    writer = PtWriter("H2O", "NH3", full_grid)
+    writer = PtWriter("", None)
     writer.write_full_pt(measure_time=True)
     len_traj = writer.pt.current_frame
     assert len_traj == num_trans*num_rot
@@ -206,7 +206,7 @@ def test_order_of_operations():
     n_t = 3
     trans_grid = TranslationParser("[1, 2, 3]")
     full_grid = FullGrid(t_grid=trans_grid, b_grid=grid_b, o_grid=grid_o)
-    writer = PtWriter("H2O", "NH3", full_grid)
+    writer = PtWriter("", None)
     writer.write_full_pt()
     len_traj = writer.pt.current_frame
     m1_path = f"{PATH_INPUT_BASEGRO}H2O.gro"

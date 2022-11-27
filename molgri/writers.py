@@ -12,19 +12,48 @@ from molgri.paths import PATH_INPUT_BASEGRO, PATH_OUTPUT_PT
 from molgri.pts import Pseudotrajectory
 
 
+class PtIOManager:
+
+    def __init__(self, name_central_molecule: str, name_rotating_molecule: str, name_o_grid: str, name_b_grid: str,
+                 string_t_grid: str):
+        """
+        This class gets only strings as inputs, combines them to correct paths, manages Parsers and Writers that
+        provide a smooth input/output to a Pseudotrajectory. In the end, only this class needs to be called
+
+        Args:
+            name_central_molecule: name of the molecule that stays fixed (with or without extension)
+            name_rotating_molecule: name of the molecule that moves in a pseudotrajectory
+            name_grid: consists of unter-grids that span state space
+        """
+        # parsing input files
+        central_file_path = f"{PATH_INPUT_BASEGRO}{name_central_molecule}"
+        self.central_parser = TrajectoryParser(central_file_path)
+        rotating_file_path = f"{PATH_INPUT_BASEGRO}{name_rotating_molecule}"
+        self.rotating_parser = TrajectoryParser(rotating_file_path)
+        self.rotating_molecule = self.rotating_parser.as_parsed_molecule()
+        self.central_molecule = self.central_parser.as_parsed_molecule()
+        # parsing grids
+        self.full_grid = FullGrid(name_b_grid)
+        self.writer = PtWriter(name_to_save=self.determine_pt_name(),
+                               parsed_central_molecule=self.central_molecule)
+
+    def determine_pt_name(self):
+        name_c_molecule = self.central_parser.get_file_name()
+        name_r_molecule = self.rotating_parser.get_file_name()
+        name_full_grid = self.full_grid.get_full_grid_name()
+        return f"{name_c_molecule}_{name_r_molecule}_{name_full_grid}"
+
+
 class PtWriter:
 
-    def __init__(self, name_central_gro: str, name_rotating_gro: str, full_grid: FullGrid):
+    def __init__(self, name_to_save: str, parsed_central_molecule: ParsedMolecule):
         """
         We read in two base gro files, each containing one molecule. Capable of writing a new gro file that
         contains one or more time steps in which the second molecule moves around. First molecule is only read
         and the lines copied at every step; second molecule is read and represented with Atom objects which can rotate
         and translate.
 
-        Args:
-            name_central_gro: name of the molecule that stays fixed
-            name_rotating_gro: name of the molecule that moves in a pseudotrajectory
-            full_grid: consists of unter-grids that span state space
+
         """
         # TODO: parsers should be removed from this class, deal only with ParsedMolecules
         central_file_path = f"{PATH_INPUT_BASEGRO}{name_central_gro}.gro"
@@ -129,5 +158,5 @@ def full_pt2directory(full_pt_path: str):
 if __name__ == '__main__':
     from molgri.grids import IcoGrid
     grid = FullGrid(b_grid=ZeroGrid(), o_grid=IcoGrid(15), t_grid=TranslationParser("[1, 2, 3]"))
-    ptwriter = PtWriter("H2O", "CL", grid)
+    ptwriter = PtWriter("", None)
     ptwriter.write_full_pt(measure_time=True)

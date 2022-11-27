@@ -104,7 +104,7 @@ def test_second_neighbours():
 def test_general_grid_properties():
     for alg in SIX_METHOD_NAMES:
         for number in (3, 15, 26):
-            grid_obj = build_grid(alg, number)
+            grid_obj = build_grid(number, alg)
             grid = grid_obj.get_grid()
             assert isinstance(grid, np.ndarray), "Grid must be a numpy array."
             assert grid.shape == (number, 3), "Wrong grid shape."
@@ -144,14 +144,14 @@ def test_zero_grid():
 
 def test_errors_and_assertions():
     with pytest.raises(ValueError):
-        build_grid("icosahedron", 15)
+        build_grid(15, "icosahedron")
     with pytest.raises(ValueError):
-        build_grid("grid", 15)
+        build_grid(15, "grid")
     with pytest.raises(AssertionError):
-        build_grid("ico", -15)
+        build_grid(-15, "ico")
     with pytest.raises(AssertionError):
-        build_grid("ico", 15.3)
-    grid = build_grid("ico", 20).get_grid()
+        build_grid(15.3, "ico")
+    grid = build_grid(20, "ico").get_grid()
     with pytest.raises(ValueError):
         order_grid_points(grid, 25)
 
@@ -199,8 +199,8 @@ def test_ordering():
         try:
             for N in range(14, 284, 3):
                 for addition in (1, 7):
-                    grid_1 = build_grid(name, N+addition, ordered=True).get_grid()
-                    grid_2 = build_grid(name, N, ordered=True).get_grid()
+                    grid_1 = build_grid(N + addition, name, ordered=True).get_grid()
+                    grid_2 = build_grid(N, name, ordered=True).get_grid()
                     assert np.allclose(grid_1[:N], grid_2)
         except AssertionError:
             print(name)

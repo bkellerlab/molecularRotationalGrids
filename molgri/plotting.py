@@ -248,7 +248,7 @@ class GridPlot(AbstractPlot):
     def _prepare_data(self) -> np.ndarray:
         num = self.parsed_data_name.get_num()
         orig_name = self.parsed_data_name.get_grid_type()
-        my_grid = build_grid(orig_name, num, use_saved=True).get_grid()
+        my_grid = build_grid(num, orig_name, use_saved=True).get_grid()
         return my_grid
 
     def _plot_data(self, **kwargs):
@@ -337,7 +337,7 @@ class AlphaViolinPlot(AbstractPlot):
         super().__init__(data_name, dimensions=2, style_type=style_type, plot_type=plot_type, **kwargs)
 
     def _prepare_data(self) -> pd.DataFrame:
-        my_grid = build_grid(self.parsed_data_name.grid_type, self.parsed_data_name.num_grid_points, use_saved=True)
+        my_grid = build_grid(self.parsed_data_name.num_grid_points, self.parsed_data_name.grid_type, use_saved=True)
         # if statistics file already exists, use it, else create it
         try:
             ratios_df = pd.read_csv(my_grid.statistics_path)

@@ -629,9 +629,9 @@ class IcoGrid(Polyhedron3DGrid):
 
 class FullGrid:
 
-    def __init__(self, b_grid: Grid, o_grid: Grid, t_grid: TranslationParser):
+    def __init__(self, b_grid_name: str, o_grid_name: str, t_grid_name: str):
         """
-        In preparation. A combination object that enables work with a set of grids.
+        A combination object that enables work with a set of grids. A parser that
 
         Args:
             b_grid: body rotation grid
@@ -640,7 +640,7 @@ class FullGrid:
         """
         self.b_grid = b_grid
         self.o_grid = o_grid
-        self.t_grid = t_grid
+        self.t_grid = TranslationParser(t_grid_name)
 
     def get_full_grid_name(self):
         nap = NameParser({"o_grid": self.o_grid.standard_name, "b_grid": self.b_grid.standard_name,
@@ -648,7 +648,23 @@ class FullGrid:
         return nap.get_standard_name()
 
 
-def build_grid(grid_type: str, N: int, **kwargs) -> Grid:
+def build_grid(grid_name: str, **kwargs) -> Grid:
+    """
+    Provide grid_name either in the form 'ico_24', '24'
+    """
+    split_grid_name = grid_name.split("_")
+    # check if there is a number
+    N = None
+    for split_el in split_grid_name:
+        if split_el.isnumeric():
+            N = int(split_el)
+    if N is None:
+        raise ValueError(f"Grid name {grid_name} does not contain the number of points.")
+    # check if there is an algorithm name
+    for split_el in SIX_METHOD_NAMES:
+        if split_el in :
+            grid_type = split_el
+
     name2grid = {"randomQ": RandomQGrid,
                  "randomE": RandomEGrid,
                  "cube4D": Cube4DGrid,

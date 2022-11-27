@@ -43,9 +43,9 @@ def prepare_grid(args, parsed_name: NameParser) -> Grid:
     # if already exists and no --recalculate flag, just display a message
     if os.path.exists(join(PATH_OUTPUT_ROTGRIDS, f"{name}.{ENDING_GRID_FILES}")) and not args.recalculate:
         print(f"Grid with name {name} is already saved. If you want to recalculate it, select --recalculate flag.")
-        my_grid = build_grid(algo, n_points, use_saved=True, time_generation=True)
+        my_grid = build_grid(n_points, algo, use_saved=True, time_generation=True)
     else:
-        my_grid = build_grid(algo, n_points, use_saved=False, time_generation=True)
+        my_grid = build_grid(n_points, algo, use_saved=False, time_generation=True)
         my_grid.save_grid()
         print(f"Generated a {my_grid.decorator_label} with {my_grid.N} points.")
     # if running from another script, args may not include the readable attribute
