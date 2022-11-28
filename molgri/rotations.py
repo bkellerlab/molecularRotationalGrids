@@ -5,7 +5,7 @@ from numpy.typing import NDArray
 from scipy.spatial.transform import Rotation
 
 
-def quaternion2grid(array_quaternions: np.ndarray) -> np.ndarray:
+def quaternion2grid(array_quaternions: NDArray) -> NDArray:
     """
     Take an array where each row is a quaternion and convert each rotation into a point on a unit sphere.
 
@@ -25,7 +25,7 @@ def quaternion2grid(array_quaternions: np.ndarray) -> np.ndarray:
     return points
 
 
-def grid2quaternion(grid_3D: np.ndarray) -> np.ndarray:
+def grid2quaternion(grid_3D: NDArray) -> NDArray:
     """
     Take an array where each row is a point on a unit sphere and convert each rotation into a set of euler_123 angles.
 
@@ -48,7 +48,7 @@ def grid2quaternion(grid_3D: np.ndarray) -> np.ndarray:
     return points
 
 
-def grid2rotation(grid_3D: np.ndarray) -> List[Rotation]:
+def grid2rotation(grid_3D: NDArray) -> List[Rotation]:
     assert np.allclose(np.linalg.norm(grid_3D, axis=1), 1), "Points on a grid must be unit vectors!"
     assert grid_3D.shape[1] == 3, "points on a 3D sphere must have 3 dimensions"
     base_vector = np.array([0, 0, 1])
@@ -59,7 +59,7 @@ def grid2rotation(grid_3D: np.ndarray) -> List[Rotation]:
     return rotations
 
 
-def euler2grid(array_euler_angles: np.ndarray) -> np.ndarray:
+def euler2grid(array_euler_angles: NDArray) -> NDArray:
     """
     Take an array where each row is a set of euler_123 angles and convert each rotation into a point on a unit sphere.
 
@@ -78,7 +78,7 @@ def euler2grid(array_euler_angles: np.ndarray) -> np.ndarray:
     return points
 
 
-def grid2euler(grid_3D: np.ndarray) -> np.ndarray:
+def grid2euler(grid_3D: NDArray) -> NDArray:
     """
     Take an array where each row is a point on a unit sphere and convert each rotation into a set of euler_123 angles.
 
@@ -101,7 +101,7 @@ def grid2euler(grid_3D: np.ndarray) -> np.ndarray:
 
 # ########################## HELPER FUNCTIONS ################################
 
-def skew(x: np.ndarray) -> np.ndarray:
+def skew(x: NDArray) -> NDArray:
     """
     Take a matrix and return its skew matrix.
 
@@ -116,8 +116,8 @@ def skew(x: np.ndarray) -> np.ndarray:
                      [-x[1], x[0], 0]])
 
 
-def two_vectors2rot(x: np.ndarray, y: np.ndarray) -> np.ndarray:
-    #TODO: this could be done on arrays
+def two_vectors2rot(x: NDArray, y: NDArray) -> NDArray:
+    # TODO: this could be done on arrays
     """
     Take vectors x and y and return the rotational matrix that transforms x into y.
 
@@ -156,7 +156,7 @@ class Rotation2D:
                                [np.sin(alpha), np.cos(alpha)]])
         self.rot_matrix = rot_matrix
 
-    def apply(self, vector_set: np.ndarray, inverse: bool = False) -> np.ndarray:
+    def apply(self, vector_set: NDArray, inverse: bool = False) -> NDArray:
         """
         Applies 2D rotational matrix to a set of vectors of shape (N, 2) or a single vector with shape (2, )
 

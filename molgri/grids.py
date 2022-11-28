@@ -343,7 +343,7 @@ class Grid(ABC):
     def _order(self):
         self.grid = order_grid_points(self.grid, self.N)
 
-    def as_rot_matrix(self) -> List[Rotation]:
+    def as_rotation_object(self) -> List[Rotation]:
         return grid2rotation(self.grid)
 
     def as_quaternion(self) -> np.ndarray:

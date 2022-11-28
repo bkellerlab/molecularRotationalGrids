@@ -245,7 +245,8 @@ def test_frames_in_directory():
     manager = PtIOManager("H2O", "NH3", f"ico_{n_o}", f"ico_{n_b}", "[1, 2, 3]")
     manager.construct_pt(as_dir=True)
     file_name = manager.determine_pt_name()
-    base_p, fn, fp, dp = converter_gro_dir_gro_file_names(pt_file_path=f"{PATH_OUTPUT_PT}{file_name}.xtc")
+    base_p, fn, fp, dp = converter_gro_dir_gro_file_names(pt_directory_path=f"{PATH_OUTPUT_PT}{file_name}",
+                                                          extension="xtc")
     directory2full_pt(dp)
     new_name = base_p + "joined_" + fn + ".gro"
     os.rename(fp, new_name)
@@ -274,7 +275,7 @@ def test_directory_combined_to_pt():
     new_dir_name = base_p + "split_" + fn + "/"
     if os.path.exists(new_dir_name):
         # delete contents if folder already exist
-        filelist = [f for f in os.listdir(new_dir_name) if f.endswith(".gro")]
+        filelist = [f for f in os.listdir(new_dir_name)]
         for f in filelist:
             os.remove(os.path.join(new_dir_name, f))
         os.rmdir(new_dir_name)

@@ -209,7 +209,7 @@ def test_ordering():
 
 def test_default_full_grids():
     full_grid = FullGrid(t_grid_name="[1]", o_grid_name="zero", b_grid_name="zero")
-    assert np.all(full_grid.t_grid.get_trans_grid() == np.array([1]))
+    assert np.all(full_grid.t_grid.get_trans_grid() == np.array([10]))
     assert isinstance(full_grid.o_grid, ZeroGrid)
     assert isinstance(full_grid.b_grid, ZeroGrid)
     full_grid = FullGrid(t_grid_name="[0]", o_grid_name="None", b_grid_name="None")
@@ -217,11 +217,11 @@ def test_default_full_grids():
     assert isinstance(full_grid.o_grid, ZeroGrid)
     assert isinstance(full_grid.b_grid, ZeroGrid)
     full_grid = FullGrid(t_grid_name="[1, 2, 3]", o_grid_name="0", b_grid_name="0")
-    assert np.all(full_grid.t_grid.get_trans_grid() == np.array([1, 2, 3]))
+    assert np.all(full_grid.t_grid.get_trans_grid() == np.array([10, 20, 30]))
     assert isinstance(full_grid.o_grid, ZeroGrid)
     assert isinstance(full_grid.b_grid, ZeroGrid)
     full_grid = FullGrid(t_grid_name="[1, 2, 3]", o_grid_name="1", b_grid_name="1")
-    assert np.all(full_grid.t_grid.get_trans_grid() == np.array([1, 2, 3]))
+    assert np.all(full_grid.t_grid.get_trans_grid() == np.array([10, 20, 30]))
     assert isinstance(full_grid.o_grid, ZeroGrid)
     assert isinstance(full_grid.b_grid, ZeroGrid)
     full_grid = FullGrid(t_grid_name="[1, 2, 3]", o_grid_name="3", b_grid_name="4")

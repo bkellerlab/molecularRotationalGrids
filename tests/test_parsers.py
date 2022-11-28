@@ -1,7 +1,7 @@
 import numpy as np
 
 from molgri.parsers import TranslationParser, FileParser
-from molgri.constants import ANGSTROM2NM
+from molgri.constants import ANGSTROM2NM, NM2ANGSTROM
 
 
 def test_atom_gro_file():
@@ -95,35 +95,35 @@ def test_parsing_pdb():
 
 
 def test_trans_parser():
-    assert np.allclose(TranslationParser("1").get_trans_grid(), np.array([1]))
-    assert np.allclose(TranslationParser("2.14").get_trans_grid(), np.array([2.14]))
-    assert np.allclose(TranslationParser("(2, 3.5, 4)").get_trans_grid(), np.array([2, 3.5, 4]))
-    assert np.allclose(TranslationParser("[16, 2, 11]").get_trans_grid(), np.array([2, 11, 16]))
-    assert np.allclose(TranslationParser("1, 2.7, 2.6").get_trans_grid(), np.array([1, 2.6, 2.7]))
-    assert np.allclose(TranslationParser("linspace(2, 6, 5)").get_trans_grid(), np.linspace(2, 6, 5))
-    assert np.allclose(TranslationParser("linspace (2, 6, 5)").get_trans_grid(), np.linspace(2, 6, 5))
-    assert np.allclose(TranslationParser("linspace(2, 6)").get_trans_grid(), np.linspace(2, 6, 50))
-    assert np.allclose(TranslationParser("range(2, 7, 2)").get_trans_grid(), np.arange(2, 7, 2))
-    assert np.allclose(TranslationParser("range(2, 7)").get_trans_grid(), np.arange(2, 7))
-    assert np.allclose(TranslationParser("arange(2, 7)").get_trans_grid(), np.arange(2, 7))
-    assert np.allclose(TranslationParser("range(7)").get_trans_grid(), np.arange(7))
-    assert np.allclose(TranslationParser("range(7.3)").get_trans_grid(), np.arange(7.3))
-    assert np.allclose(TranslationParser("arange(7.3)").get_trans_grid(), np.arange(7.3))
+    assert np.allclose(TranslationParser("1").get_trans_grid(), np.array([1])*NM2ANGSTROM)
+    assert np.allclose(TranslationParser("2.14").get_trans_grid(), np.array([2.14])*NM2ANGSTROM)
+    assert np.allclose(TranslationParser("(2, 3.5, 4)").get_trans_grid(), np.array([2, 3.5, 4])*NM2ANGSTROM)
+    assert np.allclose(TranslationParser("[16, 2, 11]").get_trans_grid(), np.array([2, 11, 16])*NM2ANGSTROM)
+    assert np.allclose(TranslationParser("1, 2.7, 2.6").get_trans_grid(), np.array([1, 2.6, 2.7])*NM2ANGSTROM)
+    assert np.allclose(TranslationParser("linspace(2, 6, 5)").get_trans_grid(), np.linspace(2, 6, 5)*NM2ANGSTROM)
+    assert np.allclose(TranslationParser("linspace (2, 6, 5)").get_trans_grid(), np.linspace(2, 6, 5)*NM2ANGSTROM)
+    assert np.allclose(TranslationParser("linspace(2, 6)").get_trans_grid(), np.linspace(2, 6, 50)*NM2ANGSTROM)
+    assert np.allclose(TranslationParser("range(2, 7, 2)").get_trans_grid(), np.arange(2, 7, 2)*NM2ANGSTROM)
+    assert np.allclose(TranslationParser("range(2, 7)").get_trans_grid(), np.arange(2, 7)*NM2ANGSTROM)
+    assert np.allclose(TranslationParser("arange(2, 7)").get_trans_grid(), np.arange(2, 7)*NM2ANGSTROM)
+    assert np.allclose(TranslationParser("range(7)").get_trans_grid(), np.arange(7)*NM2ANGSTROM)
+    assert np.allclose(TranslationParser("range(7.3)").get_trans_grid(), np.arange(7.3)*NM2ANGSTROM)
+    assert np.allclose(TranslationParser("arange(7.3)").get_trans_grid(), np.arange(7.3)*NM2ANGSTROM)
     # increments
-    assert np.allclose(TranslationParser("[5, 6.5, 7, 12]").get_increments(), np.array([5, 1.5, 0.5, 5]))
-    assert np.allclose(TranslationParser("[5, 12, 6.5, 7]").get_increments(), np.array([5, 1.5, 0.5, 5]))
-    assert np.allclose(TranslationParser("[12, 5, 6.5, 7]").get_increments(), np.array([5, 1.5, 0.5, 5]))
+    assert np.allclose(TranslationParser("[5, 6.5, 7, 12]").get_increments(), np.array([5, 1.5, 0.5, 5])*NM2ANGSTROM)
+    assert np.allclose(TranslationParser("[5, 12, 6.5, 7]").get_increments(), np.array([5, 1.5, 0.5, 5])*NM2ANGSTROM)
+    assert np.allclose(TranslationParser("[12, 5, 6.5, 7]").get_increments(), np.array([5, 1.5, 0.5, 5])*NM2ANGSTROM)
     # sum of increments
-    assert np.allclose(TranslationParser("[2, 2.5, 2.77, 3.4]").sum_increments_from_first_radius(), 1.4)
+    assert np.allclose(TranslationParser("[2, 2.5, 2.77, 3.4]").sum_increments_from_first_radius(), 1.4*NM2ANGSTROM)
     # hash
     tp = TranslationParser("[2, 2.5, 2.77, 3.4]")
-    assert tp.grid_hash == 1772331579
+    assert tp.grid_hash == 1368241250
     tp2 = TranslationParser("range(2, 7, 2)")
-    assert tp2.grid_hash == 481270436
+    assert tp2.grid_hash == 753285640
     tp3 = TranslationParser("[2, 4, 6]")
-    assert tp3.grid_hash == 481270436
+    assert tp3.grid_hash == 753285640
     tp4 = TranslationParser("linspace(2, 6, 3)")
-    assert tp4.grid_hash == 481270436
+    assert tp4.grid_hash == 753285640
 
 
 if __name__ == '__main__':
