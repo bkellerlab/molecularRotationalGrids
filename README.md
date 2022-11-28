@@ -110,13 +110,13 @@ To display the example pseudotrajectory we created in the previous section with 
 directory and run
 
 ```
-vmd output/pt_files/H2O_NH3_cube3D_15_full.gro
+vmd output/pt_files/H2O_NH3_o_cube3D_15_b_ico_10_t_3203903466.gro output/pt_files/H2O_NH3_o_cube3D_15_b_ico_10_t_3203903466.xtc
 ```
 
 or on a windows computer
 
 ```
-start vmd output/pt_files/H2O_NH3_cube3D_15_full.gro
+start vmd output/pt_files/H2O_NH3_o_cube3D_15_b_ico_10_t_3203903466.gro output/pt_files/H2O_NH3_o_cube3D_15_b_ico_10_t_3203903466.xtc
 ```
 
 Then, to fully display a pseudotrajectory, it is often helpful to change the display style and to display

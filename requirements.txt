@@ -1,5 +1,4 @@
 matplotlib>=3.0
-mendeleev>=0.11
 networkx>=2.8
 numpy>=1.22
 pandas>=1.4
