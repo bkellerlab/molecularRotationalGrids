@@ -8,7 +8,6 @@ from typing import Tuple, Generator
 
 from molgri.parsers import ParsedMolecule
 from .grids import FullGrid
-from .wrappers import time_method
 
 
 class Pseudotrajectory:
@@ -61,7 +60,3 @@ class Pseudotrajectory:
                 self.molecule.translate_radially(-increment_sum)
                 self.molecule.rotate_about_body(body_rotation, inverse=True)
             self.molecule.rotate_about_origin(origin_rotation, inverse=True)
-
-    @time_method
-    def generate_pt_and_time(self) -> Generator[Tuple[int, ParsedMolecule], None, None]:
-        return self.generate_pseudotrajectory()

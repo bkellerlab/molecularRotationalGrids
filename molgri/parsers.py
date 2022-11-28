@@ -5,7 +5,6 @@ from pathlib import Path
 from typing import Generator, Tuple, List
 
 import numpy as np
-from mendeleev.fetch import fetch_table
 from ast import literal_eval
 
 from numpy.typing import NDArray
@@ -13,195 +12,8 @@ from scipy.spatial.transform import Rotation
 import MDAnalysis as mda
 from MDAnalysis.core import AtomGroup
 
-from .constants import MOLECULE_NAMES, SIX_METHOD_NAMES, FULL_RUN_NAME
+from .constants import EXTENSIONS
 from .paths import PATH_OUTPUT_TRANSGRIDS
-
-
-class NameParser:
-
-    def __init__(self, name: str or dict):
-        """
-        Correct ordering: '[H2O_HF_]ico[_NO]_500_full_openMM[_extra]
-
-        Args:
-            string with a label used eg. for naming files, usually stating two molecules, grid type and size
-        """
-        # define all properties
-        self.central_molecule = None
-        self.rotating_molecule = None
-        self.grid_type = None
-        self.o_grid = None
-        self.b_grid = None
-        self.t_grid = None
-        self.ordering = True
-        self.num_grid_points = None
-        self.traj_type = None
-        self.open_MM = False
-        self.is_real_run = False
-        self.additional_data = None
-        self.ending = None
-        # parse name
-        if isinstance(name, str):
-            self._read_str(name)
-        elif isinstance(name, dict):
-            self._read_dict(name)
-
-    def _read_str(self, name):
-        try:
-            if "." in name:
-                name, self.ending = name.split(".")
-        except ValueError:
-            pass
-        split_str = name.split("_")
-        for split_item in split_str:
-            if split_item in MOLECULE_NAMES:
-                if self.central_molecule is None:
-                    self.central_molecule = split_item
-                else:
-                    self.rotating_molecule = split_item
-        for method_name in SIX_METHOD_NAMES:
-            if method_name in split_str:
-                self.grid_type = method_name
-        # _o_, _b_ and _t_
-        for i, sub_str in enumerate(split_str):
-            if "o" == sub_str:
-                self.o_grid = split_str[i+1]
-            if "b" == sub_str:
-                self.b_grid = split_str[i+1]
-            if "t" == sub_str:
-                self.t_grid = int(split_str[i+1])
-        if "zero" in split_str:
-            self.grid_type = "zero"
-            self.num_grid_points = 1
-        if "_NO" in name:
-            self.ordering = False
-        for split_item in split_str:
-            if split_item.isnumeric():
-                self.num_grid_points = int(split_item)
-                break
-        for traj_type in ["circular", "full"]:
-            if traj_type in split_str:
-                self.traj_type = traj_type
-        if "openMM" in split_str:
-            self.open_MM = True
-        if FULL_RUN_NAME in name:
-            self.is_real_run = True
-        # get the remainder of the string
-        if self.central_molecule:
-            split_str.remove(self.central_molecule)
-        if self.rotating_molecule:
-            split_str.remove(self.rotating_molecule)
-        if self.grid_type:
-            split_str.remove(self.grid_type)
-        if self.num_grid_points:
-            split_str.remove(str(self.num_grid_points))
-        if self.traj_type:
-            split_str.remove(self.traj_type)
-        if not self.ordering:
-            split_str.remove("NO")
-        if self.is_real_run:
-            split_str.remove(FULL_RUN_NAME)
-        if self.open_MM:
-            split_str.remove("openMM")
-        self.additional_data = "_".join(split_str)
-
-    def _read_dict(self, dict_name):
-        # TODO: it must be possible to refactor dict parsing for NameParser
-        self.central_molecule = dict_name.pop("central_molecule", None)
-        self.rotating_molecule = dict_name.pop("rotating_molecule", None)
-        self.t_grid = dict_name.pop("t_grid", None)
-        self.o_grid = dict_name.pop("o_grid", None)
-        self.b_grid = dict_name.pop("b_grid", None)
-        self.grid_type = dict_name.pop("grid_type", None)
-        self.ordering = dict_name.pop("ordering", True)
-        self.num_grid_points = dict_name.pop("num_grid_points", None)
-        self.traj_type = dict_name.pop("traj_type", None)
-        self.open_MM = dict_name.pop("open_MM", False)
-        self.is_real_run = dict_name.pop("is_real_run", False)
-        self.additional_data = dict_name.pop("additional_data", None)
-        self.ending = dict_name.pop("ending", None)
-
-    def get_dict_properties(self):
-        return vars(self)
-
-    def get_standard_name(self):
-        standard_name = ""
-        if self.central_molecule:
-            standard_name += self.central_molecule + "_"
-        if self.rotating_molecule:
-            standard_name += self.rotating_molecule + "_"
-        if self.is_real_run:
-            standard_name += FULL_RUN_NAME + "_"
-        if self.grid_type:
-            standard_name += self.grid_type + "_"
-        if self.t_grid and self.o_grid and self.b_grid:
-            standard_name += f"o_{self.o_grid}_"
-            standard_name += f"b_{self.b_grid}_"
-            standard_name += f"t_{self.t_grid}_"
-        if not self.ordering:
-            standard_name += "NO_"
-        if self.num_grid_points:
-            standard_name += str(self.num_grid_points) + "_"
-        if self.traj_type:
-            standard_name += self.traj_type + "_"
-        if self.open_MM:
-            standard_name += "openMM_"
-        if standard_name.endswith("_"):
-            standard_name = standard_name[:-1]
-        return standard_name
-
-    def get_human_readable_name(self):
-        # TODO: name eg H2O-H2O system, icosahedron grid, 22 rotations
-        pass
-
-    def get_grid_type(self):
-        if not self.grid_type:
-            raise ValueError(f"No grid type given!")
-        return self.grid_type
-
-    def get_traj_type(self):
-        if not self.traj_type:
-            raise ValueError(f"No traj type given!")
-        return self.traj_type
-
-    def get_num(self):
-        if not self.num_grid_points:
-            raise ValueError(f"No number given!")
-        return self.num_grid_points
-
-
-def particle_type2element(particle_type: str) -> str:
-    """
-    A helper function to convert gromacs particle type to element name readable by mendeleev.
-
-    Args:
-        particle_type: text written at characters 10:15 in a standard GROMACS line.
-
-    Returns:
-        element name, one of the names in periodic system (or ValueError)
-    """
-    ptable = fetch_table('elements')
-    all_symbols = ptable["symbol"]
-    # option 1: atom_name written in gro file is equal to element name (N, Na, Cl ...) -> directly use as element
-    if particle_type in all_symbols.values:
-        element_name = particle_type
-    # option 2 (special case): CA is a symbol of alpha-carbon
-    elif particle_type.startswith("CA"):
-        element_name = "C"
-    # option 3: first two letters are the name of a typical ion in upper case
-    elif particle_type[:2] in ["CL", "MG", "RB", "CS", "LI", "ZN", "NA"]:
-        element_name = particle_type.capitalize()[:2]
-    # option 4: special case for calcium = C0
-    elif particle_type[:2] == "C0":
-        element_name = "Ca"
-    # option 5: first letter is the name of the element in upper case
-    elif particle_type[0] in all_symbols.values:
-        element_name = particle_type[0]
-    # error if still unable to determine the element
-    else:
-        message = f"I do not know how to extract element name from GROMACS atom type {particle_type}."
-        raise ValueError(message)
-    return element_name
 
 
 class ParsedMolecule:
@@ -293,10 +105,7 @@ class FileParser:
             self.universe = mda.Universe(self.path_topology)
 
     def try_to_add_extension(self) -> List[str]:
-        possible_exts = ['PSF', 'TOP', 'PRMTOP', 'PARM7', 'PDB', 'ENT', 'XPDB', 'PQR', 'GRO', 'CRD', 'PDBQT', 'DMS',
-                         'TPR', 'MOL2', 'DATA', 'LAMMPSDUMP', 'XYZ', 'TXYZ', 'ARC', 'GMS', 'CONFIG', 'HISTORY', 'XML',
-                         'MMTF', 'GSD', 'MINIMAL', 'ITP', 'IN', 'FHIAIMS', 'PARMED', 'RDKIT', 'OPENMMTOPOLOGY',
-                         'OPENMMAPP']
+        possible_exts = EXTENSIONS
         to_return = [self.path_topology, self.path_trajectory]
         for i, path in enumerate(to_return):
             if path is None:

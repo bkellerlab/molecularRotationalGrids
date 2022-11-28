@@ -9,6 +9,7 @@ from molgri.grids import FullGrid
 from molgri.parsers import FileParser, ParsedMolecule
 from molgri.paths import PATH_INPUT_BASEGRO, PATH_OUTPUT_PT
 from molgri.pts import Pseudotrajectory
+from molgri.wrappers import time_method
 
 
 class PtIOManager:
@@ -35,6 +36,7 @@ class PtIOManager:
         self.writer = PtWriter(name_to_save=self.determine_pt_name(),
                                parsed_central_molecule=self.central_molecule)
         self.pt = Pseudotrajectory(self.rotating_molecule, self.full_grid)
+        self.decorator_label = f"Pseudotrajectory {self.determine_pt_name()}"
 
     def determine_pt_name(self):
         name_c_molecule = self.central_parser.get_file_name()
@@ -43,10 +45,16 @@ class PtIOManager:
         return f"{name_c_molecule}_{name_r_molecule}_{name_full_grid}"
 
     def construct_pt(self, ending_trajectory: str = "xtc", ending_structure: str = "gro",
-                     measure_time: bool = False, as_dir: bool = False):
-        self.writer.write_full_pt(self.pt, ending_trajectory=ending_trajectory, ending_structure=ending_structure,
-                                  measure_time=measure_time)
-        # TODO: if written to directory, select here
+                     as_dir: bool = False):
+        if as_dir:
+            selected_function = self.writer.write_frames_in_directory
+        else:
+            selected_function = self.writer.write_full_pt
+        selected_function(self.pt, ending_trajectory=ending_trajectory, ending_structure=ending_structure)
+
+    @time_method
+    def construct_pt_and_time(self, **kwargs):
+        self.construct_pt(**kwargs)
 
 
 class PtWriter:
@@ -63,43 +71,46 @@ class PtWriter:
         self.box = self.central_molecule.get_box()
         self.file_name = name_to_save
 
-    def write_full_pt(self, pt: Pseudotrajectory, ending_trajectory: str = "xtc", ending_structure: str = "gro",
-                      measure_time: bool = False):
+    def _merge_and_write(self, writer: mda.Writer, pt: Pseudotrajectory):
+        merged_universe = Merge(self.central_molecule.get_atoms(), pt.get_molecule().get_atoms())
+        merged_universe.dimensions = self.box
+        writer.write(merged_universe)
+
+    def write_structure(self, pt: Pseudotrajectory, ending_structure: str = "gro"):
+        structure_path = f"{PATH_OUTPUT_PT}{self.file_name}.{ending_structure}"
         if not np.all(self.box == pt.get_molecule().get_box()):
             print(f"Warning! Simulation boxes of both molecules are different. Selecting the box of"
                   f"central molecule with dimensions {self.box}")
-        output_path = f"{PATH_OUTPUT_PT}{self.file_name}.{ending_trajectory}"
-        structure_path = f"{PATH_OUTPUT_PT}{self.file_name}.{ending_structure}"
         with mda.Writer(structure_path) as structure_writer:
-            merged_universe = Merge(self.central_molecule.get_atoms(), pt.get_molecule().get_atoms())
-            merged_universe.dimensions = self.box
-            structure_writer.write(merged_universe)
+            self._merge_and_write(structure_writer, pt)
+
+    def write_full_pt(self, pt: Pseudotrajectory, ending_trajectory: str = "xtc", ending_structure: str = "gro"):
+        self.write_structure(pt, ending_structure)
+        output_path = f"{PATH_OUTPUT_PT}{self.file_name}.{ending_trajectory}"
         trajectory_writer = mda.Writer(output_path, multiframe=True)
-        if measure_time:
-            generating_func = pt.generate_pt_and_time
-        else:
-            generating_func = pt.generate_pseudotrajectory
-        for i, second_molecule in generating_func():
-            merged_universe = Merge(self.central_molecule.get_atoms(), second_molecule.get_atoms())
-            merged_universe.dimensions = self.box
-            trajectory_writer.write(merged_universe)
+        for _ in pt.generate_pseudotrajectory():
+            self._merge_and_write(trajectory_writer, pt)
         trajectory_writer.close()
 
-    # def write_frames_in_directory(self):
-    #     directory = f"{PATH_OUTPUT_PT}{self.get_output_name()}"
-    #     try:
-    #         os.mkdir(directory)
-    #     except FileExistsError:
-    #         # delete contents if folder already exist
-    #         filelist = [f for f in os.listdir(directory) if f.endswith(".gro")]
-    #         for f in filelist:
-    #             os.remove(os.path.join(directory, f))
-    #     for i, second_molecule in self.pt.generate_pseudotrajectory():
-    #         f = f"{directory}/{i}.gro"
-    #         with mda.Writer(f) as structure_writer:
-    #             merged_universe = Merge(self.central_molecule.get_atoms(), self.rotating_molecule.get_atoms())
-    #             merged_universe.dimensions = self.box
-    #             structure_writer.write(merged_universe)
+    def _create_dir_or_empty_it(self) -> str:
+        directory = f"{PATH_OUTPUT_PT}{self.file_name}"
+        try:
+            os.mkdir(directory)
+        except FileExistsError:
+            # delete contents if folder already exist
+            filelist = [f for f in os.listdir(directory)]
+            for f in filelist:
+                os.remove(os.path.join(directory, f))
+        return directory
+
+    def write_frames_in_directory(self, pt: Pseudotrajectory, ending_trajectory: str = "xtc",
+                                  ending_structure: str = "gro"):
+        self.write_structure(pt, ending_structure)
+        directory = self._create_dir_or_empty_it()
+        for i, second_molecule in pt.generate_pseudotrajectory():
+            f = f"{directory}/{i}.{ending_trajectory}"
+            with mda.Writer(f) as structure_writer:
+                self._merge_and_write(structure_writer, pt)
 
 
 def converter_gro_dir_gro_file_names(pt_file_path=None, pt_directory_path=None) -> tuple:
@@ -116,22 +127,24 @@ def converter_gro_dir_gro_file_names(pt_file_path=None, pt_directory_path=None) 
     return file_path + "/", file_name, pt_file_path, pt_directory_path
 
 
-def directory2full_pt(directory_path: str):
+def directory2full_pt(directory_path: str, trajectory_endings: str = "xtc"):
     path_to_dir, dir_name = os.path.split(directory_path)
-    filelist = [f for f in os.listdir(directory_path) if f.endswith(".gro")]
+    filelist = [f for f in os.listdir(directory_path) if f.endswith(f".{trajectory_endings}")]
     filelist.sort(key=lambda x: int(x.split(".")[0]))
-    with open(f"{path_to_dir}{dir_name}.gro", 'wb') as wfd:
+    with open(f"{path_to_dir}{dir_name}.{trajectory_endings}", 'wb') as wfd:
         for f in filelist:
             with open(f"{directory_path}/{f}", 'rb') as fd:
                 shutil.copyfileobj(fd, wfd)
 
 
-def full_pt2directory(full_pt_path: str):
-    with open(full_pt_path, "r") as f_read:
+def full_pt2directory(full_pt_path: str, structure_path: str):
+    with open(structure_path, "r") as f_read:
         lines = f_read.readlines()
     num_atoms = int(lines[1].strip("\n").strip())
     num_frame_lines = num_atoms + 3
     directory = full_pt_path.split(".")[0]
+    with open(full_pt_path, "r") as f_read:
+        lines = f_read.readlines()
     try:
         os.mkdir(directory)
     except FileExistsError:

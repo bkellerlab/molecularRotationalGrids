@@ -1,6 +1,8 @@
+import os
+
 import numpy as np
 
-from molgri.writers import PtIOManager
+from molgri.writers import PtIOManager, directory2full_pt, converter_gro_dir_gro_file_names, full_pt2directory
 from molgri.parsers import PtParser, ParsedMolecule
 from molgri.scripts.set_up_io import freshly_create_all_folders, copy_examples
 from molgri.utils import angle_between_vectors, normalise_vectors
@@ -169,7 +171,7 @@ def test_pt_rotations_body():
     m2_path = f"NH3.gro"
     manager = PtIOManager(m1_path, m2_path, f"zero", f"ico_{num_rot}", "[1, 2, 3]")
     distances = manager.full_grid.t_grid.get_trans_grid()
-    manager.construct_pt(measure_time=True)
+    manager.construct_pt_and_time()
     file_name = manager.determine_pt_name()
     len_traj = manager.pt.current_frame
     assert len_traj == num_trans*num_rot
@@ -236,69 +238,62 @@ def test_order_of_operations():
                 same_body_orientation(mol2_ts_i, mol2_ts_j)
 
 
-# def test_frames_in_directory():
-#     n_b = 4
-#     grid_b = IcoGrid(n_b)
-#     n_o = 2
-#     grid_o = IcoGrid(n_o)
-#     n_t = 3
-#     trans_grid = TranslationParser("[1, 2, 3]")
-#     full_grid = FullGrid(t_grid=trans_grid, b_grid=grid_b, o_grid=grid_o)
-#     writer = PtWriter("H2O", "NH3", full_grid)
-#     writer.write_frames_in_directory()
-#     base_p, fn, fp, dp = converter_gro_dir_gro_file_names(pt_file_path=writer.file_name)
-#     directory2full_pt(dp)
-#     new_name = base_p + "joined_" + fn + ".gro"
-#     os.rename(fp, new_name)
-#     filelist = [f for f in os.listdir(f"{dp}") if f.endswith(".gro")]
-#     assert len(filelist) == n_b*n_o*n_t, "Not correct number of .gro files in a directory."
-#     # compare contents of individual files mit the single all-frame PT
-#     writer2 = PtWriter("H2O", "NH3", full_grid)
-#     writer2.write_full_pt()
-#     # check that a directory joined version is the same as the normal one
-#     with open(new_name, "r") as f1:
-#         with open(fp, "r") as f2:
-#             l1 = f1.readlines()
-#             l2 = f2.readlines()
-#         assert np.all(l1 == l2)
-#
-#
-# def test_directory_combined_to_pt():
-#     # check that a full directory can be split
-#     n_b = 7
-#     grid_b = IcoGrid(n_b)
-#     n_o = 1
-#     grid_o = IcoGrid(n_o)
-#     n_t = 3
-#     trans_grid = TranslationParser("[1, 2, 3]")
-#     full_grid = FullGrid(t_grid=trans_grid, b_grid=grid_b, o_grid=grid_o)
-#     writer = PtWriter("H2O", "NH3", full_grid)
-#     writer.write_full_pt()
-#     base_p, fn, fp, dp = converter_gro_dir_gro_file_names(pt_file_path=writer.file_name)
-#     full_pt2directory(fp)
-#     new_dir_name = base_p + "split_" + fn + "/"
-#     if os.path.exists(new_dir_name):
-#         # delete contents if folder already exist
-#         filelist = [f for f in os.listdir(new_dir_name) if f.endswith(".gro")]
-#         for f in filelist:
-#             os.remove(os.path.join(new_dir_name, f))
-#         os.rmdir(new_dir_name)
-#     os.rename(dp, new_dir_name)
-#     # the non-split version / created during PT creation
-#     writer2 = PtWriter("H2O", "NH3", full_grid)
-#     writer2.write_frames_in_directory()
-#     filelist1 = [f for f in os.listdir(f"{new_dir_name}") if f.endswith(".gro")]
-#     filelist2 = [f for f in os.listdir(f"{dp}") if f.endswith(".gro")]
-#     filelist1.sort(key=lambda x: int(x.split(".")[0]))
-#     filelist2.sort(key=lambda x: int(x.split(".")[0]))
-#     for file_name1, file_name2 in zip(filelist1, filelist2):
-#         path1 = new_dir_name + file_name1
-#         path2 = dp + file_name2
-#         with open(path1, "r") as f1:
-#             lines1 = f1.readlines()
-#         with open(path2, "r") as f2:
-#             lines2 = f2.readlines()
-#         assert np.all(lines1 == lines2)
+def test_frames_in_directory():
+    n_b = 4
+    n_o = 2
+    n_t = 3
+    manager = PtIOManager("H2O", "NH3", f"ico_{n_o}", f"ico_{n_b}", "[1, 2, 3]")
+    manager.construct_pt(as_dir=True)
+    file_name = manager.determine_pt_name()
+    base_p, fn, fp, dp = converter_gro_dir_gro_file_names(pt_file_path=f"{PATH_OUTPUT_PT}{file_name}.xtc")
+    directory2full_pt(dp)
+    new_name = base_p + "joined_" + fn + ".gro"
+    os.rename(fp, new_name)
+    filelist = [f for f in os.listdir(f"{dp}") if f.endswith(".xtc")]
+    assert len(filelist) == n_b*n_o*n_t, "Not correct number of .xtc files in a directory."
+    # compare contents of individual files mit the single all-frame PT
+    manager = PtIOManager("H2O", "NH3", f"ico_{n_o}", f"ico_{n_b}", "[1, 2, 3]")
+    manager.construct_pt(as_dir=False)
+    # check that a directory joined version is the same as the normal one
+    with open(new_name, "r") as f1:
+        with open(fp, "r") as f2:
+            l1 = f1.readlines()
+            l2 = f2.readlines()
+        assert np.all(l1 == l2)
+
+
+def test_directory_combined_to_pt():
+    # check that a full directory can be split
+    n_b = 7
+    n_o = 1
+    manager = PtIOManager("H2O", "NH3", f"ico_{n_o}", f"ico_{n_b}", "[1, 2, 3]")
+    manager.construct_pt(as_dir=False)
+    file_name = manager.determine_pt_name()
+    base_p, fn, fp, dp = converter_gro_dir_gro_file_names(pt_file_path=f"{PATH_OUTPUT_PT}{file_name}.xtc")
+    full_pt2directory(fp, structure_path=f"{base_p}{fn}.gro")
+    new_dir_name = base_p + "split_" + fn + "/"
+    if os.path.exists(new_dir_name):
+        # delete contents if folder already exist
+        filelist = [f for f in os.listdir(new_dir_name) if f.endswith(".gro")]
+        for f in filelist:
+            os.remove(os.path.join(new_dir_name, f))
+        os.rmdir(new_dir_name)
+    os.rename(dp, new_dir_name)
+    # the non-split version / created during PT creation
+    manager2 = PtIOManager("H2O", "NH3", f"ico_{n_o}", f"ico_{n_b}", "[1, 2, 3]")
+    manager2.construct_pt(as_dir=True)
+    filelist1 = [f for f in os.listdir(f"{new_dir_name}") if f.endswith(".xtc")]
+    filelist2 = [f for f in os.listdir(f"{dp}") if f.endswith(".xtc")]
+    filelist1.sort(key=lambda x: int(x.split(".")[0]))
+    filelist2.sort(key=lambda x: int(x.split(".")[0]))
+    for file_name1, file_name2 in zip(filelist1, filelist2):
+        path1 = new_dir_name + file_name1
+        path2 = dp + file_name2
+        with open(path1, "r") as f1:
+            lines1 = f1.readlines()
+        with open(path2, "r") as f2:
+            lines2 = f2.readlines()
+        assert np.all(lines1 == lines2)
 
 
 if __name__ == '__main__':

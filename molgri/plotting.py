@@ -14,9 +14,8 @@ import mpl_toolkits
 from seaborn import color_palette
 
 from molgri.analysis import vector_within_alpha
-from .grids import build_grid, Polytope, IcosahedronPolytope, CubePolytope
+from .grids import Polytope, IcosahedronPolytope, CubePolytope, build_grid_from_name
 from .constants import DIM_SQUARE, DEFAULT_DPI, COLORS, DEFAULT_NS, ENDING_FIGURES
-from .parsers import NameParser
 from .paths import PATH_OUTPUT_PLOTS, PATH_OUTPUT_ANIS
 
 
@@ -50,7 +49,6 @@ class AbstractPlot(ABC):
         assert self.dimensions in [2, 3]
         self.style_type = style_type
         self.data_name = data_name
-        self.parsed_data_name = NameParser(self.data_name)
         self.plot_type = plot_type
         self.figsize = figsize
         # here change styles that need to be set before fig and ax are created
@@ -222,7 +220,7 @@ class AbstractPlot(ABC):
 
     def _save_plot(self, save_ending: str = ENDING_FIGURES, dpi: int = DEFAULT_DPI, **kwargs):
         self.fig.tight_layout()
-        standard_name = self.parsed_data_name.get_standard_name()
+        standard_name = self.data_name
         plt.savefig(f"{self.fig_path}{standard_name}_{self.plot_type}.{save_ending}", dpi=dpi, bbox_inches='tight',
                     **kwargs)
         plt.close()
@@ -246,9 +244,7 @@ class GridPlot(AbstractPlot):
         self.grid = self._prepare_data()
 
     def _prepare_data(self) -> np.ndarray:
-        num = self.parsed_data_name.get_num()
-        orig_name = self.parsed_data_name.get_grid_type()
-        my_grid = build_grid(num, orig_name, use_saved=True).get_grid()
+        my_grid = build_grid_from_name(self.data_name, use_saved=True).get_grid()
         return my_grid
 
     def _plot_data(self, **kwargs):
@@ -337,7 +333,7 @@ class AlphaViolinPlot(AbstractPlot):
         super().__init__(data_name, dimensions=2, style_type=style_type, plot_type=plot_type, **kwargs)
 
     def _prepare_data(self) -> pd.DataFrame:
-        my_grid = build_grid(self.parsed_data_name.num_grid_points, self.parsed_data_name.grid_type, use_saved=True)
+        my_grid = build_grid_from_name(self.data_name, use_saved=True)
         # if statistics file already exists, use it, else create it
         try:
             ratios_df = pd.read_csv(my_grid.statistics_path)
@@ -355,7 +351,7 @@ class AlphaViolinPlot(AbstractPlot):
 
 class AlphaConvergencePlot(AlphaViolinPlot):
 
-    def __init__(self, data_name: str, **kwargs):
+    def __init__(self, data_name: str, num_points: int = None, **kwargs):
         """
         Creates convergence plots that show how coverages approach optimal values
 
@@ -363,19 +359,22 @@ class AlphaConvergencePlot(AlphaViolinPlot):
             data_name: name of the algorithm e.g. randomQ
             **kwargs:
         """
-        nap = NameParser(data_name)
-        if nap.num_grid_points is None:
+        self.num_points = num_points
+        if self.num_points is None:
             self.ns_list = np.array(DEFAULT_NS, dtype=int)
         else:
-            self.ns_list = np.logspace(np.log10(3), np.log10(nap.num_grid_points), dtype=int)
+            self.ns_list = np.logspace(np.log10(3), np.log10(self.num_points), dtype=int)
             self.ns_list = np.unique(self.ns_list)
         super().__init__(data_name, plot_type="convergence", **kwargs)
 
     def _plot_data(self, **kwargs):
         full_df = []
         for N in self.ns_list:
-            self.parsed_data_name.num_grid_points = int(N)
+            self.num_points = int(N)
+            data_name_before = self.data_name
+            self.data_name += f"_{N}"
             df = self._prepare_data()
+            self.data_name = data_name_before
             df["N"] = N
             full_df.append(df)
         full_df = pd.concat(full_df, axis=0, ignore_index=True)

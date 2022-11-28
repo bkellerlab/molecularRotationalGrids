@@ -9,10 +9,10 @@ from scipy.spatial.distance import cdist
 import pandas as pd
 from scipy.spatial.transform import Rotation
 
-from .analysis import random_sphere_points, random_axes_count_points
+from .analysis import random_axes_count_points
 from .utils import dist_on_sphere
 from .constants import DEFAULT_SEED, SIX_METHOD_NAMES, UNIQUE_TOL, ENDING_GRID_FILES
-from .parsers import NameParser, TranslationParser
+from .parsers import TranslationParser
 from .paths import PATH_OUTPUT_ROTGRIDS, PATH_OUTPUT_STAT
 from .rotations import grid2quaternion, grid2euler, quaternion2grid, euler2grid, grid2rotation
 from .wrappers import time_method
@@ -303,8 +303,7 @@ class Grid(ABC):
         assert gen_alg in SIX_METHOD_NAMES or gen_alg == "zero", f"{gen_alg} is not a valid generation algorithm name"
         self.ordered = ordered
         self.N = N
-        name_properties = {"grid_type": gen_alg, "num_grid_points": N, "ordering": ordered}
-        self.standard_name = NameParser(name_properties).get_standard_name()
+        self.standard_name = f"{gen_alg}_{N}"
         self.decorator_label = f"rotation grid {self.standard_name}"
         self.grid = None
         self.time = 0
@@ -643,9 +642,7 @@ class FullGrid:
         self.t_grid = TranslationParser(t_grid_name)
 
     def get_full_grid_name(self):
-        nap = NameParser({"o_grid": self.o_grid.standard_name, "b_grid": self.b_grid.standard_name,
-                          "t_grid": self.t_grid.grid_hash})
-        return nap.get_standard_name()
+        return f"o_{self.o_grid.standard_name}_b_{self.b_grid.standard_name}_t_{self.t_grid.grid_hash}"
 
 
 def build_grid_from_name(grid_name: str, **kwargs) -> Grid:
