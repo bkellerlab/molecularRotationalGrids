@@ -256,8 +256,8 @@ def test_frames_in_directory():
     manager = PtIOManager("H2O", "NH3", f"ico_{n_o}", f"ico_{n_b}", "[1, 2, 3]")
     manager.construct_pt(as_dir=False)
     # check that a directory joined version is the same as the normal one
-    with open(new_name, "r") as f1:
-        with open(fp, "r") as f2:
+    with open(new_name, "rb") as f1:
+        with open(fp, "rb") as f2:
             l1 = f1.readlines()
             l2 = f2.readlines()
         assert np.all(l1 == l2)
