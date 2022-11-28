@@ -248,7 +248,7 @@ def test_frames_in_directory():
     base_p, fn, fp, dp = converter_gro_dir_gro_file_names(pt_directory_path=f"{PATH_OUTPUT_PT}{file_name}",
                                                           extension="xtc")
     directory2full_pt(dp)
-    new_name = base_p + "joined_" + fn + ".gro"
+    new_name = base_p + "joined_" + fn + ".xtc"
     os.rename(fp, new_name)
     filelist = [f for f in os.listdir(f"{dp}") if f.endswith(".xtc")]
     assert len(filelist) == n_b*n_o*n_t, "Not correct number of .xtc files in a directory."

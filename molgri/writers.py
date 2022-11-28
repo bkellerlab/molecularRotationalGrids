@@ -232,7 +232,7 @@ def directory2full_pt(directory_path: str, trajectory_endings: str = "xtc"):
     path_to_dir, dir_name = os.path.split(directory_path)
     filelist = [f for f in os.listdir(directory_path) if f.endswith(f".{trajectory_endings}")]
     filelist.sort(key=lambda x: int(x.split(".")[0]))
-    with open(f"{path_to_dir}{dir_name}.{trajectory_endings}", 'wb') as wfd:
+    with open(f"{path_to_dir}/{dir_name}.{trajectory_endings}", 'wb') as wfd:
         for f in filelist:
             with open(f"{directory_path}/{f}", 'rb') as fd:
                 shutil.copyfileobj(fd, wfd)
@@ -254,7 +254,7 @@ def full_pt2directory(full_pt_path: str, structure_path: str):
     num_atoms = int(lines[1].strip("\n").strip())
     num_frame_lines = num_atoms + 3
     directory = full_pt_path.split(".")[0]
-    with open(full_pt_path, "r") as f_read:
+    with open(full_pt_path, "rb") as f_read:
         lines = f_read.readlines()
     try:
         os.mkdir(directory)
@@ -264,5 +264,5 @@ def full_pt2directory(full_pt_path: str, structure_path: str):
         for f in filelist:
             os.remove(os.path.join(directory, f))
     for i in range(len(lines) // num_frame_lines):
-        with open(f"{directory}/{i}.gro", "w") as f_write:
+        with open(f"{directory}/{i}.gro", "wb") as f_write:
             f_write.writelines(lines[num_frame_lines*i:num_frame_lines*(i+1)])
