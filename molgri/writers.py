@@ -1,4 +1,3 @@
-from typing import Tuple
 import os
 import shutil
 
@@ -6,16 +5,16 @@ import MDAnalysis as mda
 from MDAnalysis import Merge
 import numpy as np
 
-from molgri.grids import ZeroGrid, FullGrid
-from molgri.parsers import TranslationParser, TrajectoryParser, ParsedMolecule
+from molgri.grids import FullGrid
+from molgri.parsers import FileParser, ParsedMolecule
 from molgri.paths import PATH_INPUT_BASEGRO, PATH_OUTPUT_PT
 from molgri.pts import Pseudotrajectory
 
 
 class PtIOManager:
 
-    def __init__(self, name_central_molecule: str, name_rotating_molecule: str, name_o_grid: str, name_b_grid: str,
-                 string_t_grid: str):
+    def __init__(self, name_central_molecule: str, name_rotating_molecule: str, o_grid_name: str, b_grid_name: str,
+                 t_grid_name: str):
         """
         This class gets only strings as inputs, combines them to correct paths, manages Parsers and Writers that
         provide a smooth input/output to a Pseudotrajectory. In the end, only this class needs to be called
@@ -23,25 +22,31 @@ class PtIOManager:
         Args:
             name_central_molecule: name of the molecule that stays fixed (with or without extension)
             name_rotating_molecule: name of the molecule that moves in a pseudotrajectory
-            name_grid: consists of unter-grids that span state space
         """
         # parsing input files
         central_file_path = f"{PATH_INPUT_BASEGRO}{name_central_molecule}"
-        self.central_parser = TrajectoryParser(central_file_path)
+        self.central_parser = FileParser(central_file_path)
         rotating_file_path = f"{PATH_INPUT_BASEGRO}{name_rotating_molecule}"
-        self.rotating_parser = TrajectoryParser(rotating_file_path)
+        self.rotating_parser = FileParser(rotating_file_path)
         self.rotating_molecule = self.rotating_parser.as_parsed_molecule()
         self.central_molecule = self.central_parser.as_parsed_molecule()
         # parsing grids
-        self.full_grid = FullGrid(name_b_grid)
+        self.full_grid = FullGrid(b_grid_name=b_grid_name, o_grid_name=o_grid_name, t_grid_name=t_grid_name)
         self.writer = PtWriter(name_to_save=self.determine_pt_name(),
                                parsed_central_molecule=self.central_molecule)
+        self.pt = Pseudotrajectory(self.rotating_molecule, self.full_grid)
 
     def determine_pt_name(self):
         name_c_molecule = self.central_parser.get_file_name()
         name_r_molecule = self.rotating_parser.get_file_name()
         name_full_grid = self.full_grid.get_full_grid_name()
         return f"{name_c_molecule}_{name_r_molecule}_{name_full_grid}"
+
+    def construct_pt(self, ending_trajectory: str = "xtc", ending_structure: str = "gro",
+                     measure_time: bool = False, as_dir: bool = False):
+        self.writer.write_full_pt(self.pt, ending_trajectory=ending_trajectory, ending_structure=ending_structure,
+                                  measure_time=measure_time)
+        # TODO: if written to directory, select here
 
 
 class PtWriter:
@@ -52,65 +57,49 @@ class PtWriter:
         contains one or more time steps in which the second molecule moves around. First molecule is only read
         and the lines copied at every step; second molecule is read and represented with Atom objects which can rotate
         and translate.
-
-
         """
-        # TODO: parsers should be removed from this class, deal only with ParsedMolecules
-        central_file_path = f"{PATH_INPUT_BASEGRO}{name_central_gro}.gro"
-        self.central_parser = TrajectoryParser(central_file_path)
-        rotating_file_path = f"{PATH_INPUT_BASEGRO}{name_rotating_gro}.gro"
-        self.rotating_parser = TrajectoryParser(rotating_file_path)
-        # end_todo
-        self.rotating_molecule = self.rotating_parser.as_parsed_molecule()
-        self.central_molecule = self.central_parser.as_parsed_molecule()
+        self.central_molecule = parsed_central_molecule
         self.central_molecule.translate_to_origin()
-        if not np.all(self.central_molecule.get_box() == self.rotating_molecule.get_box()):
-            print(f"Warning! Simulation boxes of both molecules are different. Selecting the box of"
-                  f"{self.central_parser.get_file_name()} with dimensions {self.central_molecule.get_box()}")
         self.box = self.central_molecule.get_box()
-        self.full_grid = full_grid
-        self.pt = Pseudotrajectory(self.rotating_molecule, full_grid)
-        self.file_name = self.get_output_name()
+        self.file_name = name_to_save
 
-    def get_output_name(self):
-        mol_name1 = self.central_parser.get_file_name()
-        mol_name2 = self.rotating_parser.get_file_name()
-        result_file_path = f"{mol_name1}_{mol_name2}_{self.full_grid.get_full_grid_name()}"
-        return result_file_path
-
-    def write_full_pt(self, ending_trajectory: str = "xtc", ending_structure: str = "gro", measure_time: bool = False):
+    def write_full_pt(self, pt: Pseudotrajectory, ending_trajectory: str = "xtc", ending_structure: str = "gro",
+                      measure_time: bool = False):
+        if not np.all(self.box == pt.get_molecule().get_box()):
+            print(f"Warning! Simulation boxes of both molecules are different. Selecting the box of"
+                  f"central molecule with dimensions {self.box}")
         output_path = f"{PATH_OUTPUT_PT}{self.file_name}.{ending_trajectory}"
         structure_path = f"{PATH_OUTPUT_PT}{self.file_name}.{ending_structure}"
         with mda.Writer(structure_path) as structure_writer:
-            merged_universe = Merge(self.central_molecule.get_atoms(), self.rotating_molecule.get_atoms())
+            merged_universe = Merge(self.central_molecule.get_atoms(), pt.get_molecule().get_atoms())
             merged_universe.dimensions = self.box
             structure_writer.write(merged_universe)
         trajectory_writer = mda.Writer(output_path, multiframe=True)
         if measure_time:
-            generating_func = self.pt.generate_pt_and_time
+            generating_func = pt.generate_pt_and_time
         else:
-            generating_func = self.pt.generate_pseudotrajectory
+            generating_func = pt.generate_pseudotrajectory
         for i, second_molecule in generating_func():
             merged_universe = Merge(self.central_molecule.get_atoms(), second_molecule.get_atoms())
             merged_universe.dimensions = self.box
             trajectory_writer.write(merged_universe)
         trajectory_writer.close()
 
-    def write_frames_in_directory(self):
-        directory = f"{PATH_OUTPUT_PT}{self.get_output_name()}"
-        try:
-            os.mkdir(directory)
-        except FileExistsError:
-            # delete contents if folder already exist
-            filelist = [f for f in os.listdir(directory) if f.endswith(".gro")]
-            for f in filelist:
-                os.remove(os.path.join(directory, f))
-        for i, second_molecule in self.pt.generate_pseudotrajectory():
-            f = f"{directory}/{i}.gro"
-            with mda.Writer(f) as structure_writer:
-                merged_universe = Merge(self.central_molecule.get_atoms(), self.rotating_molecule.get_atoms())
-                merged_universe.dimensions = self.box
-                structure_writer.write(merged_universe)
+    # def write_frames_in_directory(self):
+    #     directory = f"{PATH_OUTPUT_PT}{self.get_output_name()}"
+    #     try:
+    #         os.mkdir(directory)
+    #     except FileExistsError:
+    #         # delete contents if folder already exist
+    #         filelist = [f for f in os.listdir(directory) if f.endswith(".gro")]
+    #         for f in filelist:
+    #             os.remove(os.path.join(directory, f))
+    #     for i, second_molecule in self.pt.generate_pseudotrajectory():
+    #         f = f"{directory}/{i}.gro"
+    #         with mda.Writer(f) as structure_writer:
+    #             merged_universe = Merge(self.central_molecule.get_atoms(), self.rotating_molecule.get_atoms())
+    #             merged_universe.dimensions = self.box
+    #             structure_writer.write(merged_universe)
 
 
 def converter_gro_dir_gro_file_names(pt_file_path=None, pt_directory_path=None) -> tuple:
@@ -153,10 +142,3 @@ def full_pt2directory(full_pt_path: str):
     for i in range(len(lines) // num_frame_lines):
         with open(f"{directory}/{i}.gro", "w") as f_write:
             f_write.writelines(lines[num_frame_lines*i:num_frame_lines*(i+1)])
-
-
-if __name__ == '__main__':
-    from molgri.grids import IcoGrid
-    grid = FullGrid(b_grid=ZeroGrid(), o_grid=IcoGrid(15), t_grid=TranslationParser("[1, 2, 3]"))
-    ptwriter = PtWriter("", None)
-    ptwriter.write_full_pt(measure_time=True)

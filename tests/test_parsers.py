@@ -1,13 +1,13 @@
 import numpy as np
 import pytest
 
-from molgri.parsers import NameParser, TranslationParser, TrajectoryParser
+from molgri.parsers import NameParser, TranslationParser, FileParser
 from molgri.constants import ANGSTROM2NM
 
 
 def test_atom_gro_file():
     file_name = f"molgri/examples/NA.gro"
-    my_parser = TrajectoryParser(file_name).as_parsed_molecule()
+    my_parser = FileParser(file_name).as_parsed_molecule()
     assert my_parser.num_atoms == 1
     assert np.allclose(my_parser.box[:3]*ANGSTROM2NM, [30, 30, 30])
     my_molecule_set = my_parser
@@ -19,7 +19,7 @@ def test_atom_gro_file():
 
 def test_water_gro_file():
     file_name = f"molgri/examples/H2O.gro"
-    my_parser = TrajectoryParser(file_name).as_parsed_molecule()
+    my_parser = FileParser(file_name).as_parsed_molecule()
     assert my_parser.num_atoms == 3
     assert np.allclose(my_parser.box[:3]*ANGSTROM2NM, [30, 30, 30])
     my_molecule = my_parser
@@ -43,7 +43,7 @@ def test_protein_gro_file():
     first time step, ignore all subsequent ones.
     """
     file_name = f"molgri/examples/example_protein.gro"
-    my_parser = TrajectoryParser(file_name).as_parsed_molecule()
+    my_parser = FileParser(file_name).as_parsed_molecule()
     assert my_parser.num_atoms == 902
     assert np.allclose(my_parser.box[:3]*ANGSTROM2NM, [6.38830,  6.16418,   8.18519])
     my_molecule = my_parser
@@ -69,7 +69,7 @@ def test_protein_gro_file():
 
 def test_parsing_xyz():
     file_name = "molgri/examples/glucose.xyz"
-    my_parser = TrajectoryParser(file_name)
+    my_parser = FileParser(file_name)
     my_molecule = my_parser.as_parsed_molecule()
     all_types = ["C"]*6
     all_types.extend(["O"]*6)
@@ -82,7 +82,7 @@ def test_parsing_xyz():
 
 def test_parsing_pdb():
     file_name = "molgri/examples/example_pdb.pdb"
-    my_parser = TrajectoryParser(file_name)
+    my_parser = FileParser(file_name)
     my_molecule = my_parser.as_parsed_molecule()
     assert np.all(my_molecule.atom_types[0] == "N")
     assert np.all(my_molecule.atom_types[1] == "C")

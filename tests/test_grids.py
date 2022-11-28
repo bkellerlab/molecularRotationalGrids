@@ -1,5 +1,5 @@
 from molgri.grids import build_grid, project_grid_on_sphere, second_neighbours, Cube3DGrid, \
-    CubePolytope, IcosahedronPolytope, IcoGrid, order_grid_points, Grid
+    CubePolytope, IcosahedronPolytope, IcoGrid, order_grid_points, FullGrid, ZeroGrid
 from molgri.constants import SIX_METHOD_NAMES
 import networkx as nx
 import numpy as np
@@ -150,6 +150,7 @@ def test_errors_and_assertions():
     with pytest.raises(AssertionError):
         build_grid(-15, "ico")
     with pytest.raises(AssertionError):
+        # noinspection PyTypeChecker
         build_grid(15.3, "ico")
     grid = build_grid(20, "ico").get_grid()
     with pytest.raises(ValueError):
@@ -204,6 +205,30 @@ def test_ordering():
                     assert np.allclose(grid_1[:N], grid_2)
         except AssertionError:
             print(name)
+
+
+def test_default_full_grids():
+    full_grid = FullGrid(t_grid_name="[1]", o_grid_name="zero", b_grid_name="zero")
+    assert np.all(full_grid.t_grid.get_trans_grid() == np.array([1]))
+    assert isinstance(full_grid.o_grid, ZeroGrid)
+    assert isinstance(full_grid.b_grid, ZeroGrid)
+    full_grid = FullGrid(t_grid_name="[0]", o_grid_name="None", b_grid_name="None")
+    assert np.all(full_grid.t_grid.get_trans_grid() == np.array([0]))
+    assert isinstance(full_grid.o_grid, ZeroGrid)
+    assert isinstance(full_grid.b_grid, ZeroGrid)
+    full_grid = FullGrid(t_grid_name="[1, 2, 3]", o_grid_name="0", b_grid_name="0")
+    assert np.all(full_grid.t_grid.get_trans_grid() == np.array([1, 2, 3]))
+    assert isinstance(full_grid.o_grid, ZeroGrid)
+    assert isinstance(full_grid.b_grid, ZeroGrid)
+    full_grid = FullGrid(t_grid_name="[1, 2, 3]", o_grid_name="1", b_grid_name="1")
+    assert np.all(full_grid.t_grid.get_trans_grid() == np.array([1, 2, 3]))
+    assert isinstance(full_grid.o_grid, ZeroGrid)
+    assert isinstance(full_grid.b_grid, ZeroGrid)
+    full_grid = FullGrid(t_grid_name="[1, 2, 3]", o_grid_name="3", b_grid_name="4")
+    assert isinstance(full_grid.o_grid, IcoGrid)
+    assert full_grid.o_grid.N == 3
+    assert isinstance(full_grid.b_grid, IcoGrid)
+    assert full_grid.b_grid.N == 4
 
 
 if __name__ == "__main__":

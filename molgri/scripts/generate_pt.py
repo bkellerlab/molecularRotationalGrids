@@ -9,11 +9,10 @@ from ..paths import PATH_INPUT_BASEGRO
 from molgri.parsers import NameParser, TranslationParser
 from ..scripts.generate_grid import prepare_grid
 from molgri.grids import FullGrid
-from molgri.writers import PtWriter
+from molgri.writers import PtIOManager
 from ..scripts.set_up_io import freshly_create_all_folders
 
 # TODO: define total_N and generate in all dimensions uniform grid?
-from molgri.pts import Pseudotrajectory
 
 parser = argparse.ArgumentParser()
 requiredNamed = parser.add_argument_group('required named arguments')
@@ -70,15 +69,10 @@ def check_file_existence(args):
 def run_generate_pt():
     freshly_create_all_folders()
     my_args = parser.parse_args()
-    my_og, my_bg, my_tg = check_file_existence(my_args)
-    full_grid = FullGrid(b_grid=my_bg, o_grid=my_og, t_grid=my_tg)
-    pt_writer = PtWriter("", None)
-    if my_args.as_dir:
-        pt_writer.write_frames_in_directory()
-        print(f"Generated a PT in form of a directory filled with single-frame .gro files.")
-    else:
-        pt_writer.write_full_pt()
-        print(f"Generated a Pseudotrajectory with {pt_writer.pt.current_frame} timesteps.")
+    manager = PtIOManager(name_central_molecule=my_args.m1, name_rotating_molecule=my_args.m2,
+                          b_grid_name=my_args.bodygrid, o_grid_name=my_args.origingrid, t_grid_name=my_args.transgrid)
+    manager.construct_pt(measure_time=True, as_dir=my_args.as_dir)
+    #print(f"Generated a PT {manager.determine_pt_name()}")
 
 
 if __name__ == '__main__':

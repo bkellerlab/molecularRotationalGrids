@@ -1,7 +1,8 @@
 import hashlib
 import numbers
+import os
 from pathlib import Path
-from typing import Generator, Tuple
+from typing import Generator, Tuple, List
 
 import numpy as np
 from mendeleev.fetch import fetch_table
@@ -272,7 +273,7 @@ class ParsedMolecule:
         self.atoms.translate(rescaled_vector)
 
 
-class TrajectoryParser:
+class FileParser:
 
     def __init__(self, path_topology: str, path_trajectory: str = None):
         """
@@ -285,10 +286,41 @@ class TrajectoryParser:
         """
         self.path_topology = path_topology
         self.path_trajectory = path_trajectory
+        self.path_topology, self.path_trajectory = self.try_to_add_extension()
         if path_trajectory is not None:
             self.universe = mda.Universe(path_topology, path_trajectory)
         else:
-            self.universe = mda.Universe(path_topology)
+            self.universe = mda.Universe(self.path_topology)
+
+    def try_to_add_extension(self) -> List[str]:
+        possible_exts = ['PSF', 'TOP', 'PRMTOP', 'PARM7', 'PDB', 'ENT', 'XPDB', 'PQR', 'GRO', 'CRD', 'PDBQT', 'DMS',
+                         'TPR', 'MOL2', 'DATA', 'LAMMPSDUMP', 'XYZ', 'TXYZ', 'ARC', 'GMS', 'CONFIG', 'HISTORY', 'XML',
+                         'MMTF', 'GSD', 'MINIMAL', 'ITP', 'IN', 'FHIAIMS', 'PARMED', 'RDKIT', 'OPENMMTOPOLOGY',
+                         'OPENMMAPP']
+        to_return = [self.path_topology, self.path_trajectory]
+        for i, path in enumerate(to_return):
+            if path is None:
+                continue
+            root, ext = os.path.splitext(path)
+            if not ext:
+                options = []
+                for possible_ext in possible_exts:
+                    test_file = f"{path}.{possible_ext.lower()}"
+                    if os.path.isfile(test_file):
+                        options.append(test_file)
+                # if no files found, complain
+                if len(options) == 0:
+                    raise FileNotFoundError(f"No file with name {path} could be found and adding standard "
+                                            f"extensions did not help.")
+                # if exactly one file found, use it
+                elif len(options) == 1:
+                    to_return[i] = options[0]
+                # if several files with same name but different extensions found, complain
+                else:
+                    raise AttributeError(f"More than one file corresponds to the name {path}. "
+                                         f"Possible choices: {options}. "
+                                         f"Please specify the extension you want to use.")
+        return to_return
 
     def get_file_path_trajectory(self):
         return self.path_trajectory
@@ -307,12 +339,12 @@ class TrajectoryParser:
             yield ParsedMolecule(self.universe.atoms, box=self.universe.dimensions)
 
 
-class PtParser(TrajectoryParser):
+class PtParser(FileParser):
 
     def __init__(self, m1_path: str, m2_path: str, path_topology: str, path_trajectory: str = None):
         super().__init__(path_topology, path_trajectory)
-        self.c_num = TrajectoryParser(m1_path).as_parsed_molecule().num_atoms
-        self.r_num = TrajectoryParser(m2_path).as_parsed_molecule().num_atoms
+        self.c_num = FileParser(m1_path).as_parsed_molecule().num_atoms
+        self.r_num = FileParser(m2_path).as_parsed_molecule().num_atoms
         assert self.c_num + self.r_num == self.as_parsed_molecule().num_atoms
 
     def generate_frame_as_molecule(self) -> Generator[Tuple[ParsedMolecule, ParsedMolecule], None, None]:

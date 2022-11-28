@@ -634,12 +634,12 @@ class FullGrid:
         A combination object that enables work with a set of grids. A parser that
 
         Args:
-            b_grid: body rotation grid
-            o_grid: origin rotation grid
-            t_grid: translation grid
+            b_grid_name: body rotation grid
+            o_grid_name: origin rotation grid
+            t_grid_name: translation grid
         """
-        self.b_grid = b_grid
-        self.o_grid = o_grid
+        self.b_grid = build_grid_from_name(b_grid_name)
+        self.o_grid = build_grid_from_name(o_grid_name)
         self.t_grid = TranslationParser(t_grid_name)
 
     def get_full_grid_name(self):
@@ -648,23 +648,31 @@ class FullGrid:
         return nap.get_standard_name()
 
 
-def build_grid(grid_name: str, **kwargs) -> Grid:
+def build_grid_from_name(grid_name: str, **kwargs) -> Grid:
     """
-    Provide grid_name either in the form 'ico_24', '24'
+    Provide grid_name either in the form 'ico_24', '24'. If no algorithm is provided, the default algorithm is
+    the icosahedron algorithm.
     """
-    split_grid_name = grid_name.split("_")
-    # check if there is a number
-    N = None
-    for split_el in split_grid_name:
-        if split_el.isnumeric():
-            N = int(split_el)
-    if N is None:
-        raise ValueError(f"Grid name {grid_name} does not contain the number of points.")
-    # check if there is an algorithm name
-    for split_el in SIX_METHOD_NAMES:
-        if split_el in :
-            grid_type = split_el
+    if "zero" in grid_name.lower() or "none" in grid_name.lower():
+        algo = "zero"
+        N = 1
+    elif "_" in grid_name:
+        algo, N = grid_name.split("_")
+        assert N.isnumeric(), f"Grid name {grid_name} does not contain the number of points after '_'."
+        N = int(N)
+    else:
+        N = grid_name
+        assert N.isnumeric(), f"Grid name {grid_name} contains no underscores but isn't an integer."
+        N = int(N)
+        if N in (0, 1):
+            algo = "zero"
+            N = 1
+        else:
+            algo = "ico" # default algorithm
+    return build_grid(N, algo, **kwargs)
 
+
+def build_grid(N: int, algo: str, **kwargs) -> Grid:
     name2grid = {"randomQ": RandomQGrid,
                  "randomE": RandomEGrid,
                  "cube4D": Cube4DGrid,
@@ -672,9 +680,10 @@ def build_grid(grid_name: str, **kwargs) -> Grid:
                  "cube3D": Cube3DGrid,
                  "ico": IcoGrid,
                  "zero": ZeroGrid}
-    if grid_type not in name2grid.keys():
-        raise ValueError(f"{grid_type} is not a valid grid type. Try 'ico', 'cube3D' ...")
-    assert isinstance(N, int), "Number of grid points must be an integer."
+    if algo not in name2grid.keys():
+        raise ValueError(f"Algorithm {algo} is not a valid grid type. "
+                         f"Try 'ico', 'cube3D' ...")
+    assert isinstance(N, int), f"Number of grid points must be an integer, currently N={N}"
     assert N >= 0, f"Number of grid points cannot be negative, currently N={N}"
-    grid_obj = name2grid[grid_type]
+    grid_obj = name2grid[algo]
     return grid_obj(N, **kwargs)

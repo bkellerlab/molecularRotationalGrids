@@ -1,11 +1,7 @@
-import os
-
 import numpy as np
 
-from molgri.writers import PtWriter, directory2full_pt, full_pt2directory, \
-    converter_gro_dir_gro_file_names
-from molgri.grids import IcoGrid, Cube4DGrid, ZeroGrid, FullGrid
-from molgri.parsers import TranslationParser, PtParser, ParsedMolecule
+from molgri.writers import PtIOManager
+from molgri.parsers import PtParser, ParsedMolecule
 from molgri.scripts.set_up_io import freshly_create_all_folders, copy_examples
 from molgri.utils import angle_between_vectors, normalise_vectors
 from molgri.paths import PATH_OUTPUT_PT, PATH_INPUT_BASEGRO
@@ -50,47 +46,47 @@ def test_pt_len():
     """
     # origin rot grid = body rot grid
     num_rotations = 55
-    rot_grid = IcoGrid(num_rotations)
-    trans_grid = TranslationParser("linspace(1, 5, 10)")
-    num_translations = trans_grid.get_N_trans()
-    full_grid = FullGrid(b_grid=rot_grid, o_grid=rot_grid, t_grid=trans_grid)
-    writer = PtWriter("", None)
-    writer.write_full_pt()
-    end_index = writer.pt.current_frame
-    assert end_index == num_translations*num_rotations*num_rotations
-    m_path = f"{PATH_INPUT_BASEGRO}H2O.gro"
-    parser = PtParser(m_path, m_path, f"{PATH_OUTPUT_PT}{writer.file_name}.gro", f"{PATH_OUTPUT_PT}{writer.file_name}.xtc")
+    m_path = f"H2O.gro"
+    manager = PtIOManager(m_path, m_path, f"ico_{num_rotations}", f"ico_{num_rotations}", "linspace(1, 5, 10)")
+    manager.construct_pt()
+    end_index = manager.pt.current_frame
+    num_translations = manager.full_grid.t_grid.get_N_trans()
+    assert end_index == num_translations * num_rotations * num_rotations
+    parser = PtParser(f"{PATH_INPUT_BASEGRO}{m_path}", f"{PATH_INPUT_BASEGRO}{m_path}",
+                      f"{PATH_OUTPUT_PT}{manager.determine_pt_name()}.gro",
+                      f"{PATH_OUTPUT_PT}{manager.determine_pt_name()}.xtc")
     assert len(parser.universe.trajectory) == end_index
     assert parser.c_num == parser.r_num == 3
+    # 2nd example
     num_body = 3
-    body_grid = IcoGrid(num_body)
     num_origin = 18
-    origin_grid = Cube4DGrid(num_origin)
-    trans_grid = TranslationParser("range(1, 5, 0.5)")
-    num_translations = trans_grid.get_N_trans()
-    full_grid = FullGrid(b_grid=body_grid, o_grid=origin_grid, t_grid=trans_grid)
-    writer = PtWriter("", None)
-    writer.write_full_pt()
-    end_index = writer.pt.current_frame
+    m1_path = f"H2O.gro"
+    m2_path = f"NH3.gro"
+    manager = PtIOManager(m1_path, m2_path, f"cube4D_{num_origin}", f"ico_{num_body}", "range(1, 5, 0.5)")
+    manager.construct_pt()
+    end_index = manager.pt.current_frame
+    num_translations = manager.full_grid.t_grid.get_N_trans()
     assert end_index == num_translations * num_body * num_origin
-    m1_path = f"{PATH_INPUT_BASEGRO}H2O.gro"
-    m2_path = f"{PATH_INPUT_BASEGRO}NH3.gro"
-    parser = PtParser(m1_path, m2_path, f"{PATH_OUTPUT_PT}{writer.file_name}.gro", f"{PATH_OUTPUT_PT}{writer.file_name}.xtc")
+    parser = PtParser(f"{PATH_INPUT_BASEGRO}{m1_path}", f"{PATH_INPUT_BASEGRO}{m2_path}",
+                      f"{PATH_OUTPUT_PT}{manager.determine_pt_name()}.gro",
+                      f"{PATH_OUTPUT_PT}{manager.determine_pt_name()}.xtc")
     assert len(parser.universe.trajectory) == end_index
     assert parser.r_num == 4
     assert parser.c_num == 3
+    # 3rd example
     num_origin = 9
-    origin_grid = Cube4DGrid(num_origin)
-    trans_grid = TranslationParser("range(1, 5, 0.5)")
-    num_translations = trans_grid.get_N_trans()
-    full_grid = FullGrid(b_grid=ZeroGrid(), o_grid=origin_grid, t_grid=trans_grid)
-    writer = PtWriter("", None)
-    writer.write_full_pt()
-    end_index = writer.pt.current_frame
-    assert end_index == num_translations * num_origin
-    m1_path = f"{PATH_INPUT_BASEGRO}H2O.gro"
-    m2_path = f"{PATH_INPUT_BASEGRO}NH3.gro"
-    parser = PtParser(m1_path, m2_path, f"{PATH_OUTPUT_PT}{writer.file_name}.gro", f"{PATH_OUTPUT_PT}{writer.file_name}.xtc")
+    num_body = 1
+    m1_path = f"H2O.gro"
+    m2_path = f"NH3.gro"
+    manager = PtIOManager(m1_path, m2_path, f"cube4D_{num_origin}", f"zero", "range(1, 5, 0.5)")
+    manager.construct_pt()
+    end_index = manager.pt.current_frame
+    num_translations = manager.full_grid.t_grid.get_N_trans()
+    assert end_index == num_translations * num_body * num_origin
+    parser = PtParser(f"{PATH_INPUT_BASEGRO}{m1_path}",
+                      f"{PATH_INPUT_BASEGRO}{m2_path}",
+                      f"{PATH_OUTPUT_PT}{manager.determine_pt_name()}.gro",
+                      f"{PATH_OUTPUT_PT}{manager.determine_pt_name()}.xtc")
     assert len(parser.universe.trajectory) == end_index
     assert parser.r_num == 4
     assert parser.c_num == 3
@@ -101,15 +97,17 @@ def test_pt_translations():
     Test that if there are no rotations of any kind, translation occurs at correct distances in the z-direction.
     """
     # on a zero rotation grids
-    trans_grid = TranslationParser("range(1, 5, 0.5)")
-    full_grid = FullGrid(t_grid=trans_grid, b_grid=ZeroGrid(), o_grid=ZeroGrid())
-    distances = trans_grid.get_trans_grid()
-    writer = PtWriter("", None)
-    writer.write_full_pt()
-    file_name = writer.file_name
+    m_path = f"H2O.gro"
+    manager = PtIOManager(m_path, m_path, "zero", "zero", "range(1, 5, 0.5)")
+    manager.construct_pt()
+    distances = manager.full_grid.t_grid.get_trans_grid()
+    file_name = manager.determine_pt_name()
     # center of mass of the second molecule moves in z direction
-    m_path = f"{PATH_INPUT_BASEGRO}H2O.gro"
-    traj_parser = PtParser(m_path, m_path, f"{PATH_OUTPUT_PT}{writer.file_name}.gro", f"{PATH_OUTPUT_PT}{writer.file_name}.xtc")
+
+    traj_parser = PtParser(f"{PATH_INPUT_BASEGRO}{m_path}",
+                           f"{PATH_INPUT_BASEGRO}{m_path}",
+                           f"{PATH_OUTPUT_PT}{file_name}.gro",
+                           f"{PATH_OUTPUT_PT}{file_name}.xtc")
     for frame_i, frame_molecules in enumerate(traj_parser.generate_frame_as_molecule()):
         # distance of COM of second molecule to origin
         molecule1, molecule2 = frame_molecules
@@ -127,18 +125,19 @@ def test_pt_rotations_origin():
         2) angles between vector to COM and vectors to individual atoms stay constant
     """
     num_rot = 12
-    ico_grid = IcoGrid(num_rot)
     num_trans = 2
-    trans_grid = TranslationParser("[1, 2]")
-    distances = trans_grid.get_trans_grid()
-    full_grid = FullGrid(t_grid=trans_grid, b_grid=ZeroGrid(), o_grid=ico_grid)
-    writer = PtWriter("", None)
-    writer.write_full_pt()
-    len_traj = writer.pt.current_frame
+    m_path = f"H2O.gro"
+    manager = PtIOManager(m_path, m_path, f"ico_{num_rot}", "zero", "[1, 2]")
+    distances = manager.full_grid.t_grid.get_trans_grid()
+    manager.construct_pt()
+    file_name = manager.determine_pt_name()
+    len_traj = manager.pt.current_frame
     assert len_traj == num_trans*num_rot
     # assert every uneven structure has distance 1 and every even one distance 2
-    m_path = f"{PATH_INPUT_BASEGRO}H2O.gro"
-    traj_parser = PtParser(m_path, m_path, f"{PATH_OUTPUT_PT}{writer.file_name}.gro", f"{PATH_OUTPUT_PT}{writer.file_name}.xtc")
+    traj_parser = PtParser(f"{PATH_INPUT_BASEGRO}{m_path}",
+                           f"{PATH_INPUT_BASEGRO}{m_path}",
+                           f"{PATH_OUTPUT_PT}{file_name}.gro",
+                           f"{PATH_OUTPUT_PT}{file_name}.xtc")
     for frame_i, frame_molecules in enumerate(traj_parser.generate_frame_as_molecule()):
         # distance of COM of second molecule to origin
         m1, m2 = frame_molecules
@@ -164,19 +163,21 @@ def test_pt_rotations_body():
         2) COM only moves in the z-direction, x and y coordinates of COM stay at 0
     """
     num_rot = 4
-    ico_grid = IcoGrid(num_rot)
     num_trans = 3
-    trans_grid = TranslationParser("[1, 2, 3]")
-    distances = trans_grid.get_trans_grid()
-    full_grid = FullGrid(t_grid=trans_grid, b_grid=ico_grid, o_grid=ZeroGrid())
-    writer = PtWriter("", None)
-    writer.write_full_pt(measure_time=True)
-    len_traj = writer.pt.current_frame
+    # assert every uneven structure has distance 1 and every even one distance 2
+    m1_path = f"H2O.gro"
+    m2_path = f"NH3.gro"
+    manager = PtIOManager(m1_path, m2_path, f"zero", f"ico_{num_rot}", "[1, 2, 3]")
+    distances = manager.full_grid.t_grid.get_trans_grid()
+    manager.construct_pt(measure_time=True)
+    file_name = manager.determine_pt_name()
+    len_traj = manager.pt.current_frame
     assert len_traj == num_trans*num_rot
     # assert every uneven structure has distance 1 and every even one distance 2
-    m1_path = f"{PATH_INPUT_BASEGRO}H2O.gro"
-    m2_path = f"{PATH_INPUT_BASEGRO}NH3.gro"
-    traj_parser = PtParser(m1_path, m2_path, f"{PATH_OUTPUT_PT}{writer.file_name}.gro", f"{PATH_OUTPUT_PT}{writer.file_name}.xtc")
+    traj_parser = PtParser(f"{PATH_INPUT_BASEGRO}{m1_path}",
+                           f"{PATH_INPUT_BASEGRO}{m2_path}",
+                           f"{PATH_OUTPUT_PT}{file_name}.gro",
+                           f"{PATH_OUTPUT_PT}{file_name}.xtc")
     for frame_i, frame_molecules in enumerate(traj_parser.generate_frame_as_molecule()):
         m1, m2 = frame_molecules
         dist = np.linalg.norm(m2.get_center_of_mass())
@@ -200,18 +201,21 @@ def test_order_of_operations():
     continuous to repeat.
     """
     n_b = 4
-    grid_b = IcoGrid(n_b)
     n_o = 8
-    grid_o = IcoGrid(n_o)
     n_t = 3
-    trans_grid = TranslationParser("[1, 2, 3]")
-    full_grid = FullGrid(t_grid=trans_grid, b_grid=grid_b, o_grid=grid_o)
-    writer = PtWriter("", None)
-    writer.write_full_pt()
-    len_traj = writer.pt.current_frame
-    m1_path = f"{PATH_INPUT_BASEGRO}H2O.gro"
-    m2_path = f"{PATH_INPUT_BASEGRO}NH3.gro"
-    traj_parser = PtParser(m1_path, m2_path, f"{PATH_OUTPUT_PT}{writer.file_name}.gro", f"{PATH_OUTPUT_PT}{writer.file_name}.xtc")
+    m1_path = f"H2O.gro"
+    m2_path = f"NH3.gro"
+
+    manager = PtIOManager(m1_path, m2_path, f"ico_{n_o}", f"ico_{n_b}", "[1, 2, 3]")
+    manager.construct_pt()
+    file_name = manager.determine_pt_name()
+    len_traj = manager.pt.current_frame
+    assert len_traj == n_b * n_o * n_t
+    # assert every uneven structure has distance 1 and every even one distance 2
+    traj_parser = PtParser(f"{PATH_INPUT_BASEGRO}{m1_path}",
+                           f"{PATH_INPUT_BASEGRO}{m2_path}",
+                           f"{PATH_OUTPUT_PT}{file_name}.gro",
+                           f"{PATH_OUTPUT_PT}{file_name}.xtc")
     m2s = []
     for frame_i, frame_molecules in enumerate(traj_parser.generate_frame_as_molecule()):
         m1, m2 = frame_molecules
