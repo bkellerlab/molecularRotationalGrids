@@ -1,5 +1,5 @@
 from molgri.grids import build_grid, project_grid_on_sphere, second_neighbours, Cube3DGrid, \
-    CubePolytope, IcosahedronPolytope, IcoGrid, order_grid_points, Grid
+    CubePolytope, IcosahedronPolytope, IcoGrid, order_grid_points, FullGrid, ZeroGrid
 from molgri.constants import SIX_METHOD_NAMES
 import networkx as nx
 import numpy as np
@@ -104,7 +104,7 @@ def test_second_neighbours():
 def test_general_grid_properties():
     for alg in SIX_METHOD_NAMES:
         for number in (3, 15, 26):
-            grid_obj = build_grid(alg, number)
+            grid_obj = build_grid(number, alg)
             grid = grid_obj.get_grid()
             assert isinstance(grid, np.ndarray), "Grid must be a numpy array."
             assert grid.shape == (number, 3), "Wrong grid shape."
@@ -144,14 +144,15 @@ def test_zero_grid():
 
 def test_errors_and_assertions():
     with pytest.raises(ValueError):
-        build_grid("icosahedron", 15)
+        build_grid(15, "icosahedron")
     with pytest.raises(ValueError):
-        build_grid("grid", 15)
+        build_grid(15, "grid")
     with pytest.raises(AssertionError):
-        build_grid("ico", -15)
+        build_grid(-15, "ico")
     with pytest.raises(AssertionError):
-        build_grid("ico", 15.3)
-    grid = build_grid("ico", 20).get_grid()
+        # noinspection PyTypeChecker
+        build_grid(15.3, "ico")
+    grid = build_grid(20, "ico").get_grid()
     with pytest.raises(ValueError):
         order_grid_points(grid, 25)
 
@@ -199,11 +200,35 @@ def test_ordering():
         try:
             for N in range(14, 284, 3):
                 for addition in (1, 7):
-                    grid_1 = build_grid(name, N+addition, ordered=True).get_grid()
-                    grid_2 = build_grid(name, N, ordered=True).get_grid()
+                    grid_1 = build_grid(N + addition, name, ordered=True).get_grid()
+                    grid_2 = build_grid(N, name, ordered=True).get_grid()
                     assert np.allclose(grid_1[:N], grid_2)
         except AssertionError:
             print(name)
+
+
+def test_default_full_grids():
+    full_grid = FullGrid(t_grid_name="[1]", o_grid_name="zero", b_grid_name="zero")
+    assert np.all(full_grid.t_grid.get_trans_grid() == np.array([10]))
+    assert isinstance(full_grid.o_grid, ZeroGrid)
+    assert isinstance(full_grid.b_grid, ZeroGrid)
+    full_grid = FullGrid(t_grid_name="[0]", o_grid_name="None", b_grid_name="None")
+    assert np.all(full_grid.t_grid.get_trans_grid() == np.array([0]))
+    assert isinstance(full_grid.o_grid, ZeroGrid)
+    assert isinstance(full_grid.b_grid, ZeroGrid)
+    full_grid = FullGrid(t_grid_name="[1, 2, 3]", o_grid_name="0", b_grid_name="0")
+    assert np.all(full_grid.t_grid.get_trans_grid() == np.array([10, 20, 30]))
+    assert isinstance(full_grid.o_grid, ZeroGrid)
+    assert isinstance(full_grid.b_grid, ZeroGrid)
+    full_grid = FullGrid(t_grid_name="[1, 2, 3]", o_grid_name="1", b_grid_name="1")
+    assert np.all(full_grid.t_grid.get_trans_grid() == np.array([10, 20, 30]))
+    assert isinstance(full_grid.o_grid, ZeroGrid)
+    assert isinstance(full_grid.b_grid, ZeroGrid)
+    full_grid = FullGrid(t_grid_name="[1, 2, 3]", o_grid_name="3", b_grid_name="4")
+    assert isinstance(full_grid.o_grid, IcoGrid)
+    assert full_grid.o_grid.N == 3
+    assert isinstance(full_grid.b_grid, IcoGrid)
+    assert full_grid.b_grid.N == 4
 
 
 if __name__ == "__main__":

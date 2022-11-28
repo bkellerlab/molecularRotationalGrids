@@ -50,3 +50,8 @@ DEFAULT_NS_TIME = [3,    4,    5,    6,    8,   10,   12,   15,   18,   23,
         249,  300]
 GROMACS_NS = [54, 96, 150, 216, 384, 600, 864, 1350, 1944, 3174, 5400, 6936, 10086, 15000, 23064, 33750, 60000] # 19
 MINI_DEFAULT_NS = [30, 100, 300]
+
+EXTENSIONS = ('PSF', 'TOP', 'PRMTOP', 'PARM7', 'PDB', 'ENT', 'XPDB', 'PQR', 'GRO', 'CRD', 'PDBQT', 'DMS',
+              'TPR', 'MOL2', 'DATA', 'LAMMPSDUMP', 'XYZ', 'TXYZ', 'ARC', 'GMS', 'CONFIG', 'HISTORY', 'XML',
+              'MMTF', 'GSD', 'MINIMAL', 'ITP', 'IN', 'FHIAIMS', 'PARMED', 'RDKIT', 'OPENMMTOPOLOGY',
+              'OPENMMAPP')

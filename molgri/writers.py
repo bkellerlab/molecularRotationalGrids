@@ -1,188 +1,261 @@
-from typing import Tuple
+"""
+This module contains PtWriter object to write Pseudotrajectories to trajectory/topology files and a PtIOManager that
+is a high-level function combining: parsing from input files, creating grids and writing the outputs.
+"""
 import os
 import shutil
 
-from molgri.grids import ZeroGrid, FullGrid
-from molgri.parsers import TranslationParser, TrajectoryParser, ParsedMolecule
+# noinspection PyPep8Naming
+import MDAnalysis as mda
+from MDAnalysis import Merge
+import numpy as np
+
+from molgri.grids import FullGrid
+from molgri.parsers import FileParser, ParsedMolecule
 from molgri.paths import PATH_INPUT_BASEGRO, PATH_OUTPUT_PT
 from molgri.pts import Pseudotrajectory
-from molgri.constants import ANGSTROM2NM
+from molgri.wrappers import time_method
 
 
-class GroWriter:
+class PtIOManager:
 
-    def __init__(self, file_name: str):
+    def __init__(self, name_central_molecule: str, name_rotating_molecule: str, o_grid_name: str, b_grid_name: str,
+                 t_grid_name: str):
         """
-        This simple class determines only the format of how data is written to the .gro file, all information
-        is directly provided as arguments
+        This class gets only strings as inputs - what a user is expected to provide. The first two strings
+        determine where to find input molecular structures, last three how to construct a full grid.
+        This object manages Parsers and Writers that provide a smooth input/output to a Pseudotrajectory.
 
         Args:
-            file_name: entire name of the file where the gro file should be saved including path and ending
+            name_central_molecule: name of the molecule that stays fixed (with or without extension,
+                                   should be located in the input/ folder)
+            name_rotating_molecule: name of the molecule that moves in a pseudotrajectory (with or without extension,
+                                   should be located in the input/ folder)
+            o_grid_name: name of the grid for rotations around the origin in form 'algorithm_num' (eg. 'ico_50) OR
+                         in form 'num' (eg. '50') OR as string 'zero' or 'None' if no rotations needed
+            b_grid_name: name of the grid for rotations around the body in form 'algorithm_num' (eg. 'ico_50) OR
+                         in form 'num' (eg. '50') OR as string 'zero' or 'None' if no rotations needed
+            t_grid_name: translation grid that will be forwarded to TranslationParser, can be a list of numbers,
+                         a range or linspace function inside a string
         """
-        self.file_name = file_name
-        self.f = open(self.file_name, "w")
+        # parsing input files
+        central_file_path = f"{PATH_INPUT_BASEGRO}{name_central_molecule}"
+        self.central_parser = FileParser(central_file_path)
+        rotating_file_path = f"{PATH_INPUT_BASEGRO}{name_rotating_molecule}"
+        self.rotating_parser = FileParser(rotating_file_path)
+        self.rotating_molecule = self.rotating_parser.as_parsed_molecule()
+        self.central_molecule = self.central_parser.as_parsed_molecule()
+        # parsing grids
+        self.full_grid = FullGrid(b_grid_name=b_grid_name, o_grid_name=o_grid_name, t_grid_name=t_grid_name)
+        # initiating writer and pseudotrajectory objects
+        self.writer = PtWriter(name_to_save=self.determine_pt_name(),
+                               parsed_central_molecule=self.central_molecule)
+        self.pt = Pseudotrajectory(self.rotating_molecule, self.full_grid)
+        self.decorator_label = f"Pseudotrajectory {self.determine_pt_name()}"  # needed for timing write-out
 
-    def write_comment_num(self,  num_atoms: int, comment: str = ""):
+    def determine_pt_name(self) -> str:
         """
+        Determine the base name of pseudotrajectory file/directory without any paths or extensions.
+
+        Returns:
+            PT name, eg H2O_CL_o_ico_15_b_cube3D_45_t_123456
+        """
+        name_c_molecule = self.central_parser.get_file_name()
+        name_r_molecule = self.rotating_parser.get_file_name()
+        name_full_grid = self.full_grid.get_full_grid_name()
+        return f"{name_c_molecule}_{name_r_molecule}_{name_full_grid}"
+
+    def construct_pt(self, extension_trajectory: str = "xtc", extension_structure: str = "gro",
+                     as_dir: bool = False):
+        """
+        The highest-level method to be called in order to generate and save a pseudotrajectory.
+
         Args:
-            num_atoms: required, number of atoms in this frame
-            comment: string of a comment without new line symbol
+            extension_trajectory: what extension to provide to the trajectory file
+            extension_structure: what extension to provide to the structure (topology) file
+            as_dir: if True, don't save trajectory in one file but split it in frames
         """
-        # write comment
-        self.f.write(f"{comment}\n")
-        # write total number of atoms
-        self.f.write(f"{num_atoms:5}\n")
-
-    def write_atom_line(self, residue_num: int, residue_name: str, atom_name: str, atom_num: str,
-                        pos_nm_x: float, pos_nm_y: float, pos_nm_z: float,
-                        vel_x: float = 0, vel_y: float = 0, vel_z: float = 0):
-        self.f.write(f"{residue_num:5}{residue_name:5}{atom_name:>5}{atom_num:5}{pos_nm_x*ANGSTROM2NM:8.3f}"
-                     f"{pos_nm_y*ANGSTROM2NM:8.3f}{pos_nm_z*ANGSTROM2NM:8.3f}{vel_x:8.4f}{vel_y:8.4f}{vel_z:8.4f}\n")
-
-    def write_box(self, box: Tuple[float]):
-        if len(box) == 6:
-            box = box[:3]
-        assert len(box) == 3, "simulation box must have three dimensions"
-        for box_el in box:
-            self.f.write(f"\t{box_el*ANGSTROM2NM}")
-        self.f.write("\n")
-
-
-class PtWriter(GroWriter):
-
-    def __init__(self, name_central_gro: str, name_rotating_gro: str, full_grid: FullGrid):
-        """
-        We read in two base gro files, each containing one molecule. Capable of writing a new gro file that
-        contains one or more time steps in which the second molecule moves around. First molecule is only read
-        and the lines copied at every step; second molecule is read and represented with Atom objects which can rotate
-        and translate.
-
-        Args:
-            name_central_gro: name of the molecule that stays fixed
-            name_rotating_gro: name of the molecule that moves in a pseudotrajectory
-            full_grid: consists of unter-grids that span state space
-        """
-
-        central_file_path = f"{PATH_INPUT_BASEGRO}{name_central_gro}.gro"
-        self.central_parser = TrajectoryParser(central_file_path)
-        rotating_file_path = f"{PATH_INPUT_BASEGRO}{name_rotating_gro}.gro"
-        self.rotating_parser = TrajectoryParser(rotating_file_path)
-        self.full_grid = full_grid
-        self.pt = Pseudotrajectory(self.rotating_parser.as_one_molecule(), full_grid)
-        super().__init__(f"{PATH_OUTPUT_PT}{self.get_output_name()}.gro")
-        self.c_num = self.central_parser.num_atoms
-        self.r_num = self.rotating_parser.num_atoms
-
-    def get_output_name(self):
-        mol_name1 = self.central_parser.molecule_name
-        mol_name2 = self.rotating_parser.molecule_name
-        result_file_path = f"{mol_name1}_{mol_name2}_{self.full_grid.get_full_grid_name()}"
-        return result_file_path
-
-    def write_frame(self, frame_num: int, second_molecule: ParsedMolecule):
-        comment = f"c_num={self.c_num}, r_num={self.r_num}, t={frame_num}"
-        total_num = self.c_num + self.r_num
-        self.write_comment_num(comment=comment, num_atoms=total_num)
-        self._write_first_molecule()
-        self._write_current_second_molecule(second_molecule=second_molecule)
-        self.write_box(box=self.central_parser.box)
-
-    def _write_first_molecule(self):
-        first_molecule = self.central_parser.as_one_molecule()
-        num_atom = 1
-        num_molecule = 2
-        for i, atom in enumerate(first_molecule.atoms):
-            pos_nm = atom.position
-            name = first_molecule.atom_labels[i]
-            self.write_atom_line(residue_num=num_molecule, residue_name="SOL",
-                                 atom_name=name, atom_num=num_atom, pos_nm_x=pos_nm[0], pos_nm_y=pos_nm[1],
-                                 pos_nm_z=pos_nm[2])
-            num_atom += 1
-
-    def _write_current_second_molecule(self, second_molecule: ParsedMolecule):
-        num_atom = self.c_num + 1
-        num_molecule = 2
-        for i, atom in enumerate(second_molecule.atoms):
-            pos_nm = atom.position
-            name = second_molecule.atom_labels[i]
-            self.write_atom_line(residue_num=num_molecule, residue_name="SOL",
-                                 atom_name=name, atom_num=num_atom, pos_nm_x=pos_nm[0], pos_nm_y=pos_nm[1],
-                                 pos_nm_z=pos_nm[2])
-            num_atom += 1
-
-    def write_full_pt_gro(self, measure_time: bool = False):
-        if measure_time:
-            generating_func = self.pt.generate_pt_and_time
+        if as_dir:
+            selected_function = self.writer.write_frames_in_directory
         else:
-            generating_func = self.pt.generate_pseudotrajectory
-        for i, second_molecule in generating_func():
-            self.write_frame(i, second_molecule)
-        self.f.close()
+            selected_function = self.writer.write_full_pt
+        selected_function(self.pt, extension_trajectory=extension_trajectory, extension_structure=extension_structure)
 
-    def write_frames_in_directory(self):
-        self.f.close()
-        directory = f"{PATH_OUTPUT_PT}{self.get_output_name()}"
+    @time_method
+    def construct_pt_and_time(self, **kwargs):
+        """
+        Same as construct_pt, but time the execution and write out a message about duration.
 
+        Args:
+            see construct_pt
+        """
+        self.construct_pt(**kwargs)
+
+
+class PtWriter:
+
+    def __init__(self, name_to_save: str, parsed_central_molecule: ParsedMolecule):
+        """
+        This class writes a pseudotrajectory to a file. A PT consists of one molecule that is stationary at
+        origin and one that moves with every time step. The fixed molecule is provided when the class is created
+        and the mobile molecule as a generator when the method write_full_pt is called. Writing is done with
+        MDAnalysis module, so all formats implemented there are supported.
+
+        Args:
+            name_to_save: base name of the PT file without paths or extensions
+            parsed_central_molecule: a ParsedMolecule object describing the central molecule, will only be translated
+                                     so that COM lies at (0, 0, 0) but not manipulated in any other way.
+        """
+        self.central_molecule = parsed_central_molecule
+        self.central_molecule.translate_to_origin()
+        self.box = self.central_molecule.get_box()
+        self.file_name = name_to_save
+
+    def _merge_and_write(self, writer: mda.Writer, pt: Pseudotrajectory):
+        """
+        Helper function to merge Atoms from central molecule with atoms of the moving molecule (at current positions)
+
+        Args:
+            writer: an already initiated object writing to file (eg a .gro or .xtc file)
+            pt: a Pseudotrajectory object with method .get_molecule() that returns current ParsedMolecule
+        """
+        merged_universe = Merge(self.central_molecule.get_atoms(), pt.get_molecule().get_atoms())
+        merged_universe.dimensions = self.box
+        writer.write(merged_universe)
+
+    def write_structure(self, pt: Pseudotrajectory, extension_structure: str = "gro"):
+        """
+        Write the one-frame topology file, eg in .gro format.
+
+        Args:
+            pt: a Pseudotrajectory object with method .get_molecule() that returns current ParsedMolecule
+            extension_structure: determines type of file to which topology should be saved
+        """
+        structure_path = f"{PATH_OUTPUT_PT}{self.file_name}.{extension_structure}"
+        if not np.all(self.box == pt.get_molecule().get_box()):
+            print(f"Warning! Simulation boxes of both molecules are different. Selecting the box of"
+                  f"central molecule with dimensions {self.box}")
+        with mda.Writer(structure_path) as structure_writer:
+            self._merge_and_write(structure_writer, pt)
+
+    def write_full_pt(self, pt: Pseudotrajectory, extension_trajectory: str = "xtc", extension_structure: str = "gro"):
+        """
+        Write the trajectory file as well as the structure file (only at the first time-step).
+
+        Args:
+            pt: a Pseudotrajectory object with method .generate_pseudotrajectory() that generates ParsedMolecule objects
+            extension_trajectory: determines type of file to which trajectory should be saved
+            extension_structure: determines type of file to which topology should be saved
+        """
+        output_path = f"{PATH_OUTPUT_PT}{self.file_name}.{extension_trajectory}"
+        trajectory_writer = mda.Writer(output_path, multiframe=True)
+        for i, _ in pt.generate_pseudotrajectory():
+            # for the first frame write out topology
+            if i == 0:
+                self.write_structure(pt, extension_structure)
+            self._merge_and_write(trajectory_writer, pt)
+        trajectory_writer.close()
+
+    def _create_dir_or_empty_it(self) -> str:
+        """
+        Helper function that determines the name of the directory in which single frames of the trajectory are
+        saved. If the directory already exists, its previous contents are deleted.
+
+        Returns:
+            path to the directory
+        """
+        directory = f"{PATH_OUTPUT_PT}{self.file_name}"
         try:
             os.mkdir(directory)
         except FileExistsError:
             # delete contents if folder already exist
-            filelist = [f for f in os.listdir(directory) if f.endswith(".gro")]
+            filelist = [f for f in os.listdir(directory)]
             for f in filelist:
                 os.remove(os.path.join(directory, f))
-        for i, second_molecule in self.pt.generate_pseudotrajectory():
-            self.f = open(f"{directory}/{i}.gro", "w")
-            self.write_frame(i, second_molecule)
-            self.f.close()
+        return directory
 
-
-class TwoMoleculeGroWriter(PtWriter):
-
-    def __init__(self, name_central_gro: str, name_rotating_gro: str, translation_nm: float):
+    def write_frames_in_directory(self, pt: Pseudotrajectory, extension_trajectory: str = "xtc",
+                                  extension_structure: str = "gro"):
         """
-        A class to create a 'PT' that contains only one frame, namely of the two molecules separated by the distance
-        translation_nm in z-direction.
+        As an alternative to saving a full PT in a single trajectory file, you can create a directory with the same
+        name and within it single-frame trajectories named with their frame index. Also save the structure file at
+        first step.
 
-        Args:
-            name_central_gro: name of the molecule that stays fixed
-            name_rotating_gro: name of the molecule that moves in a pseudotrajectory
-            translation_nm: how far away molecules should be in the end
+            pt: a Pseudotrajectory object with method .generate_pseudotrajectory() that generates ParsedMolecule objects
+            extension_trajectory: determines type of file to which trajectory should be saved
+            extension_structure: determines type of file to which topology should be saved
         """
-        trans_grid = TranslationParser(f"[{translation_nm}]")
-        full_grid = FullGrid(b_grid=ZeroGrid(), o_grid=ZeroGrid(), t_grid=trans_grid)
-        super().__init__(name_central_gro, name_rotating_gro, full_grid)
+        directory = self._create_dir_or_empty_it()
+        for i, _ in pt.generate_pseudotrajectory():
+            if i == 0:
+                self.write_structure(pt, extension_structure)
+            f = f"{directory}/{i}.{extension_trajectory}"
+            with mda.Writer(f) as structure_writer:
+                self._merge_and_write(structure_writer, pt)
 
 
-def converter_gro_dir_gro_file_names(pt_file_path=None, pt_directory_path=None) -> tuple:
+def converter_gro_dir_gro_file_names(pt_file_path: str = None, pt_directory_path: str = None,
+                                     extension: str = None) -> tuple:
+    """
+    Converter that helps separate a PT path into base path, directory/file name and extension. Provide one of
+    the arguments, pt_file_path or pt_directory_path+extension; if you provide both, only pt_file_path will be used.
+
+    Args:
+        pt_file_path: full path with extension pointing to the PT file
+        pt_directory_path: full path with extension pointing to the PT directory
+        extension: extension of PT
+
+    Returns:
+        (base file path, name without extension, full file path with extension, full directory path)
+    """
     if pt_file_path:
         without_ext, file_extension = os.path.splitext(pt_file_path)
         file_path, file_name = os.path.split(without_ext)
         pt_directory_path = os.path.join(file_path, file_name+"/")
-    elif pt_directory_path:
+    elif pt_directory_path and extension:
         file_path, file_name = os.path.split(pt_directory_path)
-        file_with_ext = file_name + ".gro"
-        pt_file_path(file_path, file_with_ext)
+        file_with_ext = file_name + f".{extension}"
+        pt_file_path = os.path.join(file_path, file_with_ext)
     else:
-        raise ValueError("pt_file_path nor pt_directory_path provided.")
+        raise ValueError("pt_file_path nor pt_directory_path + extension provided.")
     return file_path + "/", file_name, pt_file_path, pt_directory_path
 
 
-def directory2full_pt(directory_path: str):
+def directory2full_pt(directory_path: str, trajectory_endings: str = "xtc"):
+    """
+    Convert a directory full of single-frame PTs in a single long PT.
+
+    Args:
+        directory_path: full path with extension pointing to the PT directory
+        trajectory_endings: extension of PT files in the directory
+    """
     path_to_dir, dir_name = os.path.split(directory_path)
-    filelist = [f for f in os.listdir(directory_path) if f.endswith(".gro")]
+    filelist = [f for f in os.listdir(directory_path) if f.endswith(f".{trajectory_endings}")]
     filelist.sort(key=lambda x: int(x.split(".")[0]))
-    with open(f"{path_to_dir}{dir_name}.gro", 'wb') as wfd:
+    with open(f"{path_to_dir}/{dir_name}.{trajectory_endings}", 'wb') as wfd:
         for f in filelist:
             with open(f"{directory_path}/{f}", 'rb') as fd:
                 shutil.copyfileobj(fd, wfd)
 
 
-def full_pt2directory(full_pt_path: str):
-    with open(full_pt_path, "r") as f_read:
+def full_pt2directory(full_pt_path: str, structure_path: str):
+    """
+    Convert a long PT into a directory of single-frame PTs.
+
+    Args:
+        full_pt_path: full path with extension pointing to the PT file
+        structure_path: full path with extension pointing to the structure/topology file
+
+    Returns:
+
+    """
+    with open(structure_path, "r") as f_read:
         lines = f_read.readlines()
     num_atoms = int(lines[1].strip("\n").strip())
     num_frame_lines = num_atoms + 3
     directory = full_pt_path.split(".")[0]
+    with open(full_pt_path, "rb") as f_read:
+        lines = f_read.readlines()
     try:
         os.mkdir(directory)
     except FileExistsError:
@@ -191,5 +264,5 @@ def full_pt2directory(full_pt_path: str):
         for f in filelist:
             os.remove(os.path.join(directory, f))
     for i in range(len(lines) // num_frame_lines):
-        with open(f"{directory}/{i}.gro", "w") as f_write:
+        with open(f"{directory}/{i}.gro", "wb") as f_write:
             f_write.writelines(lines[num_frame_lines*i:num_frame_lines*(i+1)])

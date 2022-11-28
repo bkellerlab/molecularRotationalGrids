@@ -7,7 +7,6 @@ from os.path import join
 import argparse
 
 from molgri.grids import Grid, build_grid
-from molgri.parsers import NameParser
 from ..paths import PATH_OUTPUT_ROTGRIDS, PATH_OUTPUT_PLOTS, PATH_OUTPUT_ANIS, PATH_OUTPUT_STAT
 from ..constants import ENDING_GRID_FILES
 from molgri.plotting import GridPlot, AlphaViolinPlot, AlphaConvergencePlot
@@ -36,16 +35,16 @@ parser.add_argument('--readable', action='store_true',
                     help='save the grid file in a txt format as well')
 
 
-def prepare_grid(args, parsed_name: NameParser) -> Grid:
-    name = parsed_name.get_standard_name()
-    algo = parsed_name.grid_type
-    n_points = parsed_name.num_grid_points
+def prepare_grid(args, grid_name: str) -> Grid:
+    name = grid_name
+    algo = args.algorithm
+    n_points = args.N
     # if already exists and no --recalculate flag, just display a message
     if os.path.exists(join(PATH_OUTPUT_ROTGRIDS, f"{name}.{ENDING_GRID_FILES}")) and not args.recalculate:
         print(f"Grid with name {name} is already saved. If you want to recalculate it, select --recalculate flag.")
-        my_grid = build_grid(algo, n_points, use_saved=True, time_generation=True)
+        my_grid = build_grid(n_points, algo, use_saved=True, time_generation=True)
     else:
-        my_grid = build_grid(algo, n_points, use_saved=False, time_generation=True)
+        my_grid = build_grid(n_points, algo, use_saved=False, time_generation=True)
         my_grid.save_grid()
         print(f"Generated a {my_grid.decorator_label} with {my_grid.N} points.")
     # if running from another script, args may not include the readable attribute
@@ -61,9 +60,8 @@ def prepare_grid(args, parsed_name: NameParser) -> Grid:
 def run_generate_grid():
     freshly_create_all_folders()
     my_args = parser.parse_args()
-    nap = NameParser(f"{my_args.algorithm}_{my_args.N}")
-    grid_name = nap.get_standard_name()
-    my_grid = prepare_grid(my_args, nap)
+    grid_name = f"{my_args.algorithm}_{my_args.N}"
+    my_grid = prepare_grid(my_args, grid_name)
     if my_args.animate or my_args.animate_ordering:
         my_args.draw = True
     if my_args.draw:
@@ -88,8 +86,8 @@ def run_generate_grid():
         AlphaViolinPlot(grid_name).create()
         print(f"A violin plot showing the uniformity of {grid_name} saved to {PATH_OUTPUT_PLOTS}.")
         # create covergence plot
-        AlphaConvergencePlot(grid_name).create()
-        print(f"A convergence plot with number of points between 3 and {nap.num_grid_points} saved "
+        AlphaConvergencePlot(grid_name, my_args.N).create()
+        print(f"A convergence plot with number of points between 3 and {my_args.N} saved "
               f"to {PATH_OUTPUT_PLOTS}.")
 
 

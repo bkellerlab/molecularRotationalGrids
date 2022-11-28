@@ -9,10 +9,10 @@ from scipy.spatial.distance import cdist
 import pandas as pd
 from scipy.spatial.transform import Rotation
 
-from .analysis import random_sphere_points, random_axes_count_points
+from .analysis import random_axes_count_points
 from .utils import dist_on_sphere
 from .constants import DEFAULT_SEED, SIX_METHOD_NAMES, UNIQUE_TOL, ENDING_GRID_FILES
-from .parsers import NameParser, TranslationParser
+from .parsers import TranslationParser
 from .paths import PATH_OUTPUT_ROTGRIDS, PATH_OUTPUT_STAT
 from .rotations import grid2quaternion, grid2euler, quaternion2grid, euler2grid, grid2rotation
 from .wrappers import time_method
@@ -303,8 +303,7 @@ class Grid(ABC):
         assert gen_alg in SIX_METHOD_NAMES or gen_alg == "zero", f"{gen_alg} is not a valid generation algorithm name"
         self.ordered = ordered
         self.N = N
-        name_properties = {"grid_type": gen_alg, "num_grid_points": N, "ordering": ordered}
-        self.standard_name = NameParser(name_properties).get_standard_name()
+        self.standard_name = f"{gen_alg}_{N}"
         self.decorator_label = f"rotation grid {self.standard_name}"
         self.grid = None
         self.time = 0
@@ -344,7 +343,7 @@ class Grid(ABC):
     def _order(self):
         self.grid = order_grid_points(self.grid, self.N)
 
-    def as_rot_matrix(self) -> List[Rotation]:
+    def as_rotation_object(self) -> List[Rotation]:
         return grid2rotation(self.grid)
 
     def as_quaternion(self) -> np.ndarray:
@@ -629,26 +628,48 @@ class IcoGrid(Polyhedron3DGrid):
 
 class FullGrid:
 
-    def __init__(self, b_grid: Grid, o_grid: Grid, t_grid: TranslationParser):
+    def __init__(self, b_grid_name: str, o_grid_name: str, t_grid_name: str):
         """
-        In preparation. A combination object that enables work with a set of grids.
+        A combination object that enables work with a set of grids. A parser that
 
         Args:
-            b_grid: body rotation grid
-            o_grid: origin rotation grid
-            t_grid: translation grid
+            b_grid_name: body rotation grid
+            o_grid_name: origin rotation grid
+            t_grid_name: translation grid
         """
-        self.b_grid = b_grid
-        self.o_grid = o_grid
-        self.t_grid = t_grid
+        self.b_grid = build_grid_from_name(b_grid_name)
+        self.o_grid = build_grid_from_name(o_grid_name)
+        self.t_grid = TranslationParser(t_grid_name)
 
     def get_full_grid_name(self):
-        nap = NameParser({"o_grid": self.o_grid.standard_name, "b_grid": self.b_grid.standard_name,
-                          "t_grid": self.t_grid.grid_hash})
-        return nap.get_standard_name()
+        return f"o_{self.o_grid.standard_name}_b_{self.b_grid.standard_name}_t_{self.t_grid.grid_hash}"
 
 
-def build_grid(grid_type: str, N: int, **kwargs) -> Grid:
+def build_grid_from_name(grid_name: str, **kwargs) -> Grid:
+    """
+    Provide grid_name either in the form 'ico_24', '24'. If no algorithm is provided, the default algorithm is
+    the icosahedron algorithm.
+    """
+    if "zero" in grid_name.lower() or "none" in grid_name.lower():
+        algo = "zero"
+        N = 1
+    elif "_" in grid_name:
+        algo, N = grid_name.split("_")
+        assert N.isnumeric(), f"Grid name {grid_name} does not contain the number of points after '_'."
+        N = int(N)
+    else:
+        N = grid_name
+        assert N.isnumeric(), f"Grid name {grid_name} contains no underscores but isn't an integer."
+        N = int(N)
+        if N in (0, 1):
+            algo = "zero"
+            N = 1
+        else:
+            algo = "ico" # default algorithm
+    return build_grid(N, algo, **kwargs)
+
+
+def build_grid(N: int, algo: str, **kwargs) -> Grid:
     name2grid = {"randomQ": RandomQGrid,
                  "randomE": RandomEGrid,
                  "cube4D": Cube4DGrid,
@@ -656,9 +677,10 @@ def build_grid(grid_type: str, N: int, **kwargs) -> Grid:
                  "cube3D": Cube3DGrid,
                  "ico": IcoGrid,
                  "zero": ZeroGrid}
-    if grid_type not in name2grid.keys():
-        raise ValueError(f"{grid_type} is not a valid grid type. Try 'ico', 'cube3D' ...")
-    assert isinstance(N, int), "Number of grid points must be an integer."
+    if algo not in name2grid.keys():
+        raise ValueError(f"Algorithm {algo} is not a valid grid type. "
+                         f"Try 'ico', 'cube3D' ...")
+    assert isinstance(N, int), f"Number of grid points must be an integer, currently N={N}"
     assert N >= 0, f"Number of grid points cannot be negative, currently N={N}"
-    grid_obj = name2grid[grid_type]
+    grid_obj = name2grid[algo]
     return grid_obj(N, **kwargs)
