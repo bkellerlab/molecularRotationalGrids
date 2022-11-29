@@ -17,12 +17,12 @@ homepage = "https://www.bcp.fu-berlin.de/en/chemie/chemie/forschung/PhysTheoChem
 [tool.poetry.dependencies]
 python = ">=3.7"
 matplotlib = ">=3.0"
-mendeleev = "*"
 networkx = ">=2.6"
 numpy = ">=1.0"
 pandas = ">=1.0"
 scipy = ">=1.0"
 seaborn = ">=0.12"
+myst-parser = ">=0.18.1"
 
 [build-system]
 requires = ["poetry-core>=1.0.0"]

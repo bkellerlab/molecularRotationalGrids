@@ -94,14 +94,6 @@ pyparsing = ">=2.2.1"
 python-dateutil = ">=2.7"
 setuptools_scm = ">=4,<7"
 
-[[package]]
-name = "mendeleev"
-version = "0.6.1"
-description = "Python API with a database of atomic properties for elements in the periodic table"
-category = "main"
-optional = false
-python-versions = "*"
-
 [package.dependencies]
 colorama = "*"
 numpy = "*"
@@ -534,9 +526,6 @@ matplotlib = [
     {file = "matplotlib-3.5.3-pp37-pypy37_pp73-manylinux_2_12_x86_64.manylinux2010_x86_64.whl", hash = "sha256:57f1b4e69f438a99bb64d7f2c340db1b096b41ebaa515cf61ea72624279220ce"},
     {file = "matplotlib-3.5.3-pp37-pypy37_pp73-win_amd64.whl", hash = "sha256:d2484b350bf3d32cae43f85dcfc89b3ed7bd2bcd781ef351f93eb6fb2cc483f9"},
     {file = "matplotlib-3.5.3.tar.gz", hash = "sha256:339cac48b80ddbc8bfd05daae0a3a73414651a8596904c2a881cfd1edb65f26c"},
-]
-mendeleev = [
-    {file = "mendeleev-0.6.1.tar.gz", hash = "sha256:3374e65207babe45b7e6a21aeba346b358365d9d0b2565ad9de6ba2ce87bc121"},
 ]
 networkx = [
     {file = "networkx-2.6.3-py3-none-any.whl", hash = "sha256:80b6b89c77d1dfb64a4c7854981b60aeea6360ac02c6d4e4913319e0a313abef"},
