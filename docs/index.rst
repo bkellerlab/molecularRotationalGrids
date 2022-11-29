@@ -12,10 +12,3 @@ Welcome to molgri's documentation!
 
    api
 
-
-Indices and tables
-==================
-
-* :ref:`genindex`
-* :ref:`modindex`
-* :ref:`search`
