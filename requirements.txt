@@ -11,4 +11,4 @@ pytest-cov>=4.0
 pytest-xdist>=3.0.2
 coverage>=6.5
 MDAnalysis
-myst_parser
+myst-parser==0.18.1
