@@ -13,6 +13,7 @@ packages = [
 ]
 repository = "https://github.com/bkellerlab/molecularRotationalGrids"
 homepage = "https://www.bcp.fu-berlin.de/en/chemie/chemie/forschung/PhysTheoChem/agkeller/index.html"
+documentation = "https://molgri.readthedocs.io/en/main/"
 
 [tool.poetry.dependencies]
 python = ">=3.7"
@@ -22,8 +23,7 @@ numpy = ">=1.0"
 pandas = ">=1.0"
 scipy = ">=1.0"
 seaborn = ">=0.12"
-myst-parser = ">=0.18.1"
-sphinx-rtd-theme="1.1.1"
+MDAnalysis = "*"
 
 [build-system]
 requires = ["poetry-core>=1.0.0"]

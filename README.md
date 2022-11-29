@@ -2,7 +2,7 @@
 ![issues](https://img.shields.io/github/issues/bkellerlab/molecularRotationalGrids)
 ![license](https://img.shields.io/github/license/bkellerlab/molecularRotationalGrids)
 ![activity](https://img.shields.io/github/last-commit/bkellerlab/molecularRotationalGrids)
-![pypi](https://img.shields.io/pypi/format/molgri)
+[![Documentation Status](https://readthedocs.org/projects/molgri/badge/?version=main)](https://molgri.readthedocs.io/en/main/?badge=main)
 ![release](https://img.shields.io/github/v/release/bkellerlab/molecularRotationalGrids)
 
 This repository is connected to the publication:
@@ -160,5 +160,5 @@ gmx22 energy -f ener.edr -o full_energy.xvg
 
 Users who would like to build custom grids,  pseudotrajectories or sets of rotations can import ```molgri```
 as a python package (following installation described above) and work with all provided modules. Documentation
-is provided in form of docstrings or available in a compiled version at our github repository 
-[in docs folder](https://github.com/bkellerlab/molecularRotationalGrids/tree/main/docs/molgri).
+is provided in form of docstrings and available
+[via ReadTheDocs](https://molgri.readthedocs.io/en/main/).
