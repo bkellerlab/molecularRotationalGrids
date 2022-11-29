@@ -12,3 +12,4 @@ pytest-xdist>=3.0.2
 coverage>=6.5
 MDAnalysis
 myst-parser==0.18.1
+sphinx-rtd-theme==1.1.1

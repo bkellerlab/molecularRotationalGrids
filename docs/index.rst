@@ -7,13 +7,10 @@ Welcome to molgri's documentation!
 ==================================
 
 .. toctree::
-   :maxdepth: 6
+   :maxdepth: 3
    :caption: Contents:
 
    api
-
-
-.. include:: ../README.md
 
 
 Indices and tables
