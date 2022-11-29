@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "molgri"
-version = "1.1.0"
+version = "1.2.0"
 description = "Generate molecular pseudotrajectories based on rotational grids."
 authors = ["Hana Zupan <hana.zupan@fu-berlin.de>"]
 license = "LICENSE"
