@@ -1,4 +1,5 @@
 from abc import ABC, abstractmethod
+from copy import copy
 from typing import Union
 
 import numpy as np
@@ -333,6 +334,7 @@ class AlphaViolinPlot(AbstractPlot):
         super().__init__(data_name, dimensions=2, style_type=style_type, plot_type=plot_type, **kwargs)
 
     def _prepare_data(self) -> pd.DataFrame:
+        print(self.data_name)
         my_grid = build_grid_from_name(self.data_name, use_saved=True)
         # if statistics file already exists, use it, else create it
         try:
@@ -372,9 +374,11 @@ class AlphaConvergencePlot(AlphaViolinPlot):
         for N in self.ns_list:
             self.num_points = int(N)
             data_name_before = self.data_name
+            print("before", data_name_before)
             self.data_name += f"_{N}"
             df = self._prepare_data()
             self.data_name = data_name_before
+            print("after", self.data_name)
             df["N"] = N
             full_df.append(df)
         full_df = pd.concat(full_df, axis=0, ignore_index=True)

@@ -11,7 +11,7 @@ from scipy.spatial.transform import Rotation
 
 from .analysis import random_axes_count_points
 from .utils import dist_on_sphere
-from .constants import DEFAULT_SEED, SIX_METHOD_NAMES, UNIQUE_TOL, ENDING_GRID_FILES
+from .constants import DEFAULT_SEED, GRID_ALGORITHMS, UNIQUE_TOL, ENDING_GRID_FILES
 from .parsers import TranslationParser
 from .paths import PATH_OUTPUT_ROTGRIDS, PATH_OUTPUT_STAT
 from .rotations import grid2quaternion, grid2euler, quaternion2grid, euler2grid, grid2rotation
@@ -300,7 +300,7 @@ class Grid(ABC):
         """
         self.rn_gen = np.random.default_rng(DEFAULT_SEED)
         np.random.seed(DEFAULT_SEED)
-        assert gen_alg in SIX_METHOD_NAMES or gen_alg == "zero", f"{gen_alg} is not a valid generation algorithm name"
+        assert gen_alg in GRID_ALGORITHMS or gen_alg == "zero", f"{gen_alg} is not a valid generation algorithm name"
         self.ordered = ordered
         self.N = N
         self.standard_name = f"{gen_alg}_{N}"

@@ -1,6 +1,6 @@
 from molgri.grids import build_grid, project_grid_on_sphere, second_neighbours, Cube3DGrid, \
     CubePolytope, IcosahedronPolytope, IcoGrid, order_grid_points, FullGrid, ZeroGrid
-from molgri.constants import SIX_METHOD_NAMES
+from molgri.constants import GRID_ALGORITHMS
 import networkx as nx
 import numpy as np
 from scipy.spatial import distance_matrix
@@ -102,7 +102,7 @@ def test_second_neighbours():
 
 
 def test_general_grid_properties():
-    for alg in SIX_METHOD_NAMES:
+    for alg in GRID_ALGORITHMS:
         for number in (3, 15, 26):
             grid_obj = build_grid(number, alg)
             grid = grid_obj.get_grid()
@@ -196,7 +196,7 @@ def test_ordering():
     # TODO: figure out what's the issue
     """Assert that, ignoring randomness, the first N-1 points of ordered grid with length N are equal to ordered grid
     of length N-1"""
-    for name in SIX_METHOD_NAMES:
+    for name in GRID_ALGORITHMS:
         try:
             for N in range(14, 284, 3):
                 for addition in (1, 7):

@@ -23,6 +23,11 @@ from .constants import EXTENSIONS, NM2ANGSTROM
 from .paths import PATH_OUTPUT_TRANSGRIDS
 
 
+class GridNameParser:
+
+    def __init__(self, grid_name: str):
+        pass
+
 class ParsedMolecule:
 
     def __init__(self, atoms: AtomGroup, box=None):
