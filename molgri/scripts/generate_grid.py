@@ -18,7 +18,7 @@ requiredNamed.add_argument('-N', metavar='N', type=int, nargs='?', required=True
                            help='the number of points in your rotational grid')
 requiredNamed.add_argument('-algorithm', metavar='a', type=str, nargs='?', required=True,
                            help='name of the grid-generating algorithm to use'
-                                '(ico, cube3D, cube4D, randomQ, randomE, systemE)')
+                                ' (ico, cube3D, cube4D, randomQ, randomE, systemE)')
 parser.add_argument('--recalculate', action='store_true',
                     help='recalculate the grid even if a saved version already exists')
 parser.add_argument('--statistics', action='store_true',
