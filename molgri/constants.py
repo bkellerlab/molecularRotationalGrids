@@ -15,14 +15,20 @@ COLORS = color_palette("hls", 6)
 DEFAULT_SEED = 1
 UNIQUE_TOL = 5
 
-ENDING_GRID_FILES = "npy"
-ENDING_FIGURES = "png"
+EXTENSION_GRID_FILES = "npy"
+EXTENSION_FIGURES = "png"
+EXTENSION_TRAJECTORY = "xtc"
+EXTENSION_TOPOLOGY = "gro"
 
 # here write non-user-defined paths
 PATH_USER_PATHS = resource_filename("molgri", "paths.py")
 PATH_EXAMPLES = resource_filename("molgri", "examples/")
 
+# algorithms
+DEFAULT_ALGORITHM = "ico"
+ZERO_ALGORITHM = "zero"
 GRID_ALGORITHMS = ("systemE", "randomE", "randomQ", "cube4D", "cube3D", "ico", "zero")
+assert DEFAULT_ALGORITHM in GRID_ALGORITHMS and ZERO_ALGORITHM in GRID_ALGORITHMS
 FULL_GRID_ALG_NAMES = ("systematic Euler angles", "random Euler angles", "random quaternions", "4D cube grid",
                        "3D cube grid", "icosahedron grid", "no rotation")
 SHORT_GRID_ALG_NAMES = ("system. E.", "random E.", "random q.", "cube 4D", "cube 3D", "icosahedron", "no rotat.")

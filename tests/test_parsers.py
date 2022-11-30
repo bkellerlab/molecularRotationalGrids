@@ -1,7 +1,36 @@
 import numpy as np
+import pytest
 
-from molgri.parsers import TranslationParser, FileParser
-from molgri.constants import ANGSTROM2NM, NM2ANGSTROM
+from molgri.parsers import TranslationParser, FileParser, GridNameParser
+from molgri.constants import ANGSTROM2NM, NM2ANGSTROM, DEFAULT_ALGORITHM
+
+
+def test_grid_name_parser():
+    name1 = "ico_15"
+    assert GridNameParser(name1).get_standard_grid_name() == "ico_15"
+    name2 = "ico"
+    with pytest.raises(ValueError):
+        GridNameParser(name2).get_standard_grid_name()
+    name3 = "15_cube3D"
+    assert GridNameParser(name3).get_standard_grid_name() == "cube3D_15"
+    name4 = "zero"
+    assert GridNameParser(name4).get_standard_grid_name() == "zero_1"
+    name5 = "None"
+    assert GridNameParser(name5).get_standard_grid_name() == "zero_1"
+    name6 = "zero_0"
+    assert GridNameParser(name6).get_standard_grid_name() == "zero_1"
+    name7 = "1_none"
+    assert GridNameParser(name7).get_standard_grid_name() == "zero_1"
+    name8 = "cube3D_ico_77"
+    with pytest.raises(ValueError):
+        GridNameParser(name8).get_standard_grid_name()
+    name9 = "8"
+    assert GridNameParser(name9).get_standard_grid_name() == f"{DEFAULT_ALGORITHM}_8"
+    name10 = "luhnfer_86"
+    assert GridNameParser(name10).get_standard_grid_name() == f"{DEFAULT_ALGORITHM}_86"
+    name11 = "17_ico_13"
+    with pytest.raises(ValueError):
+        GridNameParser(name11).get_standard_grid_name()
 
 
 def test_atom_gro_file():

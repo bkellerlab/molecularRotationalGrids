@@ -11,12 +11,12 @@ from matplotlib.animation import FuncAnimation, PillowWriter
 from matplotlib.axes import Axes
 from matplotlib import ticker
 from mpl_toolkits.mplot3d.axes3d import Axes3D
-import mpl_toolkits
 from seaborn import color_palette
 
 from molgri.analysis import vector_within_alpha
+from molgri.parsers import NameParser
 from .grids import Polytope, IcosahedronPolytope, CubePolytope, build_grid_from_name
-from .constants import DIM_SQUARE, DEFAULT_DPI, COLORS, DEFAULT_NS, ENDING_FIGURES
+from .constants import DIM_SQUARE, DEFAULT_DPI, COLORS, DEFAULT_NS, EXTENSION_FIGURES
 from .paths import PATH_OUTPUT_PLOTS, PATH_OUTPUT_ANIS
 
 
@@ -65,7 +65,7 @@ class AbstractPlot(ABC):
 
     def create(self, *args, equalize=False, neg_limit=None, pos_limit=None, x_label=None, y_label=None, z_label=None,
                title=None, save_fig=True, animate_rot=False, animate_seq=False, sci_limit_min=-4, sci_limit_max=4,
-               save_ending=ENDING_FIGURES, dpi=600, labelpad=0, pad_inches=0, sharex="all", sharey="all", close_fig=True,
+               save_ending=EXTENSION_FIGURES, dpi=600, labelpad=0, pad_inches=0, sharex="all", sharey="all", close_fig=True,
                azim=-60, elev=30, main_ticks_only=False):
         """
         This is the only function the user should call on subclasses. It performs the entire plotting and
@@ -219,7 +219,7 @@ class AbstractPlot(ABC):
         anim.save(f"{self.ani_path}{self.data_name}_{self.plot_type}.gif", writer=writergif, dpi=400)
         return anim
 
-    def _save_plot(self, save_ending: str = ENDING_FIGURES, dpi: int = DEFAULT_DPI, **kwargs):
+    def _save_plot(self, save_ending: str = EXTENSION_FIGURES, dpi: int = DEFAULT_DPI, **kwargs):
         self.fig.tight_layout()
         standard_name = self.data_name
         plt.savefig(f"{self.fig_path}{standard_name}_{self.plot_type}.{save_ending}", dpi=dpi, bbox_inches='tight',
@@ -277,7 +277,6 @@ class GridPlot(AbstractPlot):
             self.sc.set_edgecolors(current_colors)
             return self.sc,
 
-
         facecolors_before = self.sc.get_facecolors()
         shape_colors = facecolors_before.shape
         all_white = np.zeros(shape_colors)
@@ -334,7 +333,6 @@ class AlphaViolinPlot(AbstractPlot):
         super().__init__(data_name, dimensions=2, style_type=style_type, plot_type=plot_type, **kwargs)
 
     def _prepare_data(self) -> pd.DataFrame:
-        print(self.data_name)
         my_grid = build_grid_from_name(self.data_name, use_saved=True)
         # if statistics file already exists, use it, else create it
         try:
@@ -353,7 +351,7 @@ class AlphaViolinPlot(AbstractPlot):
 
 class AlphaConvergencePlot(AlphaViolinPlot):
 
-    def __init__(self, data_name: str, num_points: int = None, **kwargs):
+    def __init__(self, data_name: str, **kwargs):
         """
         Creates convergence plots that show how coverages approach optimal values
 
@@ -361,24 +359,20 @@ class AlphaConvergencePlot(AlphaViolinPlot):
             data_name: name of the algorithm e.g. randomQ
             **kwargs:
         """
-        self.num_points = num_points
-        if self.num_points is None:
+        self.nap = NameParser(data_name)
+        if self.nap.N is None:
             self.ns_list = np.array(DEFAULT_NS, dtype=int)
         else:
-            self.ns_list = np.logspace(np.log10(3), np.log10(self.num_points), dtype=int)
+            self.ns_list = np.logspace(np.log10(3), np.log10(self.nap.N), dtype=int)
             self.ns_list = np.unique(self.ns_list)
         super().__init__(data_name, plot_type="convergence", **kwargs)
 
     def _plot_data(self, **kwargs):
         full_df = []
         for N in self.ns_list:
-            self.num_points = int(N)
-            data_name_before = self.data_name
-            print("before", data_name_before)
-            self.data_name += f"_{N}"
+            self.nap.N = N
+            self.data_name = f"{self.nap.algo}_{self.nap.N}"
             df = self._prepare_data()
-            self.data_name = data_name_before
-            print("after", self.data_name)
             df["N"] = N
             full_df.append(df)
         full_df = pd.concat(full_df, axis=0, ignore_index=True)

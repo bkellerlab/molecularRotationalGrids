@@ -1,6 +1,6 @@
 from molgri.grids import build_grid, project_grid_on_sphere, second_neighbours, Cube3DGrid, \
     CubePolytope, IcosahedronPolytope, IcoGrid, order_grid_points, FullGrid, ZeroGrid
-from molgri.constants import GRID_ALGORITHMS
+from molgri.constants import GRID_ALGORITHMS, ZERO_ALGORITHM
 import networkx as nx
 import numpy as np
 from scipy.spatial import distance_matrix
@@ -107,7 +107,10 @@ def test_general_grid_properties():
             grid_obj = build_grid(number, alg)
             grid = grid_obj.get_grid()
             assert isinstance(grid, np.ndarray), "Grid must be a numpy array."
-            assert grid.shape == (number, 3), "Wrong grid shape."
+            if alg != ZERO_ALGORITHM:
+                assert grid.shape == (number, 3), "Wrong grid shape."
+            else:
+                assert grid.shape == (1, 3), "Wrong grid shape for zero algorithm"
 
 
 def test_cube_3d_grid():

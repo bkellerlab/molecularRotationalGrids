@@ -19,14 +19,92 @@ from scipy.spatial.transform import Rotation
 import MDAnalysis as mda
 from MDAnalysis.core import AtomGroup
 
-from .constants import EXTENSIONS, NM2ANGSTROM
+from .constants import EXTENSIONS, NM2ANGSTROM, GRID_ALGORITHMS, DEFAULT_ALGORITHM, ZERO_ALGORITHM
 from .paths import PATH_OUTPUT_TRANSGRIDS
 
 
-class GridNameParser:
+class NameParser:
 
-    def __init__(self, grid_name: str):
-        pass
+    def __init__(self, name_string: str):
+        self.name_string = name_string
+        self.N = self._find_a_number()
+        self.algo = self._find_algorithm()
+
+    def _find_a_number(self) -> int or None:
+        """
+        Try to find an integer representing number of grid points anywhere in the name.
+
+        Returns:
+            the number of points as an integer, if it can be found, else None
+
+        Raises:
+            ValueError if more than one integer present in the string (e.g. 'ico_12_17')
+        """
+        split_string = self.name_string.split("_")
+        candidates = []
+        for fragment in split_string:
+            if fragment.isnumeric():
+                candidates.append(int(fragment))
+        # >= 2 numbers found in the string
+        if len(candidates) > 1:
+            raise ValueError(f"Found two or more numbers in grid name {self.name_string},"
+                             f" can't determine num of points.")
+        # exactly one number in the string -> return it
+        elif len(candidates) == 1:
+            return candidates[0]
+        # no number in the string -> return None
+        else:
+            return None
+
+    def _find_algorithm(self) -> str or None:
+        split_string = self.name_string.split("_")
+        candidates = []
+        for fragment in split_string:
+            if fragment in GRID_ALGORITHMS:
+                candidates.append(fragment)
+            elif fragment.lower() == "none":
+                candidates.append(ZERO_ALGORITHM)
+        # >= 2 algorithms found in the string
+        if len(candidates) > 1:
+            raise ValueError(f"Found two or more algorithm names in grid name {self.name_string}, can't decide.")
+        # exactly one algorithm in the string -> return it
+        elif len(candidates) == 1:
+            return candidates[0]
+        # no algorithm given -> None
+        else:
+            return None
+
+
+class GridNameParser(NameParser):
+    """
+    Differently than pure NameParser, GridNameParser raises errors if the name doesn't correspond to a standard grid
+    name.
+    """
+
+    def __init__(self, name_string: str):
+        super().__init__(name_string)
+        # num of points 0 or 1 -> always zero algorithm; selected zero algorithm -> always num of points is 1
+        if (self.N in (1, 0)) or (self.N is None and self.algo == ZERO_ALGORITHM):
+            self.algo = ZERO_ALGORITHM
+            self.N = 1
+        # ERROR - zero algorithm but a larger number of points provided
+        elif self.algo == ZERO_ALGORITHM and self.N > 1:
+            raise ValueError(f"Zero algorithm selected but number of points {self.N}>1 in {self.name_string}.")
+        # ERROR - no points but also not zero algorithm
+        elif self.N is None and (self.algo != ZERO_ALGORITHM and self.algo is not None):
+            raise ValueError(f"An algorithm provided ({self.algo}) but not number of points in {self.name_string}")
+        # algorithm not provided but > 1 points -> default algorithm
+        elif self.algo is None and self.N > 1:
+            self.algo = DEFAULT_ALGORITHM
+        # ERROR - absolutely nothing provided
+        elif self.algo is None and self.N is None:
+            raise ValueError(f"Algorithm name and number of grid points not recognised in name {self.name_string}.")
+
+    def get_standard_grid_name(self) -> str:
+        return f"{self.algo}_{self.N}"
+
+
+
 
 class ParsedMolecule:
 

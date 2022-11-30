@@ -10,6 +10,7 @@ import MDAnalysis as mda
 from MDAnalysis import Merge
 import numpy as np
 
+from molgri.constants import EXTENSION_TRAJECTORY, EXTENSION_TOPOLOGY
 from molgri.grids import FullGrid
 from molgri.parsers import FileParser, ParsedMolecule
 from molgri.paths import PATH_INPUT_BASEGRO, PATH_OUTPUT_PT
@@ -65,7 +66,8 @@ class PtIOManager:
         name_full_grid = self.full_grid.get_full_grid_name()
         return f"{name_c_molecule}_{name_r_molecule}_{name_full_grid}"
 
-    def construct_pt(self, extension_trajectory: str = "xtc", extension_structure: str = "gro",
+    def construct_pt(self, extension_trajectory: str = EXTENSION_TRAJECTORY,
+                     extension_structure: str = EXTENSION_TOPOLOGY,
                      as_dir: bool = False):
         """
         The highest-level method to be called in order to generate and save a pseudotrajectory.

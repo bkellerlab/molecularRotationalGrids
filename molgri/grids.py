@@ -11,8 +11,8 @@ from scipy.spatial.transform import Rotation
 
 from .analysis import random_axes_count_points
 from .utils import dist_on_sphere
-from .constants import DEFAULT_SEED, GRID_ALGORITHMS, UNIQUE_TOL, ENDING_GRID_FILES
-from .parsers import TranslationParser
+from .constants import DEFAULT_SEED, GRID_ALGORITHMS, UNIQUE_TOL, EXTENSION_GRID_FILES
+from .parsers import TranslationParser, GridNameParser
 from .paths import PATH_OUTPUT_ROTGRIDS, PATH_OUTPUT_STAT
 from .rotations import grid2quaternion, grid2euler, quaternion2grid, euler2grid, grid2rotation
 from .wrappers import time_method
@@ -300,7 +300,7 @@ class Grid(ABC):
         """
         self.rn_gen = np.random.default_rng(DEFAULT_SEED)
         np.random.seed(DEFAULT_SEED)
-        assert gen_alg in GRID_ALGORITHMS or gen_alg == "zero", f"{gen_alg} is not a valid generation algorithm name"
+        assert gen_alg in GRID_ALGORITHMS, f"{gen_alg} is not a valid generation algorithm name"
         self.ordered = ordered
         self.N = N
         self.standard_name = f"{gen_alg}_{N}"
@@ -361,7 +361,7 @@ class Grid(ABC):
         return euler_seq
 
     def save_grid(self):
-        np.save(f"{PATH_OUTPUT_ROTGRIDS}{self.standard_name}.{ENDING_GRID_FILES}", self.grid)
+        np.save(f"{PATH_OUTPUT_ROTGRIDS}{self.standard_name}.{EXTENSION_GRID_FILES}", self.grid)
 
     def save_grid_txt(self):
         np.savetxt(f"{PATH_OUTPUT_ROTGRIDS}{self.standard_name}.txt", self.grid)
@@ -476,12 +476,12 @@ def select_next_gridpoint(set_grid_points, i):
 
 class ZeroGrid(Grid):
     """
-    Use this rotation grid if you want no rotations at all. Consists of only one point, a nit vector in z-direction.
+    Use this rotation grid if you want no rotations at all. Consists of only one point, a unit vector in z-direction.
     """
 
     def __init__(self, N=1, **kwargs):
-        super().__init__(N, gen_alg="zero", **kwargs)
-        self.standard_name = "zero"
+        # The number of grid points is ignored -> always exactly one point
+        super().__init__(N=1, gen_alg="zero", **kwargs)
 
     def generate_grid(self):
         self.grid = np.array([[0, 0, 1]])
@@ -650,23 +650,8 @@ def build_grid_from_name(grid_name: str, **kwargs) -> Grid:
     Provide grid_name either in the form 'ico_24', '24'. If no algorithm is provided, the default algorithm is
     the icosahedron algorithm.
     """
-    if "zero" in grid_name.lower() or "none" in grid_name.lower():
-        algo = "zero"
-        N = 1
-    elif "_" in grid_name:
-        algo, N = grid_name.split("_")
-        assert N.isnumeric(), f"Grid name {grid_name} does not contain the number of points after '_'."
-        N = int(N)
-    else:
-        N = grid_name
-        assert N.isnumeric(), f"Grid name {grid_name} contains no underscores but isn't an integer."
-        N = int(N)
-        if N in (0, 1):
-            algo = "zero"
-            N = 1
-        else:
-            algo = "ico" # default algorithm
-    return build_grid(N, algo, **kwargs)
+    gnp = GridNameParser(grid_name)
+    return build_grid(gnp.N, gnp.algo, **kwargs)
 
 
 def build_grid(N: int, algo: str, **kwargs) -> Grid:

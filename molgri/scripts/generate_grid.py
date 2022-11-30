@@ -8,7 +8,7 @@ import argparse
 
 from molgri.grids import Grid, build_grid
 from ..paths import PATH_OUTPUT_ROTGRIDS, PATH_OUTPUT_PLOTS, PATH_OUTPUT_ANIS, PATH_OUTPUT_STAT
-from ..constants import ENDING_GRID_FILES
+from ..constants import EXTENSION_GRID_FILES
 from molgri.plotting import GridPlot, AlphaViolinPlot, AlphaConvergencePlot
 from ..scripts.set_up_io import freshly_create_all_folders
 
@@ -40,7 +40,7 @@ def prepare_grid(args, grid_name: str) -> Grid:
     algo = args.algorithm
     n_points = args.N
     # if already exists and no --recalculate flag, just display a message
-    if os.path.exists(join(PATH_OUTPUT_ROTGRIDS, f"{name}.{ENDING_GRID_FILES}")) and not args.recalculate:
+    if os.path.exists(join(PATH_OUTPUT_ROTGRIDS, f"{name}.{EXTENSION_GRID_FILES}")) and not args.recalculate:
         print(f"Grid with name {name} is already saved. If you want to recalculate it, select --recalculate flag.")
         my_grid = build_grid(n_points, algo, use_saved=True, time_generation=True)
     else:
@@ -86,7 +86,7 @@ def run_generate_grid():
         AlphaViolinPlot(grid_name).create()
         print(f"A violin plot showing the uniformity of {grid_name} saved to {PATH_OUTPUT_PLOTS}.")
         # create covergence plot
-        AlphaConvergencePlot(grid_name, my_args.N).create()
+        AlphaConvergencePlot(grid_name).create()
         print(f"A convergence plot with number of points between 3 and {my_args.N} saved "
               f"to {PATH_OUTPUT_PLOTS}.")
 

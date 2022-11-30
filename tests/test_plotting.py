@@ -17,15 +17,10 @@ def test_everything_runs():
     # examples of statistics/convergence plots
     AlphaViolinPlot("ico_250").create(title="ico grid, 250")
     AlphaConvergencePlot("systemE", style_type=["talk"]).create(equalize=True, title="Convergence of systemE")
-    AlphaConvergencePlot("cube4D", 15, style_type=None).create(title="Convergence of cube 4D", main_ticks_only=True)
+    AlphaConvergencePlot("ico_17", style_type=None).create(title="Convergence of ico", main_ticks_only=True)
     # examples of polyhedra
     PolytopePlot("ico", num_divisions=2, faces={0, 1, 2, 3, 4}).create(equalize=True, elev=190, azim=120,
                                                                        pos_limit=0.55, neg_limit=-0.6)
     PolytopePlot("ico", num_divisions=2, projection=True).create(equalize=True, elev=190, azim=120,
                                                                  pos_limit=0.55, neg_limit=-0.6)
     PolytopePlot("cube3D", num_divisions=3).create(equalize=True, elev=0, azim=0, pos_limit=0.7, neg_limit=-0.7)
-
-
-def test_expected_errors():
-    with pytest.raises(ValueError):
-        AlphaViolinPlot("ico_250").create(title="ico grid, 250", animate_rot=True)
