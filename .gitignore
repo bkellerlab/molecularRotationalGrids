@@ -140,4 +140,5 @@ dmypy.json
 
 # figures
 *.svg
+*.png
 *.lcov
