@@ -77,9 +77,13 @@ def prepare_grid(args, parsed_name: NameParser) -&gt; Grid:
         my_grid = build_grid(algo, n_points, use_saved=False, time_generation=True)
         my_grid.save_grid()
         print(f&#34;Generated a {my_grid.decorator_label} with {my_grid.N} points.&#34;)
-    if args.readable:
-        my_grid.save_grid_txt()
-        print(f&#34;Saved a human-readable version of rotation grid to {PATH_OUTPUT_ROTGRIDS}{name}.txt&#34;)
+    # if running from another script, args may not include the readable attribute
+    try:
+        if args.readable:
+            my_grid.save_grid_txt()
+            print(f&#34;Saved a human-readable version of rotation grid to {PATH_OUTPUT_ROTGRIDS}{name}.txt&#34;)
+    except AttributeError:
+        pass
     return my_grid
 
 
@@ -150,9 +154,13 @@ if __name__ == &#39;__main__&#39;:
         my_grid = build_grid(algo, n_points, use_saved=False, time_generation=True)
         my_grid.save_grid()
         print(f&#34;Generated a {my_grid.decorator_label} with {my_grid.N} points.&#34;)
-    if args.readable:
-        my_grid.save_grid_txt()
-        print(f&#34;Saved a human-readable version of rotation grid to {PATH_OUTPUT_ROTGRIDS}{name}.txt&#34;)
+    # if running from another script, args may not include the readable attribute
+    try:
+        if args.readable:
+            my_grid.save_grid_txt()
+            print(f&#34;Saved a human-readable version of rotation grid to {PATH_OUTPUT_ROTGRIDS}{name}.txt&#34;)
+    except AttributeError:
+        pass
     return my_grid</code></pre>
 </details>
 </dd>

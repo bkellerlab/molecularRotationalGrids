@@ -5,7 +5,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, minimum-scale=1" />
 <meta name="generator" content="pdoc 0.10.0" />
 <title>molgri.pts API documentation</title>
-<meta name="description" content="" />
+<meta name="description" content="A Pseudotrajectory takes a Molecule and a FullGrid and returns a generator that provides this Molecule in all
+combinations of positions/orientations …" />
 <link rel="preload stylesheet" as="style" href="https://cdnjs.cloudflare.com/ajax/libs/10up-sanitize.css/11.0.1/sanitize.min.css" integrity="sha256-PK9q560IAAa6WVRRh76LtCaI8pjTJ2z11v0miyNNjrs=" crossorigin>
 <link rel="preload stylesheet" as="style" href="https://cdnjs.cloudflare.com/ajax/libs/10up-sanitize.css/11.0.1/typography.min.css" integrity="sha256-7l/o7C8jubJiy74VsKTidCy1yBkRtiUGbVkYBylBqUg=" crossorigin>
 <link rel="stylesheet preload" as="style" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/10.1.1/styles/github.min.css" crossorigin>
@@ -22,149 +23,79 @@
 <h1 class="title">Module <code>molgri.pts</code></h1>
 </header>
 <section id="section-intro">
+<p>A Pseudotrajectory takes a Molecule and a FullGrid and returns a generator that provides this Molecule in all
+combinations of positions/orientations defined by the grid. This class does not deal with any file input/output.
+For this purpose, Writers in molgri.writers module are provided.</p>
 <details class="source">
 <summary>
 <span>Expand source code</span>
 </summary>
-<pre><code class="python">import numpy as np
+<pre><code class="python">&#34;&#34;&#34;
+A Pseudotrajectory takes a Molecule and a FullGrid and returns a generator that provides this Molecule in all
+combinations of positions/orientations defined by the grid. This class does not deal with any file input/output.
+For this purpose, Writers in molgri.writers module are provided.
+&#34;&#34;&#34;
 
-from .grids import Grid
-from .constants import DEFAULT_DISTANCES
-from .parsers import BaseGroParser, TranslationParser
-from .paths import PATH_INPUT_BASEGRO, PATH_OUTPUT_PT
+from typing import Tuple, Generator
+
+import numpy as np
+
+from .bodies import Molecule
+from .grids import FullGrid
 from .wrappers import time_method
 
 
-class TwoMoleculeGro:
+class Pseudotrajectory:
 
-    def __init__(self, name_central_gro: str, name_rotating_gro: str, result_name_gro=None):
+    def __init__(self, molecule: Molecule, full_grid: FullGrid):
         &#34;&#34;&#34;
-        We read in two base gro files, each containing one molecule. Capable of writing a new gro file that
-        contains one or more time steps in which the second molecule moves around. First molecule is only read
-        and the lines copied at every step; second molecule is read and represented with Atom objects which can rotate
-        and translate.
-
         Args:
-            name_central_gro: name of the molecule that stays fixed
-            name_rotating_gro: name of the molecule that moves in a pseudotrajectory
+            molecule: a molecule that will be moved/rotated into all combinations of stated defined by full_grid
+            full_grid: an object combining all relevant grids
         &#34;&#34;&#34;
-        central_file_path = f&#34;{PATH_INPUT_BASEGRO}{name_central_gro}.gro&#34;
-        rotating_file_path = f&#34;{PATH_INPUT_BASEGRO}{name_rotating_gro}.gro&#34;
-        if result_name_gro is None:
-            result_file_path = f&#34;{PATH_OUTPUT_PT}{name_central_gro}_{name_rotating_gro}_run.gro&#34;
-        else:
-            result_file_path = f&#34;{PATH_OUTPUT_PT}{result_name_gro}.gro&#34;
-        self.f = open(result_file_path, &#34;w&#34;)
-        self.central_parser = BaseGroParser(central_file_path, parse_atoms=False)
-        # parse rotating file as Atoms
-        self.rotating_parser = BaseGroParser(rotating_file_path, parse_atoms=True)
+        self.molecule = molecule
+        self.trans_grid = full_grid.t_grid
+        self.rot_grid_origin = full_grid.o_grid
+        self.rot_grid_body = full_grid.b_grid
+        # all the self name stuff
+        # TODO: this will all be simplified when i have a better idea how to use FullGrid object
+        self.pt_o_name = self.rot_grid_origin.standard_name
+        self.pt_b_name = self.rot_grid_body.standard_name
+        self.pt_t_name = self.trans_grid.grid_hash
+        self.decorator_label = f&#34;Pseudotrajectory {full_grid.get_full_grid_name()}&#34;
+        # convert grids to quaternions
+        self.rot_grid_body = self.rot_grid_body.as_quaternion()
+        self.rot_grid_origin = self.rot_grid_origin.as_quaternion()
+        self.current_frame = 0
 
-    def _write_comment_num(self, frame_num=0):
-        num_atoms_cen = self.central_parser.num_atoms
-        num_atoms_rotating = self.rotating_parser.num_atoms
-        # write comment
-        self.f.write(f&#34;c_num={num_atoms_cen}, r_num={num_atoms_rotating}, t={frame_num}\n&#34;)
-        # write total number of atoms
-        self.f.write(f&#34;{num_atoms_cen + num_atoms_rotating:5}\n&#34;)
-
-    def _write_first_molecule(self):
-        self.f.writelines(self.central_parser.atom_lines_nm)
-
-    def _write_current_second_molecule(self, residue=&#34;SOL&#34;):
-        # translate the atoms of the second file and write them
-        num_atoms_cen = self.central_parser.num_atoms
-        num_atom = num_atoms_cen + 1
-        num_molecule = 2
-        hydrogen_counter = 1
-        for atom in self.rotating_parser.molecule_set.atoms:
-            pos_nm = atom.position
-            name = atom.gro_label
-            self.f.write(f&#34;{num_molecule:5}{residue:5}{name:&gt;5}{num_atom:5}{pos_nm[0]:8.3f}{pos_nm[1]:8.3f}&#34;
-                                f&#34;{pos_nm[2]:8.3f}{0:8.4f}{0:8.4f}{0:8.4f}\n&#34;)
-            num_atom += 1
-
-    def _write_box(self):
-        for box_el in self.central_parser.box:
-            self.f.write(f&#34;\t{box_el}&#34;)
-        self.f.write(&#34;\n&#34;)
-
-    def generate_two_molecule_gro(self, translation_nm=0.3):
-        # move second molecule for initial dist
-        self.rotating_parser.molecule_set.translate([0, 0, translation_nm])
-        self._write_current_frame(frame_num=0)
-        self.f.close()
-
-    def _write_current_frame(self, frame_num=0):
-        self._write_comment_num(frame_num=frame_num)
-        self._write_first_molecule()
-        self._write_current_second_molecule()
-        self._write_box()
-
-    def _add_pseudo_line(self):
-        pass
-
-
-class Pseudotrajectory(TwoMoleculeGro):
-
-    def __init__(self, name_central_gro: str, name_rotating_gro: str, rot_grid: Grid, trans_grid: TranslationParser,
-                 traj_type=&#34;full&#34;):
-        grid_name = rot_grid.standard_name  # for example ico_500
-        pseudo_name = f&#34;{name_central_gro}_{name_rotating_gro}_{grid_name}_{traj_type}&#34;
-        self.pt_name = pseudo_name
-        super().__init__(name_central_gro, name_rotating_gro, result_name_gro=pseudo_name)
-        self.quaternions = rot_grid.as_quaternion()
-        self.trans_grid = trans_grid
-        self.traj_type = traj_type
-        self.name_rotating = name_rotating_gro
-        self.decorator_label = f&#34;pseudotrajectory {pseudo_name}&#34;
-
-    def _gen_trajectory(self, frame_index=0) -&gt; int:
-        &#34;&#34;&#34;
-        This does not deal with any radii yet, only with rotations.
-        Args:
-            frame_index: index of the last frame written
-
-        Returns:
-            the new frame index after all rotations completed
-        &#34;&#34;&#34;
-        frame_index = frame_index
-        for one_rotation in self.quaternions:
-            initial_atom_set = self.rotating_parser.molecule_set
-            initial_atom_set.rotate_about_origin(one_rotation, method=&#34;quaternion&#34;)
-            self._write_current_frame(frame_num=frame_index)
-            frame_index += 1
-            if self.traj_type == &#34;full&#34;:
-                for body_rotation in self.quaternions:
-                    # rotate there
-                    initial_atom_set.rotate_about_body(body_rotation, method=&#34;quaternion&#34;)
-                    self._write_current_frame(frame_num=frame_index)
-                    # rotate back
-                    initial_atom_set.rotate_about_body(body_rotation, method=&#34;quaternion&#34;, inverse=True)
-                    frame_index += 1
-            initial_atom_set.rotate_about_origin(one_rotation, method=&#34;quaternion&#34;, inverse=True)
-        return frame_index
-
-    def generate_pseudotrajectory(self) -&gt; int:
-        index = 0
+    def generate_pseudotrajectory(self) -&gt; Generator[Tuple[int, Molecule], None, None]:
+        # center second molecule if not centered yet
+        dist_origin = np.linalg.norm(self.molecule.position)
+        self.molecule.translate_radially(-dist_origin)
         trans_increments = self.trans_grid.get_increments()
-        # initial set-up of molecules
-        self.rotating_parser.molecule_set.translate([0, 0, trans_increments[0]])
-        self._write_current_frame(index)
-        index += 1
-        if self.traj_type == &#34;circular&#34;:
-            self._gen_trajectory(frame_index=index)
-        elif self.traj_type == &#34;full&#34;:
-            # go over different radii
-            for shell_d in trans_increments[1:]:
-                index = self._gen_trajectory(frame_index=index)
-                self.rotating_parser.molecule_set.translate([0, 0, shell_d])
-        else:
-            raise ValueError(f&#34;{self.traj_type} not correct trajectory type, try &#39;full&#39; or &#39;circular&#39;.&#34;)
-        self.f.close()
-        return index
+        increment_sum = self.trans_grid.sum_increments_from_first_radius()
+        # move in z-direction for first increment
+        self.molecule.translate_radially(trans_increments[0])
+        # first step: rotation around origin
+        for origin_rotation in self.rot_grid_origin:
+            self.molecule.rotate_about_origin(origin_rotation, method=&#34;quaternion&#34;)
+            # second step: rotation around body
+            for body_rotation in self.rot_grid_body:
+                self.molecule.rotate_about_body(body_rotation, method=&#34;quaternion&#34;)
+                # write the frame at initial distance
+                yield self.current_frame, self.molecule
+                self.current_frame += 1
+                # final step: translation for the rest of increments
+                for translation in trans_increments[1:]:
+                    self.molecule.translate_radially(translation)
+                    yield self.current_frame, self.molecule
+                    self.current_frame += 1
+                self.molecule.translate_radially(-increment_sum)
+                self.molecule.rotate_about_body(body_rotation, method=&#34;quaternion&#34;, inverse=True)
+            self.molecule.rotate_about_origin(origin_rotation, method=&#34;quaternion&#34;, inverse=True)
 
     @time_method
-    def generate_pt_and_time(self) -&gt; int:
+    def generate_pt_and_time(self) -&gt; Generator[Tuple[int, Molecule], None, None]:
         return self.generate_pseudotrajectory()</code></pre>
 </details>
 </section>
@@ -179,95 +110,77 @@ class Pseudotrajectory(TwoMoleculeGro):
 <dl>
 <dt id="molgri.pts.Pseudotrajectory"><code class="flex name class">
 <span>class <span class="ident">Pseudotrajectory</span></span>
-<span>(</span><span>name_central_gro: str, name_rotating_gro: str, rot_grid: <a title="molgri.grids.Grid" href="grids.html#molgri.grids.Grid">Grid</a>, trans_grid: <a title="molgri.parsers.TranslationParser" href="parsers.html#molgri.parsers.TranslationParser">TranslationParser</a>, traj_type='full')</span>
+<span>(</span><span>molecule: <a title="molgri.bodies.Molecule" href="bodies.html#molgri.bodies.Molecule">Molecule</a>, full_grid: <a title="molgri.grids.FullGrid" href="grids.html#molgri.grids.FullGrid">FullGrid</a>)</span>
 </code></dt>
 <dd>
-<div class="desc"><p>We read in two base gro files, each containing one molecule. Capable of writing a new gro file that
-contains one or more time steps in which the second molecule moves around. First molecule is only read
-and the lines copied at every step; second molecule is read and represented with Atom objects which can rotate
-and translate.</p>
-<h2 id="args">Args</h2>
+<div class="desc"><h2 id="args">Args</h2>
 <dl>
-<dt><strong><code>name_central_gro</code></strong></dt>
-<dd>name of the molecule that stays fixed</dd>
-<dt><strong><code>name_rotating_gro</code></strong></dt>
-<dd>name of the molecule that moves in a pseudotrajectory</dd>
+<dt><strong><code>molecule</code></strong></dt>
+<dd>a molecule that will be moved/rotated into all combinations of stated defined by full_grid</dd>
+<dt><strong><code>full_grid</code></strong></dt>
+<dd>an object combining all relevant grids</dd>
 </dl></div>
 <details class="source">
 <summary>
 <span>Expand source code</span>
 </summary>
-<pre><code class="python">class Pseudotrajectory(TwoMoleculeGro):
+<pre><code class="python">class Pseudotrajectory:
 
-    def __init__(self, name_central_gro: str, name_rotating_gro: str, rot_grid: Grid, trans_grid: TranslationParser,
-                 traj_type=&#34;full&#34;):
-        grid_name = rot_grid.standard_name  # for example ico_500
-        pseudo_name = f&#34;{name_central_gro}_{name_rotating_gro}_{grid_name}_{traj_type}&#34;
-        self.pt_name = pseudo_name
-        super().__init__(name_central_gro, name_rotating_gro, result_name_gro=pseudo_name)
-        self.quaternions = rot_grid.as_quaternion()
-        self.trans_grid = trans_grid
-        self.traj_type = traj_type
-        self.name_rotating = name_rotating_gro
-        self.decorator_label = f&#34;pseudotrajectory {pseudo_name}&#34;
-
-    def _gen_trajectory(self, frame_index=0) -&gt; int:
+    def __init__(self, molecule: Molecule, full_grid: FullGrid):
         &#34;&#34;&#34;
-        This does not deal with any radii yet, only with rotations.
         Args:
-            frame_index: index of the last frame written
-
-        Returns:
-            the new frame index after all rotations completed
+            molecule: a molecule that will be moved/rotated into all combinations of stated defined by full_grid
+            full_grid: an object combining all relevant grids
         &#34;&#34;&#34;
-        frame_index = frame_index
-        for one_rotation in self.quaternions:
-            initial_atom_set = self.rotating_parser.molecule_set
-            initial_atom_set.rotate_about_origin(one_rotation, method=&#34;quaternion&#34;)
-            self._write_current_frame(frame_num=frame_index)
-            frame_index += 1
-            if self.traj_type == &#34;full&#34;:
-                for body_rotation in self.quaternions:
-                    # rotate there
-                    initial_atom_set.rotate_about_body(body_rotation, method=&#34;quaternion&#34;)
-                    self._write_current_frame(frame_num=frame_index)
-                    # rotate back
-                    initial_atom_set.rotate_about_body(body_rotation, method=&#34;quaternion&#34;, inverse=True)
-                    frame_index += 1
-            initial_atom_set.rotate_about_origin(one_rotation, method=&#34;quaternion&#34;, inverse=True)
-        return frame_index
+        self.molecule = molecule
+        self.trans_grid = full_grid.t_grid
+        self.rot_grid_origin = full_grid.o_grid
+        self.rot_grid_body = full_grid.b_grid
+        # all the self name stuff
+        # TODO: this will all be simplified when i have a better idea how to use FullGrid object
+        self.pt_o_name = self.rot_grid_origin.standard_name
+        self.pt_b_name = self.rot_grid_body.standard_name
+        self.pt_t_name = self.trans_grid.grid_hash
+        self.decorator_label = f&#34;Pseudotrajectory {full_grid.get_full_grid_name()}&#34;
+        # convert grids to quaternions
+        self.rot_grid_body = self.rot_grid_body.as_quaternion()
+        self.rot_grid_origin = self.rot_grid_origin.as_quaternion()
+        self.current_frame = 0
 
-    def generate_pseudotrajectory(self) -&gt; int:
-        index = 0
+    def generate_pseudotrajectory(self) -&gt; Generator[Tuple[int, Molecule], None, None]:
+        # center second molecule if not centered yet
+        dist_origin = np.linalg.norm(self.molecule.position)
+        self.molecule.translate_radially(-dist_origin)
         trans_increments = self.trans_grid.get_increments()
-        # initial set-up of molecules
-        self.rotating_parser.molecule_set.translate([0, 0, trans_increments[0]])
-        self._write_current_frame(index)
-        index += 1
-        if self.traj_type == &#34;circular&#34;:
-            self._gen_trajectory(frame_index=index)
-        elif self.traj_type == &#34;full&#34;:
-            # go over different radii
-            for shell_d in trans_increments[1:]:
-                index = self._gen_trajectory(frame_index=index)
-                self.rotating_parser.molecule_set.translate([0, 0, shell_d])
-        else:
-            raise ValueError(f&#34;{self.traj_type} not correct trajectory type, try &#39;full&#39; or &#39;circular&#39;.&#34;)
-        self.f.close()
-        return index
+        increment_sum = self.trans_grid.sum_increments_from_first_radius()
+        # move in z-direction for first increment
+        self.molecule.translate_radially(trans_increments[0])
+        # first step: rotation around origin
+        for origin_rotation in self.rot_grid_origin:
+            self.molecule.rotate_about_origin(origin_rotation, method=&#34;quaternion&#34;)
+            # second step: rotation around body
+            for body_rotation in self.rot_grid_body:
+                self.molecule.rotate_about_body(body_rotation, method=&#34;quaternion&#34;)
+                # write the frame at initial distance
+                yield self.current_frame, self.molecule
+                self.current_frame += 1
+                # final step: translation for the rest of increments
+                for translation in trans_increments[1:]:
+                    self.molecule.translate_radially(translation)
+                    yield self.current_frame, self.molecule
+                    self.current_frame += 1
+                self.molecule.translate_radially(-increment_sum)
+                self.molecule.rotate_about_body(body_rotation, method=&#34;quaternion&#34;, inverse=True)
+            self.molecule.rotate_about_origin(origin_rotation, method=&#34;quaternion&#34;, inverse=True)
 
     @time_method
-    def generate_pt_and_time(self) -&gt; int:
+    def generate_pt_and_time(self) -&gt; Generator[Tuple[int, Molecule], None, None]:
         return self.generate_pseudotrajectory()</code></pre>
 </details>
-<h3>Ancestors</h3>
-<ul class="hlist">
-<li><a title="molgri.pts.TwoMoleculeGro" href="#molgri.pts.TwoMoleculeGro">TwoMoleculeGro</a></li>
-</ul>
 <h3>Methods</h3>
 <dl>
 <dt id="molgri.pts.Pseudotrajectory.generate_pseudotrajectory"><code class="name flex">
-<span>def <span class="ident">generate_pseudotrajectory</span></span>(<span>self) ‑> int</span>
+<span>def <span class="ident">generate_pseudotrajectory</span></span>(<span>self) ‑> Generator[Tuple[int, <a title="molgri.bodies.Molecule" href="bodies.html#molgri.bodies.Molecule">Molecule</a>], None, None]</span>
 </code></dt>
 <dd>
 <div class="desc"></div>
@@ -275,28 +188,35 @@ and translate.</p>
 <summary>
 <span>Expand source code</span>
 </summary>
-<pre><code class="python">def generate_pseudotrajectory(self) -&gt; int:
-    index = 0
+<pre><code class="python">def generate_pseudotrajectory(self) -&gt; Generator[Tuple[int, Molecule], None, None]:
+    # center second molecule if not centered yet
+    dist_origin = np.linalg.norm(self.molecule.position)
+    self.molecule.translate_radially(-dist_origin)
     trans_increments = self.trans_grid.get_increments()
-    # initial set-up of molecules
-    self.rotating_parser.molecule_set.translate([0, 0, trans_increments[0]])
-    self._write_current_frame(index)
-    index += 1
-    if self.traj_type == &#34;circular&#34;:
-        self._gen_trajectory(frame_index=index)
-    elif self.traj_type == &#34;full&#34;:
-        # go over different radii
-        for shell_d in trans_increments[1:]:
-            index = self._gen_trajectory(frame_index=index)
-            self.rotating_parser.molecule_set.translate([0, 0, shell_d])
-    else:
-        raise ValueError(f&#34;{self.traj_type} not correct trajectory type, try &#39;full&#39; or &#39;circular&#39;.&#34;)
-    self.f.close()
-    return index</code></pre>
+    increment_sum = self.trans_grid.sum_increments_from_first_radius()
+    # move in z-direction for first increment
+    self.molecule.translate_radially(trans_increments[0])
+    # first step: rotation around origin
+    for origin_rotation in self.rot_grid_origin:
+        self.molecule.rotate_about_origin(origin_rotation, method=&#34;quaternion&#34;)
+        # second step: rotation around body
+        for body_rotation in self.rot_grid_body:
+            self.molecule.rotate_about_body(body_rotation, method=&#34;quaternion&#34;)
+            # write the frame at initial distance
+            yield self.current_frame, self.molecule
+            self.current_frame += 1
+            # final step: translation for the rest of increments
+            for translation in trans_increments[1:]:
+                self.molecule.translate_radially(translation)
+                yield self.current_frame, self.molecule
+                self.current_frame += 1
+            self.molecule.translate_radially(-increment_sum)
+            self.molecule.rotate_about_body(body_rotation, method=&#34;quaternion&#34;, inverse=True)
+        self.molecule.rotate_about_origin(origin_rotation, method=&#34;quaternion&#34;, inverse=True)</code></pre>
 </details>
 </dd>
 <dt id="molgri.pts.Pseudotrajectory.generate_pt_and_time"><code class="name flex">
-<span>def <span class="ident">generate_pt_and_time</span></span>(<span>self) ‑> int</span>
+<span>def <span class="ident">generate_pt_and_time</span></span>(<span>self) ‑> Generator[Tuple[int, <a title="molgri.bodies.Molecule" href="bodies.html#molgri.bodies.Molecule">Molecule</a>], None, None]</span>
 </code></dt>
 <dd>
 <div class="desc"></div>
@@ -305,120 +225,8 @@ and translate.</p>
 <span>Expand source code</span>
 </summary>
 <pre><code class="python">@time_method
-def generate_pt_and_time(self) -&gt; int:
+def generate_pt_and_time(self) -&gt; Generator[Tuple[int, Molecule], None, None]:
     return self.generate_pseudotrajectory()</code></pre>
-</details>
-</dd>
-</dl>
-</dd>
-<dt id="molgri.pts.TwoMoleculeGro"><code class="flex name class">
-<span>class <span class="ident">TwoMoleculeGro</span></span>
-<span>(</span><span>name_central_gro: str, name_rotating_gro: str, result_name_gro=None)</span>
-</code></dt>
-<dd>
-<div class="desc"><p>We read in two base gro files, each containing one molecule. Capable of writing a new gro file that
-contains one or more time steps in which the second molecule moves around. First molecule is only read
-and the lines copied at every step; second molecule is read and represented with Atom objects which can rotate
-and translate.</p>
-<h2 id="args">Args</h2>
-<dl>
-<dt><strong><code>name_central_gro</code></strong></dt>
-<dd>name of the molecule that stays fixed</dd>
-<dt><strong><code>name_rotating_gro</code></strong></dt>
-<dd>name of the molecule that moves in a pseudotrajectory</dd>
-</dl></div>
-<details class="source">
-<summary>
-<span>Expand source code</span>
-</summary>
-<pre><code class="python">class TwoMoleculeGro:
-
-    def __init__(self, name_central_gro: str, name_rotating_gro: str, result_name_gro=None):
-        &#34;&#34;&#34;
-        We read in two base gro files, each containing one molecule. Capable of writing a new gro file that
-        contains one or more time steps in which the second molecule moves around. First molecule is only read
-        and the lines copied at every step; second molecule is read and represented with Atom objects which can rotate
-        and translate.
-
-        Args:
-            name_central_gro: name of the molecule that stays fixed
-            name_rotating_gro: name of the molecule that moves in a pseudotrajectory
-        &#34;&#34;&#34;
-        central_file_path = f&#34;{PATH_INPUT_BASEGRO}{name_central_gro}.gro&#34;
-        rotating_file_path = f&#34;{PATH_INPUT_BASEGRO}{name_rotating_gro}.gro&#34;
-        if result_name_gro is None:
-            result_file_path = f&#34;{PATH_OUTPUT_PT}{name_central_gro}_{name_rotating_gro}_run.gro&#34;
-        else:
-            result_file_path = f&#34;{PATH_OUTPUT_PT}{result_name_gro}.gro&#34;
-        self.f = open(result_file_path, &#34;w&#34;)
-        self.central_parser = BaseGroParser(central_file_path, parse_atoms=False)
-        # parse rotating file as Atoms
-        self.rotating_parser = BaseGroParser(rotating_file_path, parse_atoms=True)
-
-    def _write_comment_num(self, frame_num=0):
-        num_atoms_cen = self.central_parser.num_atoms
-        num_atoms_rotating = self.rotating_parser.num_atoms
-        # write comment
-        self.f.write(f&#34;c_num={num_atoms_cen}, r_num={num_atoms_rotating}, t={frame_num}\n&#34;)
-        # write total number of atoms
-        self.f.write(f&#34;{num_atoms_cen + num_atoms_rotating:5}\n&#34;)
-
-    def _write_first_molecule(self):
-        self.f.writelines(self.central_parser.atom_lines_nm)
-
-    def _write_current_second_molecule(self, residue=&#34;SOL&#34;):
-        # translate the atoms of the second file and write them
-        num_atoms_cen = self.central_parser.num_atoms
-        num_atom = num_atoms_cen + 1
-        num_molecule = 2
-        hydrogen_counter = 1
-        for atom in self.rotating_parser.molecule_set.atoms:
-            pos_nm = atom.position
-            name = atom.gro_label
-            self.f.write(f&#34;{num_molecule:5}{residue:5}{name:&gt;5}{num_atom:5}{pos_nm[0]:8.3f}{pos_nm[1]:8.3f}&#34;
-                                f&#34;{pos_nm[2]:8.3f}{0:8.4f}{0:8.4f}{0:8.4f}\n&#34;)
-            num_atom += 1
-
-    def _write_box(self):
-        for box_el in self.central_parser.box:
-            self.f.write(f&#34;\t{box_el}&#34;)
-        self.f.write(&#34;\n&#34;)
-
-    def generate_two_molecule_gro(self, translation_nm=0.3):
-        # move second molecule for initial dist
-        self.rotating_parser.molecule_set.translate([0, 0, translation_nm])
-        self._write_current_frame(frame_num=0)
-        self.f.close()
-
-    def _write_current_frame(self, frame_num=0):
-        self._write_comment_num(frame_num=frame_num)
-        self._write_first_molecule()
-        self._write_current_second_molecule()
-        self._write_box()
-
-    def _add_pseudo_line(self):
-        pass</code></pre>
-</details>
-<h3>Subclasses</h3>
-<ul class="hlist">
-<li><a title="molgri.pts.Pseudotrajectory" href="#molgri.pts.Pseudotrajectory">Pseudotrajectory</a></li>
-</ul>
-<h3>Methods</h3>
-<dl>
-<dt id="molgri.pts.TwoMoleculeGro.generate_two_molecule_gro"><code class="name flex">
-<span>def <span class="ident">generate_two_molecule_gro</span></span>(<span>self, translation_nm=0.3)</span>
-</code></dt>
-<dd>
-<div class="desc"></div>
-<details class="source">
-<summary>
-<span>Expand source code</span>
-</summary>
-<pre><code class="python">def generate_two_molecule_gro(self, translation_nm=0.3):
-    # move second molecule for initial dist
-    self.rotating_parser.molecule_set.translate([0, 0, translation_nm])
-    self._write_current_frame(frame_num=0)
-    self.f.close()</code></pre>
 </details>
 </dd>
 </dl>
@@ -444,12 +252,6 @@ and translate.</p>
 <ul class="">
 <li><code><a title="molgri.pts.Pseudotrajectory.generate_pseudotrajectory" href="#molgri.pts.Pseudotrajectory.generate_pseudotrajectory">generate_pseudotrajectory</a></code></li>
 <li><code><a title="molgri.pts.Pseudotrajectory.generate_pt_and_time" href="#molgri.pts.Pseudotrajectory.generate_pt_and_time">generate_pt_and_time</a></code></li>
-</ul>
-</li>
-<li>
-<h4><code><a title="molgri.pts.TwoMoleculeGro" href="#molgri.pts.TwoMoleculeGro">TwoMoleculeGro</a></code></h4>
-<ul class="">
-<li><code><a title="molgri.pts.TwoMoleculeGro.generate_two_molecule_gro" href="#molgri.pts.TwoMoleculeGro.generate_two_molecule_gro">generate_two_molecule_gro</a></code></li>
 </ul>
 </li>
 </ul>

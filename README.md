@@ -1,4 +1,16 @@
+![Coverage Status](https://img.shields.io/coverallsCoverage/github/bkellerlab/molecularRotationalGrids)
+![issues](https://img.shields.io/github/issues/bkellerlab/molecularRotationalGrids)
+![license](https://img.shields.io/github/license/bkellerlab/molecularRotationalGrids)
+![activity](https://img.shields.io/github/last-commit/bkellerlab/molecularRotationalGrids)
+[![Documentation Status](https://readthedocs.org/projects/molgri/badge/?version=main)](https://molgri.readthedocs.io/en/main/?badge=main)
+![release](https://img.shields.io/github/v/release/bkellerlab/molecularRotationalGrids)
+
+This repository is connected to the publication:
+Hana Zupan, Frederick Heinz, Bettina G. Keller: "Grid-based state space exploration for molecular binding",
+arXiv preprint: [https://arxiv.org/abs/2211.00566](https://arxiv.org/abs/2211.00566)
+
 # molecularRotationalGrids
+
 The python package ```molgri``` has three main purposes: 1) generation of rotation grids, 2) analysis of
 said grids and 3) generation of pseudotrajectories (PTs). PTs are .gro files with several timesteps in
 which the interaction space of two molecules is systematically explored. We provide user-friendly,
@@ -43,10 +55,10 @@ same directory, we recommend an initially empty directory).
 ```
 molgri-io --examples
 molgri-grid -N 250 -algo ico --draw --animate --animate_ordering --statistics
-molgri-pt -m1 H2O -m2 NH3 -rotgrid cube3D_15 -transgrid "range(1, 5, 2)"
+molgri-pt -m1 H2O -m2 NH3 -o cube3D_15 -b ico_10 -t "range(1, 5, 2)"
 ```
 
-****The first-line command ```molgri-io``` creates the 📂 input/ and
+The first-line command ```molgri-io``` creates the 📂 input/ and
 📂 output/ folder structure. This command should be run in each new
 directory before running other commands. The optional
 flag ```--examples``` provides some sample input files that we will use later.
@@ -57,30 +69,40 @@ necessary to specify the number of grid points ```-N``` and the algorithm
 recommend ico). Other flags describe optional figures and animations to save. All
 generated files can be found in the output/ folder.
 
-The last command ```molgri-pt``` creates a pseudotrajectory. This scripts needs
-two file inputs that should be provided in input/. Both must be
-.gro files, each containing a single molecule. Due to the flag
-```-m1 H2O``` the program will look for a file input/H2O.gro
-and use it as a fixed molecule in the pseudotrajectory. The flag ```-m2```
+The last command ```molgri-pt``` creates a pseudotrajectory. By default, this is a single 
+trajectory-like file containing
+all frames. Alternatively, with an optional command ```--as_dir``` a directory of single-frame files is
+created. In addition, the first frame of the pseudo-trajectory is also written out as a topology file.
+Default trajectory format is .xtc and default topology format .gro, user can change this behaviour with
+optional commands ```--extension_trajectory``` and ```--extension_topology```.
+
+This scripts needs
+two file inputs that should be provided in input/, each containing a single molecule. Standard formats
+like .gro, .xyz, .pdb and others are accepted. In this example, due to the flag
+```-m1 H2O``` the program will look for a file input/H2O with any standard extension
+and use it as the fixed molecule in the pseudotrajectory. The flag ```-m2```
 gives the name of the file with the other molecule, which will be mobile
-in the simulation. Finally, the user needs to specify the rotational grid
-in form ```-rotgrid algorithm_N``` (see algorithm names above) and the translational grid after the
-flag ```-transgrid``` in one of the
+in the simulation. Finally, the user needs to specify the two rotational grids
+in form ```-o algorithm_N``` (for rotations around the origin) and 
+```-b algorithm_N``` , see algorithm names above. If you want to use the default algorithms (currently
+icosahedron algorithm),
+specify only the number of points, e.g. ```-o 15 -b 10```. Finally, the translational grid after the
+flag ```-t``` should be supplied in one of the
 following formats: a list of distances (in nm), linspace(start, stop, num) 
 or range(start, stop, step). The argument should be surrounded by quotation
 marks. Some acceptable translation grid arguments would be:
 
-```-transgrid "(1, 3, 5)"``` -> use distances 1nm, 3nm and 5nm
+```-t "(1, 3, 5)"``` -> use distances 1nm, 3nm and 5nm
 
-```-transgrid "linspace(1, 3, 5)"``` -> use 5 equally spaced points
+```-t "linspace(1, 3, 5)"``` -> use 5 equally spaced points
 between 1nm and 3nm
 
-```-transgrid "range(1, 3, 0.5)"``` -> use distances between 1nm and 3nm
+```-t "range(1, 3, 0.5)"``` -> use distances between 1nm and 3nm
 in 0.5nm increments
 
 All flags starting with ```--``` are optional and can be omitted for faster
 calculations. Remember that you can always add the flag ```--help``` to get
-further instructions.****
+further instructions.
 
 
 ## Using outputs
@@ -91,17 +113,17 @@ tool.
 
 #### Displaying pseudotrajectory
 
-To display the example pseudotrajectory we created in the previous section with VMD, stay in the same
-directory and run
+To display the example pseudotrajectory we created in the previous section with VMD, change to
+directory ```output/pt_files``` and run
 
 ```
-vmd output/pt_files/H2O_NH3_cube3D_15_full.gro
+vmd H2O_NH3_o_cube3D_15_b_ico_10_t_3203903466.gro H2O_NH3_o_cube3D_15_b_ico_10_t_3203903466.xtc
 ```
 
 or on a windows computer
 
 ```
-start vmd output/pt_files/H2O_NH3_cube3D_15_full.gro
+start vmd H2O_NH3_o_cube3D_15_b_ico_10_t_3203903466.gro H2O_NH3_o_cube3D_15_b_ico_10_t_3203903466.xtc
 ```
 
 Then, to fully display a pseudotrajectory, it is often helpful to change the display style and to display
@@ -109,7 +131,7 @@ several or all frames at once. We suggest using the following commands within th
 
 ```
 mol modstyle 0 0 VDW
-mol drawframes 0 0 1:1:241
+mol drawframes 0 0 0:1:300
 ```
 
 The first one displays the molecules as spheres with van der Waals radii and the second draws frames of
@@ -120,7 +142,7 @@ If you want to display all frames, you can use any large number
 for &lt;num_frames>, it does not need to correspond exactly to the number of frames.
 
 #### Calculating energy along a pseudotrajectory
-Often, a pseudotrajectory is used to explore where reagions of high and low energies lie when molecules
+Often, a pseudotrajectory is used to explore where regions of high and low energies lie when molecules
 approach each other. Since a range of timesteps sampling important rotations and translations
 is already provided in a PT, there is no need to run a real
 simulation. Therefore, the flag ```-rerun``` is always used while dealing with PTs in GROMACS. This
@@ -131,11 +153,13 @@ To use GROMACS with PTs, the user must also provide a topology file which includ
 We will assume that this file is named topol.top. Lastly, we need a GROMACS run file that we will name
 mdrun.mdp. This file records GROMACS parameters and can be used as in normal simulations, but note that
 some parameters (e.g. integrator, dt) are meaningless for a pseudotrajectory without actual dynamics.
-Then, the energy along a pseudotrajectory can be calculated as follows:
+Then, the energy along a pseudotrajectory can be calculated as follows, using the molgri-generated
+<structure_file> (eg. H2O_NH3_o_cube3D_15_b_ico_10_t_3203903466.gro) and 
+<trajectory_file> (eg. H2O_NH3_o_cube3D_15_b_ico_10_t_3203903466.xtc):
 
 ```
-gmx22 grompp -f mdrun.mdp -c H2O_NH3_cube3D_15_full.gro -p topol.top -o result.tpr   
-gmx22 trjconv -f H2O_NH3_cube3D_15_full.gro -s result.tpr -o result.trr
+gmx22 grompp -f mdrun.mdp -c <structure_file> -p topol.top -o result.tpr   
+gmx22 trjconv -f <trajectory_file> -s result.tpr -o result.trr
 gmx22 mdrun -s result.tpr -rerun result.trr
 gmx22 energy -f ener.edr -o full_energy.xvg
 ```
@@ -143,7 +167,7 @@ gmx22 energy -f ener.edr -o full_energy.xvg
 
 ## Complex applications: using python package
 
-Users who would like to build custom grids,  pseudotrajectories or sets of rotations can import ```molgri```
+Users who would like to build custom grids, pseudotrajectories or sets of rotations can import ```molgri```
 as a python package (following installation described above) and work with all provided modules. Documentation
-is provided in form of docstrings or available in a compiled version at our github repository 
-[in docs folder](https://github.com/bkellerlab/molecularRotationalGrids/tree/main/docs/molgri).
+of all modules is available online
+[via ReadTheDocs](https://molgri.readthedocs.io/en/main/).

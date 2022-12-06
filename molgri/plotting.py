@@ -4,17 +4,18 @@ from typing import Union
 import numpy as np
 import pandas as pd
 import seaborn as sns
+from scipy.constants import pi
 from matplotlib import pyplot as plt
 from matplotlib.animation import FuncAnimation, PillowWriter
 from matplotlib.axes import Axes
 from matplotlib import ticker
 from mpl_toolkits.mplot3d.axes3d import Axes3D
-import mpl_toolkits
 from seaborn import color_palette
 
-from .grids import build_grid, Polytope, IcosahedronPolytope, CubePolytope
-from .constants import DIM_SQUARE, DEFAULT_DPI, COLORS, DEFAULT_NS, ENDING_FIGURES
-from .parsers import NameParser
+from molgri.analysis import vector_within_alpha
+from molgri.parsers import NameParser
+from .grids import Polytope, IcosahedronPolytope, CubePolytope, build_grid_from_name
+from .constants import DIM_SQUARE, DEFAULT_DPI, COLORS, DEFAULT_NS, EXTENSION_FIGURES
 from .paths import PATH_OUTPUT_PLOTS, PATH_OUTPUT_ANIS
 
 
@@ -45,9 +46,9 @@ class AbstractPlot(ABC):
         self.fig_path = fig_path
         self.ani_path = ani_path
         self.dimensions = dimensions
+        assert self.dimensions in [2, 3]
         self.style_type = style_type
         self.data_name = data_name
-        self.parsed_data_name = NameParser(self.data_name)
         self.plot_type = plot_type
         self.figsize = figsize
         # here change styles that need to be set before fig and ax are created
@@ -63,7 +64,7 @@ class AbstractPlot(ABC):
 
     def create(self, *args, equalize=False, neg_limit=None, pos_limit=None, x_label=None, y_label=None, z_label=None,
                title=None, save_fig=True, animate_rot=False, animate_seq=False, sci_limit_min=-4, sci_limit_max=4,
-               save_ending=ENDING_FIGURES, dpi=600, labelpad=0, pad_inches=0, sharex="all", sharey="all", close_fig=True,
+               save_ending=EXTENSION_FIGURES, dpi=600, labelpad=0, pad_inches=0, sharex="all", sharey="all", close_fig=True,
                azim=-60, elev=30, main_ticks_only=False):
         """
         This is the only function the user should call on subclasses. It performs the entire plotting and
@@ -109,10 +110,8 @@ class AbstractPlot(ABC):
         if self.ax is None:
             if self.dimensions == 3:
                 self.ax = self.fig.add_subplot(111, projection='3d', computed_zorder=False)
-            elif self.dimensions == 2:
-                self.ax = self.fig.add_subplot(111)
             else:
-                raise ValueError("Only 2 or 3 dimensions possible.")
+                self.ax = self.fig.add_subplot(111)
 
     def _set_up_empty(self):
         """
@@ -171,12 +170,10 @@ class AbstractPlot(ABC):
         Returns:
             dataframe, grid or similar construction
         """
-        pass
 
     @abstractmethod
     def _plot_data(self, **kwargs):
         """Here, the plotting is implemented in subclasses."""
-        pass
 
     def _create_labels(self, x_label: str = None, y_label: str = None, z_label: str = None, **kwargs):
         if x_label:
@@ -221,14 +218,11 @@ class AbstractPlot(ABC):
         anim.save(f"{self.ani_path}{self.data_name}_{self.plot_type}.gif", writer=writergif, dpi=400)
         return anim
 
-    def _save_plot(self, save_ending: str = ENDING_FIGURES, dpi: int = DEFAULT_DPI, **kwargs):
+    def _save_plot(self, save_ending: str = EXTENSION_FIGURES, dpi: int = DEFAULT_DPI, **kwargs):
         self.fig.tight_layout()
-        if self.fig_path:
-            standard_name = self.parsed_data_name.get_standard_name()
-            plt.savefig(f"{self.fig_path}{standard_name}_{self.plot_type}.{save_ending}", dpi=dpi, bbox_inches='tight',
-                        **kwargs)
-        else:
-            raise ValueError("path to save the figure has not been selected!")
+        standard_name = self.data_name
+        plt.savefig(f"{self.fig_path}{standard_name}_{self.plot_type}.{save_ending}", dpi=dpi, bbox_inches='tight',
+                    **kwargs)
         plt.close()
 
 
@@ -250,9 +244,7 @@ class GridPlot(AbstractPlot):
         self.grid = self._prepare_data()
 
     def _prepare_data(self) -> np.ndarray:
-        num = self.parsed_data_name.get_num()
-        orig_name = self.parsed_data_name.get_grid_type()
-        my_grid = build_grid(orig_name, num, use_saved=True).get_grid()
+        my_grid = build_grid_from_name(self.data_name, use_saved=True).get_grid()
         return my_grid
 
     def _plot_data(self, **kwargs):
@@ -284,7 +276,6 @@ class GridPlot(AbstractPlot):
             self.sc.set_edgecolors(current_colors)
             return self.sc,
 
-
         facecolors_before = self.sc.get_facecolors()
         shape_colors = facecolors_before.shape
         all_white = np.zeros(shape_colors)
@@ -296,6 +287,31 @@ class GridPlot(AbstractPlot):
         # noinspection PyTypeChecker
         ani.save(f"{self.ani_path}{self.data_name}_{self.plot_type}_ord.gif", writer=writergif, dpi=400)
         plt.close()
+
+
+class GridColoredWithAlphaPlot(GridPlot):
+    def __init__(self, data_name, vector: np.ndarray, alpha_set: list, plot_type: str = "colorful_grid", **kwargs):
+        super().__init__(data_name, plot_type=plot_type, **kwargs)
+        self.alpha_central_vector = vector
+        self.alpha_set = alpha_set
+        self.alpha_set.sort()
+        self.alpha_set.append(pi)
+
+    def _plot_data(self, **kwargs):
+        # plot vector
+        self.ax.scatter(*self.alpha_central_vector, marker="x", c="k", s=30)
+        # determine color palette
+        cp = sns.color_palette("Spectral", n_colors=len(self.alpha_set))
+        # sort points which point in which alpha area
+        already_plotted = []
+        for i, alpha in enumerate(self.alpha_set):
+            possible_points = np.array([vec for vec in self.grid if tuple(vec) not in already_plotted])
+            within_alpha = vector_within_alpha(self.alpha_central_vector, possible_points, alpha)
+            selected_points = [tuple(vec) for i, vec in enumerate(possible_points) if within_alpha[i]]
+            array_sel_points = np.array(selected_points)
+            self.sc = self.ax.scatter(*array_sel_points.T, color=cp[i], s=30)  # , s=4)
+            already_plotted.extend(selected_points)
+        self.ax.view_init(elev=10, azim=30)
 
 
 class AlphaViolinPlot(AbstractPlot):
@@ -316,7 +332,7 @@ class AlphaViolinPlot(AbstractPlot):
         super().__init__(data_name, dimensions=2, style_type=style_type, plot_type=plot_type, **kwargs)
 
     def _prepare_data(self) -> pd.DataFrame:
-        my_grid = build_grid(self.parsed_data_name.grid_type, self.parsed_data_name.num_grid_points, use_saved=True)
+        my_grid = build_grid_from_name(self.data_name, use_saved=True)
         # if statistics file already exists, use it, else create it
         try:
             ratios_df = pd.read_csv(my_grid.statistics_path)
@@ -342,19 +358,19 @@ class AlphaConvergencePlot(AlphaViolinPlot):
             data_name: name of the algorithm e.g. randomQ
             **kwargs:
         """
-        nap = NameParser(data_name)
-        if nap.num_grid_points is None:
-            self.ns_list = DEFAULT_NS
+        self.nap = NameParser(data_name)
+        if self.nap.N is None:
+            self.ns_list = np.array(DEFAULT_NS, dtype=int)
         else:
-            self.ns_list = np.logspace(np.log10(3), np.log10(nap.num_grid_points), dtype=int)
+            self.ns_list = np.logspace(np.log10(3), np.log10(self.nap.N), dtype=int)
             self.ns_list = np.unique(self.ns_list)
         super().__init__(data_name, plot_type="convergence", **kwargs)
 
     def _plot_data(self, **kwargs):
         full_df = []
-
         for N in self.ns_list:
-            self.parsed_data_name.num_grid_points = N
+            self.nap.N = N
+            self.data_name = f"{self.nap.algo}_{self.nap.N}"
             df = self._prepare_data()
             df["N"] = N
             full_df.append(df)
@@ -369,7 +385,7 @@ class AlphaConvergencePlot(AlphaViolinPlot):
 
 class PolytopePlot(AbstractPlot):
 
-    def __init__(self, data_name: str, num_divisions=3, faces=None, **kwargs):
+    def __init__(self, data_name: str, num_divisions=3, faces=None, projection=False, **kwargs):
         """
         Plotting (some faces of) polyhedra, demonstrating the subdivision of faces with points.
 
@@ -377,10 +393,12 @@ class PolytopePlot(AbstractPlot):
             data_name:
             num_divisions: how many levels of faces subdivisions should be drawn
             faces: a set of indices indicating which faces to draw
+            projection: if True display points projected on a sphere, not on faces
             **kwargs:
         """
         self.num_divisions = num_divisions
         self.faces = faces
+        self.projection = projection
         plot_type = f"polytope_{num_divisions}"
         super().__init__(data_name, fig_path=PATH_OUTPUT_PLOTS, plot_type=plot_type, style_type=["empty"], dimensions=3,
                          **kwargs)
@@ -400,19 +418,5 @@ class PolytopePlot(AbstractPlot):
         elif self.faces is None:
             self.faces = {3}
         ico = self._prepare_data()
-        ico.plot_points(self.ax, select_faces=self.faces, projection=False)
+        ico.plot_points(self.ax, select_faces=self.faces, projection=self.projection)
         ico.plot_edges(self.ax, select_faces=self.faces)
-
-
-if __name__ == "__main__":
-    # examples of grid plots and animations
-    GridPlot("ico_22").create(title="Icosahedron, 22 points", x_label="x", y_label="y", z_label="z", animate_rot=True,
-                              animate_seq=True, main_ticks_only=True)
-    GridPlot("cube3D_500", style_type=["talk", "empty"]).create()
-    # examples of statistics/convergence plots
-    AlphaViolinPlot("ico_250", style_type=["talk"]).create(title="ico grid, 250")
-    AlphaConvergencePlot("systemE", style_type=["talk"]).create(title="Convergence of systemE")
-    # examples of polyhedra
-    PolytopePlot("ico", num_divisions=2, faces={0, 1, 2, 3, 4}).create(equalize=True, elev=190, azim=120,
-                                                                       pos_limit=0.55, neg_limit=-0.6)
-    PolytopePlot("cube3D", num_divisions=3).create(equalize=True, elev=0, azim=0, pos_limit=0.7, neg_limit=-0.7)

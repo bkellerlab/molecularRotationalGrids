@@ -1,20 +1,7 @@
 import numpy as np
 from scipy.constants import pi
 
-
-def unit_dist_on_sphere(vector1: np.ndarray, vector2: np.ndarray) -> np.ndarray:
-    """
-    Same as dist_on_sphere, but accepts and returns arrays and should only be used for already unitary vectors.
-
-    Args:
-        vector1: vector shape (n1, d)
-        vector2: vector shape (n2, d)
-
-    Returns:
-        an array the shape (n1, n2) containing distances between both sets of points on sphere
-    """
-    angle = np.arccos(np.clip(np.dot(vector1, vector2.T), -1.0, 1.0))  # in radians
-    return angle
+from molgri.utils import angle_between_vectors
 
 
 def random_sphere_points(n: int = 1000) -> np.ndarray:
@@ -37,45 +24,33 @@ def random_sphere_points(n: int = 1000) -> np.ndarray:
     return np.concatenate((x, y, z), axis=1)
 
 
-def unit_vector(vector):
-    """ Returns the unit vector of the vector.  """
-    return vector / np.linalg.norm(vector)
+def vector_within_alpha(central_vec: np.ndarray, side_vector: np.ndarray, alpha: float) -> bool or np.ndarray:
+    """
+    Answers the question: which angles between both vectors or sets of vectors are within angle angle alpha?
+
+    Args:
+        central_vec: a single vector of shape (d,) or an array of vectors of shape (n1, d)
+        side_vector: a single vector of shape (d,) or an array of vectors of shape (n2, d)
+        alpha: in radians, angle around central_vec where we check if side_vectors occur
+
+    Returns:
+        array of bools of shape (n1, n2) if both vectors are 2D
+                       of shape (n2,) if central_vec is 1D and side_vec 2D
+                       of shape (n1,) if central_vec is 2D and side_vec 1D
+                       of shape (1,) if both vectors are 1D
+    """
+    return angle_between_vectors(central_vec, side_vector) < alpha
 
 
-def vector_within_alpha(central_vec: np.ndarray, side_vector: np.ndarray, alpha: float):
-    v1_u = unit_vector(central_vec)
-    v2_u = unit_vector(side_vector)
-    angle_vectors = np.arccos(np.clip(np.dot(v1_u, v2_u), -1.0, 1.0))
-    return angle_vectors < alpha
+def count_points_within_alpha(array_points: np.ndarray, central_vec: np.ndarray, alpha: float):
+    # since a list of True or False is returned, the sum gives the total number of True elements
+    return np.sum(vector_within_alpha(central_vec, array_points, alpha))
 
 
-def count_points_within_alpha(grid, central_vec: np.ndarray, alpha: float):
-    grid_points = grid.get_grid()
-    num_points = 0
-    for point in grid_points:
-        if vector_within_alpha(central_vec, point, alpha):
-            num_points += 1
-    return num_points
-
-
-def random_axes_count_points(grid, alpha: float, num_random_points: int = 1000):
+def random_axes_count_points(array_points: np.ndarray, alpha: float, num_random_points: int = 1000):
     central_vectors = random_sphere_points(num_random_points)
     all_ratios = np.zeros(num_random_points)
-
     for i, central_vector in enumerate(central_vectors):
-        num_within = count_points_within_alpha(grid, central_vector, alpha)
-        all_ratios[i] = num_within/grid.N
+        num_within = count_points_within_alpha(array_points, central_vector, alpha)
+        all_ratios[i] = num_within/len(array_points)
     return all_ratios
-
-
-if __name__ == '__main__':
-    from .grids import IcoGrid
-    my_grid = IcoGrid(1000).get_grid()
-    min_radius = 0.5  # nm
-    min_alpha = np.inf
-    for i in range(1000):
-        for j in range(i+1, 1000):
-            alpha = unit_dist_on_sphere(my_grid[i], my_grid[j])
-            if alpha < min_alpha:
-                min_alpha = alpha
-    print(min_radius*min_alpha*10, " angstrom")

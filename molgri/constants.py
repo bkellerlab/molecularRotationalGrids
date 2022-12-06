@@ -15,38 +15,39 @@ COLORS = color_palette("hls", 6)
 DEFAULT_SEED = 1
 UNIQUE_TOL = 5
 
-ENDING_GRID_FILES = "npy"
-ENDING_FIGURES = "png"
+EXTENSION_GRID_FILES = "npy"
+EXTENSION_FIGURES = "png"
+EXTENSION_TRAJECTORY = "xtc"
+EXTENSION_TOPOLOGY = "gro"
 
 # here write non-user-defined paths
 PATH_USER_PATHS = resource_filename("molgri", "paths.py")
 PATH_EXAMPLES = resource_filename("molgri", "examples/")
 
-SIX_METHOD_NAMES = ("systemE", "randomE", "randomQ", "cube4D", "cube3D", "ico")
-PRETTY_METHOD_NAMES = ("systematic Euler angles", "random Euler angles", "random quaternions", "4D cube grid",
-                       "3D cube grid", "icosahedron grid")
-NORMAL_SIZE = 500
-SMALL_SIZE = 50
-SHORT_NAMES = ("system. E.", "random E.", "random q.", "cube 4D", "cube 3D", "icosahedron")
-SIZE2NUMBERS = {"normal": NORMAL_SIZE, "small": SMALL_SIZE}
-NAME2PRETTY_NAME = {n: pn for n, pn in zip(SIX_METHOD_NAMES, PRETTY_METHOD_NAMES)}
-NAME2SHORT_NAME = {n: pn for n, pn in zip(SIX_METHOD_NAMES, SHORT_NAMES)}
-NAME2PRETTY_NAME[None] = "optimization run"
-FULL_RUN_NAME = "run"
-ADDITIONAL_NAMES = ("cube3D_NO", "ico_NO")
-MOLECULE_NAMES = ("H2O", "HF", "protein0", "protein1", "protein2", "protein3", "protein4", "protein5", "CL", "NA")
-ENERGY_TYPES = ["LJ Energy [kJ/mol]", "Dis.corr. [kJ/mol]", "Coulomb [kJ/mol]",
-                "Potential [kJ/mol]"]
-ENERGY_SHORT_TYPES = ["LJ", "Dis", "Coulumb", "pot"]
+# algorithms
+DEFAULT_ALGORITHM = "ico"
+ZERO_ALGORITHM = "zero"
+GRID_ALGORITHMS = ("systemE", "randomE", "randomQ", "cube4D", "cube3D", "ico", "zero")
+assert DEFAULT_ALGORITHM in GRID_ALGORITHMS and ZERO_ALGORITHM in GRID_ALGORITHMS
+FULL_GRID_ALG_NAMES = ("systematic Euler angles", "random Euler angles", "random quaternions", "4D cube grid",
+                       "3D cube grid", "icosahedron grid", "no rotation")
+SHORT_GRID_ALG_NAMES = ("system. E.", "random E.", "random q.", "cube 4D", "cube 3D", "icosahedron", "no rotat.")
+assert len(GRID_ALGORITHMS) == len(FULL_GRID_ALG_NAMES) == len(SHORT_GRID_ALG_NAMES)
+NAME2PRETTY_NAME = {n: pn for n, pn in zip(GRID_ALGORITHMS, FULL_GRID_ALG_NAMES)}
+NAME2SHORT_NAME = {n: pn for n, pn in zip(GRID_ALGORITHMS, SHORT_GRID_ALG_NAMES)}
+ENERGY_TYPES = ("LJ Energy [kJ/mol]", "Dis.corr. [kJ/mol]", "Coulomb [kJ/mol]",
+                "Potential [kJ/mol]")
+ENERGY_SHORT_TYPES = ("LJ", "Dis", "Coulumb", "pot")
+assert len(ENERGY_TYPES) == len(ENERGY_SHORT_TYPES)
 ENERGY_SHORT2FULL = {n: pn for n, pn in zip(ENERGY_SHORT_TYPES, ENERGY_TYPES)}
 ENERGY_FULL2SHORT = {n: pn for n, pn in zip(ENERGY_TYPES, ENERGY_SHORT_TYPES)}
-DEFAULT_DISTANCES_PROTEIN = (0.75, 0.25, 0.25, 0.25, 0.25, 0.25, 0.25, 0.25)
-DEFAULT_DISTANCES = (0.26, 0.005, 0.005, 0.005, 0.005, 0.005, 0.005)
-DEFAULT_NS = [3,    4,    5,    6,    8,   10,   12,   15,   18,   23,
-         30,   34,   41,   50,   62,   75,   100, 112,  137,  167,  204,
-        249,  300,  370,  452,  500,  672,  819, 1000]
-DEFAULT_NS_TIME = [3,    4,    5,    6,    8,   10,   12,   15,   18,   23,
-         30,   34,   41,   50,   62,   75,   100, 112,  137,  167,  204,
-        249,  300]
-GROMACS_NS = [54, 96, 150, 216, 384, 600, 864, 1350, 1944, 3174, 5400, 6936, 10086, 15000, 23064, 33750, 60000] # 19
-MINI_DEFAULT_NS = [30, 100, 300]
+
+DEFAULT_NS = (3,    4,    5,    6,    8,   10,   12,   15,   18,   23,
+              30,   34,   41,   50,   62,   75,   100, 112,  137,  167,  204,
+              249,  300,  370,  452,  500,  672,  819, 1000)
+
+
+EXTENSIONS = ('PSF', 'TOP', 'PRMTOP', 'PARM7', 'PDB', 'ENT', 'XPDB', 'PQR', 'GRO', 'CRD', 'PDBQT', 'DMS',
+              'TPR', 'MOL2', 'DATA', 'LAMMPSDUMP', 'XYZ', 'TXYZ', 'ARC', 'GMS', 'CONFIG', 'HISTORY', 'XML',
+              'MMTF', 'GSD', 'MINIMAL', 'ITP', 'IN', 'FHIAIMS', 'PARMED', 'RDKIT', 'OPENMMTOPOLOGY',
+              'OPENMMAPP')

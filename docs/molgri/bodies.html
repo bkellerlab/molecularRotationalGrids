@@ -95,6 +95,23 @@ class AbstractShape(ABC):
         self.position += vector
         self.drawing_points += np.hstack(vector)
 
+    def translate_radially(self, distance_change: float):
+        &#34;&#34;&#34;
+        Moves the object away from the origin in radial direction for the amount specified by distance_change (or
+        towards the origin if a negative distance_change is given). If the object is at origin, translate in z-direction
+        of the internal coordinate system.
+
+        Args:
+            distance_change: the change in length of the vector origin-object
+        &#34;&#34;&#34;
+        # need to work with rounding because gromacs files only have 3-point precision
+        initial_vector = np.round(self.position, 3)
+        if np.allclose(initial_vector, [0]*self.dimension, atol=1e-3):
+            initial_vector = self.basis[-1]
+        len_initial = np.linalg.norm(initial_vector)
+        rescaled_vector = distance_change*initial_vector/len_initial
+        self.translate(rescaled_vector)
+
     # noinspection PyUnusedLocal
     def _rotate(self, angles: ArrayLike, method: str, **kwargs) -&gt; Rotation:
         &#34;&#34;&#34;
@@ -155,8 +172,7 @@ class AbstractShape(ABC):
         self.drawing_points += np.hstack(self.position)
         return rotation_mat
 
-    def draw(self, axis: Axes, show_labels=False, show_basis=False, rotational_axis=None, rotational_center=&#34;origin&#34;)\
-            -&gt; list:
+    def draw(self, axis: Axes, show_labels=False, show_basis=False) -&gt; list:
         &#34;&#34;&#34;
         Draw the object in the given axis (2D or 3D). Possibly also draws the label with atom position, the
         body coordinate axes and/or the axis of rotation. Should be appended by subclasses for drawing the objects.
@@ -165,23 +181,10 @@ class AbstractShape(ABC):
             axis: ax on which the object should be drown
             show_labels: show a label with the position of the point
             show_basis: show the basis attached to the object
-            rotational_axis: the 3D vector representing the axis around which to rotate
-            rotational_center: &#39;origin&#39; or &#39;body&#39;, where the rotational axis should be drawn.
         Returns:
             list of all objects to be plotted
         &#34;&#34;&#34;
         to_return = []
-        # draw rotational axis
-        if np.any(rotational_axis):
-            if rotational_center == &#39;body&#39;:
-                origin = self.position
-            elif rotational_center == &#39;origin&#39;:
-                origin = np.array([0, 0, 0])
-            else:
-                raise ValueError(f&#34;Unknown argument {rotational_center} for rotational center (try &#39;body&#39; or &#39;origin&#39;)&#34;)
-            normed = rotational_axis / np.linalg.norm(rotational_axis)
-            axis_pic = axis.quiver(*origin, *normed, color=&#34;black&#34;, length=3, arrow_length_ratio=0.1)
-            to_return.append(axis_pic)
         # draw label with the position of the body at the center of the body
         if show_labels:
             center_labels = self._draw_center_label(axis)
@@ -431,9 +434,11 @@ class Atom(Sphere):
 class Molecule(AbstractShape):
 
     def __init__(self, atom_names: list, centers: np.ndarray, connections: np.ndarray = None, center_at_origin=False,
-                 gro_labels: list = None):
+                 gro_labels: list = None, residue_name: str = &#34;SOL&#34;, molecule_name=&#34;molecule&#34;):
         if gro_labels is None:
             gro_labels = atom_names
+        self.molecule_name = molecule_name
+        self.residue_name = residue_name
         self.atoms = []      # saving the Atom objects for easy plotting and access to properties
         for i, atom_name in enumerate(atom_names):
             self.atoms.append(Atom(atom_name, start_position=centers[i], gro_label=gro_labels[i]))
@@ -473,17 +478,21 @@ class Molecule(AbstractShape):
         for atom in self.atoms:
             atom.translate(vector)
 
+    def translate_radially(self, distance_change: float):
+        super().translate_radially(distance_change)
+        # here no changes to individual atoms!
+
     def rotate_about_origin(self, angles: np.ndarray, **kwargs):
         super().rotate_about_origin(angles, **kwargs)
         for atom in self.atoms:
             atom.rotate_about_origin(angles, **kwargs)
 
-    def rotate_about_body(self, angles: np.ndarray or float, **kwargs):
-        super().rotate_about_body(angles, **kwargs)
+    def rotate_about_body(self, angles: np.ndarray or float, method=&#34;euler_123&#34;, **kwargs):
+        super().rotate_about_body(angles, method=method, **kwargs)
         inverse = kwargs.pop(&#34;inverse&#34;, False)
         for atom in self.atoms:
             points_at_origin = atom.position - self.position
-            rot = atom._rotate(angles, **kwargs)
+            rot = atom._rotate(angles, method=method, **kwargs)
             atom.position = rot.apply(points_at_origin, inverse=inverse) + self.position
 
 
@@ -539,7 +548,8 @@ class ShapeSet(object):
         Selects appropriate which_action and forwards to the corresponding function.
 
         Args:
-            which_action: options: [&#39;translate&#39;, &#39;rotate_objects_about_origin&#39;, &#39;rotate_objects_about_body&#39;]
+            which_action: options: [&#39;translate&#39;, &#39;rotate_objects_about_origin&#39;, &#39;rotate_objects_about_body&#39;,
+                                    &#39;translate_radially&#39;]
             vector: vector for translation or vector/float of rotational angles
             which: list of 1s and 0s as long as self.all_objects or None - which objects should be drawn. If None, all
             method: what method of rotation
@@ -549,9 +559,12 @@ class ShapeSet(object):
                 if which_action == &#34;translate&#34;:
                     self.all_objects[j].translate(vector)
                 elif which_action == &#34;rotate_about_body&#34;:
-                    return self.all_objects[j].rotate_about_body(vector, method=method, inverse=inverse)
+                    self.all_objects[j].rotate_about_body(vector, method=method, inverse=inverse)
                 elif which_action == &#34;rotate_about_origin&#34;:
-                    return self.all_objects[j].rotate_about_origin(vector, method=method, inverse=inverse)
+                    self.all_objects[j].rotate_about_origin(vector, method=method, inverse=inverse)
+                elif which_action == &#34;translate_radially&#34;:
+                    assert isinstance(vector, np.floating)
+                    self.all_objects[j].translate_radially(vector)
                 else:
                     raise NotImplementedError(&#34;Only actions translate, rotate_about_body and&#34; +
                                               &#34;rotate_abut_origin are implemented.&#34;)
@@ -581,6 +594,9 @@ class ShapeSet(object):
         self._manipulate_objects for details.
         &#34;&#34;&#34;
         self._manipulate_objects(&#34;translate&#34;, vector, which=which, **kwargs)
+
+    def translate_objects_radially(self, distance_change: float, which: list = None, **kwargs):
+        self._manipulate_objects(&#34;translate_radially&#34;, distance_change, which=which, **kwargs)
 
     def rotate_objects_about_origin(self, vector: ArrayLike, which: list = None, **kwargs):
         &#34;&#34;&#34;
@@ -632,25 +648,6 @@ class AtomSet(ShapeSet):
             assert all([x in [1, 0] for x in which]), &#34;which cannot have values other than 1 or 0&#34;
         return which
 
-    def _save_atom_lines_gro(self, residue: str = &#34;SOL&#34;, atom_num=1, residue_num=1):
-        num_atom = atom_num
-        num_molecule = residue_num
-        for molecule_name, molecule_atoms in self.belongings.items():
-            hydrogen_counter = 1
-            for atom in molecule_atoms:
-                pos_nm = atom.position
-                if atom.element.symbol == &#34;O&#34;:
-                    name = &#34;OW&#34;
-                elif atom.element.symbol == &#34;H&#34;:
-                    name = &#34;HW&#34; + str(hydrogen_counter)
-                    hydrogen_counter += 1
-                else:
-                    name = atom.element.symbol
-                self.file_gro.write(f&#34;{num_molecule:5}{residue:5}{name:&gt;5}{num_atom:5}{pos_nm[0]:8.3f}{pos_nm[1]:8.3f}&#34;
-                                    f&#34;{pos_nm[2]:8.3f}{0:8.4f}{0:8.4f}{0:8.4f}\n&#34;)
-                num_atom += 1
-            num_molecule += 1
-
     def _manipulate_objects(self, *args, save_to_gro=False, ** kwargs):
         super()._manipulate_objects(*args, **kwargs)
 
@@ -660,32 +657,58 @@ class MoleculeSet(AtomSet):
     def __init__(self, all_objects: list or AbstractShape, file_gro: TextIO = None, file_xyz: TextIO = None, **kwargs):
         super().__init__(all_objects, file_gro=file_gro, file_xyz=file_xyz, **kwargs)
         assert [type(x) == Molecule for x in self.all_objects], &#34;All objects must be Molecules&#34;
+        # TODO: enable atoms but convert them to molecules immediately
         # changing from AtomSet
         self.belongings = {f&#34;molecule_{i}&#34;: key.atoms for i, key in enumerate(self.all_objects)}
         # changing from AtomSet
         self.num_atoms = sum([len(self.all_objects[i].atoms) for i in range(len(self.all_objects))])
+        # list atoms in which all atoms of all molecules in the set are saved
+        self.atoms = []
+        for molecule in self.all_objects:
+            self.atoms.extend(molecule.atoms)
+        self.position = self._calc_center_of_mass()
+
+    # this is repetition of Molecule class, not good!
+    def _calc_center_of_mass(self):
+        total_mass = 0
+        com = np.zeros(3)
+        for i, atom in enumerate(self.atoms):
+            total_mass += atom.element.atomic_weight
+            com += atom.element.atomic_weight * self.atoms[i].position
+        return com/total_mass
 
 
-if __name__ == &#39;__main__&#39;:
-    import matplotlib.pyplot as plt
-    # noinspection PyUnresolvedReferences
-    from mpl_toolkits.mplot3d import Axes3D
+def join_shapes(list_shapes_or_shape_sets: list, as_molecule_set=False, as_atom_set=False) -&gt; ShapeSet:
+    &#34;&#34;&#34;
+    Given a list of objects that all derive from Shape or ShapeSet, create a ShapeSet that have all these objects
+    listed and they are all equal.
 
-    fig = plt.figure()
-    ax = fig.add_subplot(111, projection=&#39;3d&#39;)
-    ax.set_xlim(-5, 5)
-    ax.set_ylim(-5, 5)
-    ax.set_zlim(-5, 5)
+    Args:
+        list_shapes_or_shape_sets: a list of inputs
+        as_atom_set: try to convert in AtomSet and raise an error if not possible
+        as_molecule_set: try to convert in MoleculeSet and raise an error if not possible
 
-    my_cylinder = Cylinder()
-    my_cylinder.draw(ax, show_basis=False)
-    my_cylinder.translate(np.array([-3, 3, -4]))
-    my_cylinder.rotate_about_origin(np.array([pi / 4, pi / 6, pi / 3]))
-    my_cylinder.draw(ax, show_basis=False)
-    my_cylinder.rotate_about_body(np.array([pi / 4, pi / 6, pi / 3]))
-    my_cylinder.draw(ax, show_basis=False)
-    print(my_cylinder)
-    plt.show()</code></pre>
+    Returns:
+        A ShapeSet whose property .all_objects is a flattened list of all individual objects contained in input
+    &#34;&#34;&#34;
+    all_objects = []
+    if len(list_shapes_or_shape_sets) &lt;= 1:
+        all_objects = list_shapes_or_shape_sets
+    else:
+        for subshape in list_shapes_or_shape_sets:
+            if issubclass(type(subshape), AbstractShape):
+                all_objects.append(subshape)
+            elif issubclass(type(subshape), ShapeSet):
+                all_objects.extend(subshape.all_objects)
+            else:
+                raise AttributeError(f&#34;Input contains elements that are neither Shapes nor ShapeSets: {subshape}.&#34;)
+    # if all atoms convert in AtomSet, if all atoms or molecules convert in molecule_set
+    if as_molecule_set:
+        return MoleculeSet(all_objects=all_objects)
+    elif as_atom_set:
+        return AtomSet(all_objects=all_objects)
+    else:
+        return ShapeSet(all_objects=all_objects)</code></pre>
 </details>
 </section>
 <section>
@@ -693,6 +716,63 @@ if __name__ == &#39;__main__&#39;:
 <section>
 </section>
 <section>
+<h2 class="section-title" id="header-functions">Functions</h2>
+<dl>
+<dt id="molgri.bodies.join_shapes"><code class="name flex">
+<span>def <span class="ident">join_shapes</span></span>(<span>list_shapes_or_shape_sets: list, as_molecule_set=False, as_atom_set=False) ‑> <a title="molgri.bodies.ShapeSet" href="#molgri.bodies.ShapeSet">ShapeSet</a></span>
+</code></dt>
+<dd>
+<div class="desc"><p>Given a list of objects that all derive from Shape or ShapeSet, create a ShapeSet that have all these objects
+listed and they are all equal.</p>
+<h2 id="args">Args</h2>
+<dl>
+<dt><strong><code>list_shapes_or_shape_sets</code></strong></dt>
+<dd>a list of inputs</dd>
+<dt><strong><code>as_atom_set</code></strong></dt>
+<dd>try to convert in AtomSet and raise an error if not possible</dd>
+<dt><strong><code>as_molecule_set</code></strong></dt>
+<dd>try to convert in MoleculeSet and raise an error if not possible</dd>
+</dl>
+<h2 id="returns">Returns</h2>
+<p>A ShapeSet whose property .all_objects is a flattened list of all individual objects contained in input</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def join_shapes(list_shapes_or_shape_sets: list, as_molecule_set=False, as_atom_set=False) -&gt; ShapeSet:
+    &#34;&#34;&#34;
+    Given a list of objects that all derive from Shape or ShapeSet, create a ShapeSet that have all these objects
+    listed and they are all equal.
+
+    Args:
+        list_shapes_or_shape_sets: a list of inputs
+        as_atom_set: try to convert in AtomSet and raise an error if not possible
+        as_molecule_set: try to convert in MoleculeSet and raise an error if not possible
+
+    Returns:
+        A ShapeSet whose property .all_objects is a flattened list of all individual objects contained in input
+    &#34;&#34;&#34;
+    all_objects = []
+    if len(list_shapes_or_shape_sets) &lt;= 1:
+        all_objects = list_shapes_or_shape_sets
+    else:
+        for subshape in list_shapes_or_shape_sets:
+            if issubclass(type(subshape), AbstractShape):
+                all_objects.append(subshape)
+            elif issubclass(type(subshape), ShapeSet):
+                all_objects.extend(subshape.all_objects)
+            else:
+                raise AttributeError(f&#34;Input contains elements that are neither Shapes nor ShapeSets: {subshape}.&#34;)
+    # if all atoms convert in AtomSet, if all atoms or molecules convert in molecule_set
+    if as_molecule_set:
+        return MoleculeSet(all_objects=all_objects)
+    elif as_atom_set:
+        return AtomSet(all_objects=all_objects)
+    else:
+        return ShapeSet(all_objects=all_objects)</code></pre>
+</details>
+</dd>
+</dl>
 </section>
 <section>
 <h2 class="section-title" id="header-classes">Classes</h2>
@@ -757,6 +837,23 @@ Its position and angles can later be changed with translations and rotation.</p>
         self.position += vector
         self.drawing_points += np.hstack(vector)
 
+    def translate_radially(self, distance_change: float):
+        &#34;&#34;&#34;
+        Moves the object away from the origin in radial direction for the amount specified by distance_change (or
+        towards the origin if a negative distance_change is given). If the object is at origin, translate in z-direction
+        of the internal coordinate system.
+
+        Args:
+            distance_change: the change in length of the vector origin-object
+        &#34;&#34;&#34;
+        # need to work with rounding because gromacs files only have 3-point precision
+        initial_vector = np.round(self.position, 3)
+        if np.allclose(initial_vector, [0]*self.dimension, atol=1e-3):
+            initial_vector = self.basis[-1]
+        len_initial = np.linalg.norm(initial_vector)
+        rescaled_vector = distance_change*initial_vector/len_initial
+        self.translate(rescaled_vector)
+
     # noinspection PyUnusedLocal
     def _rotate(self, angles: ArrayLike, method: str, **kwargs) -&gt; Rotation:
         &#34;&#34;&#34;
@@ -817,8 +914,7 @@ Its position and angles can later be changed with translations and rotation.</p>
         self.drawing_points += np.hstack(self.position)
         return rotation_mat
 
-    def draw(self, axis: Axes, show_labels=False, show_basis=False, rotational_axis=None, rotational_center=&#34;origin&#34;)\
-            -&gt; list:
+    def draw(self, axis: Axes, show_labels=False, show_basis=False) -&gt; list:
         &#34;&#34;&#34;
         Draw the object in the given axis (2D or 3D). Possibly also draws the label with atom position, the
         body coordinate axes and/or the axis of rotation. Should be appended by subclasses for drawing the objects.
@@ -827,23 +923,10 @@ Its position and angles can later be changed with translations and rotation.</p>
             axis: ax on which the object should be drown
             show_labels: show a label with the position of the point
             show_basis: show the basis attached to the object
-            rotational_axis: the 3D vector representing the axis around which to rotate
-            rotational_center: &#39;origin&#39; or &#39;body&#39;, where the rotational axis should be drawn.
         Returns:
             list of all objects to be plotted
         &#34;&#34;&#34;
         to_return = []
-        # draw rotational axis
-        if np.any(rotational_axis):
-            if rotational_center == &#39;body&#39;:
-                origin = self.position
-            elif rotational_center == &#39;origin&#39;:
-                origin = np.array([0, 0, 0])
-            else:
-                raise ValueError(f&#34;Unknown argument {rotational_center} for rotational center (try &#39;body&#39; or &#39;origin&#39;)&#34;)
-            normed = rotational_axis / np.linalg.norm(rotational_axis)
-            axis_pic = axis.quiver(*origin, *normed, color=&#34;black&#34;, length=3, arrow_length_ratio=0.1)
-            to_return.append(axis_pic)
         # draw label with the position of the body at the center of the body
         if show_labels:
             center_labels = self._draw_center_label(axis)
@@ -918,7 +1001,7 @@ Its position and angles can later be changed with translations and rotation.</p>
 <h3>Methods</h3>
 <dl>
 <dt id="molgri.bodies.AbstractShape.draw"><code class="name flex">
-<span>def <span class="ident">draw</span></span>(<span>self, axis: matplotlib.axes._axes.Axes, show_labels=False, show_basis=False, rotational_axis=None, rotational_center='origin') ‑> list</span>
+<span>def <span class="ident">draw</span></span>(<span>self, axis: matplotlib.axes._axes.Axes, show_labels=False, show_basis=False) ‑> list</span>
 </code></dt>
 <dd>
 <div class="desc"><p>Draw the object in the given axis (2D or 3D). Possibly also draws the label with atom position, the
@@ -931,10 +1014,6 @@ body coordinate axes and/or the axis of rotation. Should be appended by subclass
 <dd>show a label with the position of the point</dd>
 <dt><strong><code>show_basis</code></strong></dt>
 <dd>show the basis attached to the object</dd>
-<dt><strong><code>rotational_axis</code></strong></dt>
-<dd>the 3D vector representing the axis around which to rotate</dd>
-<dt><strong><code>rotational_center</code></strong></dt>
-<dd>'origin' or 'body', where the rotational axis should be drawn.</dd>
 </dl>
 <h2 id="returns">Returns</h2>
 <p>list of all objects to be plotted</p></div>
@@ -942,8 +1021,7 @@ body coordinate axes and/or the axis of rotation. Should be appended by subclass
 <summary>
 <span>Expand source code</span>
 </summary>
-<pre><code class="python">def draw(self, axis: Axes, show_labels=False, show_basis=False, rotational_axis=None, rotational_center=&#34;origin&#34;)\
-        -&gt; list:
+<pre><code class="python">def draw(self, axis: Axes, show_labels=False, show_basis=False) -&gt; list:
     &#34;&#34;&#34;
     Draw the object in the given axis (2D or 3D). Possibly also draws the label with atom position, the
     body coordinate axes and/or the axis of rotation. Should be appended by subclasses for drawing the objects.
@@ -952,23 +1030,10 @@ body coordinate axes and/or the axis of rotation. Should be appended by subclass
         axis: ax on which the object should be drown
         show_labels: show a label with the position of the point
         show_basis: show the basis attached to the object
-        rotational_axis: the 3D vector representing the axis around which to rotate
-        rotational_center: &#39;origin&#39; or &#39;body&#39;, where the rotational axis should be drawn.
     Returns:
         list of all objects to be plotted
     &#34;&#34;&#34;
     to_return = []
-    # draw rotational axis
-    if np.any(rotational_axis):
-        if rotational_center == &#39;body&#39;:
-            origin = self.position
-        elif rotational_center == &#39;origin&#39;:
-            origin = np.array([0, 0, 0])
-        else:
-            raise ValueError(f&#34;Unknown argument {rotational_center} for rotational center (try &#39;body&#39; or &#39;origin&#39;)&#34;)
-        normed = rotational_axis / np.linalg.norm(rotational_axis)
-        axis_pic = axis.quiver(*origin, *normed, color=&#34;black&#34;, length=3, arrow_length_ratio=0.1)
-        to_return.append(axis_pic)
     # draw label with the position of the body at the center of the body
     if show_labels:
         center_labels = self._draw_center_label(axis)
@@ -1086,6 +1151,40 @@ The basis does not change (it is always drawn from the current self.position).</
     self.drawing_points += np.hstack(vector)</code></pre>
 </details>
 </dd>
+<dt id="molgri.bodies.AbstractShape.translate_radially"><code class="name flex">
+<span>def <span class="ident">translate_radially</span></span>(<span>self, distance_change: float)</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Moves the object away from the origin in radial direction for the amount specified by distance_change (or
+towards the origin if a negative distance_change is given). If the object is at origin, translate in z-direction
+of the internal coordinate system.</p>
+<h2 id="args">Args</h2>
+<dl>
+<dt><strong><code>distance_change</code></strong></dt>
+<dd>the change in length of the vector origin-object</dd>
+</dl></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def translate_radially(self, distance_change: float):
+    &#34;&#34;&#34;
+    Moves the object away from the origin in radial direction for the amount specified by distance_change (or
+    towards the origin if a negative distance_change is given). If the object is at origin, translate in z-direction
+    of the internal coordinate system.
+
+    Args:
+        distance_change: the change in length of the vector origin-object
+    &#34;&#34;&#34;
+    # need to work with rounding because gromacs files only have 3-point precision
+    initial_vector = np.round(self.position, 3)
+    if np.allclose(initial_vector, [0]*self.dimension, atol=1e-3):
+        initial_vector = self.basis[-1]
+    len_initial = np.linalg.norm(initial_vector)
+    rescaled_vector = distance_change*initial_vector/len_initial
+    self.translate(rescaled_vector)</code></pre>
+</details>
+</dd>
 </dl>
 </dd>
 <dt id="molgri.bodies.Atom"><code class="flex name class">
@@ -1136,6 +1235,7 @@ Its position and angles can later be changed with translations and rotation.</p>
 <li><code><a title="molgri.bodies.Sphere.rotate_about_body" href="#molgri.bodies.AbstractShape.rotate_about_body">rotate_about_body</a></code></li>
 <li><code><a title="molgri.bodies.Sphere.rotate_about_origin" href="#molgri.bodies.AbstractShape.rotate_about_origin">rotate_about_origin</a></code></li>
 <li><code><a title="molgri.bodies.Sphere.translate" href="#molgri.bodies.AbstractShape.translate">translate</a></code></li>
+<li><code><a title="molgri.bodies.Sphere.translate_radially" href="#molgri.bodies.AbstractShape.translate_radially">translate_radially</a></code></li>
 </ul>
 </li>
 </ul>
@@ -1185,25 +1285,6 @@ Using 'which' command, only a part of the collection can be manipulated.</p></di
             assert len(which) == len(self.all_objects), &#34;which needs to provide 1/0 for each object in self.all_objects&#34;
             assert all([x in [1, 0] for x in which]), &#34;which cannot have values other than 1 or 0&#34;
         return which
-
-    def _save_atom_lines_gro(self, residue: str = &#34;SOL&#34;, atom_num=1, residue_num=1):
-        num_atom = atom_num
-        num_molecule = residue_num
-        for molecule_name, molecule_atoms in self.belongings.items():
-            hydrogen_counter = 1
-            for atom in molecule_atoms:
-                pos_nm = atom.position
-                if atom.element.symbol == &#34;O&#34;:
-                    name = &#34;OW&#34;
-                elif atom.element.symbol == &#34;H&#34;:
-                    name = &#34;HW&#34; + str(hydrogen_counter)
-                    hydrogen_counter += 1
-                else:
-                    name = atom.element.symbol
-                self.file_gro.write(f&#34;{num_molecule:5}{residue:5}{name:&gt;5}{num_atom:5}{pos_nm[0]:8.3f}{pos_nm[1]:8.3f}&#34;
-                                    f&#34;{pos_nm[2]:8.3f}{0:8.4f}{0:8.4f}{0:8.4f}\n&#34;)
-                num_atom += 1
-            num_molecule += 1
 
     def _manipulate_objects(self, *args, save_to_gro=False, ** kwargs):
         super()._manipulate_objects(*args, **kwargs)</code></pre>
@@ -1314,6 +1395,7 @@ Its position and angles can later be changed with translations and rotation.</p>
 <li><code><a title="molgri.bodies.AbstractShape.rotate_about_body" href="#molgri.bodies.AbstractShape.rotate_about_body">rotate_about_body</a></code></li>
 <li><code><a title="molgri.bodies.AbstractShape.rotate_about_origin" href="#molgri.bodies.AbstractShape.rotate_about_origin">rotate_about_origin</a></code></li>
 <li><code><a title="molgri.bodies.AbstractShape.translate" href="#molgri.bodies.AbstractShape.translate">translate</a></code></li>
+<li><code><a title="molgri.bodies.AbstractShape.translate_radially" href="#molgri.bodies.AbstractShape.translate_radially">translate_radially</a></code></li>
 </ul>
 </li>
 </ul>
@@ -1402,6 +1484,7 @@ inheritance.</p>
 <li><code><a title="molgri.bodies.AbstractShape.rotate_about_body" href="#molgri.bodies.AbstractShape.rotate_about_body">rotate_about_body</a></code></li>
 <li><code><a title="molgri.bodies.AbstractShape.rotate_about_origin" href="#molgri.bodies.AbstractShape.rotate_about_origin">rotate_about_origin</a></code></li>
 <li><code><a title="molgri.bodies.AbstractShape.translate" href="#molgri.bodies.AbstractShape.translate">translate</a></code></li>
+<li><code><a title="molgri.bodies.AbstractShape.translate_radially" href="#molgri.bodies.AbstractShape.translate_radially">translate_radially</a></code></li>
 </ul>
 </li>
 </ul>
@@ -1469,13 +1552,14 @@ Its position and angles can later be changed with translations and rotation.</p>
 <li><code><a title="molgri.bodies.AbstractShape.rotate_about_body" href="#molgri.bodies.AbstractShape.rotate_about_body">rotate_about_body</a></code></li>
 <li><code><a title="molgri.bodies.AbstractShape.rotate_about_origin" href="#molgri.bodies.AbstractShape.rotate_about_origin">rotate_about_origin</a></code></li>
 <li><code><a title="molgri.bodies.AbstractShape.translate" href="#molgri.bodies.AbstractShape.translate">translate</a></code></li>
+<li><code><a title="molgri.bodies.AbstractShape.translate_radially" href="#molgri.bodies.AbstractShape.translate_radially">translate_radially</a></code></li>
 </ul>
 </li>
 </ul>
 </dd>
 <dt id="molgri.bodies.Molecule"><code class="flex name class">
 <span>class <span class="ident">Molecule</span></span>
-<span>(</span><span>atom_names: list, centers: numpy.ndarray, connections: numpy.ndarray = None, center_at_origin=False, gro_labels: list = None)</span>
+<span>(</span><span>atom_names: list, centers: numpy.ndarray, connections: numpy.ndarray = None, center_at_origin=False, gro_labels: list = None, residue_name: str = 'SOL', molecule_name='molecule')</span>
 </code></dt>
 <dd>
 <div class="desc"><p>Helper class that provides a standard way to create an ABC using
@@ -1494,9 +1578,11 @@ Its position and angles can later be changed with translations and rotation.</p>
 <pre><code class="python">class Molecule(AbstractShape):
 
     def __init__(self, atom_names: list, centers: np.ndarray, connections: np.ndarray = None, center_at_origin=False,
-                 gro_labels: list = None):
+                 gro_labels: list = None, residue_name: str = &#34;SOL&#34;, molecule_name=&#34;molecule&#34;):
         if gro_labels is None:
             gro_labels = atom_names
+        self.molecule_name = molecule_name
+        self.residue_name = residue_name
         self.atoms = []      # saving the Atom objects for easy plotting and access to properties
         for i, atom_name in enumerate(atom_names):
             self.atoms.append(Atom(atom_name, start_position=centers[i], gro_label=gro_labels[i]))
@@ -1536,17 +1622,21 @@ Its position and angles can later be changed with translations and rotation.</p>
         for atom in self.atoms:
             atom.translate(vector)
 
+    def translate_radially(self, distance_change: float):
+        super().translate_radially(distance_change)
+        # here no changes to individual atoms!
+
     def rotate_about_origin(self, angles: np.ndarray, **kwargs):
         super().rotate_about_origin(angles, **kwargs)
         for atom in self.atoms:
             atom.rotate_about_origin(angles, **kwargs)
 
-    def rotate_about_body(self, angles: np.ndarray or float, **kwargs):
-        super().rotate_about_body(angles, **kwargs)
+    def rotate_about_body(self, angles: np.ndarray or float, method=&#34;euler_123&#34;, **kwargs):
+        super().rotate_about_body(angles, method=method, **kwargs)
         inverse = kwargs.pop(&#34;inverse&#34;, False)
         for atom in self.atoms:
             points_at_origin = atom.position - self.position
-            rot = atom._rotate(angles, **kwargs)
+            rot = atom._rotate(angles, method=method, **kwargs)
             atom.position = rot.apply(points_at_origin, inverse=inverse) + self.position</code></pre>
 </details>
 <h3>Ancestors</h3>
@@ -1562,6 +1652,7 @@ Its position and angles can later be changed with translations and rotation.</p>
 <li><code><a title="molgri.bodies.AbstractShape.rotate_about_body" href="#molgri.bodies.AbstractShape.rotate_about_body">rotate_about_body</a></code></li>
 <li><code><a title="molgri.bodies.AbstractShape.rotate_about_origin" href="#molgri.bodies.AbstractShape.rotate_about_origin">rotate_about_origin</a></code></li>
 <li><code><a title="molgri.bodies.AbstractShape.translate" href="#molgri.bodies.AbstractShape.translate">translate</a></code></li>
+<li><code><a title="molgri.bodies.AbstractShape.translate_radially" href="#molgri.bodies.AbstractShape.translate_radially">translate_radially</a></code></li>
 </ul>
 </li>
 </ul>
@@ -1582,10 +1673,25 @@ Using 'which' command, only a part of the collection can be manipulated.</p></di
     def __init__(self, all_objects: list or AbstractShape, file_gro: TextIO = None, file_xyz: TextIO = None, **kwargs):
         super().__init__(all_objects, file_gro=file_gro, file_xyz=file_xyz, **kwargs)
         assert [type(x) == Molecule for x in self.all_objects], &#34;All objects must be Molecules&#34;
+        # TODO: enable atoms but convert them to molecules immediately
         # changing from AtomSet
         self.belongings = {f&#34;molecule_{i}&#34;: key.atoms for i, key in enumerate(self.all_objects)}
         # changing from AtomSet
-        self.num_atoms = sum([len(self.all_objects[i].atoms) for i in range(len(self.all_objects))])</code></pre>
+        self.num_atoms = sum([len(self.all_objects[i].atoms) for i in range(len(self.all_objects))])
+        # list atoms in which all atoms of all molecules in the set are saved
+        self.atoms = []
+        for molecule in self.all_objects:
+            self.atoms.extend(molecule.atoms)
+        self.position = self._calc_center_of_mass()
+
+    # this is repetition of Molecule class, not good!
+    def _calc_center_of_mass(self):
+        total_mass = 0
+        com = np.zeros(3)
+        for i, atom in enumerate(self.atoms):
+            total_mass += atom.element.atomic_weight
+            com += atom.element.atomic_weight * self.atoms[i].position
+        return com/total_mass</code></pre>
 </details>
 <h3>Ancestors</h3>
 <ul class="hlist">
@@ -1640,6 +1746,7 @@ Its position and angles can later be changed with translations and rotation.</p>
 <li><code><a title="molgri.bodies.AbstractShape.rotate_about_body" href="#molgri.bodies.AbstractShape.rotate_about_body">rotate_about_body</a></code></li>
 <li><code><a title="molgri.bodies.AbstractShape.rotate_about_origin" href="#molgri.bodies.AbstractShape.rotate_about_origin">rotate_about_origin</a></code></li>
 <li><code><a title="molgri.bodies.AbstractShape.translate" href="#molgri.bodies.AbstractShape.translate">translate</a></code></li>
+<li><code><a title="molgri.bodies.AbstractShape.translate_radially" href="#molgri.bodies.AbstractShape.translate_radially">translate_radially</a></code></li>
 </ul>
 </li>
 </ul>
@@ -1728,6 +1835,7 @@ Its position and angles can later be changed with translations and rotation.</p>
 <li><code><a title="molgri.bodies.AbstractShape.rotate_about_body" href="#molgri.bodies.AbstractShape.rotate_about_body">rotate_about_body</a></code></li>
 <li><code><a title="molgri.bodies.AbstractShape.rotate_about_origin" href="#molgri.bodies.AbstractShape.rotate_about_origin">rotate_about_origin</a></code></li>
 <li><code><a title="molgri.bodies.AbstractShape.translate" href="#molgri.bodies.AbstractShape.translate">translate</a></code></li>
+<li><code><a title="molgri.bodies.AbstractShape.translate_radially" href="#molgri.bodies.AbstractShape.translate_radially">translate_radially</a></code></li>
 </ul>
 </li>
 </ul>
@@ -1795,7 +1903,8 @@ Using 'which' command, only a part of the collection can be manipulated.</p></di
         Selects appropriate which_action and forwards to the corresponding function.
 
         Args:
-            which_action: options: [&#39;translate&#39;, &#39;rotate_objects_about_origin&#39;, &#39;rotate_objects_about_body&#39;]
+            which_action: options: [&#39;translate&#39;, &#39;rotate_objects_about_origin&#39;, &#39;rotate_objects_about_body&#39;,
+                                    &#39;translate_radially&#39;]
             vector: vector for translation or vector/float of rotational angles
             which: list of 1s and 0s as long as self.all_objects or None - which objects should be drawn. If None, all
             method: what method of rotation
@@ -1805,9 +1914,12 @@ Using 'which' command, only a part of the collection can be manipulated.</p></di
                 if which_action == &#34;translate&#34;:
                     self.all_objects[j].translate(vector)
                 elif which_action == &#34;rotate_about_body&#34;:
-                    return self.all_objects[j].rotate_about_body(vector, method=method, inverse=inverse)
+                    self.all_objects[j].rotate_about_body(vector, method=method, inverse=inverse)
                 elif which_action == &#34;rotate_about_origin&#34;:
-                    return self.all_objects[j].rotate_about_origin(vector, method=method, inverse=inverse)
+                    self.all_objects[j].rotate_about_origin(vector, method=method, inverse=inverse)
+                elif which_action == &#34;translate_radially&#34;:
+                    assert isinstance(vector, np.floating)
+                    self.all_objects[j].translate_radially(vector)
                 else:
                     raise NotImplementedError(&#34;Only actions translate, rotate_about_body and&#34; +
                                               &#34;rotate_abut_origin are implemented.&#34;)
@@ -1837,6 +1949,9 @@ Using 'which' command, only a part of the collection can be manipulated.</p></di
         self._manipulate_objects for details.
         &#34;&#34;&#34;
         self._manipulate_objects(&#34;translate&#34;, vector, which=which, **kwargs)
+
+    def translate_objects_radially(self, distance_change: float, which: list = None, **kwargs):
+        self._manipulate_objects(&#34;translate_radially&#34;, distance_change, which=which, **kwargs)
 
     def rotate_objects_about_origin(self, vector: ArrayLike, which: list = None, **kwargs):
         &#34;&#34;&#34;
@@ -1947,6 +2062,19 @@ self._manipulate_objects for details.</p></div>
     self._manipulate_objects(&#34;translate&#34;, vector, which=which, **kwargs)</code></pre>
 </details>
 </dd>
+<dt id="molgri.bodies.ShapeSet.translate_objects_radially"><code class="name flex">
+<span>def <span class="ident">translate_objects_radially</span></span>(<span>self, distance_change: float, which: list = None, **kwargs)</span>
+</code></dt>
+<dd>
+<div class="desc"></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def translate_objects_radially(self, distance_change: float, which: list = None, **kwargs):
+    self._manipulate_objects(&#34;translate_radially&#34;, distance_change, which=which, **kwargs)</code></pre>
+</details>
+</dd>
 </dl>
 </dd>
 <dt id="molgri.bodies.Sphere"><code class="flex name class">
@@ -2048,6 +2176,7 @@ Its position and angles can later be changed with translations and rotation.</p>
 <li><code><a title="molgri.bodies.AbstractShape.rotate_about_body" href="#molgri.bodies.AbstractShape.rotate_about_body">rotate_about_body</a></code></li>
 <li><code><a title="molgri.bodies.AbstractShape.rotate_about_origin" href="#molgri.bodies.AbstractShape.rotate_about_origin">rotate_about_origin</a></code></li>
 <li><code><a title="molgri.bodies.AbstractShape.translate" href="#molgri.bodies.AbstractShape.translate">translate</a></code></li>
+<li><code><a title="molgri.bodies.AbstractShape.translate_radially" href="#molgri.bodies.AbstractShape.translate_radially">translate_radially</a></code></li>
 </ul>
 </li>
 </ul>
@@ -2066,6 +2195,11 @@ Its position and angles can later be changed with translations and rotation.</p>
 <li><code><a title="molgri" href="index.html">molgri</a></code></li>
 </ul>
 </li>
+<li><h3><a href="#header-functions">Functions</a></h3>
+<ul class="">
+<li><code><a title="molgri.bodies.join_shapes" href="#molgri.bodies.join_shapes">join_shapes</a></code></li>
+</ul>
+</li>
 <li><h3><a href="#header-classes">Classes</a></h3>
 <ul>
 <li>
@@ -2075,6 +2209,7 @@ Its position and angles can later be changed with translations and rotation.</p>
 <li><code><a title="molgri.bodies.AbstractShape.rotate_about_body" href="#molgri.bodies.AbstractShape.rotate_about_body">rotate_about_body</a></code></li>
 <li><code><a title="molgri.bodies.AbstractShape.rotate_about_origin" href="#molgri.bodies.AbstractShape.rotate_about_origin">rotate_about_origin</a></code></li>
 <li><code><a title="molgri.bodies.AbstractShape.translate" href="#molgri.bodies.AbstractShape.translate">translate</a></code></li>
+<li><code><a title="molgri.bodies.AbstractShape.translate_radially" href="#molgri.bodies.AbstractShape.translate_radially">translate_radially</a></code></li>
 </ul>
 </li>
 <li>
@@ -2117,6 +2252,7 @@ Its position and angles can later be changed with translations and rotation.</p>
 <li><code><a title="molgri.bodies.ShapeSet.rotate_objects_about_body" href="#molgri.bodies.ShapeSet.rotate_objects_about_body">rotate_objects_about_body</a></code></li>
 <li><code><a title="molgri.bodies.ShapeSet.rotate_objects_about_origin" href="#molgri.bodies.ShapeSet.rotate_objects_about_origin">rotate_objects_about_origin</a></code></li>
 <li><code><a title="molgri.bodies.ShapeSet.translate_objects" href="#molgri.bodies.ShapeSet.translate_objects">translate_objects</a></code></li>
+<li><code><a title="molgri.bodies.ShapeSet.translate_objects_radially" href="#molgri.bodies.ShapeSet.translate_objects_radially">translate_objects_radially</a></code></li>
 </ul>
 </li>
 <li>

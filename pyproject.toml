@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "molgri"
-version = "1.0.5"
+version = "1.2.2"
 description = "Generate molecular pseudotrajectories based on rotational grids."
 authors = ["Hana Zupan <hana.zupan@fu-berlin.de>"]
 license = "LICENSE"
@@ -13,16 +13,18 @@ packages = [
 ]
 repository = "https://github.com/bkellerlab/molecularRotationalGrids"
 homepage = "https://www.bcp.fu-berlin.de/en/chemie/chemie/forschung/PhysTheoChem/agkeller/index.html"
+documentation = "https://molgri.readthedocs.io/en/main/"
 
 [tool.poetry.dependencies]
-python = ">=3.7"
-matplotlib = ">=3.0"
-mendeleev = "*"
-networkx = ">=2.6"
-numpy = ">=1.0"
-pandas = ">=1.0"
-scipy = ">=1.0"
-seaborn = ">=0.12"
+python = ">=3.8"
+matplotlib = "~=3.6.2"
+MDAnalysis = "~=2.3.0"
+networkx = "~=2.8.8"
+numpy = "~=1.23.5"
+pandas = "~=1.5.2"
+scipy = "~=1.9.3"
+seaborn = "~=0.12.1"
+setuptools = "~=65.6.3"
 
 [build-system]
 requires = ["poetry-core>=1.0.0"]

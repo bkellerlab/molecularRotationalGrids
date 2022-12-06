@@ -35,9 +35,10 @@ from scipy.spatial import distance_matrix
 from scipy.spatial.distance import cdist
 import pandas as pd
 
-from .analysis import random_sphere_points, unit_dist_on_sphere, random_axes_count_points
+from .analysis import random_sphere_points, random_axes_count_points
+from .utils import dist_on_sphere
 from .constants import DEFAULT_SEED, SIX_METHOD_NAMES, UNIQUE_TOL, ENDING_GRID_FILES
-from .parsers import NameParser
+from .parsers import NameParser, TranslationParser
 from .paths import PATH_OUTPUT_ROTGRIDS, PATH_OUTPUT_STAT
 from .rotations import grid2quaternion, grid2euler, quaternion2grid, euler2grid
 from .wrappers import time_method
@@ -58,15 +59,14 @@ class Polytope(ABC):
 
     @abstractmethod
     def _create_level0(self):
-        # this is implemented by each subclass since they have different edges, vertices and faces
-        pass
+        &#34;&#34;&#34;This is implemented by each subclass since they have different edges, vertices and faces&#34;&#34;&#34;
 
     def plot_graph(self):
         &#34;&#34;&#34;
         Plot the networkx graph of self.G.
         &#34;&#34;&#34;
         node_labels = {i: tuple(np.round(i, 3)) for i in self.G.nodes}
-        nx.draw(self.G, pos=nx.circular_layout(self.G), with_labels=True, labels=node_labels)
+        nx.draw_networkx(self.G, pos=nx.circular_layout(self.G), with_labels=True, labels=node_labels)
 
     def plot_points(self, ax, select_faces: set = None, projection: bool = False):
         &#34;&#34;&#34;
@@ -136,11 +136,11 @@ class Polytope(ABC):
                                 face=set(faces_node_vector).intersection(faces_neighbour_vector),
                                 projection=project_grid_on_sphere(np.array(new_point)[np.newaxis, :]))
             self.G.add_edge(new_point, neighbour_vector,
-                            length=unit_dist_on_sphere(self.G.nodes[new_point][&#34;projection&#34;],
-                                                       self.G.nodes[neighbour_vector][&#34;projection&#34;]))
+                            length=dist_on_sphere(self.G.nodes[new_point][&#34;projection&#34;],
+                                                  self.G.nodes[neighbour_vector][&#34;projection&#34;]))
             self.G.add_edge(new_point, node_vector,
-                            length=unit_dist_on_sphere(self.G.nodes[new_point][&#34;projection&#34;],
-                                                       self.G.nodes[neighbour_vector][&#34;projection&#34;]))
+                            length=dist_on_sphere(self.G.nodes[new_point][&#34;projection&#34;],
+                                                  self.G.nodes[neighbour_vector][&#34;projection&#34;]))
             # self.G.remove_edge(node_vector, neighbour_vector)
         # also add edges between new nodes at distance side_len or sqrt(2)*side_len
         new_level = [x for x, y in self.G.nodes(data=True) if y[&#39;level&#39;] == self.current_level+1]
@@ -153,8 +153,8 @@ class Polytope(ABC):
                 # check distance criterion
                 if np.isclose(node_dist, self.side_len) or np.isclose(node_dist, self.side_len*np.sqrt(2)):
                     self.G.add_edge(new_node, other_node,
-                                    length=unit_dist_on_sphere(self.G.nodes[new_node][&#34;projection&#34;],
-                                                               self.G.nodes[other_node][&#34;projection&#34;])
+                                    length=dist_on_sphere(self.G.nodes[new_node][&#34;projection&#34;],
+                                                          self.G.nodes[other_node][&#34;projection&#34;])
                                     )
         self.current_level += 1
         self.side_len = self.side_len / 2
@@ -207,8 +207,8 @@ class IcosahedronPolytope(Polytope):
         for key, value in point_connections.items():
             for vi in value:
                 self.G.add_edge(key, tuple(vi),
-                                length=unit_dist_on_sphere(self.G.nodes[key][&#34;projection&#34;],
-                                                           self.G.nodes[tuple(vi)][&#34;projection&#34;]))
+                                length=dist_on_sphere(self.G.nodes[key][&#34;projection&#34;],
+                                                      self.G.nodes[tuple(vi)][&#34;projection&#34;]))
         # just to check ...
         assert self.G.number_of_nodes() == 12
         assert self.G.number_of_edges() == 30
@@ -254,8 +254,8 @@ class CubePolytope(Polytope):
         for key, value in point_connections.items():
             for vi in value:
                 self.G.add_edge(key, tuple(vi),
-                                length=unit_dist_on_sphere(self.G.nodes[key][&#34;projection&#34;],
-                                                           self.G.nodes[tuple(vi)][&#34;projection&#34;]))
+                                length=dist_on_sphere(self.G.nodes[key][&#34;projection&#34;],
+                                                      self.G.nodes[tuple(vi)][&#34;projection&#34;]))
         # just to check ...
         assert self.G.number_of_nodes() == 8
         assert self.G.number_of_edges() == 24
@@ -289,12 +289,25 @@ def _calc_edges(vertices: np.ndarray, side_len: float) -&gt; dict:
 
 
 def second_neighbours(graph: nx.Graph, node):
-    &#34;&#34;&#34;Yield second neighbors of node in graph.
-    Neighbors are not not unique!
+    &#34;&#34;&#34;Yield second neighbors of node in graph. Ignore second neighbours that are also first neighbours.
+    Second neighbors may repeat!
+
+    Example:
+
+        5------6
+        |      |
+        2 ---- 1 ---- 3 ---- 7
+               |      |
+               \--8--/
+
+    First neighbours of 1: 2, 6, 3, 8
+    Second neighbours of 1: 5, 7
     &#34;&#34;&#34;
-    for neighbor_list in [graph.neighbors(n) for n in graph.neighbors(node)]:
+    direct_neighbours = list(graph.neighbors(node))
+    for neighbor_list in [graph.neighbors(n) for n in direct_neighbours]:
         for n in neighbor_list:
-            yield n
+            if n != node and n not in direct_neighbours:
+                yield n
 
 
 class Grid(ABC):
@@ -313,8 +326,7 @@ class Grid(ABC):
         &#34;&#34;&#34;
         self.rn_gen = np.random.default_rng(DEFAULT_SEED)
         np.random.seed(DEFAULT_SEED)
-        if gen_alg not in SIX_METHOD_NAMES:
-            raise ValueError(f&#34;{gen_alg} is not a valid generation algorithm name. Try &#39;ico&#39;, &#39;cube3D&#39; ...&#34;)
+        assert gen_alg in SIX_METHOD_NAMES or gen_alg == &#34;zero&#34;, f&#34;{gen_alg} is not a valid generation algorithm name&#34;
         self.ordered = ordered
         self.N = N
         name_properties = {&#34;grid_type&#34;: gen_alg, &#34;num_grid_points&#34;: N, &#34;ordering&#34;: ordered}
@@ -343,15 +355,6 @@ class Grid(ABC):
     def get_grid(self) -&gt; np.ndarray:
         return self.grid
 
-    def reduce_N(self, reduce_by=1):
-        if reduce_by &lt;= 0:
-            return
-        self.grid = self.grid[:-reduce_by]
-        self.N = self.N - reduce_by
-        self.time = 0
-        self.nn_dist_arch = None
-        self.nn_dist_cup = None
-
     @abstractmethod
     def generate_grid(self):
         # order or truncate
@@ -378,7 +381,7 @@ class Grid(ABC):
         euler_seq = grid2euler(self.grid)
         assert isinstance(euler_seq, np.ndarray), &#34;An Euler sequence must be a numpy array!&#34;
         assert euler_seq.shape == (self.N, 3), f&#34;An Euler sequence not of correct shape!\
-                                {euler_seq.shape} instead of {(self.N, 33)}&#34;
+                                {euler_seq.shape} instead of {(self.N, 3)}&#34;
         return euler_seq
 
     def save_grid(self):
@@ -387,7 +390,9 @@ class Grid(ABC):
     def save_grid_txt(self):
         np.savetxt(f&#34;{PATH_OUTPUT_ROTGRIDS}{self.standard_name}.txt&#34;, self.grid)
 
-    def save_statistics(self, num_random: int = 100, print_message=False):
+    def save_statistics(self, num_random: int = 100, print_message=False, alphas=None):
+        if alphas is None:
+            alphas = [pi / 6, 2 * pi / 6, 3 * pi / 6, 4 * pi / 6, 5 * pi / 6]
         # first message (what measure you are using)
         newline = &#34;\n&#34;
         m1 = f&#34;STATISTICS: Testing the coverage of grid {self.standard_name} using {num_random} &#34; \
@@ -396,7 +401,7 @@ class Grid(ABC):
              f&#34;alpha (selected from [pi / 6, 2 * pi / 6, 3 * pi / 6, 4 * pi / 6, 5 * pi / 6]) of this axis. For an&#34; \
              f&#34;ideally uniform grid, we expect the ratio of num_within_alpha/total_num_points to equal the ratio&#34; \
              f&#34;area_of_alpha_spherical_cap/area_of_sphere, which we call ideal coverage.&#34;
-        stat_data, full_data = self._generate_statistics(num_rand_points=num_random)
+        stat_data, full_data = self._generate_statistics(alphas, num_rand_points=num_random)
         if print_message:
             print(m1)
             print(stat_data)
@@ -406,18 +411,17 @@ class Grid(ABC):
         stat_data.to_csv(self.short_statistics_path, mode=&#34;a&#34;)
         full_data.to_csv(self.statistics_path, mode=&#34;w&#34;)
 
-    def _generate_statistics(self, num_rand_points: int = 100) -&gt; tuple:
-        # write out short version (&#34;N points&#34;, &#34;min&#34;, &#34;max&#34;, &#34;average&#34;, &#34;SD&#34;)
+    def _generate_statistics(self, alphas, num_rand_points: int = 100) -&gt; tuple:
+        # write out short version (&#34;N points&#34;, &#34;min&#34;, &#34;max&#34;, &#34;average&#34;, &#34;SD&#34;
         columns = [&#34;alphas&#34;, &#34;ideal coverages&#34;, &#34;min coverage&#34;, &#34;avg coverage&#34;, &#34;max coverage&#34;, &#34;standard deviation&#34;]
         ratios_columns = [&#34;coverages&#34;, &#34;alphas&#34;, &#34;ideal coverage&#34;]
-        alphas = [pi/6, 2*pi/6, 3*pi/6, 4*pi/6, 5*pi/6]
         ratios = [[], [], []]
         sphere_surface = 4 * pi
         data = np.zeros((len(alphas), 6))  # 5 data columns for: alpha, ideal coverage, min, max, average, sd
         for i, alpha in enumerate(alphas):
             cone_area = 2 * pi * (1-np.cos(alpha))
             ideal_coverage = cone_area / sphere_surface
-            actual_coverages = random_axes_count_points(self, alpha, num_random_points=num_rand_points)
+            actual_coverages = random_axes_count_points(self.get_grid(), alpha, num_random_points=num_rand_points)
             ratios[0].extend(actual_coverages)
             ratios[1].extend([alpha]*num_rand_points)
             ratios[2].extend([ideal_coverage]*num_rand_points)
@@ -447,7 +451,7 @@ def order_grid_points(grid: np.ndarray, N: int, start_i: int = 1) -&gt; np.ndarr
         an array of shape (N, 3) ordered in such a way that these N points have the best possible coverage.
     &#34;&#34;&#34;
     if N &gt; len(grid):
-        print(f&#34;Warning! N&gt;len(grid)! Only {len(grid)} points will be returned!&#34;)
+        raise ValueError(f&#34;N&gt;len(grid)! Only {len(grid)} points can be returned!&#34;)
     for index in range(start_i, min(len(grid), N)):
         grid = select_next_gridpoint(grid, index)
     return grid[:N]
@@ -465,6 +469,9 @@ def project_grid_on_sphere(grid: np.ndarray) -&gt; np.ndarray:
     Returns:
         a (N, d) array where each row has been scaled to length 1
     &#34;&#34;&#34;
+    assert isinstance(grid, np.ndarray), &#34;Grid must be a numpy array!&#34;
+    assert len(grid.shape) == 2, &#34;Grid must have exactly two dimensions of shape: (num of points, num of dimensions)&#34;
+    assert not np.any(np.all(np.isclose(grid, 0), axis=1)), &#34;There is a row with length zero, cannot normalise.&#34;
     largest_abs = np.max(np.abs(grid), axis=1)[:, np.newaxis]
     grid = np.divide(grid, largest_abs)
     norms = np.linalg.norm(grid, axis=1)[:, np.newaxis]
@@ -489,6 +496,19 @@ def select_next_gridpoint(set_grid_points, i):
     index_max = np.argmax(nn_dist)
     set_grid_points[[i, i + index_max]] = set_grid_points[[i + index_max, i]]
     return set_grid_points
+
+
+class ZeroGrid(Grid):
+    &#34;&#34;&#34;
+    Use this rotation grid if you want no rotations at all. Consists of only one point, a nit vector in z-direction.
+    &#34;&#34;&#34;
+
+    def __init__(self, N=1, **kwargs):
+        super().__init__(N, gen_alg=&#34;zero&#34;, **kwargs)
+        self.standard_name = &#34;zero&#34;
+
+    def generate_grid(self):
+        self.grid = np.array([[0, 0, 1]])
 
 
 class RandomQGrid(Grid):
@@ -562,8 +582,7 @@ class Cube4DGrid(Grid):
         np.random.set_state(state_before)
         super().generate_grid()
 
-    def _full_d_dim_grid(self, cheb: bool = False, change_start: float = 0, change_end: float = 0,
-                         dtype=np.float64) -&gt; np.ndarray:
+    def _full_d_dim_grid(self, dtype=np.float64) -&gt; np.ndarray:
         &#34;&#34;&#34;
         This is a function to create a classical grid of a d-dimensional cube. It creates a grid over the entire
         (hyper)volume of the (hyper)cube.
@@ -571,20 +590,12 @@ class Cube4DGrid(Grid):
         This is a unit cube between -sqrt(1/d) and sqrt(1/d) in all dimensions where d = num of dimensions.
 
         Args:
-            cheb: use Chebyscheff points instead of equally spaced points
-            change_start: add or subtract from -sqrt(1/d) as the start of the grid
-            change_end: add or subtract from sqrt(1/d) as the end of the grid
             dtype: forwarded to linspace while creating a grid
 
         Returns:
             a meshgrid of dimension (d, n, n, .... n) where n is repeated d times
         &#34;&#34;&#34;
-        if cheb:
-            from numpy.polynomial.chebyshev import chebpts1
-            side = chebpts1(self.N)
-        else:
-            # np.sqrt(1/d)
-            side = np.linspace(-1 + change_start, 1 - change_end, self.N, dtype=dtype)
+        side = np.linspace(-1, 1, self.N, dtype=dtype)
         # repeat the same n points d times and then make a new line of the array every d elements
         sides = np.tile(side, self.d)
         sides = sides[np.newaxis, :].reshape((self.d, self.N))
@@ -639,15 +650,39 @@ class IcoGrid(Polyhedron3DGrid):
         super().__init__(N, polyhedron=IcosahedronPolytope, gen_alg=&#34;ico&#34;, **kwargs)
 
 
+class FullGrid:
+
+    def __init__(self, b_grid: Grid, o_grid: Grid, t_grid: TranslationParser):
+        &#34;&#34;&#34;
+        In preparation. A combination object that enables work with a set of grids.
+
+        Args:
+            b_grid: body rotation grid
+            o_grid: origin rotation grid
+            t_grid: translation grid
+        &#34;&#34;&#34;
+        self.b_grid = b_grid
+        self.o_grid = o_grid
+        self.t_grid = t_grid
+
+    def get_full_grid_name(self):
+        nap = NameParser({&#34;o_grid&#34;: self.o_grid.standard_name, &#34;b_grid&#34;: self.b_grid.standard_name,
+                          &#34;t_grid&#34;: self.t_grid.grid_hash})
+        return nap.get_standard_name()
+
+
 def build_grid(grid_type: str, N: int, **kwargs) -&gt; Grid:
     name2grid = {&#34;randomQ&#34;: RandomQGrid,
                  &#34;randomE&#34;: RandomEGrid,
                  &#34;cube4D&#34;: Cube4DGrid,
                  &#34;systemE&#34;: SystemEGrid,
                  &#34;cube3D&#34;: Cube3DGrid,
-                 &#34;ico&#34;: IcoGrid}
+                 &#34;ico&#34;: IcoGrid,
+                 &#34;zero&#34;: ZeroGrid}
     if grid_type not in name2grid.keys():
         raise ValueError(f&#34;{grid_type} is not a valid grid type. Try &#39;ico&#39;, &#39;cube3D&#39; ...&#34;)
+    assert isinstance(N, int), &#34;Number of grid points must be an integer.&#34;
+    assert N &gt;= 0, f&#34;Number of grid points cannot be negative, currently N={N}&#34;
     grid_obj = name2grid[grid_type]
     return grid_obj(N, **kwargs)</code></pre>
 </details>
@@ -674,9 +709,12 @@ def build_grid(grid_type: str, N: int, **kwargs) -&gt; Grid:
                  &#34;cube4D&#34;: Cube4DGrid,
                  &#34;systemE&#34;: SystemEGrid,
                  &#34;cube3D&#34;: Cube3DGrid,
-                 &#34;ico&#34;: IcoGrid}
+                 &#34;ico&#34;: IcoGrid,
+                 &#34;zero&#34;: ZeroGrid}
     if grid_type not in name2grid.keys():
         raise ValueError(f&#34;{grid_type} is not a valid grid type. Try &#39;ico&#39;, &#39;cube3D&#39; ...&#34;)
+    assert isinstance(N, int), &#34;Number of grid points must be an integer.&#34;
+    assert N &gt;= 0, f&#34;Number of grid points cannot be negative, currently N={N}&#34;
     grid_obj = name2grid[grid_type]
     return grid_obj(N, **kwargs)</code></pre>
 </details>
@@ -716,7 +754,7 @@ these N points have the best possible coverage.</p>
         an array of shape (N, 3) ordered in such a way that these N points have the best possible coverage.
     &#34;&#34;&#34;
     if N &gt; len(grid):
-        print(f&#34;Warning! N&gt;len(grid)! Only {len(grid)} points will be returned!&#34;)
+        raise ValueError(f&#34;N&gt;len(grid)! Only {len(grid)} points can be returned!&#34;)
     for index in range(start_i, min(len(grid), N)):
         grid = select_next_gridpoint(grid, index)
     return grid[:N]</code></pre>
@@ -752,6 +790,9 @@ surface of a d-1 dimensional sphere.</p>
     Returns:
         a (N, d) array where each row has been scaled to length 1
     &#34;&#34;&#34;
+    assert isinstance(grid, np.ndarray), &#34;Grid must be a numpy array!&#34;
+    assert len(grid.shape) == 2, &#34;Grid must have exactly two dimensions of shape: (num of points, num of dimensions)&#34;
+    assert not np.any(np.all(np.isclose(grid, 0), axis=1)), &#34;There is a row with length zero, cannot normalise.&#34;
     largest_abs = np.max(np.abs(grid), axis=1)[:, np.newaxis]
     grid = np.divide(grid, largest_abs)
     norms = np.linalg.norm(grid, axis=1)[:, np.newaxis]
@@ -762,19 +803,42 @@ surface of a d-1 dimensional sphere.</p>
 <span>def <span class="ident">second_neighbours</span></span>(<span>graph: networkx.classes.graph.Graph, node)</span>
 </code></dt>
 <dd>
-<div class="desc"><p>Yield second neighbors of node in graph.
-Neighbors are not not unique!</p></div>
+<div class="desc"><p>Yield second neighbors of node in graph. Ignore second neighbours that are also first neighbours.
+Second neighbors may repeat!</p>
+<h2 id="example">Example</h2>
+<p>5------6
+|
+|
+2 ---- 1 ---- 3 ---- 7
+|
+|
+--8&ndash;/</p>
+<p>First neighbours of 1: 2, 6, 3, 8
+Second neighbours of 1: 5, 7</p></div>
 <details class="source">
 <summary>
 <span>Expand source code</span>
 </summary>
 <pre><code class="python">def second_neighbours(graph: nx.Graph, node):
-    &#34;&#34;&#34;Yield second neighbors of node in graph.
-    Neighbors are not not unique!
+    &#34;&#34;&#34;Yield second neighbors of node in graph. Ignore second neighbours that are also first neighbours.
+    Second neighbors may repeat!
+
+    Example:
+
+        5------6
+        |      |
+        2 ---- 1 ---- 3 ---- 7
+               |      |
+               \--8--/
+
+    First neighbours of 1: 2, 6, 3, 8
+    Second neighbours of 1: 5, 7
     &#34;&#34;&#34;
-    for neighbor_list in [graph.neighbors(n) for n in graph.neighbors(node)]:
+    direct_neighbours = list(graph.neighbors(node))
+    for neighbor_list in [graph.neighbors(n) for n in direct_neighbours]:
         for n in neighbor_list:
-            yield n</code></pre>
+            if n != node and n not in direct_neighbours:
+                yield n</code></pre>
 </details>
 </dd>
 <dt id="molgri.grids.select_next_gridpoint"><code class="name flex">
@@ -906,8 +970,7 @@ inheritance.</p>
         np.random.set_state(state_before)
         super().generate_grid()
 
-    def _full_d_dim_grid(self, cheb: bool = False, change_start: float = 0, change_end: float = 0,
-                         dtype=np.float64) -&gt; np.ndarray:
+    def _full_d_dim_grid(self, dtype=np.float64) -&gt; np.ndarray:
         &#34;&#34;&#34;
         This is a function to create a classical grid of a d-dimensional cube. It creates a grid over the entire
         (hyper)volume of the (hyper)cube.
@@ -915,20 +978,12 @@ inheritance.</p>
         This is a unit cube between -sqrt(1/d) and sqrt(1/d) in all dimensions where d = num of dimensions.
 
         Args:
-            cheb: use Chebyscheff points instead of equally spaced points
-            change_start: add or subtract from -sqrt(1/d) as the start of the grid
-            change_end: add or subtract from sqrt(1/d) as the end of the grid
             dtype: forwarded to linspace while creating a grid
 
         Returns:
             a meshgrid of dimension (d, n, n, .... n) where n is repeated d times
         &#34;&#34;&#34;
-        if cheb:
-            from numpy.polynomial.chebyshev import chebpts1
-            side = chebpts1(self.N)
-        else:
-            # np.sqrt(1/d)
-            side = np.linspace(-1 + change_start, 1 - change_end, self.N, dtype=dtype)
+        side = np.linspace(-1, 1, self.N, dtype=dtype)
         # repeat the same n points d times and then make a new line of the array every d elements
         sides = np.tile(side, self.d)
         sides = sides[np.newaxis, :].reshape((self.d, self.N))
@@ -1042,8 +1097,8 @@ in self.G property.</p></div>
         for key, value in point_connections.items():
             for vi in value:
                 self.G.add_edge(key, tuple(vi),
-                                length=unit_dist_on_sphere(self.G.nodes[key][&#34;projection&#34;],
-                                                           self.G.nodes[tuple(vi)][&#34;projection&#34;]))
+                                length=dist_on_sphere(self.G.nodes[key][&#34;projection&#34;],
+                                                      self.G.nodes[tuple(vi)][&#34;projection&#34;]))
         # just to check ...
         assert self.G.number_of_nodes() == 8
         assert self.G.number_of_edges() == 24
@@ -1067,6 +1122,64 @@ in self.G property.</p></div>
 </ul>
 </li>
 </ul>
+</dd>
+<dt id="molgri.grids.FullGrid"><code class="flex name class">
+<span>class <span class="ident">FullGrid</span></span>
+<span>(</span><span>b_grid: <a title="molgri.grids.Grid" href="#molgri.grids.Grid">Grid</a>, o_grid: <a title="molgri.grids.Grid" href="#molgri.grids.Grid">Grid</a>, t_grid: <a title="molgri.parsers.TranslationParser" href="parsers.html#molgri.parsers.TranslationParser">TranslationParser</a>)</span>
+</code></dt>
+<dd>
+<div class="desc"><p>In preparation. A combination object that enables work with a set of grids.</p>
+<h2 id="args">Args</h2>
+<dl>
+<dt><strong><code>b_grid</code></strong></dt>
+<dd>body rotation grid</dd>
+<dt><strong><code>o_grid</code></strong></dt>
+<dd>origin rotation grid</dd>
+<dt><strong><code>t_grid</code></strong></dt>
+<dd>translation grid</dd>
+</dl></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">class FullGrid:
+
+    def __init__(self, b_grid: Grid, o_grid: Grid, t_grid: TranslationParser):
+        &#34;&#34;&#34;
+        In preparation. A combination object that enables work with a set of grids.
+
+        Args:
+            b_grid: body rotation grid
+            o_grid: origin rotation grid
+            t_grid: translation grid
+        &#34;&#34;&#34;
+        self.b_grid = b_grid
+        self.o_grid = o_grid
+        self.t_grid = t_grid
+
+    def get_full_grid_name(self):
+        nap = NameParser({&#34;o_grid&#34;: self.o_grid.standard_name, &#34;b_grid&#34;: self.b_grid.standard_name,
+                          &#34;t_grid&#34;: self.t_grid.grid_hash})
+        return nap.get_standard_name()</code></pre>
+</details>
+<h3>Methods</h3>
+<dl>
+<dt id="molgri.grids.FullGrid.get_full_grid_name"><code class="name flex">
+<span>def <span class="ident">get_full_grid_name</span></span>(<span>self)</span>
+</code></dt>
+<dd>
+<div class="desc"></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def get_full_grid_name(self):
+    nap = NameParser({&#34;o_grid&#34;: self.o_grid.standard_name, &#34;b_grid&#34;: self.b_grid.standard_name,
+                      &#34;t_grid&#34;: self.t_grid.grid_hash})
+    return nap.get_standard_name()</code></pre>
+</details>
+</dd>
+</dl>
 </dd>
 <dt id="molgri.grids.Grid"><code class="flex name class">
 <span>class <span class="ident">Grid</span></span>
@@ -1109,8 +1222,7 @@ inheritance.</p>
         &#34;&#34;&#34;
         self.rn_gen = np.random.default_rng(DEFAULT_SEED)
         np.random.seed(DEFAULT_SEED)
-        if gen_alg not in SIX_METHOD_NAMES:
-            raise ValueError(f&#34;{gen_alg} is not a valid generation algorithm name. Try &#39;ico&#39;, &#39;cube3D&#39; ...&#34;)
+        assert gen_alg in SIX_METHOD_NAMES or gen_alg == &#34;zero&#34;, f&#34;{gen_alg} is not a valid generation algorithm name&#34;
         self.ordered = ordered
         self.N = N
         name_properties = {&#34;grid_type&#34;: gen_alg, &#34;num_grid_points&#34;: N, &#34;ordering&#34;: ordered}
@@ -1139,15 +1251,6 @@ inheritance.</p>
     def get_grid(self) -&gt; np.ndarray:
         return self.grid
 
-    def reduce_N(self, reduce_by=1):
-        if reduce_by &lt;= 0:
-            return
-        self.grid = self.grid[:-reduce_by]
-        self.N = self.N - reduce_by
-        self.time = 0
-        self.nn_dist_arch = None
-        self.nn_dist_cup = None
-
     @abstractmethod
     def generate_grid(self):
         # order or truncate
@@ -1174,7 +1277,7 @@ inheritance.</p>
         euler_seq = grid2euler(self.grid)
         assert isinstance(euler_seq, np.ndarray), &#34;An Euler sequence must be a numpy array!&#34;
         assert euler_seq.shape == (self.N, 3), f&#34;An Euler sequence not of correct shape!\
-                                {euler_seq.shape} instead of {(self.N, 33)}&#34;
+                                {euler_seq.shape} instead of {(self.N, 3)}&#34;
         return euler_seq
 
     def save_grid(self):
@@ -1183,7 +1286,9 @@ inheritance.</p>
     def save_grid_txt(self):
         np.savetxt(f&#34;{PATH_OUTPUT_ROTGRIDS}{self.standard_name}.txt&#34;, self.grid)
 
-    def save_statistics(self, num_random: int = 100, print_message=False):
+    def save_statistics(self, num_random: int = 100, print_message=False, alphas=None):
+        if alphas is None:
+            alphas = [pi / 6, 2 * pi / 6, 3 * pi / 6, 4 * pi / 6, 5 * pi / 6]
         # first message (what measure you are using)
         newline = &#34;\n&#34;
         m1 = f&#34;STATISTICS: Testing the coverage of grid {self.standard_name} using {num_random} &#34; \
@@ -1192,7 +1297,7 @@ inheritance.</p>
              f&#34;alpha (selected from [pi / 6, 2 * pi / 6, 3 * pi / 6, 4 * pi / 6, 5 * pi / 6]) of this axis. For an&#34; \
              f&#34;ideally uniform grid, we expect the ratio of num_within_alpha/total_num_points to equal the ratio&#34; \
              f&#34;area_of_alpha_spherical_cap/area_of_sphere, which we call ideal coverage.&#34;
-        stat_data, full_data = self._generate_statistics(num_rand_points=num_random)
+        stat_data, full_data = self._generate_statistics(alphas, num_rand_points=num_random)
         if print_message:
             print(m1)
             print(stat_data)
@@ -1202,18 +1307,17 @@ inheritance.</p>
         stat_data.to_csv(self.short_statistics_path, mode=&#34;a&#34;)
         full_data.to_csv(self.statistics_path, mode=&#34;w&#34;)
 
-    def _generate_statistics(self, num_rand_points: int = 100) -&gt; tuple:
-        # write out short version (&#34;N points&#34;, &#34;min&#34;, &#34;max&#34;, &#34;average&#34;, &#34;SD&#34;)
+    def _generate_statistics(self, alphas, num_rand_points: int = 100) -&gt; tuple:
+        # write out short version (&#34;N points&#34;, &#34;min&#34;, &#34;max&#34;, &#34;average&#34;, &#34;SD&#34;
         columns = [&#34;alphas&#34;, &#34;ideal coverages&#34;, &#34;min coverage&#34;, &#34;avg coverage&#34;, &#34;max coverage&#34;, &#34;standard deviation&#34;]
         ratios_columns = [&#34;coverages&#34;, &#34;alphas&#34;, &#34;ideal coverage&#34;]
-        alphas = [pi/6, 2*pi/6, 3*pi/6, 4*pi/6, 5*pi/6]
         ratios = [[], [], []]
         sphere_surface = 4 * pi
         data = np.zeros((len(alphas), 6))  # 5 data columns for: alpha, ideal coverage, min, max, average, sd
         for i, alpha in enumerate(alphas):
             cone_area = 2 * pi * (1-np.cos(alpha))
             ideal_coverage = cone_area / sphere_surface
-            actual_coverages = random_axes_count_points(self, alpha, num_random_points=num_rand_points)
+            actual_coverages = random_axes_count_points(self.get_grid(), alpha, num_random_points=num_rand_points)
             ratios[0].extend(actual_coverages)
             ratios[1].extend([alpha]*num_rand_points)
             ratios[2].extend([ideal_coverage]*num_rand_points)
@@ -1239,6 +1343,7 @@ inheritance.</p>
 <li><a title="molgri.grids.RandomEGrid" href="#molgri.grids.RandomEGrid">RandomEGrid</a></li>
 <li><a title="molgri.grids.RandomQGrid" href="#molgri.grids.RandomQGrid">RandomQGrid</a></li>
 <li><a title="molgri.grids.SystemEGrid" href="#molgri.grids.SystemEGrid">SystemEGrid</a></li>
+<li><a title="molgri.grids.ZeroGrid" href="#molgri.grids.ZeroGrid">ZeroGrid</a></li>
 </ul>
 <h3>Methods</h3>
 <dl>
@@ -1255,7 +1360,7 @@ inheritance.</p>
     euler_seq = grid2euler(self.grid)
     assert isinstance(euler_seq, np.ndarray), &#34;An Euler sequence must be a numpy array!&#34;
     assert euler_seq.shape == (self.N, 3), f&#34;An Euler sequence not of correct shape!\
-                            {euler_seq.shape} instead of {(self.N, 33)}&#34;
+                            {euler_seq.shape} instead of {(self.N, 3)}&#34;
     return euler_seq</code></pre>
 </details>
 </dd>
@@ -1321,25 +1426,6 @@ def generate_grid(self):
     return self.grid</code></pre>
 </details>
 </dd>
-<dt id="molgri.grids.Grid.reduce_N"><code class="name flex">
-<span>def <span class="ident">reduce_N</span></span>(<span>self, reduce_by=1)</span>
-</code></dt>
-<dd>
-<div class="desc"></div>
-<details class="source">
-<summary>
-<span>Expand source code</span>
-</summary>
-<pre><code class="python">def reduce_N(self, reduce_by=1):
-    if reduce_by &lt;= 0:
-        return
-    self.grid = self.grid[:-reduce_by]
-    self.N = self.N - reduce_by
-    self.time = 0
-    self.nn_dist_arch = None
-    self.nn_dist_cup = None</code></pre>
-</details>
-</dd>
 <dt id="molgri.grids.Grid.save_grid"><code class="name flex">
 <span>def <span class="ident">save_grid</span></span>(<span>self)</span>
 </code></dt>
@@ -1367,7 +1453,7 @@ def generate_grid(self):
 </details>
 </dd>
 <dt id="molgri.grids.Grid.save_statistics"><code class="name flex">
-<span>def <span class="ident">save_statistics</span></span>(<span>self, num_random: int = 100, print_message=False)</span>
+<span>def <span class="ident">save_statistics</span></span>(<span>self, num_random: int = 100, print_message=False, alphas=None)</span>
 </code></dt>
 <dd>
 <div class="desc"></div>
@@ -1375,7 +1461,9 @@ def generate_grid(self):
 <summary>
 <span>Expand source code</span>
 </summary>
-<pre><code class="python">def save_statistics(self, num_random: int = 100, print_message=False):
+<pre><code class="python">def save_statistics(self, num_random: int = 100, print_message=False, alphas=None):
+    if alphas is None:
+        alphas = [pi / 6, 2 * pi / 6, 3 * pi / 6, 4 * pi / 6, 5 * pi / 6]
     # first message (what measure you are using)
     newline = &#34;\n&#34;
     m1 = f&#34;STATISTICS: Testing the coverage of grid {self.standard_name} using {num_random} &#34; \
@@ -1384,7 +1472,7 @@ def generate_grid(self):
          f&#34;alpha (selected from [pi / 6, 2 * pi / 6, 3 * pi / 6, 4 * pi / 6, 5 * pi / 6]) of this axis. For an&#34; \
          f&#34;ideally uniform grid, we expect the ratio of num_within_alpha/total_num_points to equal the ratio&#34; \
          f&#34;area_of_alpha_spherical_cap/area_of_sphere, which we call ideal coverage.&#34;
-    stat_data, full_data = self._generate_statistics(num_rand_points=num_random)
+    stat_data, full_data = self._generate_statistics(alphas, num_rand_points=num_random)
     if print_message:
         print(m1)
         print(stat_data)
@@ -1494,8 +1582,8 @@ in self.G property.</p></div>
         for key, value in point_connections.items():
             for vi in value:
                 self.G.add_edge(key, tuple(vi),
-                                length=unit_dist_on_sphere(self.G.nodes[key][&#34;projection&#34;],
-                                                           self.G.nodes[tuple(vi)][&#34;projection&#34;]))
+                                length=dist_on_sphere(self.G.nodes[key][&#34;projection&#34;],
+                                                      self.G.nodes[tuple(vi)][&#34;projection&#34;]))
         # just to check ...
         assert self.G.number_of_nodes() == 12
         assert self.G.number_of_edges() == 30
@@ -1616,15 +1704,14 @@ in self.G property.</p></div>
 
     @abstractmethod
     def _create_level0(self):
-        # this is implemented by each subclass since they have different edges, vertices and faces
-        pass
+        &#34;&#34;&#34;This is implemented by each subclass since they have different edges, vertices and faces&#34;&#34;&#34;
 
     def plot_graph(self):
         &#34;&#34;&#34;
         Plot the networkx graph of self.G.
         &#34;&#34;&#34;
         node_labels = {i: tuple(np.round(i, 3)) for i in self.G.nodes}
-        nx.draw(self.G, pos=nx.circular_layout(self.G), with_labels=True, labels=node_labels)
+        nx.draw_networkx(self.G, pos=nx.circular_layout(self.G), with_labels=True, labels=node_labels)
 
     def plot_points(self, ax, select_faces: set = None, projection: bool = False):
         &#34;&#34;&#34;
@@ -1694,11 +1781,11 @@ in self.G property.</p></div>
                                 face=set(faces_node_vector).intersection(faces_neighbour_vector),
                                 projection=project_grid_on_sphere(np.array(new_point)[np.newaxis, :]))
             self.G.add_edge(new_point, neighbour_vector,
-                            length=unit_dist_on_sphere(self.G.nodes[new_point][&#34;projection&#34;],
-                                                       self.G.nodes[neighbour_vector][&#34;projection&#34;]))
+                            length=dist_on_sphere(self.G.nodes[new_point][&#34;projection&#34;],
+                                                  self.G.nodes[neighbour_vector][&#34;projection&#34;]))
             self.G.add_edge(new_point, node_vector,
-                            length=unit_dist_on_sphere(self.G.nodes[new_point][&#34;projection&#34;],
-                                                       self.G.nodes[neighbour_vector][&#34;projection&#34;]))
+                            length=dist_on_sphere(self.G.nodes[new_point][&#34;projection&#34;],
+                                                  self.G.nodes[neighbour_vector][&#34;projection&#34;]))
             # self.G.remove_edge(node_vector, neighbour_vector)
         # also add edges between new nodes at distance side_len or sqrt(2)*side_len
         new_level = [x for x, y in self.G.nodes(data=True) if y[&#39;level&#39;] == self.current_level+1]
@@ -1711,8 +1798,8 @@ in self.G property.</p></div>
                 # check distance criterion
                 if np.isclose(node_dist, self.side_len) or np.isclose(node_dist, self.side_len*np.sqrt(2)):
                     self.G.add_edge(new_node, other_node,
-                                    length=unit_dist_on_sphere(self.G.nodes[new_node][&#34;projection&#34;],
-                                                               self.G.nodes[other_node][&#34;projection&#34;])
+                                    length=dist_on_sphere(self.G.nodes[new_node][&#34;projection&#34;],
+                                                          self.G.nodes[other_node][&#34;projection&#34;])
                                     )
         self.current_level += 1
         self.side_len = self.side_len / 2</code></pre>
@@ -1767,11 +1854,11 @@ be appropriately added to one or more faces (if on edges).</p></div>
                             face=set(faces_node_vector).intersection(faces_neighbour_vector),
                             projection=project_grid_on_sphere(np.array(new_point)[np.newaxis, :]))
         self.G.add_edge(new_point, neighbour_vector,
-                        length=unit_dist_on_sphere(self.G.nodes[new_point][&#34;projection&#34;],
-                                                   self.G.nodes[neighbour_vector][&#34;projection&#34;]))
+                        length=dist_on_sphere(self.G.nodes[new_point][&#34;projection&#34;],
+                                              self.G.nodes[neighbour_vector][&#34;projection&#34;]))
         self.G.add_edge(new_point, node_vector,
-                        length=unit_dist_on_sphere(self.G.nodes[new_point][&#34;projection&#34;],
-                                                   self.G.nodes[neighbour_vector][&#34;projection&#34;]))
+                        length=dist_on_sphere(self.G.nodes[new_point][&#34;projection&#34;],
+                                              self.G.nodes[neighbour_vector][&#34;projection&#34;]))
         # self.G.remove_edge(node_vector, neighbour_vector)
     # also add edges between new nodes at distance side_len or sqrt(2)*side_len
     new_level = [x for x, y in self.G.nodes(data=True) if y[&#39;level&#39;] == self.current_level+1]
@@ -1784,8 +1871,8 @@ be appropriately added to one or more faces (if on edges).</p></div>
             # check distance criterion
             if np.isclose(node_dist, self.side_len) or np.isclose(node_dist, self.side_len*np.sqrt(2)):
                 self.G.add_edge(new_node, other_node,
-                                length=unit_dist_on_sphere(self.G.nodes[new_node][&#34;projection&#34;],
-                                                           self.G.nodes[other_node][&#34;projection&#34;])
+                                length=dist_on_sphere(self.G.nodes[new_node][&#34;projection&#34;],
+                                                      self.G.nodes[other_node][&#34;projection&#34;])
                                 )
     self.current_level += 1
     self.side_len = self.side_len / 2</code></pre>
@@ -1841,7 +1928,7 @@ be appropriately added to one or more faces (if on edges).</p></div>
     Plot the networkx graph of self.G.
     &#34;&#34;&#34;
     node_labels = {i: tuple(np.round(i, 3)) for i in self.G.nodes}
-    nx.draw(self.G, pos=nx.circular_layout(self.G), with_labels=True, labels=node_labels)</code></pre>
+    nx.draw_networkx(self.G, pos=nx.circular_layout(self.G), with_labels=True, labels=node_labels)</code></pre>
 </details>
 </dd>
 <dt id="molgri.grids.Polytope.plot_points"><code class="name flex">
@@ -2096,6 +2183,64 @@ inheritance.</p>
 </dd>
 </dl>
 </dd>
+<dt id="molgri.grids.ZeroGrid"><code class="flex name class">
+<span>class <span class="ident">ZeroGrid</span></span>
+<span>(</span><span>N=1, **kwargs)</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Use this rotation grid if you want no rotations at all. Consists of only one point, a nit vector in z-direction.</p>
+<p>Generate a grid with one of generation algorithms.</p>
+<h2 id="args">Args</h2>
+<dl>
+<dt><strong><code>gen_alg</code></strong></dt>
+<dd>MUST BE SET IN SUBCLASSES, algorithm name, see names given in SIX_METHOD_NAMES</dd>
+<dt><strong><code>N</code></strong></dt>
+<dd>number of grid points</dd>
+<dt><strong><code>ordered</code></strong></dt>
+<dd>if True order and truncate, else only truncate to N points</dd>
+<dt><strong><code>use_saved</code></strong></dt>
+<dd>if True use saved grids if available</dd>
+<dt><strong><code>time_generation</code></strong></dt>
+<dd>if True write out a message about time needed for generation</dd>
+</dl></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">class ZeroGrid(Grid):
+    &#34;&#34;&#34;
+    Use this rotation grid if you want no rotations at all. Consists of only one point, a nit vector in z-direction.
+    &#34;&#34;&#34;
+
+    def __init__(self, N=1, **kwargs):
+        super().__init__(N, gen_alg=&#34;zero&#34;, **kwargs)
+        self.standard_name = &#34;zero&#34;
+
+    def generate_grid(self):
+        self.grid = np.array([[0, 0, 1]])</code></pre>
+</details>
+<h3>Ancestors</h3>
+<ul class="hlist">
+<li><a title="molgri.grids.Grid" href="#molgri.grids.Grid">Grid</a></li>
+<li>abc.ABC</li>
+</ul>
+<h3>Methods</h3>
+<dl>
+<dt id="molgri.grids.ZeroGrid.generate_grid"><code class="name flex">
+<span>def <span class="ident">generate_grid</span></span>(<span>self)</span>
+</code></dt>
+<dd>
+<div class="desc"></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def generate_grid(self):
+    self.grid = np.array([[0, 0, 1]])</code></pre>
+</details>
+</dd>
+</dl>
+</dd>
 </dl>
 </section>
 </article>
@@ -2134,6 +2279,12 @@ inheritance.</p>
 <h4><code><a title="molgri.grids.CubePolytope" href="#molgri.grids.CubePolytope">CubePolytope</a></code></h4>
 </li>
 <li>
+<h4><code><a title="molgri.grids.FullGrid" href="#molgri.grids.FullGrid">FullGrid</a></code></h4>
+<ul class="">
+<li><code><a title="molgri.grids.FullGrid.get_full_grid_name" href="#molgri.grids.FullGrid.get_full_grid_name">get_full_grid_name</a></code></li>
+</ul>
+</li>
+<li>
 <h4><code><a title="molgri.grids.Grid" href="#molgri.grids.Grid">Grid</a></code></h4>
 <ul class="two-column">
 <li><code><a title="molgri.grids.Grid.as_euler" href="#molgri.grids.Grid.as_euler">as_euler</a></code></li>
@@ -2141,7 +2292,6 @@ inheritance.</p>
 <li><code><a title="molgri.grids.Grid.generate_and_time" href="#molgri.grids.Grid.generate_and_time">generate_and_time</a></code></li>
 <li><code><a title="molgri.grids.Grid.generate_grid" href="#molgri.grids.Grid.generate_grid">generate_grid</a></code></li>
 <li><code><a title="molgri.grids.Grid.get_grid" href="#molgri.grids.Grid.get_grid">get_grid</a></code></li>
-<li><code><a title="molgri.grids.Grid.reduce_N" href="#molgri.grids.Grid.reduce_N">reduce_N</a></code></li>
 <li><code><a title="molgri.grids.Grid.save_grid" href="#molgri.grids.Grid.save_grid">save_grid</a></code></li>
 <li><code><a title="molgri.grids.Grid.save_grid_txt" href="#molgri.grids.Grid.save_grid_txt">save_grid_txt</a></code></li>
 <li><code><a title="molgri.grids.Grid.save_statistics" href="#molgri.grids.Grid.save_statistics">save_statistics</a></code></li>
@@ -2184,6 +2334,12 @@ inheritance.</p>
 <h4><code><a title="molgri.grids.SystemEGrid" href="#molgri.grids.SystemEGrid">SystemEGrid</a></code></h4>
 <ul class="">
 <li><code><a title="molgri.grids.SystemEGrid.generate_grid" href="#molgri.grids.SystemEGrid.generate_grid">generate_grid</a></code></li>
+</ul>
+</li>
+<li>
+<h4><code><a title="molgri.grids.ZeroGrid" href="#molgri.grids.ZeroGrid">ZeroGrid</a></code></h4>
+<ul class="">
+<li><code><a title="molgri.grids.ZeroGrid.generate_grid" href="#molgri.grids.ZeroGrid.generate_grid">generate_grid</a></code></li>
 </ul>
 </li>
 </ul>

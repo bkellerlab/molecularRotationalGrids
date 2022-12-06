@@ -903,7 +903,6 @@ Protein in water t=   0.00000 step= 0
    26LEU    OC1  901   0.057  -0.413   2.052
    26LEU    OC2  902   0.065  -0.214   2.135
    6.38830   6.16418   8.18519
-
 second structure that should be ignored by the parser
   903
     1LEU      N    1  -0.421  -0.191  -1.942
