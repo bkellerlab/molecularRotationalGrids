@@ -75,6 +75,33 @@ class NameParser:
             return None
 
 
+class FullGridNameParser:
+
+    def __init__(self, name_string: str):
+        split_name = name_string.split("_")
+        self.b_grid_name = None
+        self.o_grid_name = None
+        self.t_grid_name = None
+        for i, split_part in enumerate(split_name):
+            if split_part == "b":
+                try:
+                    self.b_grid_name = GridNameParser(f"{split_name[i+1]}_{split_name[i+2]}").get_standard_grid_name()
+                except IndexError:
+                    self.b_grid_name = GridNameParser(
+                        f"{split_name[i + 1]}").get_standard_grid_name()
+            elif split_part == "o":
+                try:
+                    self.o_grid_name = GridNameParser(
+                        f"{split_name[i + 1]}_{split_name[i + 2]}").get_standard_grid_name()
+                except IndexError:
+                    self.o_grid_name = GridNameParser(f"{split_name[i + 1]}").get_standard_grid_name()
+            elif split_part == "t":
+                self.t_grid_name = f"{split_name[i + 1]}"
+
+    def get_standard_full_grid_name(self):
+        return f"o_{self.o_grid_name}_b_{self.b_grid_name}_t_{self.t_grid_name}"
+
+
 class GridNameParser(NameParser):
     """
     Differently than pure NameParser, GridNameParser raises errors if the name doesn't correspond to a standard grid

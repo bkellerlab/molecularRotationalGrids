@@ -14,7 +14,7 @@ from .analysis import random_axes_count_points
 from .utils import dist_on_sphere
 from .constants import DEFAULT_SEED, GRID_ALGORITHMS, UNIQUE_TOL, EXTENSION_GRID_FILES
 from .parsers import TranslationParser, GridNameParser
-from .paths import PATH_OUTPUT_ROTGRIDS, PATH_OUTPUT_STAT
+from .paths import PATH_OUTPUT_ROTGRIDS, PATH_OUTPUT_STAT, PATH_OUTPUT_FULL_GRIDS
 from .rotations import grid2quaternion, grid2euler, quaternion2grid, euler2grid, grid2rotation
 from .wrappers import time_method
 
@@ -641,6 +641,7 @@ class FullGrid:
         self.b_grid = build_grid_from_name(b_grid_name)
         self.o_grid = build_grid_from_name(o_grid_name)
         self.t_grid = TranslationParser(t_grid_name)
+        self.save_full_grid()
 
     def get_full_grid_name(self):
         return f"o_{self.o_grid.standard_name}_b_{self.b_grid.standard_name}_t_{self.t_grid.grid_hash}"
@@ -662,6 +663,9 @@ class FullGrid:
         for i, dist in enumerate(dist_array):
             result[i*num_orient:(i+1)*num_orient] = np.multiply(self.o_grid.grid, dist)
         return result
+
+    def save_full_grid(self):
+        np.save(f"{PATH_OUTPUT_FULL_GRIDS}position_grid_{self.get_full_grid_name()}", self.get_position_grid())
 
 
 def build_grid_from_name(grid_name: str, **kwargs) -> Grid:

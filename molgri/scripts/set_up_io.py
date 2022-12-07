@@ -15,12 +15,13 @@ parser.add_argument('--examples', action='store_true',
 
 # if you introduce new IO folders, add them to next three lines, keep the order the same!
 IO_FOLDER_PURPUSES = ["rotational grids", "pseudotrajectory files", "base gro files", "plots", "animations",
-                      "grid statistics", "translational grids"]
+                      "grid statistics", "translational grids", "full grids"]
 IO_FOLDER_DEFAULTS = ["output/rot_grids/", "output/pt_files/", "input/", "output/figures/",
-                      "output/animations/", "output/statistics_files/", "output/trans_grids/"]
+                      "output/animations/", "output/statistics_files/", "output/trans_grids/", "output/full_grids/"]
 IO_VARIABLE_NAMES = ["PATH_OUTPUT_ROTGRIDS", "PATH_OUTPUT_PT", "PATH_INPUT_BASEGRO", "PATH_OUTPUT_PLOTS",
-                     "PATH_OUTPUT_ANIS", "PATH_OUTPUT_STAT", "PATH_OUTPUT_TRANSGRIDS"]
+                     "PATH_OUTPUT_ANIS", "PATH_OUTPUT_STAT", "PATH_OUTPUT_TRANSGRIDS", "PATH_OUTPUT_FULL_GRIDS"]
 
+assert len(IO_VARIABLE_NAMES) == len(IO_FOLDER_DEFAULTS) == len(IO_FOLDER_PURPUSES)
 
 def parse_and_create():
     my_args = parser.parse_args()

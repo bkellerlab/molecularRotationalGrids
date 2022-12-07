@@ -13,10 +13,11 @@ from mpl_toolkits.mplot3d.axes3d import Axes3D
 from seaborn import color_palette
 
 from molgri.analysis import vector_within_alpha
-from molgri.parsers import NameParser
-from .grids import Polytope, IcosahedronPolytope, CubePolytope, build_grid_from_name
+from molgri.parsers import NameParser, FullGridNameParser
+from molgri.utils import norm_per_axis
+from .grids import Polytope, IcosahedronPolytope, CubePolytope, build_grid_from_name, FullGrid
 from .constants import DIM_SQUARE, DEFAULT_DPI, COLORS, DEFAULT_NS, EXTENSION_FIGURES
-from .paths import PATH_OUTPUT_PLOTS, PATH_OUTPUT_ANIS
+from .paths import PATH_OUTPUT_PLOTS, PATH_OUTPUT_ANIS, PATH_OUTPUT_FULL_GRIDS
 
 
 class AbstractPlot(ABC):
@@ -256,18 +257,22 @@ class GridPlot(AbstractPlot):
             pad_inches = -0.2
         else:
             pad_inches = 0
-        super(GridPlot, self).create(equalize=True, pos_limit=1, pad_inches=pad_inches, **kwargs)
+        pos_limit = kwargs.pop("pos_limit", 1)
+        super(GridPlot, self).create(equalize=True, pos_limit=pos_limit, pad_inches=pad_inches, **kwargs)
         animate_seq = kwargs.pop("animate_seq", False)
         if animate_seq:
-            self.animate_grid_sequence()
+            self.animate_grid_sequence(pos_lim=pos_limit)
 
-    def animate_grid_sequence(self):
+    def animate_grid_sequence(self, pos_lim=1):
         """
         Animate how a grid is constructed - how each individual point is added.
 
         WARNING - I am not sure that this method always displays correct order/depth coloring - mathplotlib
         is not the most reliable tool for 3d plots and it may change the plotting order for rendering some
         points above others!
+
+        Args:
+            pos_lim:
         """
 
         def update(i):
@@ -281,12 +286,26 @@ class GridPlot(AbstractPlot):
         all_white = np.zeros(shape_colors)
 
         self.ax.view_init(elev=10, azim=30)
-        self._equalize_axes(pos_limit=1, neg_limit=-1)
+        self._equalize_axes(pos_limit=pos_lim)
         ani = FuncAnimation(self.fig, func=update, frames=len(facecolors_before), interval=5, repeat=False)
         writergif = PillowWriter(fps=3, bitrate=-1)
         # noinspection PyTypeChecker
         ani.save(f"{self.ani_path}{self.data_name}_{self.plot_type}_ord.gif", writer=writergif, dpi=400)
         plt.close()
+
+
+class PositionGridPlot(GridPlot):
+
+    def __init__(self, data_name, style_type=None, plot_type="position_grid", **kwargs):
+        super().__init__(data_name, style_type=style_type, plot_type=plot_type, **kwargs)
+
+    def _prepare_data(self) -> np.ndarray:
+        points = np.load(f"{PATH_OUTPUT_FULL_GRIDS}{self.data_name}.npy")
+        return points
+
+    def create(self, **kwargs):
+        max_norm = np.max(norm_per_axis(self.grid))
+        super(PositionGridPlot, self).create(pos_limit=max_norm, **kwargs)
 
 
 class GridColoredWithAlphaPlot(GridPlot):
@@ -420,3 +439,7 @@ class PolytopePlot(AbstractPlot):
         ico = self._prepare_data()
         ico.plot_points(self.ax, select_faces=self.faces, projection=self.projection)
         ico.plot_edges(self.ax, select_faces=self.faces)
+
+
+if __name__ == "__main__":
+    PositionGridPlot("position_grid_o_cube3D_9_b_zero_1_t_3203903466").create(animate_rot=True, animate_seq=True)

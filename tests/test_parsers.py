@@ -1,8 +1,9 @@
 import numpy as np
 import pytest
 
-from molgri.parsers import TranslationParser, FileParser, GridNameParser
+from molgri.parsers import TranslationParser, FullGridNameParser, FileParser, GridNameParser
 from molgri.constants import ANGSTROM2NM, NM2ANGSTROM, DEFAULT_ALGORITHM
+from molgri.grids import FullGrid
 
 
 def test_grid_name_parser():
@@ -94,6 +95,44 @@ def test_protein_gro_file():
     for el in my_molecule.atom_types:
         assert el in organic_elements, f"{el} not correctly identified as organic element"
 
+
+def test_full_grid_name_parser():
+    # example 1
+    name_o = "ico_2"
+    name_b = "zero"
+    name_t = "[1, 2, 3]"
+    trans_grid = TranslationParser(name_t).grid_hash
+    fgnp = FullGridNameParser(f"b_{name_b}_t_{trans_grid}_o_{name_o}")
+    assert fgnp.b_grid_name == "zero_1"
+    assert fgnp.o_grid_name == "ico_2"
+    assert fgnp.t_grid_name == str(trans_grid)
+    # compare to name of Full grid
+    fg = FullGrid(b_grid_name=name_b, o_grid_name=name_o, t_grid_name=name_t)
+    assert fg.get_full_grid_name() == fgnp.get_standard_full_grid_name()
+    # example 2
+    name_o = "None"
+    name_b = "zero"
+    name_t = "[1, 2, 3]"
+    trans_grid = TranslationParser(name_t).grid_hash
+    fgnp = FullGridNameParser(f"b_{name_b}_t_{trans_grid}_o_{name_o}")
+    assert fgnp.b_grid_name == "zero_1"
+    assert fgnp.o_grid_name == "zero_1"
+    assert fgnp.t_grid_name == str(trans_grid)
+    # compare to name of Full grid
+    fg = FullGrid(b_grid_name=name_b, o_grid_name=name_o, t_grid_name=name_t)
+    assert fg.get_full_grid_name() == fgnp.get_standard_full_grid_name()
+    # example 3
+    name_o = "randomE_77"
+    name_b = "8_cube3D"
+    name_t = "[1, 2, 3]"
+    trans_grid = TranslationParser(name_t).grid_hash
+    fgnp = FullGridNameParser(f"t_{trans_grid}_b_{name_b}_o_{name_o}")
+    assert fgnp.b_grid_name == "cube3D_8"
+    assert fgnp.o_grid_name == "randomE_77"
+    assert fgnp.t_grid_name == str(trans_grid)
+    # compare to name of Full grid
+    fg = FullGrid(b_grid_name=name_b, o_grid_name=name_o, t_grid_name=name_t)
+    assert fg.get_full_grid_name() == fgnp.get_standard_full_grid_name()
 
 def test_parsing_xyz():
     file_name = "molgri/examples/glucose.xyz"
