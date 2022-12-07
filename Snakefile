@@ -15,10 +15,11 @@ def get_bwa_map_input_fastqs(wildcards):
 
 rule generate_grid:
     output:
-        "molgri/output/grid_files/{algorithm}_{N}.npy"
+        expand("output/grid_files/{algorithm}_{N}.npy", algorithm="ico", N=15)
+        #"molgri/output/grid_files/{algorithm}_{N}.npy"
     run:
-        my_grid = build_grid(wildcards.algorithm, int(wildcards.N), use_saved=True, time_generation=True)
-        my_grid.save_grid(output[0])
+        my_grid = build_grid(int(wildcards.N), wildcards.algorithm, use_saved=True, time_generation=True)
+        my_grid.save_grid()
 
 rule generate_grid_figures:
     input:
