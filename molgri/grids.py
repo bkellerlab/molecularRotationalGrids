@@ -3,6 +3,7 @@ from typing import List
 
 import networkx as nx
 import numpy as np
+from numpy.typing import NDArray
 from scipy.constants import pi, golden
 from scipy.spatial import distance_matrix
 from scipy.spatial.distance import cdist
@@ -643,6 +644,24 @@ class FullGrid:
 
     def get_full_grid_name(self):
         return f"o_{self.o_grid.standard_name}_b_{self.b_grid.standard_name}_t_{self.t_grid.grid_hash}"
+
+    def get_position_grid(self) -> NDArray:
+        """
+        Get a 'product' of o_grid and t_grid so you can visualise points in space at which COM of the second molecule
+        will be positioned.
+
+        Returns:
+            an array of shape (len_t_grid * len_o_grid, 3) in which the first len_o_grid lines have the first
+            distance from t_grid, the next len_o_grid lines the second distance ... while rotational positions
+            are taken from o_grid and in the same order for any distance to origin
+        """
+        dist_array = self.t_grid.get_trans_grid()
+        num_dist = len(dist_array)
+        num_orient = len(self.o_grid.grid)
+        result = np.zeros((num_dist * num_orient, 3))
+        for i, dist in enumerate(dist_array):
+            result[i*num_orient:(i+1)*num_orient] = np.multiply(self.o_grid.grid, dist)
+        return result
 
 
 def build_grid_from_name(grid_name: str, **kwargs) -> Grid:

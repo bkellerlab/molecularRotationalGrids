@@ -1,5 +1,6 @@
 from molgri.grids import build_grid, project_grid_on_sphere, second_neighbours, Cube3DGrid, \
     CubePolytope, IcosahedronPolytope, IcoGrid, order_grid_points, FullGrid, ZeroGrid
+from molgri.utils import normalise_vectors
 from molgri.constants import GRID_ALGORITHMS, ZERO_ALGORITHM
 import networkx as nx
 import numpy as np
@@ -232,6 +233,32 @@ def test_default_full_grids():
     assert full_grid.o_grid.N == 3
     assert isinstance(full_grid.b_grid, IcoGrid)
     assert full_grid.b_grid.N == 4
+
+
+def test_position_grid():
+    num_rot = 14
+    num_trans = 4  # keep this number unless you change t_grid_name
+    fg = FullGrid(b_grid_name="zero", o_grid_name=f"ico_{num_rot}", t_grid_name="[0.1, 2, 2.5, 4]")
+    ico_grid = IcoGrid(14).get_grid()
+    position_grid = fg.get_position_grid()
+    assert len(position_grid) == num_rot * num_trans
+    # assert lengths correct throughout the array
+    assert np.allclose(position_grid[0:num_rot], ico_grid)
+    assert np.isclose(np.linalg.norm(position_grid[5]), 1)
+    ico_grid2 = np.array([20*el for el in ico_grid])
+    assert np.allclose(position_grid[num_rot:2*num_rot], ico_grid2)
+    assert np.isclose(np.linalg.norm(position_grid[num_rot]), 20)
+    ico_grid3 = np.array([25*el for el in ico_grid])
+    assert np.allclose(position_grid[2*num_rot:3*num_rot], ico_grid3)
+    assert np.isclose(np.linalg.norm(position_grid[2*num_rot+3]), 25)
+    ico_grid4 = np.array([40*el for el in ico_grid])
+    assert np.allclose(position_grid[3*num_rot:], ico_grid4)
+    assert np.isclose(np.linalg.norm(position_grid[-1]), 40)
+    # assert orientations stay the same
+    for i in range(num_rot):
+        selected_lines = position_grid[i::num_rot]
+        normalised_lines = normalise_vectors(selected_lines)
+        assert np.allclose(normalised_lines, normalised_lines[0])
 
 
 if __name__ == "__main__":
