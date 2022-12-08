@@ -652,16 +652,17 @@ class FullGrid:
         will be positioned.
 
         Returns:
-            an array of shape (len_t_grid * len_o_grid, 3) in which the first len_o_grid lines have the first
+            an array of shape (len_t_grid, len_o_grid, 3) in which the first len_o_grid lines have the first
             distance from t_grid, the next len_o_grid lines the second distance ... while rotational positions
             are taken from o_grid and in the same order for any distance to origin
         """
         dist_array = self.t_grid.get_trans_grid()
         num_dist = len(dist_array)
         num_orient = len(self.o_grid.grid)
-        result = np.zeros((num_dist * num_orient, 3))
+        result = np.zeros((num_dist, num_orient, 3))
         for i, dist in enumerate(dist_array):
-            result[i*num_orient:(i+1)*num_orient] = np.multiply(self.o_grid.grid, dist)
+            result[i] = np.multiply(self.o_grid.grid, dist)
+            #result[i*num_orient:(i+1)*num_orient] = np.multiply(self.o_grid.grid, dist)
         return result
 
     def save_full_grid(self):

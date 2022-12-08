@@ -25,4 +25,4 @@ def test_everything_runs():
     PolytopePlot("ico", num_divisions=2, projection=True).create(equalize=True, elev=190, azim=120,
                                                                  pos_limit=0.55, neg_limit=-0.6)
     PolytopePlot("cube3D", num_divisions=3).create(equalize=True, elev=0, azim=0, pos_limit=0.7, neg_limit=-0.7)
-    PositionGridPlot("position_grid_o_cube3D_9_b_zero_1_t_3203903466").create(animate_rot=True, animate_seq=True)
+    # PositionGridPlot("position_grid_o_cube3D_9_b_zero_1_t_3203903466").create(animate_rot=True, animate_seq=True)
