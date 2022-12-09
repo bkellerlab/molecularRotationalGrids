@@ -10,11 +10,13 @@ from matplotlib.animation import FuncAnimation, PillowWriter
 from matplotlib.axes import Axes
 from matplotlib import ticker
 from mpl_toolkits.mplot3d.axes3d import Axes3D
+from scipy.spatial import geometric_slerp
 from seaborn import color_palette
 
 from molgri.analysis import vector_within_alpha
+from molgri.cells import voranoi_surfaces_on_stacked_spheres
 from molgri.parsers import NameParser, FullGridNameParser
-from molgri.utils import norm_per_axis
+from molgri.utils import norm_per_axis, normalise_vectors
 from .grids import Polytope, IcosahedronPolytope, CubePolytope, build_grid_from_name, FullGrid
 from .constants import DIM_SQUARE, DEFAULT_DPI, COLORS, DEFAULT_NS, EXTENSION_FIGURES
 from .paths import PATH_OUTPUT_PLOTS, PATH_OUTPUT_ANIS, PATH_OUTPUT_FULL_GRIDS
@@ -296,16 +298,41 @@ class GridPlot(AbstractPlot):
 
 class PositionGridPlot(GridPlot):
 
-    def __init__(self, data_name, style_type=None, plot_type="position_grid", **kwargs):
+    def __init__(self, data_name, style_type=None, cell_lines=False, plot_type="positions", **kwargs):
+        self.cell_lines = cell_lines
         super().__init__(data_name, style_type=style_type, plot_type=plot_type, **kwargs)
 
     def _prepare_data(self) -> np.ndarray:
         points = np.load(f"{PATH_OUTPUT_FULL_GRIDS}{self.data_name}.npy")
         return points
 
+    def _plot_data(self):
+        points = self._prepare_data()
+        for i, point_set in enumerate(points):
+            self.sc = self.ax.scatter(points[i, :, 0], points[i, :, 1], points[i, :, 2], c='black')
+        if self.cell_lines:
+            self._draw_voranoi_cells(points)
+
     def create(self, **kwargs):
         max_norm = np.max(norm_per_axis(self.grid))
         super(PositionGridPlot, self).create(pos_limit=max_norm, **kwargs)
+
+    def _draw_voranoi_cells(self, points):
+        svs = voranoi_surfaces_on_stacked_spheres(points)
+        for i, sv in enumerate(svs):
+            sv.sort_vertices_of_regions()
+            t_vals = np.linspace(0, 1, 2000)
+            # plot Voronoi vertices
+            self.ax.scatter(sv.vertices[:, 0], sv.vertices[:, 1], sv.vertices[:, 2], c='g')
+            # indicate Voronoi regions (as Euclidean polygons)
+            for region in sv.regions:
+                n = len(region)
+                for j in range(n):
+                    start = sv.vertices[region][j]
+                    end = sv.vertices[region][(j + 1) % n]
+                    norm = np.linalg.norm(start)
+                    result = geometric_slerp(normalise_vectors(start), normalise_vectors(end), t_vals)
+                    self.ax.plot(norm * result[..., 0], norm * result[..., 1], norm * result[..., 2], c='k')
 
 
 class GridColoredWithAlphaPlot(GridPlot):
@@ -442,4 +469,4 @@ class PolytopePlot(AbstractPlot):
 
 
 if __name__ == "__main__":
-    PositionGridPlot("position_grid_o_cube3D_9_b_zero_1_t_3203903466").create(animate_rot=True, animate_seq=True)
+    PositionGridPlot("position_grid_o_cube3D_9_b_zero_1_t_3203903466", cell_lines=True).create(animate_rot=True, animate_seq=True)

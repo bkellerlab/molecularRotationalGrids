@@ -24,7 +24,7 @@ def norm_per_axis(array: np.ndarray, axis: int = None) -> np.ndarray:
     return np.repeat(my_norm, array.shape[axis], axis=axis)
 
 
-def normalise_vectors(array: np.ndarray, axis: int = None) -> np.ndarray:
+def normalise_vectors(array: np.ndarray, axis: int = None, length=1) -> np.ndarray:
     """
     Returns the unit vector of the vector or along some axis of an array.
     Default behaviour: if axis not specified, normalise a 1D vector or normalise 2D array row-wise. If axis specified,
@@ -34,12 +34,14 @@ def normalise_vectors(array: np.ndarray, axis: int = None) -> np.ndarray:
         array: numpy array containing a vector or a set of vectors that should be normalised - per default assuming
                every row in an array is a vector
         axis: optionally specify along which axis the normalisation should occur
+        length: desired new length for all vectors in the array
 
     Returns:
-        an array of the same shape as the input array where vectors are normalised
+        an array of the same shape as the input array where vectors are normalised, now all have length 'length'
     """
+    assert length > 0, "Length of a vector cannot be negative"
     my_norm = norm_per_axis(array=array, axis=axis)
-    return np.divide(array, my_norm)
+    return length * np.divide(array, my_norm)
 
 
 def angle_between_vectors(central_vec: np.ndarray, side_vector: np.ndarray) -> np.array:
