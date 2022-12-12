@@ -12,8 +12,8 @@ def test_everything_runs():
     # examples of grid plots and animations
     GridColoredWithAlphaPlot("ico_85", vector=np.array([0, 0, 1]), alpha_set=[pi/6, pi/3, pi/2, 2*pi/3],
                              style_type=None).create_and_save()
-    GridPlot("ico_22").create_and_save(title="Icosahedron, 22 points", x_label="x", y_label="y", z_label="z", animate_rot=True,
-                              animate_seq=True, main_ticks_only=True)
+    GridPlot("ico_22").create_and_save(title="Icosahedron, 22 points", x_label="x", y_label="y", z_label="z",
+                                       animate_rot=True, animate_seq=True, main_ticks_only=True)
     GridPlot("cube3D_500", style_type=["talk", "empty"]).create_and_save()
     GridPlot("cube3D_12", style_type=["talk", "half_dark"]).create_and_save()
     GridPlot("ico_22", style_type=["talk", "dark"]).create_and_save()

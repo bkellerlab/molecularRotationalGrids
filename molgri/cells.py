@@ -13,7 +13,8 @@ import seaborn as sns
 import pandas as pd
 
 from molgri.utils import norm_per_axis, normalise_vectors
-from molgri.constants import UNIQUE_TOL, CELLS_DF_COLUMNS, EXTENSION_FIGURES, NAME2PRETTY_NAME, DEFAULT_DPI, GRID_ALGORITHMS, COLORS
+from molgri.constants import UNIQUE_TOL, CELLS_DF_COLUMNS, EXTENSION_FIGURES, NAME2PRETTY_NAME, DEFAULT_DPI, \
+    GRID_ALGORITHMS, COLORS, SMALL_NS
 from molgri.grids import FullGrid
 from molgri.paths import PATH_OUTPUT_PLOTS, PATH_OUTPUT_CELLS
 
@@ -107,7 +108,7 @@ def plot_voranoi_convergence(N_min, N_max, r, algs=GRID_ALGORITHMS[:-1]):
     plt.close()
 
 
-def save_voranoi_data_for_alg(alg_name: str, N_set: list = None, radius: float = 1):
+def save_voranoi_data_for_alg(alg_name: str, N_set: tuple = SMALL_NS, radius: float = 1):
     """
 
     Args:
@@ -119,10 +120,6 @@ def save_voranoi_data_for_alg(alg_name: str, N_set: list = None, radius: float =
 
     """
     assert alg_name in GRID_ALGORITHMS, f"Name of the algorithm: {alg_name} is unknown."
-    if N_set is None:
-        N_set = [int(i) for i in np.logspace(1, 3, 40)]
-        N_set = list(set(N_set))
-    N_set.sort()
     assert radius > 0, f"Radius must be a positive float, unrecognised argument: {radius}."
     all_voranoi_areas = np.zeros((np.sum(N_set), len(CELLS_DF_COLUMNS)))
     current_index = 0
@@ -155,17 +152,13 @@ def save_voranoi_data_for_alg(alg_name: str, N_set: list = None, radius: float =
 
 if __name__ == "__main__":
 
-    N_set = [int(i) for i in np.logspace(1, 2, 30)]
-    N_set = list(set(N_set))
-    N_set.sort()
-
     algs=GRID_ALGORITHMS[:-1]
 
     r = 2
 
     for alg in algs:
         print(alg)
-        save_voranoi_data_for_alg(alg, N_set=N_set, radius=r)
+        save_voranoi_data_for_alg(alg, N_set=SMALL_NS, radius=r)
 
-    plot_voranoi_convergence(N_min=np.min(N_set), N_max=np.max(N_set), r=int(r))
+    plot_voranoi_convergence(N_min=np.min(SMALL_NS), N_max=np.max(SMALL_NS), r=int(r))
 
