@@ -12,7 +12,8 @@ arXiv preprint: [https://arxiv.org/abs/2211.00566](https://arxiv.org/abs/2211.00
 # molecularRotationalGrids
 
 The python package ```molgri``` has three main purposes: 1) generation of rotation grids, 2) analysis of
-said grids and 3) generation of pseudotrajectories (PTs). PTs are .gro files with several timesteps in
+said grids and 3) generation of pseudotrajectories (PTs). PTs are files in .xtc or similar format 
+consisting of several timesteps in
 which the interaction space of two molecules is systematically explored. We provide user-friendly,
 one-line scripts for rotation grid generation and analysis as well as pseudotrajectory generation and
 give instructions how to use PTS with external tools like VMD and GROMACS for further analysis.
