@@ -1,6 +1,8 @@
 from scipy.constants import pi
 import numpy as np
 
+from molgri.cells import save_voranoi_data_for_alg
+from molgri.constants import SMALL_NS
 from molgri.grids import FullGrid
 from molgri.plotting import GridColoredWithAlphaPlot, GridPlot, AlphaViolinPlot, AlphaConvergencePlot, PolytopePlot, \
     PositionGridPlot, VoranoiConvergencePlot
@@ -25,10 +27,13 @@ def test_everything_runs():
     PolytopePlot("ico", num_divisions=2, projection=True).create_and_save(equalize=True, elev=190, azim=120,
                                                                  x_max_limit=0.55, x_min_limit=-0.6)
     PolytopePlot("cube3D", num_divisions=3).create_and_save(equalize=True, elev=0, azim=0, x_max_limit=0.7, x_min_limit=-0.7)
+    # create the needed file
     FullGrid(o_grid_name="cube3D_9", b_grid_name="zero", t_grid_name='range(1, 5, 2)')
     PositionGridPlot("position_grid_o_cube3D_9_b_zero_1_t_3203903466", cell_lines=True).create_and_save(
         animate_rot=True, animate_seq=True)
-    VoranoiConvergencePlot("cube4D_1_10_100").create_and_save()
+    # create the needed file
+    save_voranoi_data_for_alg(alg_name="randomE", N_set=SMALL_NS, radius=1)
+    VoranoiConvergencePlot("randomE_1_8_300").create_and_save()
 
 
 if __name__ == "__main__":
