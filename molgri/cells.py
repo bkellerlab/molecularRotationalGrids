@@ -108,7 +108,7 @@ if __name__ == "__main__":
     from molgri.constants import EXTENSION_FIGURES, NAME2PRETTY_NAME, DEFAULT_DPI, GRID_ALGORITHMS, COLORS
     from molgri.paths import PATH_OUTPUT_PLOTS, PATH_OUTPUT_CELLS
 
-    N_set = [int(i) for i in np.logspace(1, 2, 40)]
+    N_set = [int(i) for i in np.logspace(1, 3, 40)]
     N_set = list(set(N_set))
     N_set.sort()
 
@@ -116,25 +116,25 @@ if __name__ == "__main__":
 
     radius = 1
 
-    # for plot_num in range(len(algs)): #alg, col in zip(algs, colors):
-    #     all_voranoi_areas = np.zeros((np.sum(N_set), 4))
-    #     current_index = 0
-    #
-    #     for i, N in enumerate(tqdm(N_set)):
-    #         pg = FullGrid(b_grid_name="none", o_grid_name=f"{algs[plot_num]}_{N}", t_grid_name=f"[{radius/10}]").get_position_grid()[0]
-    #         try:
-    #             r, voranoi_areas = surface_per_cell_voranoi(pg)
-    #         # miss a point but still save the rest of the data
-    #         except ValueError:
-    #             r, voranoi_areas = np.NaN, np.full(N, np.NaN)
-    #         all_voranoi_areas[current_index:current_index + N, 0] = N
-    #         all_voranoi_areas[current_index:current_index + N, 1] = radius
-    #         all_voranoi_areas[current_index:current_index + N, 2] = voranoi_areas
-    #         all_voranoi_areas[current_index:current_index + N, 3] = surface_per_cell_ideal(N, radius)
-    #         #plt.scatter(N * np.ones(voranoi_areas.shape), voranoi_areas, color="red", marker="o")
-    #         #current_ax.scatter(N, surface_per_cell_ideal(N, r), color="black", marker="x")
-    #         current_index += N
-    #     voranoi_df = pd.DataFrame(data=all_voranoi_areas, columns=CELLS_DF_COLUMNS)
-    #     voranoi_df.to_csv(f"{PATH_OUTPUT_CELLS}{algs[plot_num]}_{int(radius)}_{N_set[0]}_{N_set[-1]}.csv", encoding="utf-8")
+    for plot_num in range(len(algs)): #alg, col in zip(algs, colors):
+        all_voranoi_areas = np.zeros((np.sum(N_set), 4))
+        current_index = 0
+
+        for i, N in enumerate(tqdm(N_set)):
+            pg = FullGrid(b_grid_name="none", o_grid_name=f"{algs[plot_num]}_{N}", t_grid_name=f"[{radius/10}]").get_position_grid()[0]
+            try:
+                r, voranoi_areas = surface_per_cell_voranoi(pg)
+            # miss a point but still save the rest of the data
+            except ValueError:
+                r, voranoi_areas = np.NaN, np.full(N, np.NaN)
+            all_voranoi_areas[current_index:current_index + N, 0] = N
+            all_voranoi_areas[current_index:current_index + N, 1] = radius
+            all_voranoi_areas[current_index:current_index + N, 2] = voranoi_areas
+            all_voranoi_areas[current_index:current_index + N, 3] = surface_per_cell_ideal(N, radius)
+            #plt.scatter(N * np.ones(voranoi_areas.shape), voranoi_areas, color="red", marker="o")
+            #current_ax.scatter(N, surface_per_cell_ideal(N, r), color="black", marker="x")
+            current_index += N
+        voranoi_df = pd.DataFrame(data=all_voranoi_areas, columns=CELLS_DF_COLUMNS)
+        voranoi_df.to_csv(f"{PATH_OUTPUT_CELLS}{algs[plot_num]}_{int(radius)}_{N_set[0]}_{N_set[-1]}.csv", encoding="utf-8")
     plot_voranoi_convergence(N_min=np.min(N_set), N_max=np.max(N_set), r=int(radius))
 
