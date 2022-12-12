@@ -15,7 +15,7 @@ from seaborn import color_palette
 
 from molgri.analysis import vector_within_alpha
 from molgri.cells import voranoi_surfaces_on_stacked_spheres
-from molgri.parsers import NameParser, FullGridNameParser
+from molgri.parsers import NameParser
 from molgri.utils import norm_per_axis, normalise_vectors
 from .grids import Polytope, IcosahedronPolytope, CubePolytope, build_grid_from_name, FullGrid
 from .constants import DIM_SQUARE, DEFAULT_DPI, COLORS, DEFAULT_NS, EXTENSION_FIGURES, CELLS_DF_COLUMNS
@@ -220,7 +220,7 @@ class Plot3D(AbstractPlot, ABC):
                              y_max_limit=y_max_limit)
         if z_max_limit is not None and z_min_limit is None:
             z_min_limit = - z_max_limit
-        self.ax.set_xlim(z_min_limit, z_max_limit)
+        self.ax.set_zlim(z_min_limit, z_max_limit)
 
     def _set_up_empty(self):
         color = super()._set_up_empty()
@@ -244,7 +244,7 @@ class Plot3D(AbstractPlot, ABC):
         self.ax.set_zlim3d([z_middle - plot_range, z_middle + plot_range])
 
     def _create_labels(self, x_label: str = None, y_label: str = None, z_label: str = None, **kwargs):
-        super()._create_labels(x_label=x_label, y_label=y_label, z_label=z_label, **kwargs)
+        super()._create_labels(x_label=x_label, y_label=y_label, **kwargs)
         if z_label:
             self.ax.set_zlabel(z_label, **kwargs)
 
@@ -252,12 +252,10 @@ class Plot3D(AbstractPlot, ABC):
         """
         Rotate the 3D figure for 360 degrees around itself and save the animation.
         """
-        plt.close()  # this is necessary
 
         def animate(frame):
             # rotate the view left-right
             self.ax.view_init(azim=2*frame)
-            plt.pause(.001)
             return self.fig
 
         anim = FuncAnimation(self.fig, animate, frames=180, interval=50)
@@ -297,12 +295,15 @@ class GridPlot(Plot3D):
         else:
             pad_inches = 0
         x_max_limit = kwargs.pop("x_max_limit", 1)
-        super(GridPlot, self).create(equalize=True, x_max_limit=x_max_limit, pad_inches=pad_inches, azim=30, elev=10,
+        y_max_limit = kwargs.pop("y_max_limit", 1)
+        z_max_limit = kwargs.pop("z_max_limit", 1)
+        super(GridPlot, self).create(equalize=True, x_max_limit=x_max_limit, y_max_limit=y_max_limit,
+                                     z_max_limit=z_max_limit, pad_inches=pad_inches, azim=30, elev=10,
                                      **kwargs)
         if animate_seq:
-            self.animate_grid_sequence(x_max_limit=x_max_limit)
+            self.animate_grid_sequence()
 
-    def animate_grid_sequence(self, x_max_limit=1):
+    def animate_grid_sequence(self):
         """
         Animate how a grid is constructed - how each individual point is added.
 
@@ -325,13 +326,10 @@ class GridPlot(Plot3D):
         all_white = np.zeros(shape_colors)
 
         self.ax.view_init(elev=10, azim=30)
-        self._axis_limits(x_max_limit=x_max_limit)
-        self._equalize_axes()
         ani = FuncAnimation(self.fig, func=update, frames=len(facecolors_before), interval=5, repeat=False)
         writergif = PillowWriter(fps=3, bitrate=-1)
         # noinspection PyTypeChecker
         ani.save(f"{self.ani_path}{self.data_name}_{self.plot_type}_ord.gif", writer=writergif, dpi=400)
-        plt.close()
 
 
 class PositionGridPlot(GridPlot):
@@ -353,7 +351,7 @@ class PositionGridPlot(GridPlot):
 
     def create(self, **kwargs):
         max_norm = np.max(norm_per_axis(self.grid))
-        super(PositionGridPlot, self).create(pos_limit=max_norm, **kwargs)
+        super(PositionGridPlot, self).create(x_max_limit=max_norm, y_max_limit=max_norm, z_max_limit=max_norm, **kwargs)
 
     def _draw_voranoi_cells(self, points):
         svs = voranoi_surfaces_on_stacked_spheres(points)
@@ -490,7 +488,7 @@ class AlphaConvergencePlot(AlphaViolinPlot):
         self.ax.get_legend().remove()
 
 
-class PolytopePlot(AbstractPlot):
+class PolytopePlot(Plot3D):
 
     def __init__(self, data_name: str, num_divisions=3, faces=None, projection=False, **kwargs):
         """
@@ -507,7 +505,7 @@ class PolytopePlot(AbstractPlot):
         self.faces = faces
         self.projection = projection
         plot_type = f"polytope_{num_divisions}"
-        super().__init__(data_name, fig_path=PATH_OUTPUT_PLOTS, plot_type=plot_type, style_type=["empty"], dimensions=3,
+        super().__init__(data_name, fig_path=PATH_OUTPUT_PLOTS, plot_type=plot_type, style_type=["empty"],
                          **kwargs)
 
     def _prepare_data(self) -> Polytope:
@@ -527,11 +525,3 @@ class PolytopePlot(AbstractPlot):
         ico = self._prepare_data()
         ico.plot_points(self.ax, select_faces=self.faces, projection=self.projection)
         ico.plot_edges(self.ax, select_faces=self.faces)
-
-
-if __name__ == "__main__":
-    from molgri.grids import FullGrid
-    FullGrid(o_grid_name="cube3D_9", b_grid_name="zero", t_grid_name='range(1, 5, 2)')
-    PositionGridPlot("position_grid_o_cube3D_9_b_zero_1_t_3203903466", cell_lines=True).create_and_save(
-        animate_rot=False, animate_seq=False)
-    VoranoiConvergencePlot("cube4D_1_10_100").create_and_save()
