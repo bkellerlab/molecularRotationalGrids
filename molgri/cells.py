@@ -1,13 +1,21 @@
 """
 This module builds cells that enable space discretisation into cells based on points defined by the Grids.
 """
+from time import time
+
 import numpy as np
 from numpy.typing import NDArray
 from scipy.spatial import SphericalVoronoi
 from scipy.constants import pi
+from tqdm import tqdm
+import matplotlib.pyplot as plt
+import seaborn as sns
+import pandas as pd
 
 from molgri.utils import norm_per_axis, normalise_vectors
-from molgri.constants import UNIQUE_TOL, GRID_ALGORITHMS, CELLS_DF_COLUMNS
+from molgri.constants import UNIQUE_TOL, CELLS_DF_COLUMNS, EXTENSION_FIGURES, NAME2PRETTY_NAME, DEFAULT_DPI, GRID_ALGORITHMS, COLORS
+from molgri.grids import FullGrid
+from molgri.paths import PATH_OUTPUT_PLOTS, PATH_OUTPUT_CELLS
 
 
 def surface_per_cell_ideal(N: int, r: float):
@@ -55,8 +63,8 @@ def voranoi_surfaces_on_sphere(points: NDArray) -> SphericalVoronoi:
     """
     assert points.shape[1] == 3, "Must provide an input array of size (N, 3)!"
     norms = norm_per_axis(points)
-    radius = norms[0, 0]
-    assert np.allclose(norms, radius), "All input points must have the same norm."
+    radius = np.average(norms)
+    assert np.allclose(norms, radius, atol=10**-UNIQUE_TOL), "All input points must have the same norm."
     # re-normalise for perfect match
     points = normalise_vectors(points, length=radius)
     return SphericalVoronoi(points, radius=radius, threshold=10**-UNIQUE_TOL)
@@ -90,7 +98,7 @@ def plot_voranoi_convergence(N_min, N_max, r, algs=GRID_ALGORITHMS[:-1]):
         voranoi_df = pd.read_csv(f"{PATH_OUTPUT_CELLS}{algs[plot_num]}_{r}_{N_min}_{N_max}.csv")
         sns.lineplot(data=voranoi_df, x=N_points, y=voranoi_areas, errorbar="sd", color=colors[plot_num], ax=current_ax)
         sns.scatterplot(data=voranoi_df, x=N_points, y=voranoi_areas, alpha=0.8, color="black", ax=current_ax, s=1)
-        sns.scatterplot(data=voranoi_df, x=N_points, y=ideal_areas, color="black", marker="x")
+        sns.scatterplot(data=voranoi_df, x=N_points, y=ideal_areas, color="black", marker="x", ax=current_ax)
         # ax[plot_num].set_yscale('log')
         current_ax.set_xscale('log')
         current_ax.set_ylim(0.01, 2)
@@ -99,42 +107,65 @@ def plot_voranoi_convergence(N_min, N_max, r, algs=GRID_ALGORITHMS[:-1]):
     plt.close()
 
 
-if __name__ == "__main__":
-    from tqdm import tqdm
-    from molgri.grids import build_grid, FullGrid
-    import matplotlib.pyplot as plt
-    import seaborn as sns
-    import pandas as pd
-    from molgri.constants import EXTENSION_FIGURES, NAME2PRETTY_NAME, DEFAULT_DPI, GRID_ALGORITHMS, COLORS
-    from molgri.paths import PATH_OUTPUT_PLOTS, PATH_OUTPUT_CELLS
+def save_voranoi_data_for_alg(alg_name: str, N_set: list = None, radius: float = 1):
+    """
 
-    N_set = [int(i) for i in np.logspace(1, 3, 40)]
+    Args:
+        alg_name: name of the used algorithm
+        N_set: sorted list of points used foor calculating Voranoi areas
+        radius: radius of the sphere on which the tesselation takes place
+
+    Returns:
+
+    """
+    assert alg_name in GRID_ALGORITHMS, f"Name of the algorithm: {alg_name} is unknown."
+    if N_set is None:
+        N_set = [int(i) for i in np.logspace(1, 3, 40)]
+        N_set = list(set(N_set))
+    N_set.sort()
+    assert radius > 0, f"Radius must be a positive float, unrecognised argument: {radius}."
+    all_voranoi_areas = np.zeros((np.sum(N_set), len(CELLS_DF_COLUMNS)))
+    current_index = 0
+
+    for i, N in enumerate(tqdm(N_set)):
+        t1_grid = time()
+        pg = FullGrid(b_grid_name="none", o_grid_name=f"{alg_name}_{N}",
+                      t_grid_name=f"[{radius / 10}]").get_position_grid()[0]
+        t2_grid = time()
+        grid_time = t2_grid - t1_grid
+        try:
+            t1 = time()
+            r, voranoi_areas = surface_per_cell_voranoi(pg)
+            t2 = time()
+            tesselation_time = t2 - t1
+        # miss a point but still save the rest of the data
+        except ValueError:
+            r, voranoi_areas = np.NaN, np.full(N, np.NaN)
+            tesselation_time = np.NaN
+        all_voranoi_areas[current_index:current_index + N, 0] = N
+        all_voranoi_areas[current_index:current_index + N, 1] = radius
+        all_voranoi_areas[current_index:current_index + N, 2] = voranoi_areas
+        all_voranoi_areas[current_index:current_index + N, 3] = surface_per_cell_ideal(N, radius)
+        all_voranoi_areas[current_index:current_index + N, 4] = grid_time
+        all_voranoi_areas[current_index:current_index + N, 5] = tesselation_time
+        current_index += N
+    voranoi_df = pd.DataFrame(data=all_voranoi_areas, columns=CELLS_DF_COLUMNS)
+    voranoi_df.to_csv(f"{PATH_OUTPUT_CELLS}{alg_name}_{int(radius)}_{N_set[0]}_{N_set[-1]}.csv", encoding="utf-8")
+
+
+if __name__ == "__main__":
+
+    N_set = [int(i) for i in np.logspace(1, 2, 30)]
     N_set = list(set(N_set))
     N_set.sort()
 
     algs=GRID_ALGORITHMS[:-1]
 
-    radius = 1
+    r = 2
 
-    for plot_num in range(len(algs)): #alg, col in zip(algs, colors):
-        all_voranoi_areas = np.zeros((np.sum(N_set), 4))
-        current_index = 0
+    for alg in algs:
+        print(alg)
+        save_voranoi_data_for_alg(alg, N_set=N_set, radius=r)
 
-        for i, N in enumerate(tqdm(N_set)):
-            pg = FullGrid(b_grid_name="none", o_grid_name=f"{algs[plot_num]}_{N}", t_grid_name=f"[{radius/10}]").get_position_grid()[0]
-            try:
-                r, voranoi_areas = surface_per_cell_voranoi(pg)
-            # miss a point but still save the rest of the data
-            except ValueError:
-                r, voranoi_areas = np.NaN, np.full(N, np.NaN)
-            all_voranoi_areas[current_index:current_index + N, 0] = N
-            all_voranoi_areas[current_index:current_index + N, 1] = radius
-            all_voranoi_areas[current_index:current_index + N, 2] = voranoi_areas
-            all_voranoi_areas[current_index:current_index + N, 3] = surface_per_cell_ideal(N, radius)
-            #plt.scatter(N * np.ones(voranoi_areas.shape), voranoi_areas, color="red", marker="o")
-            #current_ax.scatter(N, surface_per_cell_ideal(N, r), color="black", marker="x")
-            current_index += N
-        voranoi_df = pd.DataFrame(data=all_voranoi_areas, columns=CELLS_DF_COLUMNS)
-        voranoi_df.to_csv(f"{PATH_OUTPUT_CELLS}{algs[plot_num]}_{int(radius)}_{N_set[0]}_{N_set[-1]}.csv", encoding="utf-8")
-    plot_voranoi_convergence(N_min=np.min(N_set), N_max=np.max(N_set), r=int(radius))
+    plot_voranoi_convergence(N_min=np.min(N_set), N_max=np.max(N_set), r=int(r))
 

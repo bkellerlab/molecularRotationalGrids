@@ -53,4 +53,5 @@ EXTENSIONS = ('PSF', 'TOP', 'PRMTOP', 'PARM7', 'PDB', 'ENT', 'XPDB', 'PQR', 'GRO
               'OPENMMAPP')
 
 # you may add at the end but don't change the order
-CELLS_DF_COLUMNS = ["N points", "Radius [A]", "Voranoi Area [A^2]", "Ideal area [A^2]"]
+CELLS_DF_COLUMNS = ["N points", "Radius [A]", "Voranoi area [A^2]", "Ideal area [A^2]",
+                    "Grid creation time [s]", "Grid tesselation time [s]"]

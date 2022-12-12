@@ -18,8 +18,8 @@ from molgri.cells import voranoi_surfaces_on_stacked_spheres
 from molgri.parsers import NameParser, FullGridNameParser
 from molgri.utils import norm_per_axis, normalise_vectors
 from .grids import Polytope, IcosahedronPolytope, CubePolytope, build_grid_from_name, FullGrid
-from .constants import DIM_SQUARE, DEFAULT_DPI, COLORS, DEFAULT_NS, EXTENSION_FIGURES
-from .paths import PATH_OUTPUT_PLOTS, PATH_OUTPUT_ANIS, PATH_OUTPUT_FULL_GRIDS
+from .constants import DIM_SQUARE, DEFAULT_DPI, COLORS, DEFAULT_NS, EXTENSION_FIGURES, CELLS_DF_COLUMNS
+from .paths import PATH_OUTPUT_PLOTS, PATH_OUTPUT_ANIS, PATH_OUTPUT_FULL_GRIDS, PATH_OUTPUT_CELLS
 
 
 class AbstractPlot(ABC):
@@ -65,10 +65,10 @@ class AbstractPlot(ABC):
         self.fig = None
         self.ax = ax
 
-    def create(self, *args, equalize=False, neg_limit=None, pos_limit=None, x_label=None, y_label=None, z_label=None,
-               title=None, save_fig=True, animate_rot=False, animate_seq=False, sci_limit_min=-4, sci_limit_max=4,
-               save_ending=EXTENSION_FIGURES, dpi=600, labelpad=0, pad_inches=0, sharex="all", sharey="all", close_fig=True,
-               azim=-60, elev=30, main_ticks_only=False):
+    def create(self, *args, equalize=False, x_min_limit=None, x_max_limit=None, y_min_limit=None, y_max_limit=None,
+               z_min_limit=None, z_max_limit=None, x_label=None, y_label=None, z_label=None,
+               title=None, animate_rot=False, animate_seq=False, sci_limit_min=-4, sci_limit_max=4,
+               labelpad=0, sharex="all", sharey="all", main_ticks_only=False, **kwargs):
         """
         This is the only function the user should call on subclasses. It performs the entire plotting and
         saves the result. It uses all methods in appropriate order with appropriate values for the specific
@@ -76,10 +76,12 @@ class AbstractPlot(ABC):
         """
         self._create_fig_ax(sharex=sharex, sharey=sharey)
         self._set_up_empty()
-        if self.dimensions == 3:
-            self.ax.view_init(azim=azim, elev=elev)
         if equalize:
-            self._equalize_axes(neg_limit=neg_limit, pos_limit=pos_limit)
+            self._equalize_axes()
+        if any([x_min_limit, x_max_limit, y_min_limit, y_max_limit, z_min_limit, z_max_limit]):
+            self._axis_limits(x_min_limit=x_min_limit, x_max_limit=x_max_limit,
+                              y_min_limit=y_min_limit, y_max_limit=y_max_limit,
+                              z_min_limit=z_min_limit, z_max_limit=z_max_limit)
         if x_label or y_label or z_label:
             self._create_labels(x_label=x_label, y_label=y_label, z_label=z_label, labelpad=labelpad)
         if title:
@@ -87,18 +89,25 @@ class AbstractPlot(ABC):
         self._plot_data()
         self._sci_ticks(sci_limit_min, sci_limit_max)
         if main_ticks_only:
-            if self.dimensions == 3:
-                for axis in [self.ax.xaxis, self.ax.yaxis, self.ax.zaxis]:
-                    axis.set_major_locator(ticker.MaxNLocator(integer=True))
-            else:
-                for axis in [self.ax.xaxis, self.ax.yaxis]:
-                    axis.set_major_locator(ticker.MaxNLocator(integer=True))
-        if save_fig:
-            self._save_plot(save_ending=save_ending, dpi=dpi, pad_inches=pad_inches)
+            self._main_ticks()
+
+    def create_and_save(self, save_ending=EXTENSION_FIGURES, dpi=DEFAULT_DPI, close_fig=True, pad_inches=0, **kwargs):
+        self.create(**kwargs)
+        self.save_plot(save_ending=save_ending, dpi=dpi, pad_inches=pad_inches)
         if close_fig:
             plt.close()
-        if animate_rot:
-            self.animate_figure_view()
+
+    def _main_ticks(self):
+        for axis in [self.ax.xaxis, self.ax.yaxis]:
+            axis.set_major_locator(ticker.MaxNLocator(integer=True))
+
+    def _axis_limits(self, x_min_limit=None, x_max_limit=None, y_min_limit=None, y_max_limit=None, **kwargs):
+        if x_max_limit is not None and x_min_limit is None:
+            x_min_limit = - x_max_limit
+        self.ax.set_xlim(x_min_limit, x_max_limit)
+        if y_max_limit is not None and y_min_limit is None:
+            y_min_limit = - y_max_limit
+        self.ax.set_ylim(y_min_limit, y_max_limit)
 
     # noinspection PyUnusedLocal
     def _create_fig_ax(self, sharex: str = "all", sharey: str = "all"):
@@ -111,10 +120,7 @@ class AbstractPlot(ABC):
         """
         self.fig = plt.figure(figsize=self.figsize)
         if self.ax is None:
-            if self.dimensions == 3:
-                self.ax = self.fig.add_subplot(111, projection='3d', computed_zorder=False)
-            else:
-                self.ax = self.fig.add_subplot(111)
+            self.ax = self.fig.add_subplot(111)
 
     def _set_up_empty(self):
         """
@@ -126,44 +132,20 @@ class AbstractPlot(ABC):
         if "empty" in self.style_type or "half_empty" in self.style_type:
             self.ax.set_xticks([])
             self.ax.set_yticks([])
-            if self.dimensions == 3:
-                self.ax.set_zticks([])
+
             if "empty" in self.style_type:
                 self.ax.axis('off')
+        color = (0.5, 0.5, 0.5, 0.7)
         if "half_dark" in self.style_type:
-            color = (0.5, 0.5, 0.5, 0.7)
             self.ax.xaxis.set_pane_color(color)
             self.ax.yaxis.set_pane_color(color)
-            self.ax.zaxis.set_pane_color(color)
+        return color
 
-    def _equalize_axes(self, neg_limit: float = None, pos_limit: float = None):
+    def _equalize_axes(self):
         """
         Makes x, y, (z) axis equally longs and if limits given, enforces them on all axes.
-
-        Args:
-            neg_limit: if set, this will be min x, y, (z) value of the plot
-            pos_limit: if set, this will be max x, y, (z) value of the plot - if pos_limit set but neg_limit not,
-                       neg_limit is set to -pos_limit
         """
-        # because ax.set_aspect('equal') does not work for 3D axes
-        if self.dimensions == 3:
-            self.ax.set_box_aspect(aspect=[1, 1, 1])
-            x_lim, y_lim, z_lim = self.ax.get_xlim3d(), self.ax.get_ylim3d(), self.ax.get_zlim3d()
-            all_ranges = abs(x_lim[1] - x_lim[0]), abs(y_lim[1] - y_lim[0]), abs(z_lim[1] - z_lim[0])
-            x_middle, y_middle, z_middle = np.mean(x_lim), np.mean(y_lim), np.mean(z_lim)
-            plot_range = 0.5 * max(all_ranges)
-            self.ax.set_xlim3d([x_middle - plot_range, x_middle + plot_range])
-            self.ax.set_ylim3d([y_middle - plot_range, y_middle + plot_range])
-            self.ax.set_zlim3d([z_middle - plot_range, z_middle + plot_range])
-        else:
-            self.ax.set_aspect('equal')
-        if pos_limit is not None and neg_limit is None:
-            neg_limit = -pos_limit
-        if pos_limit and neg_limit:
-            self.ax.set_xlim(neg_limit, pos_limit)
-            self.ax.set_ylim(neg_limit, pos_limit)
-            if self.dimensions == 3:
-                self.ax.set_zlim(neg_limit, pos_limit)
+        self.ax.set_aspect('equal')
 
     @abstractmethod
     def _prepare_data(self) -> object:
@@ -178,13 +160,11 @@ class AbstractPlot(ABC):
     def _plot_data(self, **kwargs):
         """Here, the plotting is implemented in subclasses."""
 
-    def _create_labels(self, x_label: str = None, y_label: str = None, z_label: str = None, **kwargs):
+    def _create_labels(self, x_label: str = None, y_label: str = None, **kwargs):
         if x_label:
             self.ax.set_xlabel(x_label, **kwargs)
         if y_label:
             self.ax.set_ylabel(y_label, **kwargs)
-        if z_label and self.dimensions == 3:
-            self.ax.set_zlabel(z_label, **kwargs)
 
     def _create_title(self, title: str):
         if "talk" in self.style_type:
@@ -200,14 +180,79 @@ class AbstractPlot(ABC):
         except AttributeError:
             pass
 
+    def save_plot(self, save_ending: str = EXTENSION_FIGURES, dpi: int = DEFAULT_DPI, **kwargs):
+        self.fig.tight_layout()
+        standard_name = self.data_name
+        plt.savefig(f"{self.fig_path}{standard_name}_{self.plot_type}.{save_ending}", dpi=dpi, bbox_inches='tight',
+                    **kwargs)
+        plt.close()
+
+
+class Plot3D(AbstractPlot, ABC):
+
+    def __init__(self, data_name: str, **kwargs):
+        super().__init__(data_name, dimensions=3, **kwargs)
+
+    def _create_fig_ax(self, sharex: str = "all", sharey: str = "all"):
+        """
+        The parameters need to stay there to be consistent with AbstractMultiPlot, but are not used.
+
+        Args:
+            sharex: if multiplots should share the same x axis
+            sharey: if multiplots should share the same y axis
+        """
+        self.fig = plt.figure(figsize=self.figsize)
+        self.ax = self.fig.add_subplot(111, projection='3d', computed_zorder=False)
+
+    def create(self, *args, animate_rot=False, animate_seq=False, azim=-60, elev=30, **kwargs):
+        super().create(*args, **kwargs)
+        self.ax.view_init(azim=azim, elev=elev)
+        if animate_rot:
+            self.animate_figure_view()
+
+    def _main_ticks(self):
+        super()._main_ticks()
+        self.ax.zaxis.set_major_locator(ticker.MaxNLocator(integer=True))
+
+    def _axis_limits(self, x_min_limit=None, x_max_limit=None, y_min_limit=None, y_max_limit=None,
+                     z_min_limit=None, z_max_limit=None):
+        super()._axis_limits(x_min_limit=x_min_limit, x_max_limit=x_max_limit, y_min_limit=y_min_limit,
+                             y_max_limit=y_max_limit)
+        if z_max_limit is not None and z_min_limit is None:
+            z_min_limit = - z_max_limit
+        self.ax.set_xlim(z_min_limit, z_max_limit)
+
+    def _set_up_empty(self):
+        color = super()._set_up_empty()
+        if "empty" in self.style_type or "half_empty" in self.style_type:
+            self.ax.set_zticks([])
+        if "half_dark" in self.style_type:
+            self.ax.zaxis.set_pane_color(color)
+
+    def _equalize_axes(self):
+        """
+        Makes x, y, (z) axis equally longs and if limits given, enforces them on all axes.
+        """
+        # because ax.set_aspect('equal') does not work for 3D axes
+        self.ax.set_box_aspect(aspect=[1, 1, 1])
+        x_lim, y_lim, z_lim = self.ax.get_xlim3d(), self.ax.get_ylim3d(), self.ax.get_zlim3d()
+        all_ranges = abs(x_lim[1] - x_lim[0]), abs(y_lim[1] - y_lim[0]), abs(z_lim[1] - z_lim[0])
+        x_middle, y_middle, z_middle = np.mean(x_lim), np.mean(y_lim), np.mean(z_lim)
+        plot_range = 0.5 * max(all_ranges)
+        self.ax.set_xlim3d([x_middle - plot_range, x_middle + plot_range])
+        self.ax.set_ylim3d([y_middle - plot_range, y_middle + plot_range])
+        self.ax.set_zlim3d([z_middle - plot_range, z_middle + plot_range])
+
+    def _create_labels(self, x_label: str = None, y_label: str = None, z_label: str = None, **kwargs):
+        super()._create_labels(x_label=x_label, y_label=y_label, z_label=z_label, **kwargs)
+        if z_label:
+            self.ax.set_zlabel(z_label, **kwargs)
+
     def animate_figure_view(self) -> FuncAnimation:
         """
         Rotate the 3D figure for 360 degrees around itself and save the animation.
         """
         plt.close()  # this is necessary
-
-        if self.dimensions == 2:
-            raise ValueError("Animation of figure rotation only available for 3D figures!")
 
         def animate(frame):
             # rotate the view left-right
@@ -221,15 +266,8 @@ class AbstractPlot(ABC):
         anim.save(f"{self.ani_path}{self.data_name}_{self.plot_type}.gif", writer=writergif, dpi=400)
         return anim
 
-    def _save_plot(self, save_ending: str = EXTENSION_FIGURES, dpi: int = DEFAULT_DPI, **kwargs):
-        self.fig.tight_layout()
-        standard_name = self.data_name
-        plt.savefig(f"{self.fig_path}{standard_name}_{self.plot_type}.{save_ending}", dpi=dpi, bbox_inches='tight',
-                    **kwargs)
-        plt.close()
 
-
-class GridPlot(AbstractPlot):
+class GridPlot(Plot3D):
 
     def __init__(self, data_name, *, style_type: list = None, plot_type: str = "grid", **kwargs):
         """
@@ -252,20 +290,19 @@ class GridPlot(AbstractPlot):
 
     def _plot_data(self, **kwargs):
         self.sc = self.ax.scatter(*self.grid.T, color="black", s=30) #, s=4)
-        self.ax.view_init(elev=10, azim=30)
 
-    def create(self, **kwargs):
+    def create(self, animate_seq=False, **kwargs):
         if "empty" in self.style_type:
             pad_inches = -0.2
         else:
             pad_inches = 0
-        pos_limit = kwargs.pop("pos_limit", 1)
-        super(GridPlot, self).create(equalize=True, pos_limit=pos_limit, pad_inches=pad_inches, **kwargs)
-        animate_seq = kwargs.pop("animate_seq", False)
+        x_max_limit = kwargs.pop("x_max_limit", 1)
+        super(GridPlot, self).create(equalize=True, x_max_limit=x_max_limit, pad_inches=pad_inches, azim=30, elev=10,
+                                     **kwargs)
         if animate_seq:
-            self.animate_grid_sequence(pos_lim=pos_limit)
+            self.animate_grid_sequence(x_max_limit=x_max_limit)
 
-    def animate_grid_sequence(self, pos_lim=1):
+    def animate_grid_sequence(self, x_max_limit=1):
         """
         Animate how a grid is constructed - how each individual point is added.
 
@@ -274,7 +311,7 @@ class GridPlot(AbstractPlot):
         points above others!
 
         Args:
-            pos_lim:
+            x_max_limit:
         """
 
         def update(i):
@@ -288,7 +325,8 @@ class GridPlot(AbstractPlot):
         all_white = np.zeros(shape_colors)
 
         self.ax.view_init(elev=10, azim=30)
-        self._equalize_axes(pos_limit=pos_lim)
+        self._axis_limits(x_max_limit=x_max_limit)
+        self._equalize_axes()
         ani = FuncAnimation(self.fig, func=update, frames=len(facecolors_before), interval=5, repeat=False)
         writergif = PillowWriter(fps=3, bitrate=-1)
         # noinspection PyTypeChecker
@@ -333,6 +371,29 @@ class PositionGridPlot(GridPlot):
                     norm = np.linalg.norm(start)
                     result = geometric_slerp(normalise_vectors(start), normalise_vectors(end), t_vals)
                     self.ax.plot(norm * result[..., 0], norm * result[..., 1], norm * result[..., 2], c='k')
+
+
+class VoranoiConvergencePlot(AbstractPlot):
+
+    def __init__(self, data_name: str, style_type=None, plot_type="areas"):
+        super().__init__(data_name, dimensions=2, style_type=style_type, plot_type=plot_type)
+
+    def _prepare_data(self) -> object:
+        return pd.read_csv(f"{PATH_OUTPUT_CELLS}{self.data_name}.csv")
+
+    def _plot_data(self, **kwargs):
+        N_points = CELLS_DF_COLUMNS[0]
+        voranoi_areas = CELLS_DF_COLUMNS[2]
+        ideal_areas = CELLS_DF_COLUMNS[3]
+        voranoi_df = self._prepare_data()
+        sns.lineplot(data=voranoi_df, x=N_points, y=voranoi_areas, errorbar="sd", palette=COLORS, ax=self.ax)
+        sns.scatterplot(data=voranoi_df, x=N_points, y=voranoi_areas, alpha=0.8, color="black", ax=self.ax, s=1)
+        sns.scatterplot(data=voranoi_df, x=N_points, y=ideal_areas, color="black", marker="x", ax=self.ax)
+
+    def create(self, *args, **kwargs):
+        super().create(*args, **kwargs)
+        self.ax.set_xscale('log')
+        self.ax.set_ylim(0.01, 2)
 
 
 class GridColoredWithAlphaPlot(GridPlot):
@@ -469,4 +530,8 @@ class PolytopePlot(AbstractPlot):
 
 
 if __name__ == "__main__":
-    PositionGridPlot("position_grid_o_cube3D_9_b_zero_1_t_3203903466", cell_lines=True).create(animate_rot=True, animate_seq=True)
+    from molgri.grids import FullGrid
+    FullGrid(o_grid_name="cube3D_9", b_grid_name="zero", t_grid_name='range(1, 5, 2)')
+    PositionGridPlot("position_grid_o_cube3D_9_b_zero_1_t_3203903466", cell_lines=True).create_and_save(
+        animate_rot=False, animate_seq=False)
+    VoranoiConvergencePlot("cube4D_1_10_100").create_and_save()
