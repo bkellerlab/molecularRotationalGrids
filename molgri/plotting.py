@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from typing import Union
+from typing import Union, List
 
 import numpy as np
 import pandas as pd
@@ -18,7 +18,8 @@ from molgri.cells import voranoi_surfaces_on_stacked_spheres
 from molgri.parsers import NameParser
 from molgri.utils import norm_per_axis, normalise_vectors
 from .grids import Polytope, IcosahedronPolytope, CubePolytope, build_grid_from_name, FullGrid
-from .constants import DIM_SQUARE, DEFAULT_DPI, COLORS, DEFAULT_NS, EXTENSION_FIGURES, CELLS_DF_COLUMNS
+from .constants import DIM_SQUARE, DEFAULT_DPI, COLORS, DEFAULT_NS, EXTENSION_FIGURES, CELLS_DF_COLUMNS, \
+    GRID_ALGORITHMS, FULL_GRID_ALG_NAMES
 from .paths import PATH_OUTPUT_PLOTS, PATH_OUTPUT_ANIS, PATH_OUTPUT_FULL_GRIDS, PATH_OUTPUT_CELLS
 
 
@@ -29,7 +30,7 @@ class AbstractPlot(ABC):
     """
 
     def __init__(self, data_name: str, dimensions: int = 3, style_type: list = None, fig_path: str = PATH_OUTPUT_PLOTS,
-                 ani_path: str = PATH_OUTPUT_ANIS, ax: Union[Axes, Axes3D] = None, figsize: tuple = DIM_SQUARE,
+                 ani_path: str = PATH_OUTPUT_ANIS, figsize: tuple = DIM_SQUARE,
                  plot_type: str = "abs"):
         """
         Input all information that needs to be provided before fig and ax are created.
@@ -40,7 +41,6 @@ class AbstractPlot(ABC):
             style_type: a list of properties like 'dark', 'talk', 'empty' or 'half_empty'
             fig_path: folder to save figures if created, should be set in subclasses
             ani_path: folder to save animations if created, should be set in subclasses
-            ax: enables to pass an already created axis - useful for PanelPlots
             figsize: forwarded to set up of the figure
             plot_type: str describing the plot function, added to the name of the plot
         """
@@ -63,18 +63,18 @@ class AbstractPlot(ABC):
             sns.set_context("talk")
         # create the empty figure
         self.fig = None
-        self.ax = ax
+        self.ax = None
 
     def create(self, *args, equalize=False, x_min_limit=None, x_max_limit=None, y_min_limit=None, y_max_limit=None,
                z_min_limit=None, z_max_limit=None, x_label=None, y_label=None, z_label=None,
-               title=None, animate_rot=False, animate_seq=False, sci_limit_min=-4, sci_limit_max=4,
-               labelpad=0, sharex="all", sharey="all", main_ticks_only=False, **kwargs):
+               title=None, animate_rot=False, animate_seq=False, sci_limit_min=-4, sci_limit_max=4, color=None,
+               labelpad=0, sharex="all", sharey="all", main_ticks_only=False, ax: Union[Axes, Axes3D] = None, **kwargs):
         """
         This is the only function the user should call on subclasses. It performs the entire plotting and
         saves the result. It uses all methods in appropriate order with appropriate values for the specific
         plot type we are using. If requested, saves the plot and/or animations.
         """
-        self._create_fig_ax(sharex=sharex, sharey=sharey)
+        self._create_fig_ax(ax=ax, sharex=sharex, sharey=sharey)
         self._set_up_empty()
         if equalize:
             self._equalize_axes()
@@ -86,7 +86,7 @@ class AbstractPlot(ABC):
             self._create_labels(x_label=x_label, y_label=y_label, z_label=z_label, labelpad=labelpad)
         if title:
             self._create_title(title=title)
-        self._plot_data()
+        self._plot_data(color=color)
         self._sci_ticks(sci_limit_min, sci_limit_max)
         if main_ticks_only:
             self._main_ticks()
@@ -110,7 +110,7 @@ class AbstractPlot(ABC):
         self.ax.set_ylim(y_min_limit, y_max_limit)
 
     # noinspection PyUnusedLocal
-    def _create_fig_ax(self, sharex: str = "all", sharey: str = "all"):
+    def _create_fig_ax(self, ax: Union[Axes, Axes3D], sharex: str = "all", sharey: str = "all"):
         """
         The parameters need to stay there to be consistent with AbstractMultiPlot, but are not used.
 
@@ -119,8 +119,15 @@ class AbstractPlot(ABC):
             sharey: if multiplots should share the same y axis
         """
         self.fig = plt.figure(figsize=self.figsize)
-        if self.ax is None:
-            self.ax = self.fig.add_subplot(111)
+        if ax is None:
+            if self.dimensions == 2:
+                self.ax = self.fig.add_subplot(111)
+            elif self.dimensions == 3:
+                self.ax = self.fig.add_subplot(111, projection='3d', computed_zorder=False)
+            else:
+                raise ValueError(f"Dimensions must be in (2, 3), unknown value {self.dimensions}!")
+        else:
+            self.ax = ax
 
     def _set_up_empty(self):
         """
@@ -188,21 +195,145 @@ class AbstractPlot(ABC):
         plt.close()
 
 
+class AbstractMultiPlot(ABC):
+
+    def __init__(self, list_plots: List[AbstractPlot], figsize=None, n_rows: int = 4, n_columns: int = 2,
+                 plot_type: str = "multi"):
+        self.dimensions = list_plots[0].dimensions
+        assert np.all([list_plot.dimensions == self.dimensions for list_plot in list_plots]), "Plots cannot have various" \
+                                                                                              "numbers of directions"
+        self.n_rows = n_rows
+        self.n_columns = n_columns
+        assert self.n_rows*self.n_columns == len(list_plots), f"Specify the number of rows and columns that corresponds" \
+                                                              f"to the number of the elements! " \
+                                                              f"{self.n_rows}x{self.n_columns}=/={len(list_plots)}"
+        self.figsize = figsize
+        if self.figsize is None:
+            self.figsize = self.n_columns * DIM_SQUARE[0], self.n_rows * DIM_SQUARE[1]
+        self.list_plots = list_plots
+        self.plot_type = plot_type
+
+    def _create_fig_ax(self, sharex="all", sharey="all"):
+        if self.dimensions == 3:
+            # for 3D plots it makes no sense to share axes
+            self.fig, self.all_ax = plt.subplots(self.n_rows, self.n_columns, subplot_kw={'projection': '3d'},
+                                                 figsize=self.figsize)
+        elif self.dimensions == 2:
+            self.fig, self.all_ax = plt.subplots(self.n_rows, self.n_columns, sharex=sharex, sharey=sharey,
+                                                 figsize=self.figsize)
+        else:
+            raise ValueError("Only 2 or 3 dimensions possible.")
+
+    def _remove_midlabels(self):
+        if self.dimensions == 2:
+            if self.n_rows > 1 and self.n_columns > 1:
+                for my_a in self.all_ax[:, 1:]:
+                    for subax in my_a:
+                        subax.set_ylabel("")
+                for my_a in self.all_ax[:-1, :]:
+                    for subax in my_a:
+                        subax.set_xlabel("")
+            else:
+                for my_a in self.all_ax[1:]:
+                        my_a.set_ylabel("")
+
+    def unify_axis_limits(self, x_ax = False, y_ax = False, z_ax = False):
+        x_lim = [np.infty, -np.infty]
+        y_lim = [np.infty, -np.infty]
+        z_lim = [np.infty, -np.infty]
+        # determine the max and min values
+        for i, subaxis in enumerate(self.all_ax.ravel()):
+            if subaxis.get_xlim()[0] < x_lim[0]:
+                x_lim[0] = subaxis.get_xlim()[0]
+            if subaxis.get_xlim()[1] > x_lim[1]:
+                x_lim[1] = subaxis.get_xlim()[1]
+            if subaxis.get_ylim()[0] < y_lim[0]:
+                y_lim[0] = subaxis.get_ylim()[0]
+            if subaxis.get_ylim()[1] > y_lim[1]:
+                y_lim[1] = subaxis.get_ylim()[1]
+            if self.dimensions == 3 and subaxis.get_zlim()[0] < z_lim[0]:
+                z_lim[0] = subaxis.get_zlim()[0]
+            if self.dimensions == 3 and subaxis.z_lim[1] > z_lim[1]:
+                z_lim[1] = subaxis.get_zlim()[1]
+        # change them all
+        for i, subaxis in enumerate(self.all_ax.ravel()):
+            if x_ax:
+                subaxis.set_xlim(*x_lim)
+            if y_ax:
+                subaxis.set_ylim(*y_lim)
+            if self.dimensions == 3 and z_ax:
+                subaxis.set_zlim(*z_lim)
+
+
+
+    # def add_colorbar(self, p, orientation="horizontal", cbar_label=None, formatter=ticker.LogFormatterMathtext(linthresh=9, minor_thresholds=(1, 0.2))):
+    #     if orientation == "horizontal":
+    #         pos = self.ax.get_position()
+    #         cax = self.fig.add_axes([pos.x0 -0.05, pos.y0 -0.1, 0.3, 0.03])
+    #
+    #     else:
+    #         pos = self.ax.get_position()
+    #         cax = self.fig.add_axes([pos.x1 - 1, pos.y0 + 0.0, 0.03, 0.4])
+    #     cbar = self.fig.colorbar(p, orientation=orientation, pad=0.4,
+    #                              format=formatter, cax=cax)
+    #     if orientation == "vertical":
+    #         cax.yaxis.set_label_position('left')
+    #     if cbar_label:
+    #         cbar.set_label(cbar_label)
+
+    def create(self, *args, rm_midlabels=True, palette=COLORS, titles=None, unify_x=False, unify_y=False,
+               unify_z=False, **kwargs):
+        self._create_fig_ax()
+        if titles:
+            assert len(titles) == len(self.list_plots), "Wrong number of titles provided"
+        else:
+            titles = [None]*len(self.list_plots)
+        # catch variables connected with saving and redirect them to saving MultiPlot
+        for i, subaxis in enumerate(self.all_ax.ravel()):
+            self.list_plots[i].create(*args, ax=subaxis, color=palette[i], title=titles[i], **kwargs)
+        if rm_midlabels:
+            self._remove_midlabels()
+        if np.any([unify_x, unify_y, unify_z]):
+            self.unify_axis_limits(unify_x, unify_y, unify_z)
+        # if cbar:
+        #     self.add_colorbar(p)
+
+    def create_and_save(self, *args, close_fig=True, **kwargs):
+        self.create(*args, **kwargs)
+        self.save_multiplot()
+        if close_fig:
+            plt.close()
+
+    def save_multiplot(self, save_ending: str = EXTENSION_FIGURES, dpi: int = DEFAULT_DPI, **kwargs):
+        self.fig.tight_layout()
+        fig_path = self.list_plots[0].fig_path
+        subplot_type = self.list_plots[0].plot_type
+        self.fig.savefig(f"{fig_path}{subplot_type}_{self.plot_type}.{save_ending}", dpi=dpi, bbox_inches='tight',
+                    **kwargs)
+
+
+class PanelPlot(AbstractMultiPlot):
+
+    def __init__(self, list_plots: List[AbstractPlot], landscape=True, plot_type="panel", figsize=None):
+        if landscape:
+            n_rows = 2
+            n_columns = 3
+        else:
+            n_rows = 3
+            n_columns = 2
+        super().__init__(list_plots, n_columns=n_columns, n_rows=n_rows, plot_type=plot_type, figsize=figsize)
+
+    def create(self, *args, rm_midlabels=True, palette=COLORS, titles=None, unify_x=True, unify_y=True,
+               unify_z=True, **kwargs):
+        titles = FULL_GRID_ALG_NAMES[:-1]
+        super().create(*args, rm_midlabels=rm_midlabels, palette=palette, titles=titles, unify_x=unify_x,
+                       unify_y=unify_y, unify_z=unify_z, **kwargs)
+
+
 class Plot3D(AbstractPlot, ABC):
 
     def __init__(self, data_name: str, **kwargs):
         super().__init__(data_name, dimensions=3, **kwargs)
-
-    def _create_fig_ax(self, sharex: str = "all", sharey: str = "all"):
-        """
-        The parameters need to stay there to be consistent with AbstractMultiPlot, but are not used.
-
-        Args:
-            sharex: if multiplots should share the same x axis
-            sharey: if multiplots should share the same y axis
-        """
-        self.fig = plt.figure(figsize=self.figsize)
-        self.ax = self.fig.add_subplot(111, projection='3d', computed_zorder=False)
 
     def create(self, *args, animate_rot=False, animate_seq=False, azim=-60, elev=30, **kwargs):
         super().create(*args, **kwargs)
@@ -286,8 +417,8 @@ class GridPlot(Plot3D):
         my_grid = build_grid_from_name(self.data_name, use_saved=True).get_grid()
         return my_grid
 
-    def _plot_data(self, **kwargs):
-        self.sc = self.ax.scatter(*self.grid.T, color="black", s=30) #, s=4)
+    def _plot_data(self, color="black", s=30, **kwargs):
+        self.sc = self.ax.scatter(*self.grid.T, color=color, s=s) #, s=4)
 
     def create(self, animate_seq=False, **kwargs):
         if "empty" in self.style_type:
@@ -310,9 +441,6 @@ class GridPlot(Plot3D):
         WARNING - I am not sure that this method always displays correct order/depth coloring - mathplotlib
         is not the most reliable tool for 3d plots and it may change the plotting order for rendering some
         points above others!
-
-        Args:
-            x_max_limit:
         """
 
         def update(i):
@@ -342,10 +470,10 @@ class PositionGridPlot(GridPlot):
         points = np.load(f"{PATH_OUTPUT_FULL_GRIDS}{self.data_name}.npy")
         return points
 
-    def _plot_data(self):
+    def _plot_data(self, color="black", **kwargs):
         points = self._prepare_data()
         for i, point_set in enumerate(points):
-            self.sc = self.ax.scatter(points[i, :, 0], points[i, :, 1], points[i, :, 2], c='black')
+            self.sc = self.ax.scatter(points[i, :, 0], points[i, :, 1], points[i, :, 2], c=color)
         if self.cell_lines:
             self._draw_voranoi_cells(points)
 
@@ -379,19 +507,23 @@ class VoranoiConvergencePlot(AbstractPlot):
     def _prepare_data(self) -> object:
         return pd.read_csv(f"{PATH_OUTPUT_CELLS}{self.data_name}.csv")
 
-    def _plot_data(self, **kwargs):
+    def _plot_data(self, color=None, **kwargs):
         N_points = CELLS_DF_COLUMNS[0]
         voranoi_areas = CELLS_DF_COLUMNS[2]
         ideal_areas = CELLS_DF_COLUMNS[3]
+        time = CELLS_DF_COLUMNS[4]
         voranoi_df = self._prepare_data()
-        sns.lineplot(data=voranoi_df, x=N_points, y=voranoi_areas, errorbar="sd", palette=COLORS, ax=self.ax)
+        sns.lineplot(data=voranoi_df, x=N_points, y=voranoi_areas, errorbar="sd", color=color, ax=self.ax)
         sns.scatterplot(data=voranoi_df, x=N_points, y=voranoi_areas, alpha=0.8, color="black", ax=self.ax, s=1)
         sns.scatterplot(data=voranoi_df, x=N_points, y=ideal_areas, color="black", marker="x", ax=self.ax)
+        ax2 = self.ax.twinx()
+        ax2.set_yscale('log')
+        sns.lineplot(data=voranoi_df, x=N_points, y=time, color="black", ax=ax2)
 
     def create(self, *args, **kwargs):
         super().create(*args, **kwargs)
         self.ax.set_xscale('log')
-        self.ax.set_ylim(0.01, 2)
+        #self.ax.set_ylim(0.01, 2)
 
 
 class GridColoredWithAlphaPlot(GridPlot):
@@ -402,7 +534,7 @@ class GridColoredWithAlphaPlot(GridPlot):
         self.alpha_set.sort()
         self.alpha_set.append(pi)
 
-    def _plot_data(self, **kwargs):
+    def _plot_data(self, color=None, **kwargs):
         # plot vector
         self.ax.scatter(*self.alpha_central_vector, marker="x", c="k", s=30)
         # determine color palette
@@ -446,7 +578,7 @@ class AlphaViolinPlot(AbstractPlot):
             ratios_df = pd.read_csv(my_grid.statistics_path)
         return ratios_df
 
-    def _plot_data(self, **kwargs):
+    def _plot_data(self, color=None, **kwargs):
         df = self._prepare_data()
         sns.violinplot(x=df["alphas"], y=df["coverages"], ax=self.ax, palette=COLORS, linewidth=1, scale="count")
         self.ax.set_xticklabels([r'$\frac{\pi}{6}$', r'$\frac{2\pi}{6}$', r'$\frac{3\pi}{6}$', r'$\frac{4\pi}{6}$',
@@ -525,3 +657,6 @@ class PolytopePlot(Plot3D):
         ico = self._prepare_data()
         ico.plot_points(self.ax, select_faces=self.faces, projection=self.projection)
         ico.plot_edges(self.ax, select_faces=self.faces)
+
+if __name__ == "__main__":
+    PanelPlot([VoranoiConvergencePlot(f"{i}_1_10_100") for i in GRID_ALGORITHMS[:-1]]).create_and_save()
