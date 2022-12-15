@@ -160,8 +160,7 @@ Then, the energy along a pseudotrajectory can be calculated as follows, using th
 
 ```
 gmx22 grompp -f mdrun.mdp -c <structure_file> -p topol.top -o result.tpr   
-gmx22 trjconv -f <trajectory_file> -s result.tpr -o result.trr
-gmx22 mdrun -s result.tpr -rerun result.trr
+gmx22 mdrun -s result.tpr -rerun <trajectory_file>
 gmx22 energy -f ener.edr -o full_energy.xvg
 ```
 

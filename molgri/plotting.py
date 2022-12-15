@@ -12,6 +12,7 @@ from matplotlib import ticker
 from mpl_toolkits.mplot3d.axes3d import Axes3D
 from scipy.spatial import geometric_slerp
 from seaborn import color_palette
+from MDAnalysis.auxiliary.XVG import XVGReader
 
 from molgri.analysis import vector_within_alpha
 from molgri.cells import voranoi_surfaces_on_stacked_spheres
@@ -20,7 +21,7 @@ from molgri.utils import norm_per_axis, normalise_vectors
 from .grids import Polytope, IcosahedronPolytope, CubePolytope, build_grid_from_name, FullGrid
 from .constants import DIM_SQUARE, DEFAULT_DPI, COLORS, DEFAULT_NS, EXTENSION_FIGURES, CELLS_DF_COLUMNS, \
     GRID_ALGORITHMS, FULL_GRID_ALG_NAMES
-from .paths import PATH_OUTPUT_PLOTS, PATH_OUTPUT_ANIS, PATH_OUTPUT_FULL_GRIDS, PATH_OUTPUT_CELLS
+from .paths import PATH_OUTPUT_PLOTS, PATH_OUTPUT_ANIS, PATH_OUTPUT_FULL_GRIDS, PATH_OUTPUT_CELLS, PATH_INPUT_ENERGIES
 
 
 class AbstractPlot(ABC):
@@ -29,7 +30,7 @@ class AbstractPlot(ABC):
     All other plots, including multiplots, inherit from this class.
     """
 
-    def __init__(self, data_name: str, dimensions: int = 3, style_type: list = None, fig_path: str = PATH_OUTPUT_PLOTS,
+    def __init__(self, data_name: str, dimensions: int = 2, style_type: list = None, fig_path: str = PATH_OUTPUT_PLOTS,
                  ani_path: str = PATH_OUTPUT_ANIS, figsize: tuple = DIM_SQUARE,
                  plot_type: str = "abs"):
         """
@@ -67,7 +68,7 @@ class AbstractPlot(ABC):
 
     def create(self, *args, equalize=False, x_min_limit=None, x_max_limit=None, y_min_limit=None, y_max_limit=None,
                z_min_limit=None, z_max_limit=None, x_label=None, y_label=None, z_label=None,
-               title=None, animate_rot=False, animate_seq=False, sci_limit_min=-4, sci_limit_max=4, color=None,
+               title=None, animate_rot=False, animate_seq=False, sci_limit_min=-4, sci_limit_max=4, color="black",
                labelpad=0, sharex="all", sharey="all", main_ticks_only=False, ax: Union[Axes, Axes3D] = None, **kwargs):
         """
         This is the only function the user should call on subclasses. It performs the entire plotting and
@@ -518,6 +519,7 @@ class VoranoiConvergencePlot(AbstractPlot):
         sns.scatterplot(data=voranoi_df, x=N_points, y=ideal_areas, color="black", marker="x", ax=self.ax)
         ax2 = self.ax.twinx()
         ax2.set_yscale('log')
+        ax2.set_ylim(10**-3, 10**3)
         sns.lineplot(data=voranoi_df, x=N_points, y=time, color="black", ax=ax2)
 
     def create(self, *args, **kwargs):
@@ -658,5 +660,65 @@ class PolytopePlot(Plot3D):
         ico.plot_points(self.ax, select_faces=self.faces, projection=self.projection)
         ico.plot_edges(self.ax, select_faces=self.faces)
 
+
+class EnergyConvergencePlot(AbstractPlot):
+
+    def __init__(self, data_name: str, test_Ns=None, property_name="Potential", plot_type="energy_convergence", **kwargs):
+        self.test_Ns = test_Ns
+        self.property_name = property_name
+        self.unit = None
+        super().__init__(data_name, plot_type=plot_type, **kwargs)
+
+    def _prepare_data(self) -> pd.DataFrame:
+        file_name = f"{PATH_INPUT_ENERGIES}{self.data_name}.xvg"
+        reader = XVGReader(file_name)
+        all_values = reader._auxdata_values
+        reader.close()
+        # find the column with property name
+        correct_column = None
+        with open(file_name, 'r') as f:
+            for line in f:
+                # parse property unit
+                if line.startswith("@    yaxis  label"):
+                    split_line = line.split('"')
+                    self.unit = split_line[1]
+                # parse column number
+                if f'"{self.property_name}"' in line:
+                    split_line = line.split(" ")
+                    correct_column = int(split_line[1][1:]) + 1
+                if not line.startswith("@") and not line.startswith("#"):
+                    break
+        df = pd.DataFrame(all_values[:, correct_column], columns=[self.property_name])
+        # rename columns
+        #df.rename(columns={col_name: f"xvg {col_name}" for col_name in df.columns}, inplace=True)
+        # select points that fall within each entry in test_Ns
+        if self.test_Ns is None:
+            self.test_Ns = np.linspace(3, len(df), 5, dtype=int)
+        else:
+            assert np.all([isinstance(x, int) for x in self.test_Ns]), "All tested Ns must be integers."
+            assert np.max(self.test_Ns) <= len(df), "Test N cannot be larger than the number of points"
+        selected_Ns = np.zeros((len(self.test_Ns), len(df)))
+        for i, point in enumerate(self.test_Ns):
+            selected_Ns[i][:point] = 1
+        column_names = [f"under {i}" for i in self.test_Ns]
+        df[column_names] = selected_Ns.T
+        for point in self.test_Ns:
+            df[f"{point}"] = df.where(df[f"under {point}"]==1)[self.property_name]
+        return df
+
+    def _plot_data(self, **kwargs):
+        df = self._prepare_data()
+        new_column_names = [f"{i}" for i in self.test_Ns]
+        sns.violinplot(df[new_column_names], ax=self.ax, scale="area", inner="stick")
+        self.ax.set_xlabel("N")
+        if self.unit:
+            self.ax.set_ylabel(f"{self.property_name} [{self.unit}]")
+        else:
+            self.ax.set_ylabel(self.property_name)
+
 if __name__ == "__main__":
-    PanelPlot([VoranoiConvergencePlot(f"{i}_1_10_100") for i in GRID_ALGORITHMS[:-1]]).create_and_save()
+    EnergyConvergencePlot("full_energy_H2O_H2O", test_Ns=None, property_name="LJ (SR)").create_and_save()
+    # FullGrid(o_grid_name="cube4D_12", b_grid_name="zero", t_grid_name='range(1, 5, 2)')
+    # PositionGridPlot("position_grid_o_cube4D_12_b_zero_1_t_3203903466", cell_lines=True).create_and_save(
+    #     animate_rot=True, animate_seq=False)
+    # PanelPlot([VoranoiConvergencePlot(f"{i}_1_10_100") for i in GRID_ALGORITHMS[:-1]]).create_and_save()
