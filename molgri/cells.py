@@ -65,7 +65,7 @@ def voranoi_surfaces_on_sphere(points: NDArray) -> SphericalVoronoi:
     assert points.shape[1] == 3, "Must provide an input array of size (N, 3)!"
     norms = norm_per_axis(points)
     radius = np.average(norms)
-    assert np.allclose(norms, radius, atol=10**-UNIQUE_TOL), "All input points must have the same norm."
+    assert np.allclose(norms, radius, atol=1, rtol=0.01), "All input points must have the same norm."
     # re-normalise for perfect match
     points = normalise_vectors(points, length=radius)
     return SphericalVoronoi(points, radius=radius, threshold=10**-UNIQUE_TOL)

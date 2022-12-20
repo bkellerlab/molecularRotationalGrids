@@ -14,6 +14,7 @@ from typing import Generator, Tuple, List
 import numpy as np
 from ast import literal_eval
 
+from MDAnalysis.auxiliary.XVG import XVGReader
 from numpy.typing import NDArray, ArrayLike
 from scipy.spatial.transform import Rotation
 import MDAnalysis as mda
@@ -100,6 +101,12 @@ class FullGridNameParser:
 
     def get_standard_full_grid_name(self):
         return f"o_{self.o_grid_name}_b_{self.b_grid_name}_t_{self.t_grid_name}"
+
+    def get_num_b_rot(self):
+        return int(self.b_grid_name.split("_")[1])
+
+    def get_num_o_rot(self):
+        return int(self.o_grid_name.split("_")[1])
 
 
 class GridNameParser(NameParser):
@@ -397,3 +404,46 @@ class TranslationParser(object):
         if isinstance(str_in_brackets, numbers.Number):
             str_in_brackets = tuple((str_in_brackets,))
         return str_in_brackets
+
+
+class XVGParser(object):
+
+    def __init__(self, path_xvg: str):
+        self.path_name = path_xvg
+        reader = XVGReader(path_xvg)
+        self.all_values = reader._auxdata_values
+        reader.close()
+
+    def get_all_columns(self) -> NDArray:
+        return self.all_values
+
+    def get_y_unit(self) -> str:
+        y_unit = None
+        with open(self.path_name, 'r') as f:
+            for line in f:
+                # parse property unit
+                if line.startswith("@    yaxis  label"):
+                    split_line = line.split('"')
+                    y_unit = split_line[1]
+                    break
+        if y_unit is None:
+            print("Warning: energy units could not be detected in the xvg file.")
+            y_unit = "[?]"
+        return y_unit
+
+    def get_column_index_by_name(self, column_label) -> Tuple[str, int]:
+        correct_column = None
+        with open(self.path_name, 'r') as f:
+            for line in f:
+                # parse column number
+                if f'"{column_label}"' in line:
+                    split_line = line.split(" ")
+                    correct_column = int(split_line[1][1:]) + 1
+                if not line.startswith("@") and not line.startswith("#"):
+                    break
+        if correct_column is None:
+            print(f"Warning: a column with label {column_label} not found in the XVG file. Using the first y-axis "
+                  f"column instead.")
+            column_label = "XVG column 1"
+            correct_column = 1
+        return column_label, correct_column

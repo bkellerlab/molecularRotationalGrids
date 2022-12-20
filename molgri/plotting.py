@@ -1,9 +1,12 @@
 from abc import ABC, abstractmethod
-from typing import Union, List
+from typing import Union, List, Tuple
 
+import matplotlib
 import numpy as np
 import pandas as pd
 import seaborn as sns
+from matplotlib.colors import ListedColormap
+from mpl_toolkits.mplot3d.art3d import Poly3DCollection
 from scipy.constants import pi
 from matplotlib import pyplot as plt
 from matplotlib.animation import FuncAnimation, PillowWriter
@@ -12,16 +15,16 @@ from matplotlib import ticker
 from mpl_toolkits.mplot3d.axes3d import Axes3D
 from scipy.spatial import geometric_slerp
 from seaborn import color_palette
-from MDAnalysis.auxiliary.XVG import XVGReader
 
 from molgri.analysis import vector_within_alpha
 from molgri.cells import voranoi_surfaces_on_stacked_spheres
-from molgri.parsers import NameParser
+from molgri.parsers import NameParser, XVGParser, PtParser, GridNameParser, FullGridNameParser
 from molgri.utils import norm_per_axis, normalise_vectors
-from .grids import Polytope, IcosahedronPolytope, CubePolytope, build_grid_from_name, FullGrid
+from .grids import Polytope, IcosahedronPolytope, CubePolytope, build_grid_from_name
 from .constants import DIM_SQUARE, DEFAULT_DPI, COLORS, DEFAULT_NS, EXTENSION_FIGURES, CELLS_DF_COLUMNS, \
-    GRID_ALGORITHMS, FULL_GRID_ALG_NAMES
-from .paths import PATH_OUTPUT_PLOTS, PATH_OUTPUT_ANIS, PATH_OUTPUT_FULL_GRIDS, PATH_OUTPUT_CELLS, PATH_INPUT_ENERGIES
+    FULL_GRID_ALG_NAMES, UNIQUE_TOL
+from .paths import PATH_OUTPUT_PLOTS, PATH_OUTPUT_ANIS, PATH_OUTPUT_FULL_GRIDS, PATH_OUTPUT_CELLS, PATH_INPUT_ENERGIES, \
+    PATH_INPUT_BASEGRO, PATH_OUTPUT_PT
 
 
 class AbstractPlot(ABC):
@@ -77,8 +80,6 @@ class AbstractPlot(ABC):
         """
         self._create_fig_ax(ax=ax, sharex=sharex, sharey=sharey)
         self._set_up_empty()
-        if equalize:
-            self._equalize_axes()
         if any([x_min_limit, x_max_limit, y_min_limit, y_max_limit, z_min_limit, z_max_limit]):
             self._axis_limits(x_min_limit=x_min_limit, x_max_limit=x_max_limit,
                               y_min_limit=y_min_limit, y_max_limit=y_max_limit,
@@ -88,6 +89,8 @@ class AbstractPlot(ABC):
         if title:
             self._create_title(title=title)
         self._plot_data(color=color)
+        if equalize:
+            self._equalize_axes()
         self._sci_ticks(sci_limit_min, sci_limit_max)
         if main_ticks_only:
             self._main_ticks()
@@ -500,6 +503,90 @@ class PositionGridPlot(GridPlot):
                     self.ax.plot(norm * result[..., 0], norm * result[..., 1], norm * result[..., 2], c='k')
 
 
+class TrajectoryEnergyPlot(Plot3D):
+
+    def __init__(self, data_name: str, plot_type="trajectory", **kwargs):
+        self.energies = None
+        self.property = "Trajectory positions"
+        self.unit =  r'$\AA$'
+        self.N_max = None
+        super().__init__(data_name, plot_type=plot_type, **kwargs)
+
+    def add_energy_information(self, path_xvg_file, property_name="Potential"):
+        self.plot_type += "_energies"
+        file_parser = XVGParser(path_xvg_file)
+        self.property, property_index = file_parser.get_column_index_by_name(column_label=property_name)
+        self.unit = file_parser.get_y_unit()
+        self.energies = file_parser.all_values[:, property_index]
+
+    def _prepare_data(self) -> pd.DataFrame:
+        split_name = self.data_name.split("_")
+        path_m1 = f"{PATH_INPUT_BASEGRO}{split_name[0]}"
+        path_m2 = f"{PATH_INPUT_BASEGRO}{split_name[1]}"
+        gnp = FullGridNameParser("_".join(split_name[2:]))
+        num_b = gnp.get_num_b_rot()
+        num_o = gnp.get_num_o_rot()
+        path_topology = f"{PATH_OUTPUT_PT}{self.data_name}.gro"
+        path_trajectory = f"{PATH_OUTPUT_PT}{self.data_name}.xtc"
+        my_parser = PtParser(path_m1, path_m2, path_topology, path_trajectory)
+        my_data = []
+        for i, molecules in enumerate(my_parser.generate_frame_as_molecule()):
+            mol1, mol2 = molecules
+            com = mol2.get_center_of_mass()
+            try:
+                current_E = self.energies[i]
+            except TypeError:
+                current_E = 0
+            my_data.append([*np.round(com), current_E])
+        my_df = pd.DataFrame(my_data, columns=["x", "y", "z", f"{self.property} {self.unit}"])
+        if self.N_max is None:
+            self.N_max = len(my_df)
+        my_df = my_df[:self.N_max]
+        df_extract = my_df.groupby(["x", "y", "z"]).min()
+        print(len(df_extract), len(my_df)//num_b)
+        #TODO: change
+        df_extract = df_extract[:len(my_df)//num_b]
+        assert len(df_extract) == len(my_df)//num_b
+
+        return df_extract, num_o
+
+    def _plot_data(self, **kwargs):
+        my_df, num_o = self._prepare_data()
+        only_index = my_df.index.to_list()
+        all_positions = np.array([*only_index])
+        all_energies = my_df[f"{self.property} {self.unit}"]
+        if self.energies is None:
+            self.ax.scatter(*all_positions.T, c="black")
+        else:
+            self._draw_voranoi_cells(all_positions.reshape((1, -1, 3)), all_energies) #TODO
+            cmap = ListedColormap((sns.color_palette("coolwarm", 256).as_hex()))
+            im = self.ax.scatter(*all_positions.T, c=all_energies, cmap=cmap)
+            self.fig.colorbar(im, ax=self.ax)
+
+    def _draw_voranoi_cells(self, points, colors):
+        svs = voranoi_surfaces_on_stacked_spheres(points)
+        color_dimension = colors  # change to desired fourth dimension
+        minn, maxx = color_dimension.min(), color_dimension.max()
+        norm = matplotlib.colors.Normalize(minn, maxx)
+        m = plt.cm.ScalarMappable(norm=norm, cmap="coolwarm")
+        m.set_array([])
+        fcolors = m.to_rgba(color_dimension)
+        for i, sv in enumerate(svs):
+            sv.sort_vertices_of_regions()
+            for n in range(0, len(sv.regions)):
+                region = sv.regions[n]
+                #self.ax.scatter(points[n, 0], points[n, 1], points[n, 2], c='b')
+                #random_color = colors.rgb2hex(scipy.rand(3))
+                #cmap = sns.color_palette("coolwarm")
+                polygon = Poly3DCollection([sv.vertices[region]], alpha=0.5)
+                #polygon.set_cmap("coolwarm")
+                polygon.set_color(fcolors[n])
+                self.ax.add_collection3d(polygon)
+
+    def create(self, *args, **kwargs):
+        super().create(*args, equalize=True, title=f"{self.property} {self.unit}", x_max_limit=20, **kwargs)
+
+
 class VoranoiConvergencePlot(AbstractPlot):
 
     def __init__(self, data_name: str, style_type=None, plot_type="areas"):
@@ -671,37 +758,12 @@ class EnergyConvergencePlot(AbstractPlot):
 
     def _prepare_data(self) -> pd.DataFrame:
         file_name = f"{PATH_INPUT_ENERGIES}{self.data_name}.xvg"
-        reader = XVGReader(file_name)
-        all_values = reader._auxdata_values
-        reader.close()
-        # find the column with property name
-        correct_column = None
-        with open(file_name, 'r') as f:
-            for line in f:
-                # parse property unit
-                if line.startswith("@    yaxis  label"):
-                    split_line = line.split('"')
-                    self.unit = split_line[1]
-                # parse column number
-                if f'"{self.property_name}"' in line:
-                    split_line = line.split(" ")
-                    correct_column = int(split_line[1][1:]) + 1
-                if not line.startswith("@") and not line.startswith("#"):
-                    break
-        if correct_column is None:
-            print(f"Warning: a column with label {self.property_name} not found in the XVG file. Using the first y-axis "
-                  f"column instead.")
-            self.property_name = "XVG column 1"
-            correct_column = 1
-        if self.unit is None:
-            print("Warning: energy units could not be detected in the xvg file.")
-            self.unit = "[?]"
-        df = pd.DataFrame(all_values[:, correct_column], columns=[self.property_name])
-        # rename columns
-        #df.rename(columns={col_name: f"xvg {col_name}" for col_name in df.columns}, inplace=True)
+        file_parsed = XVGParser(file_name)
+        self.property_name, correct_column = file_parsed.get_column_index_by_name(self.property_name)
+        self.unit = file_parsed.get_y_unit()
+        df = pd.DataFrame(file_parsed.all_values[:, correct_column], columns=[self.property_name])
         # select points that fall within each entry in test_Ns
         if self.test_Ns is None:
-            min_value = 1 if len(df) < 20 else 10
             self.test_Ns = np.linspace(len(df)//20, len(df), 5, dtype=int)
         else:
             assert np.all([isinstance(x, int) for x in self.test_Ns]), "All tested Ns must be integers."
@@ -725,10 +787,31 @@ class EnergyConvergencePlot(AbstractPlot):
         else:
             self.ax.set_ylabel(self.property_name)
 
+
+def coverage_plots_for_selected_Ns(data_name, Ns=None, animate_rot=False):
+    tep = TrajectoryEnergyPlot(data_name)
+    tep.add_energy_information(f"input/{data_name}.xvg")
+    previous_name = tep.plot_type
+    if Ns is None:
+        # first at full length
+        max_N = len(tep.energies)
+        Ns = np.linspace(0, max_N, 5, dtype=int)[1:]
+    for N in Ns:
+        tep.N_max = N
+        tep.plot_type = previous_name + f"_{N}"
+        tep.create_and_save(animate_rot=animate_rot)
+
+
 if __name__ == "__main__":
-    EnergyConvergencePlot("full_energy_H2O_H2O", test_Ns=(5, 10, 20, 30, 40, 50), property_name="LJ (SR)").create_and_save()
-    EnergyConvergencePlot("full_energy_protein_CL", test_Ns=(10, 50, 100, 200, 300, 400, 500)).create_and_save()
-    EnergyConvergencePlot("full_energy2", test_Ns=(100, 500, 800, 1000, 1500, 2000, 3000, 3600)).create_and_save()
+    # H2O_H2O_o_ico_50_b_ico_10_t_902891566
+    # tep = TrajectoryEnergyPlot("H2O_H2O_o_ico_500_b_ico_5_t_3830884671")
+    # tep.add_energy_information("input/H2O_H2O_o_ico_500_b_ico_5_t_3830884671.xvg")
+    # tep.create_and_save(animate_rot=True)
+    coverage_plots_for_selected_Ns("H2O_H2O_o_ico_500_b_ico_5_t_3830884671", Ns=[50, 100, 300, 500], animate_rot=True)
+    # EnergyConvergencePlot("full_energy_H2O_H2O", test_Ns=(5, 10, 20, 30, 40, 50), property_name="LJ (SR)").create_and_save()
+    # EnergyConvergencePlot("full_energy_protein_CL", test_Ns=(10, 50, 100, 200, 300, 400, 500)).create_and_save()
+    # EnergyConvergencePlot("full_energy2", test_Ns=(100, 500, 800, 1000, 1500, 2000, 3000, 3600)).create_and_save()
+
     # FullGrid(o_grid_name="cube4D_12", b_grid_name="zero", t_grid_name='range(1, 5, 2)')
     # PositionGridPlot("position_grid_o_cube4D_12_b_zero_1_t_3203903466", cell_lines=True).create_and_save(
     #     animate_rot=True, animate_seq=False)
