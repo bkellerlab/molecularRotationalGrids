@@ -688,12 +688,21 @@ class EnergyConvergencePlot(AbstractPlot):
                     correct_column = int(split_line[1][1:]) + 1
                 if not line.startswith("@") and not line.startswith("#"):
                     break
+        if correct_column is None:
+            print(f"Warning: a column with label {self.property_name} not found in the XVG file. Using the first y-axis "
+                  f"column instead.")
+            self.property_name = "XVG column 1"
+            correct_column = 1
+        if self.unit is None:
+            print("Warning: energy units could not be detected in the xvg file.")
+            self.unit = "[?]"
         df = pd.DataFrame(all_values[:, correct_column], columns=[self.property_name])
         # rename columns
         #df.rename(columns={col_name: f"xvg {col_name}" for col_name in df.columns}, inplace=True)
         # select points that fall within each entry in test_Ns
         if self.test_Ns is None:
-            self.test_Ns = np.linspace(3, len(df), 5, dtype=int)
+            min_value = 1 if len(df) < 20 else 10
+            self.test_Ns = np.linspace(len(df)//20, len(df), 5, dtype=int)
         else:
             assert np.all([isinstance(x, int) for x in self.test_Ns]), "All tested Ns must be integers."
             assert np.max(self.test_Ns) <= len(df), "Test N cannot be larger than the number of points"
@@ -717,7 +726,9 @@ class EnergyConvergencePlot(AbstractPlot):
             self.ax.set_ylabel(self.property_name)
 
 if __name__ == "__main__":
-    EnergyConvergencePlot("full_energy_H2O_H2O", test_Ns=None, property_name="LJ (SR)").create_and_save()
+    EnergyConvergencePlot("full_energy_H2O_H2O", test_Ns=(5, 10, 20, 30, 40, 50), property_name="LJ (SR)").create_and_save()
+    EnergyConvergencePlot("full_energy_protein_CL", test_Ns=(10, 50, 100, 200, 300, 400, 500)).create_and_save()
+    EnergyConvergencePlot("full_energy2", test_Ns=(100, 500, 800, 1000, 1500, 2000, 3000, 3600)).create_and_save()
     # FullGrid(o_grid_name="cube4D_12", b_grid_name="zero", t_grid_name='range(1, 5, 2)')
     # PositionGridPlot("position_grid_o_cube4D_12_b_zero_1_t_3203903466", cell_lines=True).create_and_save(
     #     animate_rot=True, animate_seq=False)

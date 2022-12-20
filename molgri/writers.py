@@ -135,7 +135,7 @@ class PtWriter:
         """
         structure_path = f"{PATH_OUTPUT_PT}{self.file_name}.{extension_structure}"
         if not np.all(self.box == pt.get_molecule().get_box()):
-            print(f"Warning! Simulation boxes of both molecules are different. Selecting the box of"
+            print(f"Warning! Simulation boxes of both molecules are different. Selecting the box of "
                   f"central molecule with dimensions {self.box}")
         with mda.Writer(structure_path) as structure_writer:
             self._merge_and_write(structure_writer, pt)
