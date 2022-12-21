@@ -219,10 +219,10 @@ class AbstractMultiPlot(ABC):
         self.list_plots = list_plots
         self.plot_type = plot_type
 
-    def _create_fig_ax(self, sharex="all", sharey="all"):
+    def _create_fig_ax(self, sharex="all", sharey="all", projection='3d'):
         if self.dimensions == 3:
             # for 3D plots it makes no sense to share axes
-            self.fig, self.all_ax = plt.subplots(self.n_rows, self.n_columns, subplot_kw={'projection': '3d'},
+            self.fig, self.all_ax = plt.subplots(self.n_rows, self.n_columns, subplot_kw={'projection': projection},
                                                  figsize=self.figsize)
         elif self.dimensions == 2:
             self.fig, self.all_ax = plt.subplots(self.n_rows, self.n_columns, sharex=sharex, sharey=sharey,
@@ -272,7 +272,7 @@ class AbstractMultiPlot(ABC):
 
     def animate_figure_view(self) -> FuncAnimation:
         """
-        Rotate the 3D figure for 360 degrees around itself and save the animation.
+        Rotate all 3D figures for 360 degrees around themselves and save the animation.
         """
 
         def animate(frame):
@@ -538,11 +538,12 @@ class PositionGridPlot(GridPlot):
 
 class TrajectoryEnergyPlot(Plot3D):
 
-    def __init__(self, data_name: str, plot_type="trajectory", plot_points=False, plot_surfaces=True, **kwargs):
+    def __init__(self, data_name: str, plot_type="trajectory", plot_points=False, plot_surfaces=True,
+                 selected_Ns=None, **kwargs):
         self.energies = None
         self.property = "Trajectory positions"
         self.unit = r'$\AA$'
-        self.selected_Ns = None
+        self.selected_Ns =  selected_Ns
         self.N_index = 0
         self.plot_points = plot_points
         self.plot_surfaces = plot_surfaces
@@ -556,12 +557,16 @@ class TrajectoryEnergyPlot(Plot3D):
         self.energies = file_parser.all_values[:, property_index]
 
     def _prepare_data(self) -> pd.DataFrame:
-        split_name = self.data_name.split("_")
-        path_m1 = f"{PATH_INPUT_BASEGRO}{split_name[0]}"
-        path_m2 = f"{PATH_INPUT_BASEGRO}{split_name[1]}"
-        gnp = FullGridNameParser("_".join(split_name[2:]))
-        num_b = gnp.get_num_b_rot()
-        num_o = gnp.get_num_o_rot()
+        try:
+            split_name = self.data_name.split("_")
+            path_m1 = f"{PATH_INPUT_BASEGRO}{split_name[0]}"
+            path_m2 = f"{PATH_INPUT_BASEGRO}{split_name[1]}"
+            gnp = FullGridNameParser("_".join(split_name[2:]))
+            num_b = gnp.get_num_b_rot()
+            num_o = gnp.get_num_o_rot()
+        except AttributeError:
+            raise ValueError("Cannot use the name of the XVG file to find the corresponding trajectory. "
+                             "Please rename the XVG file to the same name as the XTC file.")
         path_topology = f"{PATH_OUTPUT_PT}{self.data_name}.gro"
         path_trajectory = f"{PATH_OUTPUT_PT}{self.data_name}.xtc"
         my_parser = PtParser(path_m1, path_m2, path_topology, path_trajectory)
@@ -591,15 +596,17 @@ class TrajectoryEnergyPlot(Plot3D):
         only_index = my_df[my_df[f"{self.selected_Ns[self.N_index]}"].notnull()].index.to_list()
         all_positions = np.array([*only_index])
         all_energies = my_df[my_df[f"{self.selected_Ns[self.N_index]}"].notnull()][f"{self.selected_Ns[self.N_index]}"]
+        # TODO: enable colorbar even if not plotting points
         if self.energies is None:
             self.ax.scatter(*all_positions.T, c="black")
         else:
             if self.plot_surfaces:
                 self._draw_voranoi_cells(all_positions.reshape((1, -1, 3)), all_energies) #TODO
-            if self.plot_points:
-                cmap = ListedColormap((sns.color_palette("coolwarm", 256).as_hex()))
-                im = self.ax.scatter(*all_positions.T, c=all_energies, cmap=self.cmap)
-                self.fig.colorbar(im, ax=self.ax)
+            cmap = ListedColormap((sns.color_palette("coolwarm", 256).as_hex()))
+            im = self.ax.scatter(*all_positions.T, c=all_energies, cmap=cmap)
+            self.fig.colorbar(im, ax=self.ax)
+            if not self.plot_points:
+                im.set_visible(False)
             self.ax.set_title(f"N = {self.selected_Ns[self.N_index]}")
 
     def _draw_voranoi_cells(self, points, colors):
@@ -612,25 +619,29 @@ class TrajectoryEnergyPlot(Plot3D):
             sv.sort_vertices_of_regions()
             for n in range(0, len(sv.regions)):
                 region = sv.regions[n]
-                polygon = Poly3DCollection([sv.vertices[region]], alpha=0.5)
+                polygon = Poly3DCollection([sv.vertices[region]], alpha=1)
                 polygon.set_color(fcolors[n])
                 self.ax.add_collection3d(polygon)
 
     def create(self, *args, title=None, **kwargs):
         if title is None:
             title = f"{self.property} {self.unit}"
-        super().create(*args, equalize=True, title=title, x_max_limit=20, **kwargs)
+        super().create(*args, equalize=True, title=title, **kwargs)
 
 
-def create_trajectory_energy_multiplot(data_name, animate_rot=False):
+def create_trajectory_energy_multiplot(data_name, Ns=None, animate_rot=False):
     list_single_plots = []
-    for i in range(5):
-        tep = TrajectoryEnergyPlot(data_name, plot_points=False, plot_surfaces=True, style_type=["empty"])
+    max_index = 5 if Ns is None else len(Ns)
+    for i in range(max_index):
+        tep = TrajectoryEnergyPlot(data_name, plot_points=False, plot_surfaces=True, selected_Ns=Ns)
         tep.N_index = i
         tep.add_energy_information(f"{PATH_INPUT_ENERGIES}{data_name}.xvg")
         list_single_plots.append(tep)
-    TrajectoryEnergyMultiPlot(list_single_plots, n_columns=5, n_rows=1).create_and_save(animate_rot=animate_rot)
+    TrajectoryEnergyMultiPlot(list_single_plots, n_columns=max_index, n_rows=1).create_and_save(animate_rot=animate_rot)
 
+
+class HammerProjectionTrajectory:
+    pass
 
 class TrajectoryEnergyMultiPlot(AbstractMultiPlot):
 
@@ -817,6 +828,7 @@ class EnergyConvergencePlot(AbstractPlot):
         df = pd.DataFrame(file_parsed.all_values[:, correct_column], columns=[self.property_name])
         # select points that fall within each entry in test_Ns
         self.test_Ns = test_or_create_Ns(len(df), self.test_Ns)
+
         points_up_to_Ns(df, self.test_Ns, target_column=self.property_name)
         return df
 
@@ -872,7 +884,6 @@ def points_up_to_Ns(df: pd.DataFrame, Ns: ArrayLike, target_column: str):
 
 
 def test_or_create_Ns(max_N: int, Ns: ArrayLike = None,  num_test_points=5) -> ArrayLike:
-    assert Ns is not None or max_N is not None
     if Ns is None:
         Ns = np.linspace(0, max_N, num_test_points+1, dtype=int)[1:]
     else:
@@ -881,24 +892,12 @@ def test_or_create_Ns(max_N: int, Ns: ArrayLike = None,  num_test_points=5) -> A
     return Ns
 
 
-def coverage_plots_for_selected_Ns(data_name, Ns=None, animate_rot=False):
-    tep = TrajectoryEnergyPlot(data_name)
-    tep.add_energy_information(f"input/{data_name}.xvg")
-    previous_name = tep.plot_type
-    Ns = test_or_create_Ns(len(tep.energies), Ns)
-    for N in Ns:
-        tep.N_max = N
-        tep.plot_type = previous_name + f"_{N}"
-        tep.create_and_save(animate_rot=animate_rot)
-
-
 if __name__ == "__main__":
     # H2O_H2O_o_ico_50_b_ico_10_t_902891566
     # tep = TrajectoryEnergyPlot("H2O_H2O_o_ico_500_b_ico_5_t_3830884671")
     # tep.add_energy_information("input/H2O_H2O_o_ico_500_b_ico_5_t_3830884671.xvg")
     # tep.create_and_save(animate_rot=True)
     create_trajectory_energy_multiplot("H2O_H2O_o_ico_500_b_ico_5_t_3830884671", animate_rot=True)
-    #coverage_plots_for_selected_Ns("H2O_H2O_o_ico_500_b_ico_5_t_3830884671", Ns=[50, 100, 300, 500], animate_rot=True)
     #EnergyConvergencePlot("full_energy_H2O_H2O", test_Ns=(5, 10, 20, 30, 40, 50), property_name="LJ (SR)").create_and_save()
     # EnergyConvergencePlot("full_energy_protein_CL", test_Ns=(10, 50, 100, 200, 300, 400, 500)).create_and_save()
     # EnergyConvergencePlot("full_energy2", test_Ns=(100, 500, 800, 1000, 1500, 2000, 3000, 3600)).create_and_save()
