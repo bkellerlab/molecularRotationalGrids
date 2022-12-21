@@ -3,6 +3,7 @@ from typing import Union, List, Tuple
 
 import matplotlib
 import numpy as np
+from numpy.typing import ArrayLike
 import pandas as pd
 import seaborn as sns
 from matplotlib.colors import ListedColormap
@@ -203,6 +204,7 @@ class AbstractMultiPlot(ABC):
 
     def __init__(self, list_plots: List[AbstractPlot], figsize=None, n_rows: int = 4, n_columns: int = 2,
                  plot_type: str = "multi"):
+        self.ani_path = PATH_OUTPUT_ANIS
         self.dimensions = list_plots[0].dimensions
         assert np.all([list_plot.dimensions == self.dimensions for list_plot in list_plots]), "Plots cannot have various" \
                                                                                               "numbers of directions"
@@ -268,25 +270,51 @@ class AbstractMultiPlot(ABC):
             if self.dimensions == 3 and z_ax:
                 subaxis.set_zlim(*z_lim)
 
+    def animate_figure_view(self) -> FuncAnimation:
+        """
+        Rotate the 3D figure for 360 degrees around itself and save the animation.
+        """
 
+        def animate(frame):
+            # rotate the view left-right
+            for ax in self.all_ax.ravel():
+                ax.view_init(azim=2*frame)
+            return self.fig
 
-    # def add_colorbar(self, p, orientation="horizontal", cbar_label=None, formatter=ticker.LogFormatterMathtext(linthresh=9, minor_thresholds=(1, 0.2))):
-    #     if orientation == "horizontal":
-    #         pos = self.ax.get_position()
-    #         cax = self.fig.add_axes([pos.x0 -0.05, pos.y0 -0.1, 0.3, 0.03])
-    #
-    #     else:
-    #         pos = self.ax.get_position()
-    #         cax = self.fig.add_axes([pos.x1 - 1, pos.y0 + 0.0, 0.03, 0.4])
-    #     cbar = self.fig.colorbar(p, orientation=orientation, pad=0.4,
-    #                              format=formatter, cax=cax)
-    #     if orientation == "vertical":
-    #         cax.yaxis.set_label_position('left')
-    #     if cbar_label:
-    #         cbar.set_label(cbar_label)
+        anim = FuncAnimation(self.fig, animate, frames=180, interval=50)
+        writergif = PillowWriter(fps=10, bitrate=-1)
+        # noinspection PyTypeChecker
+        anim.save(f"{self.ani_path}{self.plot_type}.gif", writer=writergif, dpi=400)
+        return anim
+
+    # def add_colorbar(self, cbar_kwargs):
+    #     #orientation = cbar_kwargs.pop("orientation", "horizontal")
+    #     #cbar_label = cbar_kwargs.pop("cbar_label", None)
+    #     # for plot in self.list_plots:
+    #     #     cmap = plot.cmap
+    #     # print(images)
+    #     # cbar = self.fig.colorbar()
+    #     # norm = matplotlib.colors.Normalize(vmin=0, vmax=2)
+    #     # sm = plt.cm.ScalarMappable(cmap=cmap, norm=norm)
+    #     # sm.set_array([])
+    #     # self.fig.colorbar(sm, ticks=np.linspace(0, 2, 10),
+    #     #              boundaries=np.arange(-0.05, 2.1, .1), ax=self.all_ax.ravel().tolist())
+    #     # if orientation == "horizontal":
+    #     #     pos = self.all_ax.ravel()[-1].get_position()
+    #     #     cax = self.fig.add_axes([pos.x0 -0.05, pos.y0 -0.1, 0.3, 0.03])
+    #     #
+    #     # else:
+    #     #     pos = self.all_ax.ravel()[-1].get_position()
+    #     #     cax = self.fig.add_axes([pos.x1 - 1, pos.y0 + 0.0, 0.03, 0.4])
+    #     # cbar = self.fig.colorbar(p, orientation=orientation, pad=0.4, cax=cax)
+    #     # if orientation == "vertical":
+    #     #
+    #     #     cax.yaxis.set_label_position('left')
+    #     # if cbar_label:
+    #     #     cbar.set_label(cbar_label)
 
     def create(self, *args, rm_midlabels=True, palette=COLORS, titles=None, unify_x=False, unify_y=False,
-               unify_z=False, **kwargs):
+               unify_z=False, animate_rot=False, joint_cbar=False, cbar_kwargs=None, **kwargs):
         self._create_fig_ax()
         if titles:
             assert len(titles) == len(self.list_plots), "Wrong number of titles provided"
@@ -299,8 +327,13 @@ class AbstractMultiPlot(ABC):
             self._remove_midlabels()
         if np.any([unify_x, unify_y, unify_z]):
             self.unify_axis_limits(unify_x, unify_y, unify_z)
-        # if cbar:
-        #     self.add_colorbar(p)
+        # if joint_cbar:
+        #     self.add_colorbar(cbar_kwargs)
+        if animate_rot:
+            if self.dimensions == 2:
+                print("Warning! Rotation of plots only possible for 3D plots.")
+            else:
+                self.animate_figure_view()
 
     def create_and_save(self, *args, close_fig=True, **kwargs):
         self.create(*args, **kwargs)
@@ -505,11 +538,14 @@ class PositionGridPlot(GridPlot):
 
 class TrajectoryEnergyPlot(Plot3D):
 
-    def __init__(self, data_name: str, plot_type="trajectory", **kwargs):
+    def __init__(self, data_name: str, plot_type="trajectory", plot_points=False, plot_surfaces=True, **kwargs):
         self.energies = None
         self.property = "Trajectory positions"
-        self.unit =  r'$\AA$'
-        self.N_max = None
+        self.unit = r'$\AA$'
+        self.selected_Ns = None
+        self.N_index = 0
+        self.plot_points = plot_points
+        self.plot_surfaces = plot_surfaces
         super().__init__(data_name, plot_type=plot_type, **kwargs)
 
     def add_energy_information(self, path_xvg_file, property_name="Potential"):
@@ -539,53 +575,70 @@ class TrajectoryEnergyPlot(Plot3D):
                 current_E = 0
             my_data.append([*np.round(com), current_E])
         my_df = pd.DataFrame(my_data, columns=["x", "y", "z", f"{self.property} {self.unit}"])
-        if self.N_max is None:
-            self.N_max = len(my_df)
-        my_df = my_df[:self.N_max]
+        self.selected_Ns = test_or_create_Ns(len(my_df), self.selected_Ns)
+        points_up_to_Ns(my_df, self.selected_Ns, target_column=f"{self.property} {self.unit}")
         df_extract = my_df.groupby(["x", "y", "z"]).min()
         print(len(df_extract), len(my_df)//num_b)
         #TODO: change
         df_extract = df_extract[:len(my_df)//num_b]
         assert len(df_extract) == len(my_df)//num_b
 
-        return df_extract, num_o
+        return df_extract
 
     def _plot_data(self, **kwargs):
-        my_df, num_o = self._prepare_data()
-        only_index = my_df.index.to_list()
+        my_df = self._prepare_data()
+        # determine min and max of the color dimension
+        only_index = my_df[my_df[f"{self.selected_Ns[self.N_index]}"].notnull()].index.to_list()
         all_positions = np.array([*only_index])
-        all_energies = my_df[f"{self.property} {self.unit}"]
+        all_energies = my_df[my_df[f"{self.selected_Ns[self.N_index]}"].notnull()][f"{self.selected_Ns[self.N_index]}"]
         if self.energies is None:
             self.ax.scatter(*all_positions.T, c="black")
         else:
-            self._draw_voranoi_cells(all_positions.reshape((1, -1, 3)), all_energies) #TODO
-            cmap = ListedColormap((sns.color_palette("coolwarm", 256).as_hex()))
-            im = self.ax.scatter(*all_positions.T, c=all_energies, cmap=cmap)
-            self.fig.colorbar(im, ax=self.ax)
+            if self.plot_surfaces:
+                self._draw_voranoi_cells(all_positions.reshape((1, -1, 3)), all_energies) #TODO
+            if self.plot_points:
+                cmap = ListedColormap((sns.color_palette("coolwarm", 256).as_hex()))
+                im = self.ax.scatter(*all_positions.T, c=all_energies, cmap=self.cmap)
+                self.fig.colorbar(im, ax=self.ax)
+            self.ax.set_title(f"N = {self.selected_Ns[self.N_index]}")
 
     def _draw_voranoi_cells(self, points, colors):
         svs = voranoi_surfaces_on_stacked_spheres(points)
-        color_dimension = colors  # change to desired fourth dimension
-        minn, maxx = color_dimension.min(), color_dimension.max()
-        norm = matplotlib.colors.Normalize(minn, maxx)
-        m = plt.cm.ScalarMappable(norm=norm, cmap="coolwarm")
-        m.set_array([])
-        fcolors = m.to_rgba(color_dimension)
+        norm = matplotlib.colors.Normalize(vmin=colors.min(), vmax=colors.max())
+        cmap = plt.cm.ScalarMappable(cmap="coolwarm", norm=norm)
+        cmap.set_array([])
+        fcolors = cmap.to_rgba(colors)
         for i, sv in enumerate(svs):
             sv.sort_vertices_of_regions()
             for n in range(0, len(sv.regions)):
                 region = sv.regions[n]
-                #self.ax.scatter(points[n, 0], points[n, 1], points[n, 2], c='b')
-                #random_color = colors.rgb2hex(scipy.rand(3))
-                #cmap = sns.color_palette("coolwarm")
                 polygon = Poly3DCollection([sv.vertices[region]], alpha=0.5)
-                #polygon.set_cmap("coolwarm")
                 polygon.set_color(fcolors[n])
                 self.ax.add_collection3d(polygon)
 
-    def create(self, *args, **kwargs):
-        super().create(*args, equalize=True, title=f"{self.property} {self.unit}", x_max_limit=20, **kwargs)
+    def create(self, *args, title=None, **kwargs):
+        if title is None:
+            title = f"{self.property} {self.unit}"
+        super().create(*args, equalize=True, title=title, x_max_limit=20, **kwargs)
 
+
+def create_trajectory_energy_multiplot(data_name, animate_rot=False):
+    list_single_plots = []
+    for i in range(5):
+        tep = TrajectoryEnergyPlot(data_name, plot_points=False, plot_surfaces=True, style_type=["empty"])
+        tep.N_index = i
+        tep.add_energy_information(f"{PATH_INPUT_ENERGIES}{data_name}.xvg")
+        list_single_plots.append(tep)
+    TrajectoryEnergyMultiPlot(list_single_plots, n_columns=5, n_rows=1).create_and_save(animate_rot=animate_rot)
+
+
+class TrajectoryEnergyMultiPlot(AbstractMultiPlot):
+
+    def __init__(self, list_plots: List[TrajectoryEnergyPlot], **kwargs):
+        super().__init__(list_plots, **kwargs)
+
+    def create(self, *args, **kwargs):
+        super().create(*args, joint_cbar=True, **kwargs)
 
 class VoranoiConvergencePlot(AbstractPlot):
 
@@ -763,18 +816,8 @@ class EnergyConvergencePlot(AbstractPlot):
         self.unit = file_parsed.get_y_unit()
         df = pd.DataFrame(file_parsed.all_values[:, correct_column], columns=[self.property_name])
         # select points that fall within each entry in test_Ns
-        if self.test_Ns is None:
-            self.test_Ns = np.linspace(len(df)//20, len(df), 5, dtype=int)
-        else:
-            assert np.all([isinstance(x, int) for x in self.test_Ns]), "All tested Ns must be integers."
-            assert np.max(self.test_Ns) <= len(df), "Test N cannot be larger than the number of points"
-        selected_Ns = np.zeros((len(self.test_Ns), len(df)))
-        for i, point in enumerate(self.test_Ns):
-            selected_Ns[i][:point] = 1
-        column_names = [f"under {i}" for i in self.test_Ns]
-        df[column_names] = selected_Ns.T
-        for point in self.test_Ns:
-            df[f"{point}"] = df.where(df[f"under {point}"]==1)[self.property_name]
+        self.test_Ns = test_or_create_Ns(len(df), self.test_Ns)
+        points_up_to_Ns(df, self.test_Ns, target_column=self.property_name)
         return df
 
     def _plot_data(self, **kwargs):
@@ -788,14 +831,61 @@ class EnergyConvergencePlot(AbstractPlot):
             self.ax.set_ylabel(self.property_name)
 
 
+def points_up_to_Ns(df: pd.DataFrame, Ns: ArrayLike, target_column: str):
+    """
+    Introduce a new column into the dataframe for every N  in the Ns list. The new columns contain the value from
+     target_column if the row index is <= N. Every value in the Ns list must be smaller or equal the length of the
+     DataFrame. The DataFrame is changed in-place.
+
+    Why is this helpful? For plotting convergence plots using more and more of the data.
+
+    Example:
+
+    # Initial dataframe df:
+        index   val1    val2
+        1        a       b
+        2        c       d
+        3        e       f
+        4        g       h
+
+    # After applying points_up_to_Ns(df, Ns=[1, 3, 4], target_column='val2'):
+        index   val1    val2    1       3       4
+        1        a       b      b       b       b
+        2        c       d              d       d
+        3        e       f              f       f
+        4        g       h                      h
+
+    # Plotting the result as separate items
+    sns.violinplot(df["1", "3", "4"], ax=self.ax, scale="area", inner="stick")
+    """
+    # create helper columns under_N where the value is 1 if index <= N
+    selected_Ns = np.zeros((len(Ns), len(df)))
+    for i, point in enumerate(Ns):
+        selected_Ns[i][:point] = 1
+    column_names = [f"under {i}" for i in Ns]
+    df[column_names] = selected_Ns.T
+    # create the columns in which values from target_column are copied
+    for point in Ns:
+        df[f"{point}"] = df.where(df[f"under {point}"] == 1)[target_column]
+    # remover the helper columns
+    return df
+
+
+def test_or_create_Ns(max_N: int, Ns: ArrayLike = None,  num_test_points=5) -> ArrayLike:
+    assert Ns is not None or max_N is not None
+    if Ns is None:
+        Ns = np.linspace(0, max_N, num_test_points+1, dtype=int)[1:]
+    else:
+        assert np.all([np.issubdtype(x, np.integer) for x in Ns]), "All tested Ns must be integers."
+        assert np.max(Ns) <= max_N, "Test N cannot be larger than the number of points"
+    return Ns
+
+
 def coverage_plots_for_selected_Ns(data_name, Ns=None, animate_rot=False):
     tep = TrajectoryEnergyPlot(data_name)
     tep.add_energy_information(f"input/{data_name}.xvg")
     previous_name = tep.plot_type
-    if Ns is None:
-        # first at full length
-        max_N = len(tep.energies)
-        Ns = np.linspace(0, max_N, 5, dtype=int)[1:]
+    Ns = test_or_create_Ns(len(tep.energies), Ns)
     for N in Ns:
         tep.N_max = N
         tep.plot_type = previous_name + f"_{N}"
@@ -807,8 +897,9 @@ if __name__ == "__main__":
     # tep = TrajectoryEnergyPlot("H2O_H2O_o_ico_500_b_ico_5_t_3830884671")
     # tep.add_energy_information("input/H2O_H2O_o_ico_500_b_ico_5_t_3830884671.xvg")
     # tep.create_and_save(animate_rot=True)
-    coverage_plots_for_selected_Ns("H2O_H2O_o_ico_500_b_ico_5_t_3830884671", Ns=[50, 100, 300, 500], animate_rot=True)
-    # EnergyConvergencePlot("full_energy_H2O_H2O", test_Ns=(5, 10, 20, 30, 40, 50), property_name="LJ (SR)").create_and_save()
+    create_trajectory_energy_multiplot("H2O_H2O_o_ico_500_b_ico_5_t_3830884671", animate_rot=True)
+    #coverage_plots_for_selected_Ns("H2O_H2O_o_ico_500_b_ico_5_t_3830884671", Ns=[50, 100, 300, 500], animate_rot=True)
+    #EnergyConvergencePlot("full_energy_H2O_H2O", test_Ns=(5, 10, 20, 30, 40, 50), property_name="LJ (SR)").create_and_save()
     # EnergyConvergencePlot("full_energy_protein_CL", test_Ns=(10, 50, 100, 200, 300, 400, 500)).create_and_save()
     # EnergyConvergencePlot("full_energy2", test_Ns=(100, 500, 800, 1000, 1500, 2000, 3000, 3600)).create_and_save()
 
