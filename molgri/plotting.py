@@ -580,6 +580,7 @@ class TrajectoryEnergyPlot(Plot3D):
                 current_E = 0
             my_data.append([*np.round(com), current_E])
         my_df = pd.DataFrame(my_data, columns=["x", "y", "z", f"{self.property} {self.unit}"])
+        num_t = len(my_df)/num_b/num_o
         self.selected_Ns = test_or_create_Ns(len(my_df), self.selected_Ns)
         points_up_to_Ns(my_df, self.selected_Ns, target_column=f"{self.property} {self.unit}")
         df_extract = my_df.groupby(["x", "y", "z"]).min()
@@ -604,7 +605,8 @@ class TrajectoryEnergyPlot(Plot3D):
                 self._draw_voranoi_cells(all_positions.reshape((1, -1, 3)), all_energies) #TODO
             cmap = ListedColormap((sns.color_palette("coolwarm", 256).as_hex()))
             im = self.ax.scatter(*all_positions.T, c=all_energies, cmap=cmap)
-            self.fig.colorbar(im, ax=self.ax)
+            cbar = self.fig.colorbar(im, ax=self.ax)
+            cbar.set_label(f"{self.property} {self.unit}")
             if not self.plot_points:
                 im.set_visible(False)
             self.ax.set_title(f"N = {self.selected_Ns[self.N_index]}")
@@ -725,10 +727,10 @@ class AlphaViolinPlot(AbstractPlot):
         my_grid = build_grid_from_name(self.data_name, use_saved=True)
         # if statistics file already exists, use it, else create it
         try:
-            ratios_df = pd.read_csv(my_grid.statistics_path)
+            ratios_df = pd.read_csv(my_grid.statistics_path, dtype=float)
         except FileNotFoundError:
             my_grid.save_statistics()
-            ratios_df = pd.read_csv(my_grid.statistics_path)
+            ratios_df = pd.read_csv(my_grid.statistics_path, dtype=float)
         return ratios_df
 
     def _plot_data(self, color=None, **kwargs):
@@ -897,8 +899,7 @@ if __name__ == "__main__":
     # tep = TrajectoryEnergyPlot("H2O_H2O_o_ico_500_b_ico_5_t_3830884671")
     # tep.add_energy_information("input/H2O_H2O_o_ico_500_b_ico_5_t_3830884671.xvg")
     # tep.create_and_save(animate_rot=True)
-    # create_trajectory_energy_multiplot("H2O_H2O_o_ico_500_b_ico_5_t_3830884671", animate_rot=True)
-
+    #create_trajectory_energy_multiplot("H2O_H2O_o_ico_500_b_ico_5_t_3830884671", animate_rot=False)
     AlphaConvergencePlot("systemE", style_type=["talk"]).create_and_save(equalize=True, title="Convergence of systemE")
 
     #EnergyConvergencePlot("full_energy_H2O_H2O", test_Ns=(5, 10, 20, 30, 40, 50), property_name="LJ (SR)").create_and_save()
