@@ -897,7 +897,10 @@ if __name__ == "__main__":
     # tep = TrajectoryEnergyPlot("H2O_H2O_o_ico_500_b_ico_5_t_3830884671")
     # tep.add_energy_information("input/H2O_H2O_o_ico_500_b_ico_5_t_3830884671.xvg")
     # tep.create_and_save(animate_rot=True)
-    create_trajectory_energy_multiplot("H2O_H2O_o_ico_500_b_ico_5_t_3830884671", animate_rot=True)
+    # create_trajectory_energy_multiplot("H2O_H2O_o_ico_500_b_ico_5_t_3830884671", animate_rot=True)
+
+    AlphaConvergencePlot("systemE", style_type=["talk"]).create_and_save(equalize=True, title="Convergence of systemE")
+
     #EnergyConvergencePlot("full_energy_H2O_H2O", test_Ns=(5, 10, 20, 30, 40, 50), property_name="LJ (SR)").create_and_save()
     # EnergyConvergencePlot("full_energy_protein_CL", test_Ns=(10, 50, 100, 200, 300, 400, 500)).create_and_save()
     # EnergyConvergencePlot("full_energy2", test_Ns=(100, 500, 800, 1000, 1500, 2000, 3000, 3600)).create_and_save()
