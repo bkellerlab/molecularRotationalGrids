@@ -5,7 +5,8 @@ import numpy as np
 
 from molgri.paths import PATH_INPUT_ENERGIES
 from molgri.scripts.set_up_io import freshly_create_all_folders
-from molgri.plotting import EnergyConvergencePlot, create_trajectory_energy_multiplot
+from molgri.plotting import EnergyConvergencePlot, create_trajectory_energy_multiplot, create_hammer_multiplot, \
+    HammerProjectionTrajectory, TrajectoryEnergyPlot
 
 parser = argparse.ArgumentParser()
 requiredNamed = parser.add_argument_group('required named arguments')
@@ -23,9 +24,12 @@ parser.add_argument('--p2d', action='store_true', default=False,
                     help="construct 2-dimensional Hammer projection plots to help determine convergence")
 parser.add_argument('--label', default="Potential",
                     help="one of y labels found in the XVG file (eg Potential), if not found, use the first y column")
+parser.add_argument('--convergence', action='store_true', default=False,
+                    help="select if you want to produce series of plots at different Ns (that you can select"
+                         "with flag --Ns_o")
 
 
-def run_generate_pt():
+def run_generate_energy():
     freshly_create_all_folders()
     my_args = parser.parse_args()
     if my_args.Ns_o is None:
@@ -35,18 +39,33 @@ def run_generate_pt():
         Ns = [int(N) for N in Ns_list]
         Ns = np.array(Ns, dtype=int)
     if my_args.p1d:
-        EnergyConvergencePlot(my_args.xvg, test_Ns=Ns, property_name=my_args.label).create_and_save()
+        if my_args.convergence:
+            EnergyConvergencePlot(my_args.xvg, test_Ns=Ns, property_name=my_args.label).create_and_save()
+        else:
+            print("1D plot only makes sense in comparison. Select --convergence flag if you want to create it.")
     if my_args.p2d:
-        print("Warning! Hammer plots not yet implemented. The flag --p2d has no effect.")
+        if my_args.convergence:
+            create_hammer_multiplot(my_args.xvg, Ns=Ns)
+        else:
+            hpt = HammerProjectionTrajectory(my_args.xvg)
+            hpt.add_energy_information(f"{PATH_INPUT_ENERGIES}{my_args.xvg}.xvg")
+            hpt.create_and_save()
     if my_args.p3d:
-        create_trajectory_energy_multiplot(my_args.xvg, Ns=Ns, animate_rot=my_args.animate)
+        if my_args.convergence:
+            create_trajectory_energy_multiplot(my_args.xvg, Ns=Ns, animate_rot=my_args.animate)
+        else:
+            tep = TrajectoryEnergyPlot(my_args.xvg, plot_points=False, plot_surfaces=True)
+            tep.add_energy_information(f"{PATH_INPUT_ENERGIES}{my_args.xvg}.xvg")
+            tep.create_and_save(animate_rot=my_args.animate)
     if my_args.animate and not my_args.p3d:
         print("Warning! No animation possible since no 3D plot is constructed. Use --p3d --animate if you "
               "want an animation of 3D energy distribution.")
     if not my_args.p1d and not my_args.p2d and not my_args.p3d:
         print("Select at least one of plotting options: --p1d, --p2d, --p3d")
-
+    if my_args.Ns_o and not my_args.convergence:
+        print("You have selected a list of test N values with flag --Ns_o. Do you want to test convergence? "
+              "Please select an additional flag --convergence.")
 
 if __name__ == '__main__':
-    run_generate_pt()
+    run_generate_energy()
 

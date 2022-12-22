@@ -1,4 +1,7 @@
+from typing import Tuple
+
 import numpy as np
+from numpy._typing import NDArray
 
 
 def norm_per_axis(array: np.ndarray, axis: int = None) -> np.ndarray:
@@ -88,3 +91,27 @@ def dist_on_sphere(vector1: np.ndarray, vector2: np.ndarray) -> np.ndarray:
     assert np.allclose(norm1, norm2), "Both vectors/arrays of vectors don't have the same norms!"
     angle = angle_between_vectors(vector1, vector2)
     return angle * norm1
+
+
+def cart2sph(x: float, y: float, z: float) -> Tuple[float, float, float]:
+    """
+    Transform an individual 3D point from cartesian to spherical coordinates.
+
+    Code obtained from Leon Wehrhan.
+    """
+    XsqPlusYsq = x ** 2 + y ** 2
+    r = np.sqrt(XsqPlusYsq + z ** 2)  # r
+    elev = np.arctan2(z, np.sqrt(XsqPlusYsq))  # theta
+    az = np.arctan2(y, x)  # phi
+    return r, elev, az
+
+
+def cart2sphA(pts: NDArray) -> NDArray:
+    """
+    Transform an array of shape (N, 3) in cartesian coordinates to an array of the same shape in spherical coordinates.
+    Can be used to create a hammer projection plot. In this case, disregard column 0 of the output and plot columns
+    1 and 2.
+
+    Code obtained from Leon Wehrhan.
+    """
+    return np.array([cart2sph(x, y, z) for x, y, z in pts])

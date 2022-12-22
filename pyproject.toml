@@ -36,6 +36,7 @@ build-backend = "poetry.core.masonry.api"
 molgri-grid = "molgri.scripts.generate_grid:run_generate_grid"
 molgri-pt = "molgri.scripts.generate_pt:run_generate_pt"
 molgri-io = "molgri.scripts.set_up_io:parse_and_create"
+molgri-energy = "molgri.scripts.generate_energy:run_generate_energy"
 
 #[tool.setuptools.dynamic]
 #dependencies = {file = "requirements.txt"}

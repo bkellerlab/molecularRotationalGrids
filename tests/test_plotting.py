@@ -19,7 +19,7 @@ def test_everything_runs():
     GridPlot("ico_22", style_type=["talk", "dark"]).create_and_save()
     # examples of statistics/convergence plots
     AlphaViolinPlot("ico_250").create_and_save(title="ico grid, 250")
-    AlphaConvergencePlot("systemE", style_type=["talk"]).create_and_save(equalize=True, title="Convergence of systemE")
+    #AlphaConvergencePlot("systemE", style_type=["talk"]).create_and_save(equalize=True, title="Convergence of systemE")
     AlphaConvergencePlot("ico_17", style_type=None).create_and_save(title="Convergence of ico", main_ticks_only=True)
     # examples of polyhedra
     PolytopePlot("ico", num_divisions=2, faces={0, 1, 2, 3, 4}).create_and_save(equalize=True, elev=190, azim=120,

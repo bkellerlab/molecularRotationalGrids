@@ -20,10 +20,10 @@ from seaborn import color_palette
 from molgri.analysis import vector_within_alpha
 from molgri.cells import voranoi_surfaces_on_stacked_spheres
 from molgri.parsers import NameParser, XVGParser, PtParser, GridNameParser, FullGridNameParser
-from molgri.utils import norm_per_axis, normalise_vectors
+from molgri.utils import norm_per_axis, normalise_vectors, cart2sphA
 from .grids import Polytope, IcosahedronPolytope, CubePolytope, build_grid_from_name
 from .constants import DIM_SQUARE, DEFAULT_DPI, COLORS, DEFAULT_NS, EXTENSION_FIGURES, CELLS_DF_COLUMNS, \
-    FULL_GRID_ALG_NAMES, UNIQUE_TOL
+    FULL_GRID_ALG_NAMES, UNIQUE_TOL, DIM_LANDSCAPE
 from .paths import PATH_OUTPUT_PLOTS, PATH_OUTPUT_ANIS, PATH_OUTPUT_FULL_GRIDS, PATH_OUTPUT_CELLS, PATH_INPUT_ENERGIES, \
     PATH_INPUT_BASEGRO, PATH_OUTPUT_PT
 
@@ -73,13 +73,14 @@ class AbstractPlot(ABC):
     def create(self, *args, equalize=False, x_min_limit=None, x_max_limit=None, y_min_limit=None, y_max_limit=None,
                z_min_limit=None, z_max_limit=None, x_label=None, y_label=None, z_label=None,
                title=None, animate_rot=False, animate_seq=False, sci_limit_min=-4, sci_limit_max=4, color="black",
-               labelpad=0, sharex="all", sharey="all", main_ticks_only=False, ax: Union[Axes, Axes3D] = None, **kwargs):
+               labelpad=0, sharex="all", sharey="all", main_ticks_only=False, ax: Union[Axes, Axes3D] = None,
+               projection=None, **kwargs):
         """
         This is the only function the user should call on subclasses. It performs the entire plotting and
         saves the result. It uses all methods in appropriate order with appropriate values for the specific
         plot type we are using. If requested, saves the plot and/or animations.
         """
-        self._create_fig_ax(ax=ax, sharex=sharex, sharey=sharey)
+        self._create_fig_ax(ax=ax, sharex=sharex, sharey=sharey, projection=projection)
         self._set_up_empty()
         if any([x_min_limit, x_max_limit, y_min_limit, y_max_limit, z_min_limit, z_max_limit]):
             self._axis_limits(x_min_limit=x_min_limit, x_max_limit=x_max_limit,
@@ -115,7 +116,7 @@ class AbstractPlot(ABC):
         self.ax.set_ylim(y_min_limit, y_max_limit)
 
     # noinspection PyUnusedLocal
-    def _create_fig_ax(self, ax: Union[Axes, Axes3D], sharex: str = "all", sharey: str = "all"):
+    def _create_fig_ax(self, ax: Union[Axes, Axes3D], sharex: str = "all", sharey: str = "all", projection=None):
         """
         The parameters need to stay there to be consistent with AbstractMultiPlot, but are not used.
 
@@ -127,8 +128,8 @@ class AbstractPlot(ABC):
         if ax is None:
             if self.dimensions == 2:
                 self.ax = self.fig.add_subplot(111)
-            elif self.dimensions == 3:
-                self.ax = self.fig.add_subplot(111, projection='3d', computed_zorder=False)
+            elif self.dimensions == 3 or projection is not None:
+                self.ax = self.fig.add_subplot(111, projection=projection) #, computed_zorder=False
             else:
                 raise ValueError(f"Dimensions must be in (2, 3), unknown value {self.dimensions}!")
         else:
@@ -216,10 +217,11 @@ class AbstractMultiPlot(ABC):
         self.figsize = figsize
         if self.figsize is None:
             self.figsize = self.n_columns * DIM_SQUARE[0], self.n_rows * DIM_SQUARE[1]
+
         self.list_plots = list_plots
         self.plot_type = plot_type
 
-    def _create_fig_ax(self, sharex="all", sharey="all", projection='3d'):
+    def _create_fig_ax(self, sharex="all", sharey="all", projection=None):
         if self.dimensions == 3:
             # for 3D plots it makes no sense to share axes
             self.fig, self.all_ax = plt.subplots(self.n_rows, self.n_columns, subplot_kw={'projection': projection},
@@ -314,8 +316,8 @@ class AbstractMultiPlot(ABC):
     #     #     cbar.set_label(cbar_label)
 
     def create(self, *args, rm_midlabels=True, palette=COLORS, titles=None, unify_x=False, unify_y=False,
-               unify_z=False, animate_rot=False, joint_cbar=False, cbar_kwargs=None, **kwargs):
-        self._create_fig_ax()
+               unify_z=False, animate_rot=False, joint_cbar=False, cbar_kwargs=None, projection=None, **kwargs):
+        self._create_fig_ax(projection=projection)
         if titles:
             assert len(titles) == len(self.list_plots), "Wrong number of titles provided"
         else:
@@ -372,8 +374,8 @@ class Plot3D(AbstractPlot, ABC):
     def __init__(self, data_name: str, **kwargs):
         super().__init__(data_name, dimensions=3, **kwargs)
 
-    def create(self, *args, animate_rot=False, animate_seq=False, azim=-60, elev=30, **kwargs):
-        super().create(*args, **kwargs)
+    def create(self, *args, animate_rot=False, animate_seq=False, azim=-60, elev=30, projection="3d", **kwargs):
+        super().create(*args, projection=projection, **kwargs)
         self.ax.view_init(azim=azim, elev=elev)
         if animate_rot:
             self.animate_figure_view()
@@ -466,7 +468,7 @@ class GridPlot(Plot3D):
         y_max_limit = kwargs.pop("y_max_limit", 1)
         z_max_limit = kwargs.pop("z_max_limit", 1)
         super(GridPlot, self).create(equalize=True, x_max_limit=x_max_limit, y_max_limit=y_max_limit,
-                                     z_max_limit=z_max_limit, pad_inches=pad_inches, azim=30, elev=10,
+                                     z_max_limit=z_max_limit, pad_inches=pad_inches, azim=30, elev=10, projection="3d",
                                      **kwargs)
         if animate_seq:
             self.animate_grid_sequence()
@@ -561,9 +563,14 @@ class TrajectoryEnergyPlot(Plot3D):
             split_name = self.data_name.split("_")
             path_m1 = f"{PATH_INPUT_BASEGRO}{split_name[0]}"
             path_m2 = f"{PATH_INPUT_BASEGRO}{split_name[1]}"
-            gnp = FullGridNameParser("_".join(split_name[2:]))
-            num_b = gnp.get_num_b_rot()
-            num_o = gnp.get_num_o_rot()
+            try:
+                gnp = FullGridNameParser("_".join(split_name[2:]))
+                num_b = gnp.get_num_b_rot()
+                num_o = gnp.get_num_o_rot()
+            except AttributeError:
+                print("Warning! Trajectory name not in standard format. Will not be able to perform convergence tests.")
+                num_b = 1
+                num_o = 1
         except AttributeError:
             raise ValueError("Cannot use the name of the XVG file to find the corresponding trajectory. "
                              "Please rename the XVG file to the same name as the XTC file.")
@@ -584,10 +591,10 @@ class TrajectoryEnergyPlot(Plot3D):
         self.selected_Ns = test_or_create_Ns(len(my_df), self.selected_Ns)
         points_up_to_Ns(my_df, self.selected_Ns, target_column=f"{self.property} {self.unit}")
         df_extract = my_df.groupby(["x", "y", "z"]).min()
-        print(len(df_extract), len(my_df)//num_b)
+        #print(len(df_extract), len(my_df)//num_b)
         #TODO: change
         df_extract = df_extract[:len(my_df)//num_b]
-        assert len(df_extract) == len(my_df)//num_b
+        #assert len(df_extract) == len(my_df)//num_b
 
         return df_extract
 
@@ -602,7 +609,12 @@ class TrajectoryEnergyPlot(Plot3D):
             self.ax.scatter(*all_positions.T, c="black")
         else:
             if self.plot_surfaces:
-                self._draw_voranoi_cells(all_positions.reshape((1, -1, 3)), all_energies) #TODO
+                try:
+                    self._draw_voranoi_cells(all_positions.reshape((1, -1, 3)), all_energies) #TODO
+                except AssertionError:
+                    print("Warning! Sperichal Voranoi cells plot could not be produced. Likely all points are "
+                          "not at the same radius. Will create a scatterplot instead.")
+                    self.plot_points = True
             cmap = ListedColormap((sns.color_palette("coolwarm", 256).as_hex()))
             im = self.ax.scatter(*all_positions.T, c=all_energies, cmap=cmap)
             cbar = self.fig.colorbar(im, ax=self.ax)
@@ -642,8 +654,35 @@ def create_trajectory_energy_multiplot(data_name, Ns=None, animate_rot=False):
     TrajectoryEnergyMultiPlot(list_single_plots, n_columns=max_index, n_rows=1).create_and_save(animate_rot=animate_rot)
 
 
-class HammerProjectionTrajectory:
-    pass
+class HammerProjectionTrajectory(TrajectoryEnergyPlot, AbstractPlot):
+
+    def __init__(self, data_name: str, plot_type="hammer", figsize=DIM_LANDSCAPE, **kwargs):
+        super().__init__(data_name, plot_type=plot_type, plot_surfaces=False, plot_points=True, figsize=figsize,
+                         **kwargs)
+
+    def _plot_data(self, **kwargs):
+
+        my_df = self._prepare_data()
+        # determine min and max of the color dimension
+        only_index = my_df[my_df[f"{self.selected_Ns[self.N_index]}"].notnull()].index.to_list()
+        all_positions = np.array([*only_index])
+        all_energies = my_df[my_df[f"{self.selected_Ns[self.N_index]}"].notnull()][f"{self.selected_Ns[self.N_index]}"]
+        all_positions = cart2sphA(all_positions)
+        x = all_positions[:, 2]
+        y = all_positions[:, 1]
+        if self.energies is None:
+            self.ax.scatter(*all_positions.T, c="black")
+        else:
+            cmap = ListedColormap((sns.color_palette("coolwarm", 256).as_hex()))
+            im = self.ax.scatter(x, y, c=all_energies, cmap=cmap)
+            cbar = self.fig.colorbar(im, ax=self.ax)
+            cbar.set_label(f"{self.property} {self.unit}")
+            self.ax.set_title(f"N = {self.selected_Ns[self.N_index]}")
+        plt.grid(True)
+
+    def create(self, *args, **kwargs):
+        AbstractPlot.create(self, *args, projection="hammer", **kwargs)
+
 
 class TrajectoryEnergyMultiPlot(AbstractMultiPlot):
 
@@ -651,7 +690,30 @@ class TrajectoryEnergyMultiPlot(AbstractMultiPlot):
         super().__init__(list_plots, **kwargs)
 
     def create(self, *args, **kwargs):
-        super().create(*args, joint_cbar=True, **kwargs)
+        super().create(*args, projection="3d", **kwargs)
+
+
+class HammerProjectionMultiPlot(AbstractMultiPlot):
+
+    def __init__(self, list_plots: List[HammerProjectionTrajectory], plot_type="hammer", figsize=None,
+                 n_rows=1, n_columns=5, **kwargs):
+        if figsize is None:
+            figsize = (DIM_LANDSCAPE[0]*n_columns, DIM_LANDSCAPE[1]*n_rows)
+        super().__init__(list_plots, plot_type=plot_type, n_rows=n_rows, n_columns=n_columns, figsize=figsize, **kwargs)
+
+    def create(self, *args, projection="hammer", **kwargs):
+        super().create(*args, projection=projection, **kwargs)
+
+
+def create_hammer_multiplot(data_name, Ns=None):
+    list_single_plots = []
+    max_index = 5 if Ns is None else len(Ns)
+    for i in range(max_index):
+        tep = HammerProjectionTrajectory(data_name, selected_Ns=Ns)
+        tep.N_index = i
+        tep.add_energy_information(f"{PATH_INPUT_ENERGIES}{data_name}.xvg")
+        list_single_plots.append(tep)
+    HammerProjectionMultiPlot(list_single_plots, n_columns=max_index, n_rows=1).create_and_save()
 
 class VoranoiConvergencePlot(AbstractPlot):
 
@@ -900,7 +962,17 @@ if __name__ == "__main__":
     # tep.add_energy_information("input/H2O_H2O_o_ico_500_b_ico_5_t_3830884671.xvg")
     # tep.create_and_save(animate_rot=True)
     #create_trajectory_energy_multiplot("H2O_H2O_o_ico_500_b_ico_5_t_3830884671", animate_rot=False)
-    AlphaConvergencePlot("systemE", style_type=["talk"]).create_and_save(equalize=True, title="Convergence of systemE")
+    #AlphaConvergencePlot("systemE", style_type=["talk"]).create_and_save(equalize=True, title="Convergence of systemE")
+
+    hpt = HammerProjectionTrajectory("H2O_H2O_run")
+    hpt.add_energy_information("input/H2O_H2O_run.xvg")
+    hpt.create_and_save()
+
+    # hpt = HammerProjectionTrajectory("H2O_H2O_o_ico_500_b_ico_5_t_3830884671")
+    # hpt.add_energy_information("input/H2O_H2O_o_ico_500_b_ico_5_t_3830884671.xvg")
+    # hpt.create_and_save()
+    #
+    # create_hammer_multiplot("H2O_H2O_o_ico_500_b_ico_5_t_3830884671")
 
     #EnergyConvergencePlot("full_energy_H2O_H2O", test_Ns=(5, 10, 20, 30, 40, 50), property_name="LJ (SR)").create_and_save()
     # EnergyConvergencePlot("full_energy_protein_CL", test_Ns=(10, 50, 100, 200, 300, 400, 500)).create_and_save()
