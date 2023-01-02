@@ -9,7 +9,19 @@ from molgri.plotting import EnergyConvergencePlot, create_trajectory_energy_mult
     HammerProjectionTrajectory, TrajectoryEnergyPlot
 
 parser = argparse.ArgumentParser(description="""NOTE: This script is under development and likely to undergo changes in
-the future. It is recommended to verify the plausibility of the visualisations. Feedback and feature requests are welcome.""")
+the future. It is recommended to verify the plausibility of the visualisations. Feedback and feature requests are welcome.
+
+Visualisation types:
+ --p1d is a 1-dimensional violin plot that displays which energy values occur in the provided .xvg file and how
+       common they are. It is a low-dimensional projection, so information is lost, but is a fast and highly simplified
+       plot that can be useful for complex systems, especially when checking for convergence.
+ --p2d is a 2D projection where the center of mass of the second molecule is displayed as a point in Hammer projection.
+   The color of the point indicates the minimal energy at this point among all orientations tested (assuming body rotations
+   were used in the pseudotrajectory).
+ --p3d is a 3D display of points, determined and colored in the same way as in the p2d example. Instead of a point,
+   the entire voranoi cell corresponding to it is colored. Should be used with the --animate flag since only an animation
+   can properly display 3D information
+""")
 requiredNamed = parser.add_argument_group('required named arguments')
 requiredNamed.add_argument('-xvg', type=str, nargs='?', required=True,
                            help=f'name of the .xvg file in the {PATH_INPUT_ENERGIES} folder, extension not necessary')
@@ -43,7 +55,8 @@ def run_generate_energy():
         if my_args.convergence:
             EnergyConvergencePlot(my_args.xvg, test_Ns=Ns, property_name=my_args.label).create_and_save()
         else:
-            print("1D plot only makes sense in comparison. Select --convergence flag if you want to create it.")
+            EnergyConvergencePlot(my_args.xvg, no_convergence=True, property_name=my_args.label).create_and_save()
+            #print("1D plot only makes sense in comparison. Select --convergence flag if you want to create it.")
     if my_args.p2d:
         if my_args.convergence:
             create_hammer_multiplot(my_args.xvg, Ns=Ns)

@@ -878,10 +878,12 @@ class PolytopePlot(Plot3D):
 
 class EnergyConvergencePlot(AbstractPlot):
 
-    def __init__(self, data_name: str, test_Ns=None, property_name="Potential", plot_type="energy_convergence", **kwargs):
+    def __init__(self, data_name: str, test_Ns=None, property_name="Potential", no_convergence=False,
+                 plot_type="energy_convergence", **kwargs):
         self.test_Ns = test_Ns
         self.property_name = property_name
         self.unit = None
+        self.no_convergence = no_convergence
         super().__init__(data_name, plot_type=plot_type, **kwargs)
 
     def _prepare_data(self) -> pd.DataFrame:
@@ -892,6 +894,8 @@ class EnergyConvergencePlot(AbstractPlot):
         df = pd.DataFrame(file_parsed.all_values[:, correct_column], columns=[self.property_name])
         # select points that fall within each entry in test_Ns
         self.test_Ns = test_or_create_Ns(len(df), self.test_Ns)
+        if self.no_convergence:
+            self.test_Ns = [self.test_Ns[-1]]
 
         points_up_to_Ns(df, self.test_Ns, target_column=self.property_name)
         return df
