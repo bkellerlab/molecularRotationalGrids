@@ -141,4 +141,7 @@ dmypy.json
 # figures
 *.svg
 *.png
+!readme_images/*.png
 *.lcov
+*.gif
+!readme_images/*.gif
