@@ -47,8 +47,14 @@ def copy_examples():
     src_files = os.listdir(PATH_EXAMPLES)
     for file_name in src_files:
         full_file_name = os.path.join(PATH_EXAMPLES, file_name)
-        if os.path.isfile(full_file_name) and full_file_name.endswith(".gro"):
-            shutil.copy(full_file_name, IO_FOLDER_DEFAULTS[2])
+        if os.path.isfile(full_file_name):
+            # copy PT examples to PATH_OUTPUT_PT
+            if (full_file_name.endswith(".gro") and "ico" in full_file_name) or full_file_name.endswith(".xtc"):
+                shutil.copy(full_file_name, IO_FOLDER_DEFAULTS[1])
+            # copy the rest of the files to PATH_INPUT_BASEGRO
+            elif full_file_name.endswith(".gro") or full_file_name.endswith(".pdb") or full_file_name.endswith(".xvg") \
+                    or full_file_name.endswith(".xyz"):
+                shutil.copy(full_file_name, IO_FOLDER_DEFAULTS[2])
 
 
 if __name__ == '__main__':

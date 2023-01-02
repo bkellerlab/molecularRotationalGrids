@@ -32,7 +32,7 @@ parser.add_argument('--as_dir', action='store_true',
                     help='Save the PT as a directory of frames')
 parser.add_argument('--extension_trajectory', type=str, default=EXTENSION_TRAJECTORY,
                     help=f"File extension for generated (pseudo)-trajectories [default: {EXTENSION_TRAJECTORY}]")
-parser.add_argument('--extension_topology', type=str, default=EXTENSION_TOPOLOGY,
+parser.add_argument('--extension_structure', type=str, default=EXTENSION_TOPOLOGY,
                     help=f"File extension for generated topologies [default: {EXTENSION_TOPOLOGY}]")
 
 

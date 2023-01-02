@@ -8,7 +8,8 @@ from molgri.scripts.set_up_io import freshly_create_all_folders
 from molgri.plotting import EnergyConvergencePlot, create_trajectory_energy_multiplot, create_hammer_multiplot, \
     HammerProjectionTrajectory, TrajectoryEnergyPlot
 
-parser = argparse.ArgumentParser()
+parser = argparse.ArgumentParser(description="""NOTE: This script is under development and likely to undergo changes in
+the future. It is recommended to verify the plausibility of the visualisations. Feedback and feature requests are welcome.""")
 requiredNamed = parser.add_argument_group('required named arguments')
 requiredNamed.add_argument('-xvg', type=str, nargs='?', required=True,
                            help=f'name of the .xvg file in the {PATH_INPUT_ENERGIES} folder, extension not necessary')
@@ -17,11 +18,11 @@ parser.add_argument('--Ns_o', type=str, default=None,
 parser.add_argument('--p1d', action='store_true', default=False,
                     help="construct 1-dimensional violin plots to help determine convergence")
 parser.add_argument('--p3d', action='store_true', default=False,
-                    help="construct 3-dimensional grid plots to help determine convergence")
+                    help="construct 3-dimensional grid plots colored in accordance to minimal energy per point")
 parser.add_argument('--animate', action='store_true', default=False,
                     help="animate rotation of 3d plots, recommended (but may take a few minutes)")
 parser.add_argument('--p2d', action='store_true', default=False,
-                    help="construct 2-dimensional Hammer projection plots to help determine convergence")
+                    help="construct 2-dimensional Hammer projection plots colored in accordance to minimal energy per point")
 parser.add_argument('--label', default="Potential",
                     help="one of y labels found in the XVG file (eg Potential), if not found, use the first y column")
 parser.add_argument('--convergence', action='store_true', default=False,
