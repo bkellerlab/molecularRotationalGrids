@@ -14,9 +14,10 @@ def test_groupby_min_body_energy():
     test_arr = np.array([[1, 3, -2], [7, 8, 5], [1, -1, -8], [2, 1, 3], [-1.7, -0.3, -0.3], [8, 8, 5]])
     start_df = pd.DataFrame(test_arr, columns=["x", "y", "E"])
     end_df = groupby_min_body_energy(start_df, "E", 3)
-    expected_array = np.array([ [1, -1, -8], [-1.7, -0.3, -0.3]])
+    expected_array = np.array([[1, -1, -8], [-1.7, -0.3, -0.3]])
     expected_df = pd.DataFrame(expected_array, columns=["x", "y", "E"])
     assert np.allclose(end_df, expected_df)
+
 
 def test_everything_runs():
     # examples of grid plots and animations

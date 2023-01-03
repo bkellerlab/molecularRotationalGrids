@@ -987,7 +987,7 @@ def groupby_min_body_energy(df: pd.DataFrame, target_column: str, N_b: int) -> p
         a DataFrame with a number of rows equal original_num_of_rows // N_b
     """
     # in case that translations have been removed, the index needs to be re-set
-    df.reset_index(inplace=True)
+    df.reset_index(inplace=True, drop=True)
     start_len = len(df)
     new_df = df.loc[df.groupby(df.index // N_b)[target_column].idxmin()]
     assert len(new_df) == start_len // N_b
