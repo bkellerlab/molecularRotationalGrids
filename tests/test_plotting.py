@@ -1,12 +1,22 @@
 from scipy.constants import pi
 import numpy as np
+import pandas as pd
 
 from molgri.cells import save_voranoi_data_for_alg
 from molgri.constants import SMALL_NS
 from molgri.grids import FullGrid
 from molgri.plotting import GridColoredWithAlphaPlot, GridPlot, AlphaViolinPlot, AlphaConvergencePlot, PolytopePlot, \
-    PositionGridPlot, VoranoiConvergencePlot
+    PositionGridPlot, VoranoiConvergencePlot, groupby_min_body_energy
 
+
+def test_groupby_min_body_energy():
+    # translations already filtered out, n_b = 2, n_o = 3
+    test_arr = np.array([[1, 3, -2], [7, 8, 5], [1, -1, -8], [2, 1, 3], [-1.7, -0.3, -0.3], [8, 8, 5]])
+    start_df = pd.DataFrame(test_arr, columns=["x", "y", "E"])
+    end_df = groupby_min_body_energy(start_df, "E", 3)
+    expected_array = np.array([ [1, -1, -8], [-1.7, -0.3, -0.3]])
+    expected_df = pd.DataFrame(expected_array, columns=["x", "y", "E"])
+    assert np.allclose(end_df, expected_df)
 
 def test_everything_runs():
     # examples of grid plots and animations

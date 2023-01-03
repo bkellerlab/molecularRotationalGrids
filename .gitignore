@@ -145,3 +145,4 @@ dmypy.json
 *.lcov
 *.gif
 !readme_images/*.gif
+*.sh

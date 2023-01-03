@@ -18,7 +18,7 @@ from scipy.spatial import geometric_slerp
 from seaborn import color_palette
 
 from molgri.analysis import vector_within_alpha
-from molgri.cells import voranoi_surfaces_on_stacked_spheres
+from molgri.cells import voranoi_surfaces_on_stacked_spheres, voranoi_surfaces_on_sphere
 from molgri.parsers import NameParser, XVGParser, PtParser, GridNameParser, FullGridNameParser
 from molgri.utils import norm_per_axis, normalise_vectors, cart2sphA
 from .grids import Polytope, IcosahedronPolytope, CubePolytope, build_grid_from_name
@@ -346,8 +346,8 @@ class AbstractMultiPlot(ABC):
     def save_multiplot(self, save_ending: str = EXTENSION_FIGURES, dpi: int = DEFAULT_DPI, **kwargs):
         self.fig.tight_layout()
         fig_path = self.list_plots[0].fig_path
-        subplot_type = self.list_plots[0].plot_type
-        self.fig.savefig(f"{fig_path}{subplot_type}_{self.plot_type}.{save_ending}", dpi=dpi, bbox_inches='tight',
+        standard_name = self.list_plots[-1].data_name
+        self.fig.savefig(f"{fig_path}multi_{standard_name}_{self.plot_type}.{save_ending}", dpi=dpi, bbox_inches='tight',
                     **kwargs)
 
 
@@ -545,7 +545,7 @@ class TrajectoryEnergyPlot(Plot3D):
         self.energies = None
         self.property = "Trajectory positions"
         self.unit = r'$\AA$'
-        self.selected_Ns =  selected_Ns
+        self.selected_Ns = selected_Ns
         self.N_index = 0
         self.plot_points = plot_points
         self.plot_surfaces = plot_surfaces
@@ -587,30 +587,36 @@ class TrajectoryEnergyPlot(Plot3D):
                 current_E = 0
             my_data.append([*np.round(com), current_E])
         my_df = pd.DataFrame(my_data, columns=["x", "y", "z", f"{self.property} {self.unit}"])
-        num_t = len(my_df)/num_b/num_o
-        self.selected_Ns = test_or_create_Ns(len(my_df), self.selected_Ns)
-        points_up_to_Ns(my_df, self.selected_Ns, target_column=f"{self.property} {self.unit}")
-        df_extract = my_df.groupby(["x", "y", "z"]).min()
-        #print(len(df_extract), len(my_df)//num_b)
-        #TODO: change
-        df_extract = df_extract[:len(my_df)//num_b]
-        #assert len(df_extract) == len(my_df)//num_b
-
+        # if multiple shells present, warn and only use the closest one.
+        num_t = len(my_df) // num_b // num_o
+        if num_t != 1:
+            print("Warning! The pseudotrajectory has multiple shells/translation distances. 2D/3D visualisation is "
+                  "most suitable for single-shell visualisations. Only the data from the first shell will be used "
+                  "in the visualisation.")
+            my_df = get_only_one_translation_distance(my_df, num_t)
+        # of all points with the same position, select only the orientation with the smallest energy
+        df_extract = groupby_min_body_energy(my_df, target_column=f"{self.property} {self.unit}", N_b=num_b)
+        # now potentially reduce the number of orientations tested
+        self.selected_Ns = test_or_create_Ns(num_o, self.selected_Ns)
+        points_up_to_Ns(df_extract, self.selected_Ns, target_column=f"{self.property} {self.unit}")
         return df_extract
 
     def _plot_data(self, **kwargs):
         my_df = self._prepare_data()
         # determine min and max of the color dimension
-        only_index = my_df[my_df[f"{self.selected_Ns[self.N_index]}"].notnull()].index.to_list()
-        all_positions = np.array([*only_index])
-        all_energies = my_df[my_df[f"{self.selected_Ns[self.N_index]}"].notnull()][f"{self.selected_Ns[self.N_index]}"]
+        all_positions = my_df[my_df[f"{self.selected_Ns[self.N_index]}"].notnull()][["x", "y", "z"]].to_numpy()
+        all_energies = my_df[my_df[f"{self.selected_Ns[self.N_index]}"].notnull()][f"{self.selected_Ns[self.N_index]}"].to_numpy()
+        # sort out what not unique
+        _, indices = np.unique(all_positions.round(UNIQUE_TOL), axis=0, return_index=True)
+        all_positions = np.array([all_positions[index] for index in sorted(indices)])
+        all_energies = np.array([all_energies[index] for index in sorted(indices)])
         # TODO: enable colorbar even if not plotting points
         if self.energies is None:
             self.ax.scatter(*all_positions.T, c="black")
         else:
             if self.plot_surfaces:
                 try:
-                    self._draw_voranoi_cells(all_positions.reshape((1, -1, 3)), all_energies) #TODO
+                    self._draw_voranoi_cells(all_positions, all_energies)
                 except AssertionError:
                     print("Warning! Sperichal Voranoi cells plot could not be produced. Likely all points are "
                           "not at the same radius. Will create a scatterplot instead.")
@@ -621,21 +627,20 @@ class TrajectoryEnergyPlot(Plot3D):
             cbar.set_label(f"{self.property} {self.unit}")
             if not self.plot_points:
                 im.set_visible(False)
-            self.ax.set_title(f"N = {self.selected_Ns[self.N_index]}")
+            self.ax.set_title(r"$N_{rot}$ " + f"= {self.selected_Ns[self.N_index]}")
 
     def _draw_voranoi_cells(self, points, colors):
-        svs = voranoi_surfaces_on_stacked_spheres(points)
+        sv = voranoi_surfaces_on_sphere(points)
         norm = matplotlib.colors.Normalize(vmin=colors.min(), vmax=colors.max())
         cmap = plt.cm.ScalarMappable(cmap="coolwarm", norm=norm)
         cmap.set_array([])
         fcolors = cmap.to_rgba(colors)
-        for i, sv in enumerate(svs):
-            sv.sort_vertices_of_regions()
-            for n in range(0, len(sv.regions)):
-                region = sv.regions[n]
-                polygon = Poly3DCollection([sv.vertices[region]], alpha=1)
-                polygon.set_color(fcolors[n])
-                self.ax.add_collection3d(polygon)
+        sv.sort_vertices_of_regions()
+        for n in range(0, len(sv.regions)):
+            region = sv.regions[n]
+            polygon = Poly3DCollection([sv.vertices[region]], alpha=1)
+            polygon.set_color(fcolors[n])
+            self.ax.add_collection3d(polygon)
 
     def create(self, *args, title=None, **kwargs):
         if title is None:
@@ -664,9 +669,15 @@ class HammerProjectionTrajectory(TrajectoryEnergyPlot, AbstractPlot):
 
         my_df = self._prepare_data()
         # determine min and max of the color dimension
-        only_index = my_df[my_df[f"{self.selected_Ns[self.N_index]}"].notnull()].index.to_list()
-        all_positions = np.array([*only_index])
-        all_energies = my_df[my_df[f"{self.selected_Ns[self.N_index]}"].notnull()][f"{self.selected_Ns[self.N_index]}"]
+        # only_index = my_df[my_df[f"{self.selected_Ns[self.N_index]}"].notnull()].index.to_list()
+        # all_positions = np.array([*only_index])
+        # all_energies = my_df[my_df[f"{self.selected_Ns[self.N_index]}"].notnull()][f"{self.selected_Ns[self.N_index]}"]
+        all_positions = my_df[my_df[f"{self.selected_Ns[self.N_index]}"].notnull()][["x", "y", "z"]].to_numpy()
+        all_energies = my_df[my_df[f"{self.selected_Ns[self.N_index]}"].notnull()][f"{self.selected_Ns[self.N_index]}"].to_numpy()
+        # sort out what not unique
+        # _, indices = np.unique(all_positions.round(UNIQUE_TOL), axis=0, return_index=True)
+        # all_positions = np.array([all_positions[index] for index in sorted(indices)])
+        # all_energies = np.array([all_energies[index] for index in sorted(indices)])
         all_positions = cart2sphA(all_positions)
         x = all_positions[:, 2]
         y = all_positions[:, 1]
@@ -896,7 +907,6 @@ class EnergyConvergencePlot(AbstractPlot):
         self.test_Ns = test_or_create_Ns(len(df), self.test_Ns)
         if self.no_convergence:
             self.test_Ns = [self.test_Ns[-1]]
-
         points_up_to_Ns(df, self.test_Ns, target_column=self.property_name)
         return df
 
@@ -958,6 +968,39 @@ def test_or_create_Ns(max_N: int, Ns: ArrayLike = None,  num_test_points=5) -> A
         assert np.all([np.issubdtype(x, np.integer) for x in Ns]), "All tested Ns must be integers."
         assert np.max(Ns) <= max_N, "Test N cannot be larger than the number of points"
     return Ns
+
+
+def groupby_min_body_energy(df: pd.DataFrame, target_column: str, N_b: int) -> pd.DataFrame:
+    """
+    Take a dataframe with positions and energies and return only one row per COM position of the second molecule,
+    namely the one with lowest energy.
+
+    Args:
+        df: dataframe resulting from a Pseudotrajectory with typical looping over:
+            rotations of origin
+                rotations of body
+                    translations must be already filtered out by this point!
+        target_column: name of the column in which energy values are found
+        N_b: number of rotations around body for this PT.
+
+    Returns:
+        a DataFrame with a number of rows equal original_num_of_rows // N_b
+    """
+    # in case that translations have been removed, the index needs to be re-set
+    df.reset_index(inplace=True)
+    start_len = len(df)
+    new_df = df.loc[df.groupby(df.index // N_b)[target_column].idxmin()]
+    assert len(new_df) == start_len // N_b
+    return new_df
+
+
+def get_only_one_translation_distance(df: pd.DataFrame, N_t: int, distance_index=0) -> pd.DataFrame:
+    start_len = len(df)
+    assert distance_index < N_t, f"Only {N_t} different distances available, " \
+                                 f"cannot get the distance with index {distance_index}"
+    new_df = df.iloc[range(0, len(df), N_t)]
+    assert len(new_df) == start_len // N_t
+    return new_df
 
 
 if __name__ == "__main__":
