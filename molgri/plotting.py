@@ -663,7 +663,8 @@ def create_trajectory_energy_multiplot(data_name, Ns=None, animate_rot=False):
 
 class HammerProjectionTrajectory(TrajectoryEnergyPlot, AbstractPlot):
 
-    def __init__(self, data_name: str, plot_type="hammer", figsize=DIM_LANDSCAPE, **kwargs):
+    def __init__(self, data_name: str, plot_type="hammer", figsize=DIM_SQUARE, **kwargs):
+        sns.set_context("talk")
         super().__init__(data_name, plot_type=plot_type, plot_surfaces=False, plot_points=True, figsize=figsize,
                          **kwargs)
 
@@ -700,7 +701,9 @@ class HammerProjectionTrajectory(TrajectoryEnergyPlot, AbstractPlot):
 
 class TrajectoryEnergyMultiPlot(AbstractMultiPlot):
 
-    def __init__(self, list_plots: List[TrajectoryEnergyPlot], **kwargs):
+    def __init__(self, list_plots: List[TrajectoryEnergyPlot], figsize=None, **kwargs):
+        if figsize is None:
+            figsize = (DIM_LANDSCAPE[1]*4, DIM_LANDSCAPE[1])
         super().__init__(list_plots, **kwargs)
 
     def create(self, *args, **kwargs):
@@ -712,7 +715,7 @@ class HammerProjectionMultiPlot(AbstractMultiPlot):
     def __init__(self, list_plots: List[HammerProjectionTrajectory], plot_type="hammer", figsize=None,
                  n_rows=1, n_columns=5, **kwargs):
         if figsize is None:
-            figsize = (DIM_LANDSCAPE[0]*n_columns, DIM_LANDSCAPE[1]*n_rows)
+            figsize = (DIM_LANDSCAPE[1]*n_columns, DIM_LANDSCAPE[1]*n_rows)
         super().__init__(list_plots, plot_type=plot_type, n_rows=n_rows, n_columns=n_columns, figsize=figsize, **kwargs)
 
     def create(self, *args, projection="hammer", **kwargs):
