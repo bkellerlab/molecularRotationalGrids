@@ -42,7 +42,7 @@ def run_generate_pt():
     manager = PtIOManager(name_central_molecule=my_args.m1, name_rotating_molecule=my_args.m2,
                           b_grid_name=my_args.bodygrid, o_grid_name=my_args.origingrid, t_grid_name=my_args.transgrid)
     manager.construct_pt_and_time(as_dir=my_args.as_dir, extension_trajectory=my_args.extension_trajectory,
-                                  extension_structure=my_args.extension_topology)
+                                  extension_structure=my_args.extension_structure)
 
 
 if __name__ == '__main__':

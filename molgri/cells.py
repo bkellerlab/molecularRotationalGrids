@@ -68,7 +68,7 @@ def voranoi_surfaces_on_sphere(points: NDArray) -> SphericalVoronoi:
     assert np.allclose(norms, radius, atol=1, rtol=0.01), "All input points must have the same norm."
     # re-normalise for perfect match
     points = normalise_vectors(points, length=radius)
-    return SphericalVoronoi(points, radius=radius, threshold=10**-UNIQUE_TOL)
+    return SphericalVoronoi(points, radius=radius, threshold=10**-10)
 
 
 def voranoi_surfaces_on_stacked_spheres(points: NDArray) -> list:

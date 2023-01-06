@@ -623,11 +623,12 @@ class TrajectoryEnergyPlot(Plot3D):
                     self.plot_points = True
             cmap = ListedColormap((sns.color_palette("coolwarm", 256).as_hex()))
             im = self.ax.scatter(*all_positions.T, c=all_energies, cmap=cmap)
-            cbar = self.fig.colorbar(im, ax=self.ax)
-            cbar.set_label(f"{self.property} {self.unit}")
+            #cbar = self.fig.colorbar(im, ax=self.ax)
+            #cbar.set_label(f"{self.property} {self.unit}", fontsize=20)
             if not self.plot_points:
                 im.set_visible(False)
-            self.ax.set_title(r"$N_{rot}$ " + f"= {self.selected_Ns[self.N_index]}")
+            self.ax.set_title(r"$N_{rot}$ " + f"= {self.selected_Ns[self.N_index]}", fontsize=30)
+            self.ax.view_init(elev=10, azim=60)
 
     def _draw_voranoi_cells(self, points, colors):
         sv = voranoi_surfaces_on_sphere(points)
@@ -652,11 +653,12 @@ def create_trajectory_energy_multiplot(data_name, Ns=None, animate_rot=False):
     list_single_plots = []
     max_index = 5 if Ns is None else len(Ns)
     for i in range(max_index):
-        tep = TrajectoryEnergyPlot(data_name, plot_points=False, plot_surfaces=True, selected_Ns=Ns)
+        tep = TrajectoryEnergyPlot(data_name, plot_points=False, plot_surfaces=True, selected_Ns=Ns, style_type=["talk"])
         tep.N_index = i
         tep.add_energy_information(f"{PATH_INPUT_ENERGIES}{data_name}.xvg")
         list_single_plots.append(tep)
-    TrajectoryEnergyMultiPlot(list_single_plots, n_columns=max_index, n_rows=1).create_and_save(animate_rot=animate_rot)
+    TrajectoryEnergyMultiPlot(list_single_plots, n_columns=max_index, n_rows=1).create_and_save(animate_rot=animate_rot,
+                                                                                                elev=10, azim=60)
 
 
 class HammerProjectionTrajectory(TrajectoryEnergyPlot, AbstractPlot):
@@ -686,10 +688,11 @@ class HammerProjectionTrajectory(TrajectoryEnergyPlot, AbstractPlot):
         else:
             cmap = ListedColormap((sns.color_palette("coolwarm", 256).as_hex()))
             im = self.ax.scatter(x, y, c=all_energies, cmap=cmap)
-            cbar = self.fig.colorbar(im, ax=self.ax)
-            cbar.set_label(f"{self.property} {self.unit}")
-            self.ax.set_title(f"N = {self.selected_Ns[self.N_index]}")
-        plt.grid(True)
+            #cbar = self.fig.colorbar(im, ax=self.ax)
+            #cbar.set_label(f"{self.property} {self.unit}")
+            #self.ax.set_title(r"$N_{rot}$ " + f"= {self.selected_Ns[self.N_index]}", fontsize=40)
+        #plt.grid(True)
+        self.ax.set_xticklabels([])
 
     def create(self, *args, **kwargs):
         AbstractPlot.create(self, *args, projection="hammer", **kwargs)
@@ -720,7 +723,7 @@ def create_hammer_multiplot(data_name, Ns=None):
     list_single_plots = []
     max_index = 5 if Ns is None else len(Ns)
     for i in range(max_index):
-        tep = HammerProjectionTrajectory(data_name, selected_Ns=Ns)
+        tep = HammerProjectionTrajectory(data_name, selected_Ns=Ns, style_type=["talk"])
         tep.N_index = i
         tep.add_energy_information(f"{PATH_INPUT_ENERGIES}{data_name}.xvg")
         list_single_plots.append(tep)
