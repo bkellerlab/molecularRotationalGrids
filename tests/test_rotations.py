@@ -1,6 +1,8 @@
-from molgri.rotations import Rotation2D, grid2quaternion, quaternion2grid, grid2euler, euler2grid
+from molgri.rotations import Rotation2D, grid2quaternion_z, quaternion2grid_z, grid2euler, euler2grid, quaternion2grid, \
+    grid2quaternion
 from molgri.utils import normalise_vectors
-from molgri.analysis import random_sphere_points
+from molgri.analysis import random_sphere_points, random_quaternions
+from scipy.spatial.transform import Rotation
 
 from scipy.constants import pi
 import numpy as np
@@ -58,32 +60,62 @@ def test_rotation_2D():
     assert np.allclose(rot_vector_set_i, vector_set)
 
 
-def test_conversion_quaternion_grid():
+def test_point2qua_and_back():
     # from points to quaternions and back
     n = 50
     points = random_sphere_points(n)
-    qua = grid2quaternion(points)
-    after_points = quaternion2grid(qua)
+    qua = grid2quaternion_z(points)
+    after_points = quaternion2grid_z(qua)
     assert np.allclose(points, after_points)
-    # the other direction
+
+
+def test_qua2_point_and_back():
     # algorithm for random quaternions
+
+    # creating some random quaternions
     N = 50
-    result = np.zeros((N, 4))
-    random_num = np.random.random((N, 3))
-    result[:, 0] = np.sqrt(1 - random_num[:, 0]) * np.sin(2 * pi * random_num[:, 1])
-    result[:, 1] = np.sqrt(1 - random_num[:, 0]) * np.cos(2 * pi * random_num[:, 1])
-    result[:, 2] = np.sqrt(random_num[:, 0]) * np.sin(2 * pi * random_num[:, 2])
-    result[:, 3] = np.sqrt(random_num[:, 0]) * np.cos(2 * pi * random_num[:, 2])
-    points = quaternion2grid(result)
-    after_result = grid2quaternion(points)
-    points2 = quaternion2grid(after_result)
-    after_result2 = grid2quaternion(points2)
+    result = random_quaternions(N)
+
+    # using a vector in z-direction as a base for creating a grid
+    points_z = quaternion2grid_z(result)
+    after_result = grid2quaternion_z(points_z)
+    points_z2 = quaternion2grid_z(after_result)
+    after_result2 = grid2quaternion_z(points_z2)
+
+    # using a different vector as a base for creating a grid
+    mixed_base = normalise_vectors(np.array([2, 7, -3])) # use instead of the z-vector for grid creation
+    points_mix = quaternion2grid(result, mixed_base)
+    after_result_mix = grid2quaternion(points_mix, mixed_base)
+    points_mix_2 = quaternion2grid(after_result_mix, mixed_base)
+    after_result_mix_2 = grid2quaternion(points_mix_2, mixed_base)
     # quaternions before and after not always the same (double coverage), but the rotational action is the
     # same, as shown by rotation matrices or grid points
     # TODO: not sure if sufficiently tested, the nature of rotational object not really preserved
+    print("qua", result[0], after_result[0])
+    print("qua", result[0], after_result_mix[0])
     # not true: np.allclose(result, after_result)
-    assert np.allclose(points, points2)
+    assert np.allclose(points_z, points_z2)
+    assert np.allclose(points_mix, points_mix_2)
     assert np.allclose(after_result2, after_result)
+    assert np.allclose(after_result_mix, after_result_mix_2)
+
+
+def test_new_qua2_point_and_back():
+    initial_quaternions = random_quaternions(10)
+    initial_rotation = Rotation(quat=initial_quaternions)
+    print(initial_rotation.as_matrix()[0])
+    # apply to all coordinate axes
+    # TODO: later restructure this to array operations
+    x_vec = np.array([1, 0, 0])
+    y_vec = np.array([0, 1, 0])
+    z_vec = np.array([0, 0, 1])
+
+    x_rot = initial_rotation.apply(x_vec)
+    y_rot = initial_rotation.apply(y_vec)
+    z_rot = initial_rotation.apply(z_vec)
+
+    R_0 = np.array([x_rot[0], y_rot[0], z_rot[0]]).T
+    print(R_0)
 
 
 def test_conversion_euler_grid():

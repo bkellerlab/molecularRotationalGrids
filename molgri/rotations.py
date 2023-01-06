@@ -5,7 +5,7 @@ from numpy.typing import NDArray
 from scipy.spatial.transform import Rotation
 
 
-def quaternion2grid(array_quaternions: NDArray) -> NDArray:
+def quaternion2grid(array_quaternions: NDArray, base_vector: NDArray) -> NDArray:
     """
     Take an array where each row is a quaternion and convert each rotation into a point on a unit sphere.
 
@@ -15,7 +15,6 @@ def quaternion2grid(array_quaternions: NDArray) -> NDArray:
     Returns:
         an array (N, 3) where each row is a coordinate on a 3D sphere
     """
-    base_vector = np.array([0, 0, 1])
     assert array_quaternions.shape[1] == 4, "quaternions must have 4 dimensions"
     points = np.zeros(array_quaternions[:, 1:].shape)
     for i, quat in enumerate(array_quaternions):
@@ -25,12 +24,29 @@ def quaternion2grid(array_quaternions: NDArray) -> NDArray:
     return points
 
 
-def grid2quaternion(grid_3D: NDArray) -> NDArray:
+def quaternion2grid_z(array_quaternions: NDArray) -> NDArray:
     """
-    Take an array where each row is a point on a unit sphere and convert each rotation into a set of euler_123 angles.
+    This function applies the quaternion to a unit z-vector to create a grid.
+    """
+    base_vector = np.array([0, 0, 1])
+    return quaternion2grid(array_quaternions, base_vector)
+
+
+def quaternion2grid_x(array_quaternions: NDArray) -> NDArray:
+    """
+    This function applies the quaternion to a unit x-vector to create a grid.
+    """
+    base_vector = np.array([1, 0, 0])
+    return quaternion2grid(array_quaternions, base_vector)
+
+
+def grid2quaternion(grid_3D: NDArray, base_vector: NDArray) -> NDArray:
+    """
+    Take an array where each row is a point on a unit sphere and convert each rotation into an quaternion.
 
     Args:
         grid_3D: an array (N, 3) where each row is a coordinate on a 3D sphere
+        base_vector: which base vector has been used to generate this grid
 
     Returns:
         an array (N, 4) where each row is a quaternion needed for a rotation
@@ -38,7 +54,6 @@ def grid2quaternion(grid_3D: NDArray) -> NDArray:
 
     assert np.allclose(np.linalg.norm(grid_3D, axis=1), 1), "Points on a grid must be unit vectors!"
     assert grid_3D.shape[1] == 3, "points on a 3D sphere must have 3 dimensions"
-    base_vector = np.array([0, 0, 1])
     points = np.zeros((grid_3D.shape[0], 4))
     for i, point in enumerate(grid_3D):
         my_matrix = two_vectors2rot(base_vector, point)
@@ -46,6 +61,14 @@ def grid2quaternion(grid_3D: NDArray) -> NDArray:
         points[i] = my_rotation.as_quat()
     assert points.shape[1] == 4, "quaternions must have 4 dimensions"
     return points
+
+
+def grid2quaternion_z(grid_3D: NDArray) -> NDArray:
+    """
+    Convert a grid to a quaternion set by measuring the angle between the grid point and z-vector.
+    """
+    base_vector = np.array([0, 0, 1])
+    return grid2quaternion(grid_3D, base_vector)
 
 
 def grid2rotation(grid_3D: NDArray) -> List[Rotation]:

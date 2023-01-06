@@ -1,10 +1,11 @@
 import numpy as np
+from numpy.typing import NDArray
 from scipy.constants import pi
 
 from molgri.utils import angle_between_vectors
 
 
-def random_sphere_points(n: int = 1000) -> np.ndarray:
+def random_sphere_points(n: int = 1000) -> NDArray:
     """
     Create n points that are truly randomly distributed across the sphere. Eg. to test the uniformity of your grid.
 
@@ -24,7 +25,27 @@ def random_sphere_points(n: int = 1000) -> np.ndarray:
     return np.concatenate((x, y, z), axis=1)
 
 
-def vector_within_alpha(central_vec: np.ndarray, side_vector: np.ndarray, alpha: float) -> bool or np.ndarray:
+def random_quaternions(n: int = 1000) -> NDArray:
+    """
+    Create n random quaternions
+
+    Args:
+        n: number of points
+
+    Returns:
+        an array of grid points, shape (n, 4)
+    """
+    result = np.zeros((n, 4))
+    random_num = np.random.random((n, 3))
+    result[:, 0] = np.sqrt(1 - random_num[:, 0]) * np.sin(2 * pi * random_num[:, 1])
+    result[:, 1] = np.sqrt(1 - random_num[:, 0]) * np.cos(2 * pi * random_num[:, 1])
+    result[:, 2] = np.sqrt(random_num[:, 0]) * np.sin(2 * pi * random_num[:, 2])
+    result[:, 3] = np.sqrt(random_num[:, 0]) * np.cos(2 * pi * random_num[:, 2])
+    assert result.shape[1] == 4
+    return result
+
+
+def vector_within_alpha(central_vec: NDArray, side_vector: NDArray, alpha: float) -> bool or NDArray:
     """
     Answers the question: which angles between both vectors or sets of vectors are within angle angle alpha?
 

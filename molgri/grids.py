@@ -10,12 +10,12 @@ from scipy.spatial.distance import cdist
 import pandas as pd
 from scipy.spatial.transform import Rotation
 
-from .analysis import random_axes_count_points
+from .analysis import random_axes_count_points, random_quaternions
 from .utils import dist_on_sphere
 from .constants import DEFAULT_SEED, GRID_ALGORITHMS, UNIQUE_TOL, EXTENSION_GRID_FILES
 from .parsers import TranslationParser, GridNameParser
 from .paths import PATH_OUTPUT_ROTGRIDS, PATH_OUTPUT_STAT, PATH_OUTPUT_FULL_GRIDS
-from .rotations import grid2quaternion, grid2euler, quaternion2grid, euler2grid, grid2rotation
+from .rotations import grid2quaternion_z, grid2euler, quaternion2grid_z, euler2grid, grid2rotation
 from .wrappers import time_method
 
 
@@ -348,7 +348,7 @@ class Grid(ABC):
         return grid2rotation(self.grid)
 
     def as_quaternion(self) -> np.ndarray:
-        quaternion_seq = grid2quaternion(self.grid)
+        quaternion_seq = grid2quaternion_z(self.grid)
         assert isinstance(quaternion_seq, np.ndarray), "A quaternion sequence must be a numpy array!"
         assert quaternion_seq.shape == (self.N, 4), f"Quaternion sequence not of correct shape!\
                                 {quaternion_seq.shape} instead of {(self.N, 4)}"
@@ -494,13 +494,8 @@ class RandomQGrid(Grid):
         super().__init__(N, gen_alg="randomQ", **kwargs)
 
     def generate_grid(self):
-        result = np.zeros((self.N, 4))
-        random_num = self.rn_gen.random((self.N, 3))
-        result[:, 0] = np.sqrt(1 - random_num[:, 0]) * np.sin(2 * pi * random_num[:, 1])
-        result[:, 1] = np.sqrt(1 - random_num[:, 0]) * np.cos(2 * pi * random_num[:, 1])
-        result[:, 2] = np.sqrt(random_num[:, 0]) * np.sin(2 * pi * random_num[:, 2])
-        result[:, 3] = np.sqrt(random_num[:, 0]) * np.cos(2 * pi * random_num[:, 2])
-        self.grid = quaternion2grid(result)
+        result = random_quaternions(self.N)
+        self.grid = quaternion2grid_z(result)
         # No super call because ordering not needed for random points and the number of points is exact!
 
 
@@ -553,7 +548,7 @@ class Cube4DGrid(Grid):
             # select only half the sphere
             grid_qua = grid_qua[grid_qua[:, self.d - 1] >= 0, :]
             # convert to grid
-            self.grid = quaternion2grid(grid_qua)
+            self.grid = quaternion2grid_z(grid_qua)
             self.grid = np.unique(np.round(self.grid, UNIQUE_TOL), axis=0)
             num_divisions += 1
         np.random.set_state(state_before)
