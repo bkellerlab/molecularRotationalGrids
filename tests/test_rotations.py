@@ -101,11 +101,11 @@ def test_qua2_point_and_back():
 
 
 def test_new_qua2_point_and_back():
-    initial_quaternions = random_quaternions(10)
+    N = 10
+    initial_quaternions = random_quaternions(N)
     initial_rotation = Rotation(quat=initial_quaternions)
-    print(initial_rotation.as_matrix()[0])
+
     # apply to all coordinate axes
-    # TODO: later restructure this to array operations
     x_vec = np.array([1, 0, 0])
     y_vec = np.array([0, 1, 0])
     z_vec = np.array([0, 0, 1])
@@ -114,8 +114,16 @@ def test_new_qua2_point_and_back():
     y_rot = initial_rotation.apply(y_vec)
     z_rot = initial_rotation.apply(z_vec)
 
+    # re-create the rotation only by using rotated vectors
+    rotated_basis = np.concatenate((x_rot, y_rot, z_rot), axis=1)
+    rotated_basis = rotated_basis.reshape((-1, 3, 3))
+    rotated_basis = rotated_basis.swapaxes(1, 2)
+
     R_0 = np.array([x_rot[0], y_rot[0], z_rot[0]]).T
     print(R_0)
+    print("rot basis", rotated_basis[0])
+
+    assert np.allclose(initial_rotation.as_matrix(), rotated_basis)
 
 
 def test_conversion_euler_grid():
