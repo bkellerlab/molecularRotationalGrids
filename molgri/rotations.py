@@ -1,43 +1,69 @@
-from typing import List
+from typing import Tuple
 
 import numpy as np
 from numpy.typing import NDArray
 from scipy.spatial.transform import Rotation
 
 
-def quaternion2grid(array_quaternions: NDArray, base_vector: NDArray) -> NDArray:
+def rotation2grid(rotations: Rotation) -> Tuple[NDArray, ...]:
     """
-    Take an array where each row is a quaternion and convert each rotation into a point on a unit sphere.
+    Convert a series of N rotational objects (represented as a scipy object Rotation) to three grids by applying
+    the rotations to a unit vectors in x, y, z directions.  The grids can be saved and converted to a rotational
+    object later if needed or used in grid form to get positional grids in spherical coordinates.
 
     Args:
-        array_quaternions: an array (N, 4) where each row is a quaternion needed for a rotation
+        rotations: a series of N rotational objects (represented as a scipy object Rotation)
 
     Returns:
-        an array (N, 3) where each row is a coordinate on a 3D sphere
+        a tuple of three numpy arrays, each of shape (N, 3)
     """
-    assert array_quaternions.shape[1] == 4, "quaternions must have 4 dimensions"
-    points = np.zeros(array_quaternions[:, 1:].shape)
-    for i, quat in enumerate(array_quaternions):
-        my_rotation = Rotation.from_quat(quat)
-        points[i] = my_rotation.apply(base_vector)
-    assert points.shape[1] == 3, "points on a 3D sphere must have 3 dimensions"
-    return points
+
+    basis = np.eye(3)
+
+    result = []
+    for basis_vector in basis:
+        rotated_bv = rotation2grid4vector(rotations, basis_vector)
+        assert rotated_bv.shape[1] == 3
+        result.append(rotated_bv)
+    return tuple(result)
 
 
-def quaternion2grid_z(array_quaternions: NDArray) -> NDArray:
-    """
-    This function applies the quaternion to a unit z-vector to create a grid.
-    """
-    base_vector = np.array([0, 0, 1])
-    return quaternion2grid(array_quaternions, base_vector)
+def rotation2grid4vector(rotations: Rotation, vector: NDArray) -> NDArray:
+    return rotations.apply(vector)
 
 
-def quaternion2grid_x(array_quaternions: NDArray) -> NDArray:
+def quaternion2grid(quaternions: NDArray) -> Tuple[NDArray, ...]:
     """
-    This function applies the quaternion to a unit x-vector to create a grid.
+    See rotation2grid function. This is only a helper function that parsers quaternions as inputs.
     """
-    base_vector = np.array([1, 0, 0])
-    return quaternion2grid(array_quaternions, base_vector)
+    assert quaternions.shape[1] == 4, "Quaternions must have 4 dimensions"
+    rotations = Rotation.from_quat(quaternions)
+    return rotation2grid(rotations)
+
+
+def euler2grid(euler_angles: NDArray) -> Tuple[NDArray, ...]:
+    """
+    See rotation2grid function. This is only a helper function that parsers euler angles as inputs.
+    """
+    assert euler_angles.shape[1] == 3, "Euler angles must have the shape (N, 3)"
+    rotations = Rotation.from_euler("ZYX", euler_angles)
+    return rotation2grid(rotations)
+
+
+# def quaternion2grid_z(array_quaternions: NDArray) -> NDArray:
+#     """
+#     This function applies the quaternion to a unit z-vector to create a grid.
+#     """
+#     base_vector = np.array([0, 0, 1])
+#     return quaternion2grid(array_quaternions, base_vector)
+#
+#
+# def quaternion2grid_x(array_quaternions: NDArray) -> NDArray:
+#     """
+#     This function applies the quaternion to a unit x-vector to create a grid.
+#     """
+#     base_vector = np.array([1, 0, 0])
+#     return quaternion2grid(array_quaternions, base_vector)
 
 
 # TODO: find usages
@@ -77,70 +103,41 @@ def grid2rotation(grid_x: NDArray, grid_y: NDArray, grid_z: NDArray) -> Rotation
     # rot_matrices is an array in which each "row" is a 3x3 rotational matrix
     # create a rotational object set from a stack of rotational matrices
     rotations = Rotation.from_matrix(rot_matrices)
-    # rotations = []
-    # for i, point in enumerate(grid_3D):
-    #     my_matrix = two_vectors2rot(base_vector, point)
-    #     rotations.append(Rotation.from_matrix(my_matrix))
     return rotations
 
 
+# TODO: find usages
 def grid2quaternion(grid_x: NDArray, grid_y: NDArray, grid_z: NDArray) -> NDArray:
+    """
+    See grid2rotation; this function only reformats the output as a (N, 4) array of quaternions.
+    """
     rot_objects = grid2rotation(grid_x, grid_y, grid_z)
     quaternions = rot_objects.as_quat()
     assert quaternions.shape[1] == 4, "quaternions must have 4 dimensions"
     return quaternions
 
 
+# TODO: find usages
+def grid2euler(grid_x: NDArray, grid_y: NDArray, grid_z: NDArray) -> NDArray:
+    """
+    See grid2rotation; this function only reformats the output as a (N, 3) array of Euler angles
+    """
+    print("Warning! Euler angles are not uniquely reconstructed from saved grids (but rotational matrices are).")
+    rot_objects = grid2rotation(grid_x, grid_y, grid_z)
+    eulers = rot_objects.as_euler("ZYX")
+    np.nan_to_num(eulers, copy=False)
+    return eulers
+
+
 # TODO: remove
-def grid2quaternion_z(grid_3D: NDArray) -> NDArray:
-    """
-    Convert a grid to a quaternion set by measuring the angle between the grid point and z-vector.
-    """
-    base_vector = np.array([0, 0, 1])
-    return grid2quaternion(grid_3D, None, None)
+# def grid2quaternion_z(grid_3D: NDArray) -> NDArray:
+#     """
+#     Convert a grid to a quaternion set by measuring the angle between the grid point and z-vector.
+#     """
+#     base_vector = np.array([0, 0, 1])
+#     return grid2quaternion(grid_3D, None, None)
 
 
-
-
-
-def euler2grid(array_euler_angles: NDArray) -> NDArray:
-    """
-    Take an array where each row is a set of euler_123 angles and convert each rotation into a point on a unit sphere.
-
-    Args:
-        array_euler_angles: an array (N, 3) where each row is a set of the 3 euler angles needed for a rotation
-
-    Returns:
-        an array (N, 3) where each row is a coordinate on a 3D sphere
-    """
-    base_vector = np.array([0, 0, 1])
-    points = np.zeros(array_euler_angles.shape)
-    for i, euler in enumerate(array_euler_angles):
-        my_rotation = Rotation.from_euler("ZYX", euler)
-        points[i] = my_rotation.apply(base_vector)
-    assert np.allclose(np.linalg.norm(points, axis=1), 1), "Points on a grid must be unit vectors!"
-    return points
-
-
-def grid2euler(grid_3D: NDArray) -> NDArray:
-    """
-    Take an array where each row is a point on a unit sphere and convert each rotation into a set of euler_123 angles.
-
-    Args:
-        grid_3D: an array (N, 3) where each row is a coordinate on a 3D sphere
-
-    Returns:
-        an array (N, 3) where each row is a set of the 3 euler angles needed for a rotation
-    """
-    assert np.allclose(np.linalg.norm(grid_3D, axis=1), 1), "Points on a grid must be unit vectors!"
-    base_vector = np.array([0, 0, 1])
-    points = np.zeros(grid_3D.shape)
-    for i, point in enumerate(grid_3D):
-        my_matrix = two_vectors2rot(base_vector, point)
-        my_rotation = Rotation.from_matrix(my_matrix)
-        points[i] = my_rotation.as_euler("ZYX")
-    np.nan_to_num(points, copy=False)
-    return points
 
 
 # ########################## HELPER FUNCTIONS ################################

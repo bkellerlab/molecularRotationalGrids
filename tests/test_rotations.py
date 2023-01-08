@@ -1,5 +1,7 @@
-from molgri.rotations import Rotation2D, grid2quaternion_z, quaternion2grid_z, grid2euler, euler2grid, quaternion2grid, \
-    grid2quaternion
+from numpy.typing import NDArray
+
+from molgri.rotations import Rotation2D, grid2euler, euler2grid, quaternion2grid, \
+    grid2quaternion, grid2rotation, rotation2grid
 from molgri.utils import normalise_vectors
 from molgri.analysis import random_sphere_points, random_quaternions
 from scipy.spatial.transform import Rotation
@@ -60,91 +62,174 @@ def test_rotation_2D():
     assert np.allclose(rot_vector_set_i, vector_set)
 
 
-def test_point2qua_and_back():
-    # from points to quaternions and back
-    n = 50
-    points = random_sphere_points(n)
-    qua = grid2quaternion_z(points)
-    after_points = quaternion2grid_z(qua)
-    assert np.allclose(points, after_points)
+def test_rot2grid():
+    # create some random rotations
+    N = 500
+    initial_rot = Rotation.random(N)
+    grid_x, grid_y, grid_z = rotation2grid(initial_rot)
+    # re-create rotational objects
+    after_rot = grid2rotation(grid_x, grid_y, grid_z)
+    assert np.allclose(initial_rot.as_matrix(), after_rot.as_matrix())
 
 
-def test_qua2_point_and_back():
-    # algorithm for random quaternions
-
-    # creating some random quaternions
-    N = 50
-    result = random_quaternions(N)
-
-    # using a vector in z-direction as a base for creating a grid
-    points_z = quaternion2grid_z(result)
-    after_result = grid2quaternion_z(points_z)
-    points_z2 = quaternion2grid_z(after_result)
-    after_result2 = grid2quaternion_z(points_z2)
-
-    # using a different vector as a base for creating a grid
-    mixed_base = normalise_vectors(np.array([2, 7, -3])) # use instead of the z-vector for grid creation
-    points_mix = quaternion2grid(result, mixed_base)
-    after_result_mix = grid2quaternion(points_mix, None, None)
-    points_mix_2 = quaternion2grid(after_result_mix, mixed_base)
-    after_result_mix_2 = grid2quaternion(points_mix_2, None, None)
-    # quaternions before and after not always the same (double coverage), but the rotational action is the
-    # same, as shown by rotation matrices or grid points
-    # TODO: not sure if sufficiently tested, the nature of rotational object not really preserved
-    print("qua", result[0], after_result[0])
-    print("qua", result[0], after_result_mix[0])
-    # not true: np.allclose(result, after_result)
-    assert np.allclose(points_z, points_z2)
-    assert np.allclose(points_mix, points_mix_2)
-    assert np.allclose(after_result2, after_result)
-    assert np.allclose(after_result_mix, after_result_mix_2)
+def test_quat2grid():
+    # create some random quaternions
+    initial_quaternions = random_quaternions(50)
+    grid_x, grid_y, grid_z = quaternion2grid(initial_quaternions)
+    # re-create quaternions
+    after_quaternions = grid2quaternion(grid_x, grid_y, grid_z)
+    assert_two_sets_of_quaternions_equal(initial_quaternions, after_quaternions)
 
 
-def test_new_qua2_point_and_back():
-    N = 10
-    initial_quaternions = random_quaternions(N)
-    initial_rotation = Rotation(quat=initial_quaternions)
+def test_euler2grid():
+    N = 5000
 
-    # apply to all coordinate axes
-    x_vec = np.array([1, 0, 0])
-    y_vec = np.array([0, 1, 0])
-    z_vec = np.array([0, 0, 1])
-
-    x_rot = initial_rotation.apply(x_vec)
-    y_rot = initial_rotation.apply(y_vec)
-    z_rot = initial_rotation.apply(z_vec)
+    # not truly random, but not important, just want some test examples
+    # for Euler angles between -pi/2 and pi/2 conversion works directly
+    initial_euler = pi * np.random.random((N, 3)) - pi / 2
+    x_rot_e, y_rot_e, z_rot_e = euler2grid(initial_euler)
 
     # re-create the rotation only by using rotated vectors
-    rotated_basis = np.concatenate((x_rot, y_rot, z_rot), axis=1)
-    rotated_basis = rotated_basis.reshape((-1, 3, 3))
-    rotated_basis = rotated_basis.swapaxes(1, 2)
+    final_rotation_e = grid2euler(x_rot_e, y_rot_e, z_rot_e)
+    assert np.allclose(initial_euler, final_rotation_e)
+    assert_two_sets_of_eulers_equal(initial_euler, final_rotation_e)
 
-    R_0 = np.array([x_rot[0], y_rot[0], z_rot[0]]).T
-    print(R_0)
-    print("rot basis", rotated_basis[0])
+    # but what if you want to use angles between 0 and 2pi?
+    initial_euler = 2 * pi * np.random.random((N, 3))
+    x_rot_e, y_rot_e, z_rot_e = euler2grid(initial_euler)
 
-    assert np.allclose(initial_rotation.as_matrix(), rotated_basis)
+    # re-create the rotation only by using rotated vectors
+    final_rotation_e = grid2euler(x_rot_e, y_rot_e, z_rot_e)
 
+    # the matrices before-after are the same
+    assert_two_sets_of_eulers_equal(initial_euler, final_rotation_e)
+    # but the euler angles themselves may not be
+    print("Euler angles [0, 2pi] before and after: ", initial_euler[0], final_rotation_e[0])
 
-def test_conversion_euler_grid():
-    # from points to quaternions and back
-    n = 50
-    points = random_sphere_points(n)
-    qua = grid2euler(points)
-    after_points = euler2grid(qua)
-    assert np.allclose(points, after_points)
-    # other direction
-    N = 50
-    euler_angles = 2 * pi * np.random.random((N, 3))
-    grid = euler2grid(euler_angles)
-    euler_angles2 = grid2euler(grid)
-    grid2 = euler2grid(euler_angles2)
-    euler_angles3 = grid2euler(grid2)
-    # TODO: same as with quaternions, not sure if this OK
-    # not true: assert np.allclose(euler_angles, euler_angles2)
-    assert np.allclose(grid, grid2)
-    assert np.allclose(euler_angles2, euler_angles3)
+    # and what about values < 0 or > 2pi?
+    initial_euler = 13 * pi * np.random.random((N, 3)) - 6
+    x_rot_e, y_rot_e, z_rot_e = euler2grid(initial_euler)
+
+    # re-create the rotation only by using rotated vectors
+    final_rotation_e = grid2euler(x_rot_e, y_rot_e, z_rot_e)
+
+    # the matrices before-after are the same
+    assert_two_sets_of_eulers_equal(initial_euler, final_rotation_e)
+    # but the euler angles themselves may not be
+    print("Euler angles [wide range] before and after: ", initial_euler[0], final_rotation_e[0])
 
 
-def test_two_vectors_to_rot():
-    pass
+def test_grid2rot():
+    N = 500
+    # TODO: does that works for grids constructed in a different manner? Need to test eg ico grid extensions!
+    initial_grid_x, initial_grid_y, initial_grid_z = create_random_grids(N)
+
+    rotation = grid2rotation(initial_grid_x, initial_grid_y, initial_grid_z)
+
+    new_grid_x, new_grid_y, new_grid_z = rotation2grid(rotation)
+
+    assert np.allclose(initial_grid_x, new_grid_x)
+    assert np.allclose(initial_grid_y, new_grid_y)
+    assert np.allclose(initial_grid_z, new_grid_z)
+
+    # one more cycle of conversion just to be sure
+
+    rotation2 = grid2rotation(new_grid_x, new_grid_y, new_grid_z)
+
+    new_grid_x2, new_grid_y2, new_grid_z2 = rotation2grid(rotation2)
+
+    assert np.allclose(new_grid_x, new_grid_x2)
+    assert np.allclose(new_grid_y, new_grid_y2)
+    assert np.allclose(new_grid_z, new_grid_z2)
+
+    assert np.allclose(rotation.as_matrix(), rotation2.as_matrix())
+
+
+def test_grid2quat():
+    N = 500
+    initial_grid_x, initial_grid_y, initial_grid_z = create_random_grids(N)
+
+    quaternions = grid2quaternion(initial_grid_x, initial_grid_y, initial_grid_z)
+
+    new_grid_x, new_grid_y, new_grid_z = quaternion2grid(quaternions)
+
+    assert np.allclose(initial_grid_x, new_grid_x)
+    assert np.allclose(initial_grid_y, new_grid_y)
+    assert np.allclose(initial_grid_z, new_grid_z)
+
+    # one more cycle of conversion just to be sure
+
+    quaternions2 = grid2quaternion(new_grid_x, new_grid_y, new_grid_z)
+
+    new_grid_x2, new_grid_y2, new_grid_z2 = quaternion2grid(quaternions2)
+
+    assert np.allclose(new_grid_x, new_grid_x2)
+    assert np.allclose(new_grid_y, new_grid_y2)
+    assert np.allclose(new_grid_z, new_grid_z2)
+
+    assert_two_sets_of_quaternions_equal(quaternions, quaternions2)
+
+
+def test_grid2euler():
+    N = 500
+    initial_grid_x, initial_grid_y, initial_grid_z = create_random_grids(N)
+
+    eulers = grid2euler(initial_grid_x, initial_grid_y, initial_grid_z)
+
+    new_grid_x, new_grid_y, new_grid_z = euler2grid(eulers)
+
+    assert np.allclose(initial_grid_x, new_grid_x)
+    assert np.allclose(initial_grid_y, new_grid_y)
+    assert np.allclose(initial_grid_z, new_grid_z)
+
+    # one more cycle of conversion just to be sure
+
+    eulers2 = grid2euler(new_grid_x, new_grid_y, new_grid_z)
+
+    new_grid_x2, new_grid_y2, new_grid_z2 = euler2grid(eulers2)
+
+    assert np.allclose(new_grid_x, new_grid_x2)
+    assert np.allclose(new_grid_y, new_grid_y2)
+    assert np.allclose(new_grid_z, new_grid_z2)
+
+    assert_two_sets_of_eulers_equal(eulers, eulers2)
+
+
+# ############################ HELPER FUNCTIONS ###################################
+
+
+def create_random_grids(N: int = 500):
+    initial_rot = Rotation.random(N)
+    return rotation2grid(initial_rot)
+
+
+def assert_two_sets_of_quaternions_equal(quat1: NDArray, quat2: NDArray):
+    assert quat1.shape == quat2.shape
+    assert quat1.shape[1] == 4
+    # quaternions are the same if they are equal up to a +- sign
+    # I have checked this fact and it is mathematically correct
+    for q1, q2 in zip(quat1, quat2):
+        assert np.allclose(q1, q2) or np.allclose(q1, -q2)
+
+
+def assert_two_sets_of_eulers_equal(euler1: NDArray, euler2: NDArray):
+    # TODO: can you check more than that?
+    # see: https://en.wikipedia.org/wiki/Euler_angles#Signs,_ranges_and_conventions
+    assert euler1.shape == euler2.shape
+    assert euler1.shape[1] == 3
+    # first of all, check that the corresponding rot matrices are the same
+    rot1 = Rotation.from_euler("ZYX", euler1)
+    rot2 = Rotation.from_euler("ZYX", euler2)
+    assert np.allclose(rot1.as_matrix(), rot2.as_matrix())
+
+    # TODO: check for gimbal locks
+
+    # further checks
+    for e1, e2 in zip(euler1, euler2):
+        # if within [-pi/2, pi/2], euler angles must match exactly
+        for comp1, comp2 in zip(e1, e2):
+            if -pi/2 <= comp1 <= pi/2 and -pi/2 <= comp2 <= pi/2:
+                assert np.isclose(comp1, comp2)
+        # first and last angle must match up to pi
+        assert np.isclose(e1[0] % pi, e2[0] % pi)
+        assert np.isclose(e1[-1] % pi, e2[-1] % pi)
