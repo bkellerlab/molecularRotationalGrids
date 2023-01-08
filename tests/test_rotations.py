@@ -85,9 +85,9 @@ def test_qua2_point_and_back():
     # using a different vector as a base for creating a grid
     mixed_base = normalise_vectors(np.array([2, 7, -3])) # use instead of the z-vector for grid creation
     points_mix = quaternion2grid(result, mixed_base)
-    after_result_mix = grid2quaternion(points_mix, mixed_base)
+    after_result_mix = grid2quaternion(points_mix, None, None)
     points_mix_2 = quaternion2grid(after_result_mix, mixed_base)
-    after_result_mix_2 = grid2quaternion(points_mix_2, mixed_base)
+    after_result_mix_2 = grid2quaternion(points_mix_2, None, None)
     # quaternions before and after not always the same (double coverage), but the rotational action is the
     # same, as shown by rotation matrices or grid points
     # TODO: not sure if sufficiently tested, the nature of rotational object not really preserved

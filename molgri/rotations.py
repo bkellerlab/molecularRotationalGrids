@@ -40,46 +40,67 @@ def quaternion2grid_x(array_quaternions: NDArray) -> NDArray:
     return quaternion2grid(array_quaternions, base_vector)
 
 
-def grid2quaternion(grid_3D: NDArray, base_vector: NDArray) -> NDArray:
+# TODO: find usages
+def grid2rotation(grid_x: NDArray, grid_y: NDArray, grid_z: NDArray) -> Rotation:
     """
-    Take an array where each row is a point on a unit sphere and convert each rotation into an quaternion.
+    Re-create a rotational object by using the (saved) grid_x, grid_y and grid_z projections. We are looking for an
+    array of rotational matrices R that achieve
+        R[i] (1, 0, 0)^T = grid_x[i]
+        R[i] (0, 1, 0)^T = grid_y[i]
+        R[i] (0, 0, 1)^T = grid_z[i]
+    for each i in range(len(grids)). It is easy to show that
+
+            grid_x[i][0]  grid_y[i][0]  grid_z[i][0]
+    R[i] =  grid_x[i][1]  grid_y[i][1]  grid_z[i][1]
+            grid_x[i][2]  grid_y[i][2]  grid_z[i][2]
 
     Args:
-        grid_3D: an array (N, 3) where each row is a coordinate on a 3D sphere
-        base_vector: which base vector has been used to generate this grid
+        grid_x: an array (N, 3) where each row is a coordinate on a 3D sphere created by projecting rotation on 1, 0, 0
+        grid_y: an array (N, 3) where each row is a coordinate on a 3D sphere created by projecting rotation on 0, 1, 0
+        grid_z: an array (N, 3) where each row is a coordinate on a 3D sphere created by projecting rotation on 0, 0, 1
 
     Returns:
-        an array (N, 4) where each row is a quaternion needed for a rotation
+        a list of length N where each element is a rotational object
     """
+    assert np.allclose(np.linalg.norm(grid_x, axis=1), 1), "Points on a x grid must be unit vectors!"
+    assert np.allclose(np.linalg.norm(grid_y, axis=1), 1), "Points on a y grid must be unit vectors!"
+    assert np.allclose(np.linalg.norm(grid_z, axis=1), 1), "Points on a z grid must be unit vectors!"
+    assert grid_x.shape[1] == 3, f"grid_x must be of shape (N, 3), not {grid_x.shape}"
+    assert grid_y.shape[1] == 3, f"grid_y must be of shape (N, 3), not {grid_y.shape}"
+    assert grid_z.shape[1] == 3, f"grid_z must be of shape (N, 3), not {grid_z.shape}"
 
-    assert np.allclose(np.linalg.norm(grid_3D, axis=1), 1), "Points on a grid must be unit vectors!"
-    assert grid_3D.shape[1] == 3, "points on a 3D sphere must have 3 dimensions"
-    points = np.zeros((grid_3D.shape[0], 4))
-    for i, point in enumerate(grid_3D):
-        my_matrix = two_vectors2rot(base_vector, point)
-        my_rotation = Rotation.from_matrix(my_matrix)
-        points[i] = my_rotation.as_quat()
-    assert points.shape[1] == 4, "quaternions must have 4 dimensions"
-    return points
+    # re-create rotational matrices from the three directional grids
+    rot_matrices = np.concatenate((grid_x, grid_y, grid_z), axis=1)
+    rot_matrices = rot_matrices.reshape((-1, 3, 3))
+    rot_matrices = rot_matrices.swapaxes(1, 2)
+    assert len(rot_matrices) == len(grid_x) == len(grid_y) == len(grid_z)
+    # rot_matrices is an array in which each "row" is a 3x3 rotational matrix
+    # create a rotational object set from a stack of rotational matrices
+    rotations = Rotation.from_matrix(rot_matrices)
+    # rotations = []
+    # for i, point in enumerate(grid_3D):
+    #     my_matrix = two_vectors2rot(base_vector, point)
+    #     rotations.append(Rotation.from_matrix(my_matrix))
+    return rotations
 
 
+def grid2quaternion(grid_x: NDArray, grid_y: NDArray, grid_z: NDArray) -> NDArray:
+    rot_objects = grid2rotation(grid_x, grid_y, grid_z)
+    quaternions = rot_objects.as_quat()
+    assert quaternions.shape[1] == 4, "quaternions must have 4 dimensions"
+    return quaternions
+
+
+# TODO: remove
 def grid2quaternion_z(grid_3D: NDArray) -> NDArray:
     """
     Convert a grid to a quaternion set by measuring the angle between the grid point and z-vector.
     """
     base_vector = np.array([0, 0, 1])
-    return grid2quaternion(grid_3D, base_vector)
+    return grid2quaternion(grid_3D, None, None)
 
 
-def grid2rotation(grid_3D: NDArray) -> List[Rotation]:
-    assert np.allclose(np.linalg.norm(grid_3D, axis=1), 1), "Points on a grid must be unit vectors!"
-    assert grid_3D.shape[1] == 3, "points on a 3D sphere must have 3 dimensions"
-    base_vector = np.array([0, 0, 1])
-    rotations = []
-    for i, point in enumerate(grid_3D):
-        my_matrix = two_vectors2rot(base_vector, point)
-        rotations.append(Rotation.from_matrix(my_matrix))
-    return rotations
+
 
 
 def euler2grid(array_euler_angles: NDArray) -> NDArray:
