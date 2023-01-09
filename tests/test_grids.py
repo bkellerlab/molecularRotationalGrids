@@ -1,5 +1,6 @@
 from molgri.grids import build_grid, project_grid_on_sphere, second_neighbours, Cube3DGrid, \
-    CubePolytope, IcosahedronPolytope, IcoGrid, order_grid_points, FullGrid, ZeroGrid
+    CubePolytope, IcosahedronPolytope, IcoGrid, order_grid_points, ZeroGrid
+from molgri.fullgrid import FullGrid
 from molgri.utils import normalise_vectors
 from molgri.constants import GRID_ALGORITHMS, ZERO_ALGORITHM
 import networkx as nx

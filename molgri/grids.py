@@ -1,5 +1,4 @@
 from abc import ABC, abstractmethod
-from typing import List
 
 import networkx as nx
 import numpy as np
@@ -8,15 +7,13 @@ from scipy.constants import pi, golden
 from scipy.spatial import distance_matrix
 from scipy.spatial.distance import cdist
 import pandas as pd
-from scipy.spatial.transform import Rotation
 
 from .analysis import random_axes_count_points, random_quaternions
-from .utils import dist_on_sphere, norm_per_axis
+from .utils import dist_on_sphere
 from .constants import DEFAULT_SEED, GRID_ALGORITHMS, UNIQUE_TOL, EXTENSION_GRID_FILES
-from .parsers import TranslationParser, GridNameParser
-from .paths import PATH_OUTPUT_ROTGRIDS, PATH_OUTPUT_STAT, PATH_OUTPUT_FULL_GRIDS
-from .rotations import grid2euler, euler2grid, grid2rotation, rotation2grid, \
-    grid2quaternion, quaternion2grid
+from .parsers import GridNameParser
+from .paths import PATH_OUTPUT_ROTGRIDS, PATH_OUTPUT_STAT
+from .rotations import euler2grid, quaternion2grid
 from .wrappers import time_method
 
 
@@ -461,70 +458,6 @@ def select_next_gridpoint(set_grid_points, i):
     return set_grid_points
 
 
-class RotationsObject(ABC):
-
-    def __init__(self, N: int = None, gen_algorithm: str = None):
-        self.grid_x = None
-        self.grid_y = None
-        self.grid_z = None
-        self.rotations = None
-        self.N = N
-        self.gen_algorithm = gen_algorithm
-        self.standard_name = f"{gen_algorithm}_{N}"
-        self.gen_rotations(self.N, self.gen_algorithm)
-
-    @abstractmethod
-    def gen_rotations(self, N: int = None, gen_algorithm: str = None):
-        pass
-
-    def from_rotations(self, rotations: Rotation):
-        self.rotations = rotations
-        self.grid_x, self.grid_y, self.grid_z = rotation2grid(rotations)
-        self._determine_N()
-
-    def from_grids(self, grid_x: Grid, grid_y: Grid, grid_z: Grid):
-        self.grid_x = grid_x
-        self.grid_y = grid_y
-        self.grid_z = grid_z
-        self.rotations = self.as_rotation_object()
-        self._determine_N()
-
-    def _determine_N(self):
-        if self.grid_x is None and self.grid_y is None and self.grid_z is None:
-            self.N = None
-        else:
-            assert len(self.grid_x) == len(self.grid_y) == len(self.grid_z)
-            self.N = len(self.grid_x)
-
-    def as_rotation_object(self) -> Rotation:
-        return grid2rotation(self.grid_x, self.grid_y, self.grid_z)
-
-    def as_quaternion(self) -> NDArray:
-        return grid2quaternion(self.grid_x, self.grid_y, self.grid_z)
-
-    def as_euler(self) -> NDArray:
-        return grid2euler(self.grid_x, self.grid_y, self.grid_z)
-
-    def save_all(self):
-        subgrids = (self.grid_x, self.grid_y, self.grid_z)
-        labels = ("x", "y", "z")
-        for label, sub_grid in zip(labels, subgrids):
-            if not sub_grid.standard_name.endswith(f"_{label}"):
-                sub_grid.standard_name = f"{sub_grid.standard_name}_{label}"
-                sub_grid.save_grid()
-
-
-# # TODO: this still needs changes
-# class RotationsFromFiles(RotationsObject):
-#
-#     def gen_rotations(self, N: int = None, gen_algorithm: str = None):
-#         basis = np.eye(3)
-#         grid_x = Grid(N, basis[0], gen_alg=gen_algorithm, use_saved=True)
-#         grid_y = Grid(N, basis[1], gen_alg=gen_algorithm, use_saved=True)
-#         grid_z = Grid(N, basis[2], gen_alg=gen_algorithm, use_saved=True)
-#         self.from_grids(grid_x, grid_y, grid_z)
-
-
 class ZeroGrid(Grid):
     """
     Use this rotation grid if you want no rotations at all. Consists of only one point, a unit vector in z-direction.
@@ -536,14 +469,6 @@ class ZeroGrid(Grid):
 
     def generate_grid(self):
         self.grid = np.array([[0, 0, 1]])
-
-
-class RandomQRotations(RotationsObject):
-
-    def gen_rotations(self, N: int = None, gen_algorithm="randomQ"):
-        assert N is not None, "Select the number of points N!"
-        quaternions = random_quaternions(N)
-        self.from_rotations(Rotation.from_quat(quaternions))
 
 
 class RandomQGrid(Grid):
@@ -567,31 +492,6 @@ class RandomEGrid(Grid):
         self.grid = euler2grid(euler_angles)
         # No super call because ordering not needed for random points and the number of points is exact!
 
-
-class SystemERotations(RotationsObject):
-
-    def gen_rotations(self, N: int = None, gen_algorithm="randomQ"):
-        assert N is not None, "Select the number of points N!"
-        num_points = 1
-        rot_matrices = []
-        rotations = []
-        while len(rot_matrices) < N:
-            phis = np.linspace(0, 2 * pi, num_points)
-            thetas = np.linspace(0, 2 * pi, num_points)
-            psis = np.linspace(0, 2 * pi, num_points)
-            euler_meshgrid = np.array(np.meshgrid(*(phis, thetas, psis)), dtype=float)
-            euler_meshgrid = euler_meshgrid.reshape((3, -1)).T
-            rotations = Rotation.from_euler("ZYX", euler_meshgrid)
-            # remove non-unique rotational matrices
-            rot_matrices = rotations.as_matrix()
-            rot_matrices = np.unique(np.round(rot_matrices, UNIQUE_TOL), axis=0)
-            rotations = Rotation.from_matrix(rot_matrices)
-            #
-            num_points += 1
-        # TODO: sort by distance???
-        # convert to a grid
-        self.from_rotations(rotations[:N])
-        # self.grid = euler2grid(euler_meshgrid)
 
 class SystemEGrid(Grid):
 
@@ -705,77 +605,6 @@ class IcoGrid(Polyhedron3DGrid):
         super().__init__(N, polyhedron=IcosahedronPolytope, gen_alg="ico", **kwargs)
 
 
-class FullGrid:
-
-    def __init__(self, b_grid_name: str, o_grid_name: str, t_grid_name: str):
-        """
-        A combination object that enables work with a set of grids. A parser that
-
-        Args:
-            b_grid_name: body rotation grid
-            o_grid_name: origin rotation grid
-            t_grid_name: translation grid
-        """
-        self.b_rotations = build_rotations_from_name(b_grid_name)
-        self.o_rotations = build_rotations_from_name(o_grid_name)
-        self.t_grid = TranslationParser(t_grid_name)
-        self.save_full_grid()
-
-    def get_full_grid_name(self):
-        return f"o_{self.o_rotations.standard_name}_b_{self.b_rotations.standard_name}_t_{self.t_grid.grid_hash}"
-
-    def get_position_grid(self) -> NDArray:
-        """
-        Get a 'product' of o_grid and t_grid so you can visualise points in space at which COM of the second molecule
-        will be positioned.
-
-        Returns:
-            an array of shape (len_o_grid, len_t_grid, 3) in which the elements of result[i] have the first
-            distance from t_grid, the next len_o_grid lines the second distance ... while rotational positions
-            are taken from o_grid and in the same order for any distance to origin
-        """
-        dist_array = self.t_grid.get_trans_grid()
-        # TODO: may later change to an average over diff basis or sth
-        o_grid = self.o_rotations.grid_z
-        num_dist = len(dist_array)
-        num_orient = len(o_grid)
-        result = np.zeros((num_dist, num_orient, 3))
-        for i, dist in enumerate(dist_array):
-            result[i] = np.multiply(o_grid, dist)
-            norms = norm_per_axis(result[i])
-            assert np.allclose(norms, dist), "In a position grid, all vectors in i-th 'row' should have the same norm!"
-        result = np.swapaxes(result, 0, 1)
-        #result = result.reshape((-1, 3))
-        return result
-
-    def save_full_grid(self):
-        np.save(f"{PATH_OUTPUT_FULL_GRIDS}position_grid_{self.get_full_grid_name()}", self.get_position_grid())
-
-
-def build_rotations_from_name(grid_name: str, **kwargs) -> RotationsObject:
-    gnp = GridNameParser(grid_name)
-    return build_rotations(gnp.N, gnp.algo, **kwargs)
-
-
-def build_rotations(N: int, algo: str, **kwargs) -> RotationsObject:
-    name2rotation = {"randomQ": RandomQRotations,
-                     "systemE": SystemERotations
-                     }
-                 # "randomE": RandomEGrid,
-                 # "cube4D": Cube4DGrid,
-                 # "systemE": SystemEGrid,
-                 # "cube3D": Cube3DGrid,
-                 # "ico": IcoGrid,
-                 # "zero": ZeroGrid}
-    if algo not in name2rotation.keys():
-        raise ValueError(f"Algorithm {algo} is not a valid grid type. "
-                         f"Try 'ico', 'cube3D' ...")
-    assert isinstance(N, int), f"Number of grid points must be an integer, currently N={N}"
-    assert N >= 0, f"Number of grid points cannot be negative, currently N={N}"
-    rot_obj = name2rotation[algo](N, gen_algorithm=algo, **kwargs)
-    return rot_obj
-
-
 def build_grid_from_name(grid_name: str, **kwargs) -> Grid:
     """
     Provide grid_name either in the form 'ico_24', '24'. If no algorithm is provided, the default algorithm is
@@ -802,23 +631,3 @@ def build_grid(N: int, algo: str, **kwargs) -> Grid:
     return grid_obj(N, **kwargs)
 
 
-if __name__ == "__main__":
-    fg = FullGrid(o_grid_name="randomQ_7", t_grid_name="[1, 2, 3]", b_grid_name="randomQ_14")
-    import matplotlib.pyplot as plt
-    import seaborn as sns
-
-    pos_grid = fg.get_position_grid()
-    fig = plt.figure()
-    ax = fig.add_subplot(111, projection='3d')
-    # print(pos_grid[0].shape)
-    # ax.scatter(*pos_grid[0].T, c="r")
-    # ax.scatter(*pos_grid[1].T, c="b")
-    # ax.scatter(*pos_grid[2].T, c="g")
-    # plt.show()
-    pos_grid = np.swapaxes(pos_grid, 0, 1)
-    pos_grid = pos_grid.reshape((-1, 3))
-    rgb_values = sns.color_palette("flare", len(pos_grid))
-    for i, el in enumerate(pos_grid):
-        ax.scatter(*el, c=rgb_values[i], label=i)
-        ax.text(*el, i)
-    plt.show()

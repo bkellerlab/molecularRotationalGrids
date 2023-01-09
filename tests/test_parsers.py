@@ -3,7 +3,7 @@ import pytest
 
 from molgri.parsers import TranslationParser, FullGridNameParser, FileParser, GridNameParser
 from molgri.constants import ANGSTROM2NM, NM2ANGSTROM, DEFAULT_ALGORITHM
-from molgri.grids import FullGrid
+from molgri.fullgrid import FullGrid
 
 
 def test_grid_name_parser():

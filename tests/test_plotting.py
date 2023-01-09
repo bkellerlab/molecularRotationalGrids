@@ -3,8 +3,8 @@ import numpy as np
 import pandas as pd
 
 from molgri.cells import save_voranoi_data_for_alg
+from molgri.fullgrid import FullGrid
 from molgri.constants import SMALL_NS
-from molgri.grids import FullGrid
 from molgri.plotting import GridColoredWithAlphaPlot, GridPlot, AlphaViolinPlot, AlphaConvergencePlot, PolytopePlot, \
     PositionGridPlot, VoranoiConvergencePlot, groupby_min_body_energy
 

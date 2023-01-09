@@ -7,7 +7,7 @@ For this purpose, Writers in molgri.writers module are provided.
 from typing import Tuple, Generator
 
 from molgri.parsers import ParsedMolecule
-from molgri.grids import FullGrid
+from molgri.fullgrid import FullGrid
 from molgri.utils import normalise_vectors
 
 

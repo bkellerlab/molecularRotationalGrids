@@ -4,6 +4,7 @@ This module builds cells that enable space discretisation into cells based on po
 from time import time
 
 import numpy as np
+
 from numpy.typing import NDArray
 from scipy.spatial import SphericalVoronoi
 from scipy.constants import pi
@@ -12,10 +13,10 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 import pandas as pd
 
+from molgri.fullgrid import FullGrid
 from molgri.utils import norm_per_axis, normalise_vectors
-from molgri.constants import UNIQUE_TOL, CELLS_DF_COLUMNS, EXTENSION_FIGURES, NAME2PRETTY_NAME, DEFAULT_DPI, \
+from molgri.constants import CELLS_DF_COLUMNS, EXTENSION_FIGURES, NAME2PRETTY_NAME, DEFAULT_DPI, \
     GRID_ALGORITHMS, COLORS, SMALL_NS
-from molgri.grids import FullGrid
 from molgri.paths import PATH_OUTPUT_PLOTS, PATH_OUTPUT_CELLS
 
 
@@ -161,4 +162,5 @@ if __name__ == "__main__":
         save_voranoi_data_for_alg(alg, N_set=SMALL_NS, radius=r)
 
     plot_voranoi_convergence(N_min=np.min(SMALL_NS), N_max=np.max(SMALL_NS), r=int(r))
+
 

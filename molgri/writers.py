@@ -11,7 +11,7 @@ from MDAnalysis import Merge
 import numpy as np
 
 from molgri.constants import EXTENSION_TRAJECTORY, EXTENSION_TOPOLOGY
-from molgri.grids import FullGrid
+from molgri.fullgrid import FullGrid
 from molgri.parsers import FileParser, ParsedMolecule
 from molgri.paths import PATH_INPUT_BASEGRO, PATH_OUTPUT_PT
 from molgri.pts import Pseudotrajectory
