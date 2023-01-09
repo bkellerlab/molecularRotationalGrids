@@ -21,15 +21,18 @@ class FullGrid:
         """
         self.b_rotations = build_rotations_from_name(b_grid_name)
         # TODO:this whole if sentence may still change
-        if "ico" or "cube3D" in o_grid_name:
+        if "ico" in o_grid_name or "cube3D" in o_grid_name:
             self.o_positions = build_grid_from_name(o_grid_name)
+            self.o_name = self.o_positions.standard_name
         else:
-            self.o_positions = build_rotations_from_name(o_grid_name).grid_z
+            self.o_rotations = build_rotations_from_name(o_grid_name)
+            self.o_name = self.o_rotations.standard_name
+            self.o_positions = self.o_rotations.grid_z
         self.t_grid = TranslationParser(t_grid_name)
         self.save_full_grid()
 
     def get_full_grid_name(self):
-        return f"o_{self.o_positions.standard_name}_b_{self.b_rotations.standard_name}_t_{self.t_grid.grid_hash}"
+        return f"o_{self.o_name}_b_{self.b_rotations.standard_name}_t_{self.t_grid.grid_hash}"
 
     def get_position_grid(self) -> NDArray:
         """

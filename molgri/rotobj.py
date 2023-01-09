@@ -146,9 +146,9 @@ class RandomERotations(RotationsObject):
 
 class Cube4DRotations(RotationsObject):
 
-    def __init__(self):
-        super().__init__()
+    def __init__(self, *args, **kwargs):
         self.d = 4
+        super().__init__(*args, **kwargs)
 
     def gen_rotations(self, N: int = None, gen_algorithm: str = None):
         self.N = N
@@ -211,9 +211,6 @@ class Cube4DRotations(RotationsObject):
         return np.unique(result, axis=0)
 
 
-
-
-
 class ZeroRotations(RotationsObject):
 
     def gen_rotations(self, N=1, gen_algorithm="zero"):
@@ -232,7 +229,8 @@ def build_rotations(N: int, algo: str, **kwargs) -> RotationsObject:
     name2rotation = {"randomQ": RandomQRotations,
                      "systemE": SystemERotations,
                      "randomE": RandomERotations,
-                     "cube4D": Cube4DRotations
+                     "cube4D": Cube4DRotations,
+                     "zero": ZeroRotations
                      }
                  #
                  # "cube4D": Cube4DGrid,
