@@ -20,8 +20,10 @@ from scipy.spatial.transform import Rotation
 import MDAnalysis as mda
 from MDAnalysis.core import AtomGroup
 
-from .constants import EXTENSIONS, NM2ANGSTROM, GRID_ALGORITHMS, DEFAULT_ALGORITHM, ZERO_ALGORITHM
+from .constants import EXTENSIONS, NM2ANGSTROM, GRID_ALGORITHMS, DEFAULT_ALGORITHM, ZERO_ALGORITHM, UNIQUE_TOL
 from .paths import PATH_OUTPUT_TRANSGRIDS
+from .rotations import two_vectors2rot
+from .utils import normalise_vectors
 
 
 class NameParser:
@@ -138,8 +140,6 @@ class GridNameParser(NameParser):
         return f"{self.algo}_{self.N}"
 
 
-
-
 class ParsedMolecule:
 
     def __init__(self, atoms: AtomGroup, box=None):
@@ -194,6 +194,24 @@ class ParsedMolecule:
 
     def translate(self, vector: np.ndarray):
         self.atoms.translate(vector)
+
+    def rotate_to(self, position: NDArray):
+        """
+        1) scale COM position to 1
+        2) rotate around origin to get to a rotational position described by position
+        3) rescale radially to original length of position vector
+
+        Args:
+            position: 3D coordinates of a point on a sphere, end position of COM
+        """
+        assert len(position) == 3, "Position must be a 3D location in space"
+        com_normalised = normalise_vectors(self.get_center_of_mass())
+        position_normalised = normalise_vectors(position)
+        com_radius = np.linalg.norm(self.get_center_of_mass())
+        position_radius = np.linalg.norm(position)
+        rot_matrix = two_vectors2rot(com_normalised, position_normalised)
+        self.rotate_about_origin(Rotation.from_matrix(rot_matrix))
+        self.translate_radially(position_radius - com_radius)
 
     def translate_to_origin(self):
         """
