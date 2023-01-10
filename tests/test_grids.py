@@ -106,6 +106,7 @@ def test_second_neighbours():
 def test_general_grid_properties():
     for alg in GRID_ALGORITHMS:
         for number in (3, 15, 26):
+            print(alg, number)
             grid_obj = build_grid(number, alg)
             grid = grid_obj.get_grid()
             assert isinstance(grid, np.ndarray), "Grid must be a numpy array."
@@ -215,25 +216,35 @@ def test_ordering():
 def test_default_full_grids():
     full_grid = FullGrid(t_grid_name="[1]", o_grid_name="zero", b_grid_name="zero")
     assert np.all(full_grid.t_grid.get_trans_grid() == np.array([10]))
-    assert isinstance(full_grid.o_grid, ZeroGrid)
-    assert isinstance(full_grid.b_grid, ZeroGrid)
+    assert full_grid.get_position_grid().shape == (1, 1, 3)
+    assert np.allclose(full_grid.get_position_grid(), np.array([[[0, 0, 10]]]))
+    assert np.allclose(full_grid.b_rotations.rotations.as_matrix(), np.eye(3))
+
     full_grid = FullGrid(t_grid_name="[0]", o_grid_name="None", b_grid_name="None")
     assert np.all(full_grid.t_grid.get_trans_grid() == np.array([0]))
-    assert isinstance(full_grid.o_grid, ZeroGrid)
-    assert isinstance(full_grid.b_grid, ZeroGrid)
+    assert full_grid.get_position_grid().shape == (1, 1, 3)
+    assert np.allclose(full_grid.get_position_grid(), np.array([[[0, 0, 0]]]))
+    assert np.allclose(full_grid.b_rotations.rotations.as_matrix(), np.eye(3))
+
     full_grid = FullGrid(t_grid_name="[1, 2, 3]", o_grid_name="0", b_grid_name="0")
     assert np.all(full_grid.t_grid.get_trans_grid() == np.array([10, 20, 30]))
-    assert isinstance(full_grid.o_grid, ZeroGrid)
-    assert isinstance(full_grid.b_grid, ZeroGrid)
+    assert full_grid.get_position_grid().shape == (1, 3, 3)
+    assert np.allclose(full_grid.get_position_grid(), np.array([[[0, 0, 10],
+                                                                 [0, 0, 20],
+                                                                 [0, 0, 30]]]))
+    assert np.allclose(full_grid.b_rotations.rotations.as_matrix(), np.eye(3))
+
     full_grid = FullGrid(t_grid_name="[1, 2, 3]", o_grid_name="1", b_grid_name="1")
     assert np.all(full_grid.t_grid.get_trans_grid() == np.array([10, 20, 30]))
-    assert isinstance(full_grid.o_grid, ZeroGrid)
-    assert isinstance(full_grid.b_grid, ZeroGrid)
+    assert full_grid.get_position_grid().shape == (1, 3, 3)
+    assert np.allclose(full_grid.get_position_grid(), np.array([[[0, 0, 10],
+                                                                 [0, 0, 20],
+                                                                 [0, 0, 30]]]))
+    assert np.allclose(full_grid.b_rotations.rotations.as_matrix(), np.eye(3))
+
     full_grid = FullGrid(t_grid_name="[1, 2, 3]", o_grid_name="3", b_grid_name="4")
-    assert isinstance(full_grid.o_grid, IcoGrid)
-    assert full_grid.o_grid.N == 3
-    assert isinstance(full_grid.b_grid, IcoGrid)
-    assert full_grid.b_grid.N == 4
+    assert full_grid.get_position_grid().shape == (3, 3, 3)
+    assert full_grid.b_rotations.grid_z.shape == (4, 3)
 
 
 def test_position_grid():
@@ -242,22 +253,26 @@ def test_position_grid():
     fg = FullGrid(b_grid_name="zero", o_grid_name=f"ico_{num_rot}", t_grid_name="[0.1, 2, 2.5, 4]")
     ico_grid = IcoGrid(14).get_grid()
     position_grid = fg.get_position_grid()
-    assert position_grid.shape == (num_trans, num_rot, 3)
+    assert position_grid.shape == (num_rot, num_trans, 3)
     # assert lengths correct throughout the array
-    assert np.allclose(position_grid[0], ico_grid)
-    assert np.isclose(np.linalg.norm(position_grid[0][5]), 1)
+    assert np.allclose(position_grid[:, 0], ico_grid)
+    assert np.isclose(np.linalg.norm(position_grid[5][0]), 1)
+
     ico_grid2 = np.array([20*el for el in ico_grid])
-    assert np.allclose(position_grid[1], ico_grid2)
-    assert np.isclose(np.linalg.norm(position_grid[1][-1]), 20)
+    assert np.allclose(position_grid[:, 1], ico_grid2)
+    assert np.isclose(np.linalg.norm(position_grid[-1][1]), 20)
+
     ico_grid3 = np.array([25*el for el in ico_grid])
-    assert np.allclose(position_grid[2], ico_grid3)
-    assert np.isclose(np.linalg.norm(position_grid[2][3]), 25)
+    assert np.allclose(position_grid[:, 2], ico_grid3)
+    assert np.isclose(np.linalg.norm(position_grid[3][2]), 25)
+
     ico_grid4 = np.array([40*el for el in ico_grid])
-    assert np.allclose(position_grid[3], ico_grid4)
-    assert np.isclose(np.linalg.norm(position_grid[3][-1]), 40)
+    assert np.allclose(position_grid[:, 3], ico_grid4)
+    assert np.isclose(np.linalg.norm(position_grid[-1][3]), 40)
+
     # assert orientations stay the same
     for i in range(num_rot):
-        selected_lines = position_grid[:, i]
+        selected_lines = position_grid[i, :]
         normalised_lines = normalise_vectors(selected_lines)
         assert np.allclose(normalised_lines, normalised_lines[0])
 

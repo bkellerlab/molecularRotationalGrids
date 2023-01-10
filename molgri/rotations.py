@@ -23,6 +23,9 @@ def rotation2grid(rotations: Rotation) -> Tuple[NDArray, ...]:
     result = []
     for basis_vector in basis:
         rotated_bv = rotation2grid4vector(rotations, basis_vector)
+        # special case when only one rotation is applied - need to expand dimensions
+        if rotated_bv.shape == (3,):
+            rotated_bv = rotated_bv[np.newaxis, :]
         assert rotated_bv.shape[1] == 3
         result.append(rotated_bv)
     return tuple(result)

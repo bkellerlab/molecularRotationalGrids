@@ -20,7 +20,8 @@ from scipy.spatial.transform import Rotation
 import MDAnalysis as mda
 from MDAnalysis.core import AtomGroup
 
-from .constants import EXTENSIONS, NM2ANGSTROM, GRID_ALGORITHMS, DEFAULT_ALGORITHM, ZERO_ALGORITHM, UNIQUE_TOL
+from .constants import EXTENSIONS, NM2ANGSTROM, GRID_ALGORITHMS, DEFAULT_ALGORITHM_O, ZERO_ALGORITHM, UNIQUE_TOL, \
+    DEFAULT_ALGORITHM_B
 from .paths import PATH_OUTPUT_TRANSGRIDS
 from .rotations import two_vectors2rot
 from .utils import normalise_vectors
@@ -88,10 +89,10 @@ class FullGridNameParser:
         for i, split_part in enumerate(split_name):
             if split_part == "b":
                 try:
-                    self.b_grid_name = GridNameParser(f"{split_name[i+1]}_{split_name[i+2]}").get_standard_grid_name()
-                except IndexError:
                     self.b_grid_name = GridNameParser(
-                        f"{split_name[i + 1]}").get_standard_grid_name()
+                        f"{split_name[i + 1]}_{split_name[i + 2]}", "b").get_standard_grid_name()
+                except IndexError:
+                    self.b_grid_name = GridNameParser(f"{split_name[i + 1]}", "o").get_standard_grid_name()
             elif split_part == "o":
                 try:
                     self.o_grid_name = GridNameParser(
@@ -116,8 +117,8 @@ class GridNameParser(NameParser):
     Differently than pure NameParser, GridNameParser raises errors if the name doesn't correspond to a standard grid
     name.
     """
-
-    def __init__(self, name_string: str):
+    #TODO: don't simply pass if incorrectly written alg name!
+    def __init__(self, name_string: str, o_or_b="o"):
         super().__init__(name_string)
         # num of points 0 or 1 -> always zero algorithm; selected zero algorithm -> always num of points is 1
         if (self.N in (1, 0)) or (self.N is None and self.algo == ZERO_ALGORITHM):
@@ -130,8 +131,10 @@ class GridNameParser(NameParser):
         elif self.N is None and (self.algo != ZERO_ALGORITHM and self.algo is not None):
             raise ValueError(f"An algorithm provided ({self.algo}) but not number of points in {self.name_string}")
         # algorithm not provided but > 1 points -> default algorithm
-        elif self.algo is None and self.N > 1:
-            self.algo = DEFAULT_ALGORITHM
+        elif self.algo is None and self.N > 1 and o_or_b == "o":
+            self.algo = DEFAULT_ALGORITHM_O
+        elif self.algo is None and self.N > 1 and o_or_b == "b":
+            self.algo = DEFAULT_ALGORITHM_B
         # ERROR - absolutely nothing provided
         elif self.algo is None and self.N is None:
             raise ValueError(f"Algorithm name and number of grid points not recognised in name {self.name_string}.")

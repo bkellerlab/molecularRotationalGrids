@@ -16,7 +16,7 @@ import pandas as pd
 from molgri.fullgrid import FullGrid
 from molgri.utils import norm_per_axis, normalise_vectors
 from molgri.constants import CELLS_DF_COLUMNS, EXTENSION_FIGURES, NAME2PRETTY_NAME, DEFAULT_DPI, \
-    GRID_ALGORITHMS, COLORS, SMALL_NS
+    GRID_ALGORITHMS, COLORS, SMALL_NS, UNIQUE_TOL
 from molgri.paths import PATH_OUTPUT_PLOTS, PATH_OUTPUT_CELLS
 
 
@@ -69,7 +69,7 @@ def voranoi_surfaces_on_sphere(points: NDArray) -> SphericalVoronoi:
     assert np.allclose(norms, radius, atol=1, rtol=0.01), "All input points must have the same norm."
     # re-normalise for perfect match
     points = normalise_vectors(points, length=radius)
-    return SphericalVoronoi(points, radius=radius, threshold=10**-10)
+    return SphericalVoronoi(points, radius=radius, threshold=10**-UNIQUE_TOL)
 
 
 def voranoi_surfaces_on_stacked_spheres(points: NDArray) -> list:
@@ -128,7 +128,8 @@ def save_voranoi_data_for_alg(alg_name: str, N_set: tuple = SMALL_NS, radius: fl
     for i, N in enumerate(tqdm(N_set)):
         t1_grid = time()
         pg = FullGrid(b_grid_name="none", o_grid_name=f"{alg_name}_{N}",
-                      t_grid_name=f"[{radius / 10}]").get_position_grid()[0]
+                      t_grid_name=f"[{radius / 10}]").get_position_grid()
+        pg = np.swapaxes(pg, 0, 1)[0]
         t2_grid = time()
         grid_time = t2_grid - t1_grid
         try:
@@ -137,6 +138,7 @@ def save_voranoi_data_for_alg(alg_name: str, N_set: tuple = SMALL_NS, radius: fl
             t2 = time()
             tesselation_time = t2 - t1
         # miss a point but still save the rest of the data
+        # TODO: deal with duplicate generators issue
         except ValueError:
             r, voranoi_areas = np.NaN, np.full(N, np.NaN)
             tesselation_time = np.NaN

@@ -49,7 +49,7 @@ def test_pt_len():
     # origin rot grid = body rot grid
     num_rotations = 55
     m_path = f"H2O.gro"
-    manager = PtIOManager(m_path, m_path, f"ico_{num_rotations}", f"ico_{num_rotations}", "linspace(1, 5, 10)")
+    manager = PtIOManager(m_path, m_path, f"ico_{num_rotations}", f"randomE_{num_rotations}", "linspace(1, 5, 10)")
     manager.construct_pt()
     end_index = manager.pt.current_frame
     num_translations = manager.full_grid.t_grid.get_N_trans()
@@ -64,7 +64,7 @@ def test_pt_len():
     num_origin = 18
     m1_path = f"H2O.gro"
     m2_path = f"NH3.gro"
-    manager = PtIOManager(m1_path, m2_path, f"cube4D_{num_origin}", f"ico_{num_body}", "range(1, 5, 0.5)")
+    manager = PtIOManager(m1_path, m2_path, f"cube4D_{num_origin}", f"randomQ_{num_body}", "range(1, 5, 0.5)")
     manager.construct_pt()
     end_index = manager.pt.current_frame
     num_translations = manager.full_grid.t_grid.get_N_trans()
@@ -153,9 +153,9 @@ def test_pt_rotations_origin():
         vec_atom1 = m2.atoms[0].position - vec_com
         vec_atom2 = m2.atoms[1].position - vec_com
         vec_atom3 = m2.atoms[2].position - vec_com
-        assert np.isclose(angle_between_vectors(vec_com, vec_atom1), 0.9, atol=0.03)
-        assert np.isclose(angle_between_vectors(vec_com, vec_atom2), 3.08, atol=0.03)
-        assert np.isclose(angle_between_vectors(vec_com, vec_atom3), 1.26, atol=0.03)
+        assert np.isclose(angle_between_vectors(vec_com, vec_atom1), 1.386, atol=0.03)
+        assert np.isclose(angle_between_vectors(vec_com, vec_atom2), 1.227, atol=0.03)
+        assert np.isclose(angle_between_vectors(vec_com, vec_atom3), 2.152, atol=0.03)
 
 
 def test_pt_rotations_body():
@@ -169,7 +169,7 @@ def test_pt_rotations_body():
     # assert every uneven structure has distance 1 and every even one distance 2
     m1_path = f"H2O.gro"
     m2_path = f"NH3.gro"
-    manager = PtIOManager(m1_path, m2_path, f"zero", f"ico_{num_rot}", "[1, 2, 3]")
+    manager = PtIOManager(m1_path, m2_path, f"zero", f"cube4D_{num_rot}", "[1, 2, 3]")
     distances = manager.full_grid.t_grid.get_trans_grid()
     manager.construct_pt_and_time()
     file_name = manager.determine_pt_name()
@@ -208,7 +208,7 @@ def test_order_of_operations():
     m1_path = f"H2O.gro"
     m2_path = f"NH3.gro"
 
-    manager = PtIOManager(m1_path, m2_path, f"ico_{n_o}", f"ico_{n_b}", "[1, 2, 3]")
+    manager = PtIOManager(m1_path, m2_path, f"ico_{n_o}", f"randomQ_{n_b}", "[1, 2, 3]")
     manager.construct_pt()
     file_name = manager.determine_pt_name()
     len_traj = manager.pt.current_frame
@@ -242,7 +242,7 @@ def test_frames_in_directory():
     n_b = 4
     n_o = 2
     n_t = 3
-    manager = PtIOManager("H2O", "NH3", f"ico_{n_o}", f"ico_{n_b}", "[1, 2, 3]")
+    manager = PtIOManager("H2O", "NH3", f"randomE_{n_o}", f"systemE_{n_b}", "[1, 2, 3]")
     manager.construct_pt(as_dir=True)
     file_name = manager.determine_pt_name()
     base_p, fn, fp, dp = converter_gro_dir_gro_file_names(pt_directory_path=f"{PATH_OUTPUT_PT}{file_name}",
@@ -253,7 +253,7 @@ def test_frames_in_directory():
     filelist = [f for f in os.listdir(f"{dp}") if f.endswith(".xtc")]
     assert len(filelist) == n_b*n_o*n_t, "Not correct number of .xtc files in a directory."
     # compare contents of individual files mit the single all-frame PT
-    manager = PtIOManager("H2O", "NH3", f"ico_{n_o}", f"ico_{n_b}", "[1, 2, 3]")
+    manager = PtIOManager("H2O", "NH3", f"randomE_{n_o}", f"systemE_{n_b}", "[1, 2, 3]")
     manager.construct_pt(as_dir=False)
     # check that a directory joined version is the same as the normal one
     with open(new_name, "rb") as f1:
@@ -267,7 +267,7 @@ def test_directory_combined_to_pt():
     # check that a full directory can be split
     n_b = 7
     n_o = 1
-    manager = PtIOManager("H2O", "NH3", f"ico_{n_o}", f"ico_{n_b}", "[1, 2, 3]")
+    manager = PtIOManager("H2O", "NH3", f"cube4D_{n_o}", f"cube4D_{n_b}", "[1, 2, 3]")
     manager.construct_pt(as_dir=False)
     file_name = manager.determine_pt_name()
     base_p, fn, fp, dp = converter_gro_dir_gro_file_names(pt_file_path=f"{PATH_OUTPUT_PT}{file_name}.xtc")
@@ -281,7 +281,7 @@ def test_directory_combined_to_pt():
         os.rmdir(new_dir_name)
     os.rename(dp, new_dir_name)
     # the non-split version / created during PT creation
-    manager2 = PtIOManager("H2O", "NH3", f"ico_{n_o}", f"ico_{n_b}", "[1, 2, 3]")
+    manager2 = PtIOManager("H2O", "NH3", f"cube4D_{n_o}", f"cube4D_{n_b}", "[1, 2, 3]")
     manager2.construct_pt(as_dir=True)
     filelist1 = [f for f in os.listdir(f"{new_dir_name}") if f.endswith(".xtc")]
     filelist2 = [f for f in os.listdir(f"{dp}") if f.endswith(".xtc")]

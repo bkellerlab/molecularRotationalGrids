@@ -7,15 +7,16 @@ from scipy.spatial.distance import cdist
 from scipy.spatial.transform import Rotation
 
 from molgri.analysis import random_quaternions
-from molgri.constants import UNIQUE_TOL
+from molgri.constants import UNIQUE_TOL, EXTENSION_GRID_FILES
 from molgri.grids import Grid, project_grid_on_sphere
 from molgri.parsers import GridNameParser
+from molgri.paths import PATH_OUTPUT_ROTGRIDS
 from molgri.rotations import rotation2grid, grid2rotation, grid2quaternion, grid2euler
 
 
 class RotationsObject(ABC):
 
-    def __init__(self, N: int = None, gen_algorithm: str = None):
+    def __init__(self, N: int = None, gen_algorithm: str = None, use_saved=True):
         self.grid_x = None
         self.grid_y = None
         self.grid_z = None
@@ -23,7 +24,18 @@ class RotationsObject(ABC):
         self.N = N
         self.gen_algorithm = gen_algorithm
         self.standard_name = f"{gen_algorithm}_{N}"
-        self.gen_rotations(self.N, self.gen_algorithm)
+        if use_saved:
+            try:
+                grid_x = np.load(f"{PATH_OUTPUT_ROTGRIDS}{gen_algorithm}_{N}_x.{EXTENSION_GRID_FILES}")
+                grid_y = np.load(f"{PATH_OUTPUT_ROTGRIDS}{gen_algorithm}_{N}_y.{EXTENSION_GRID_FILES}")
+                grid_z = np.load(f"{PATH_OUTPUT_ROTGRIDS}{gen_algorithm}_{N}_z.{EXTENSION_GRID_FILES}")
+                self.from_grids(grid_x, grid_y, grid_z)
+            except FileNotFoundError:
+                self.gen_rotations(self.N, self.gen_algorithm)
+                self.save_all()
+        else:
+            self.gen_rotations(self.N, self.gen_algorithm)
+            self.save_all()
 
     @abstractmethod
     def gen_rotations(self, N: int = None, gen_algorithm: str = None):
@@ -54,7 +66,7 @@ class RotationsObject(ABC):
         self.grid_x, self.grid_y, self.grid_z = rotation2grid(rotations)
         self._determine_N()
 
-    def from_grids(self, grid_x: Grid, grid_y: Grid, grid_z: Grid):
+    def from_grids(self, grid_x: NDArray, grid_y: NDArray, grid_z: NDArray):
         self.grid_x = grid_x
         self.grid_y = grid_y
         self.grid_z = grid_z
@@ -81,9 +93,8 @@ class RotationsObject(ABC):
         subgrids = (self.grid_x, self.grid_y, self.grid_z)
         labels = ("x", "y", "z")
         for label, sub_grid in zip(labels, subgrids):
-            if not sub_grid.standard_name.endswith(f"_{label}"):
-                sub_grid.standard_name = f"{sub_grid.standard_name}_{label}"
-                sub_grid.save_grid()
+            file_name = f"{self.standard_name}_{label}"
+            np.save(f"{PATH_OUTPUT_ROTGRIDS}{file_name}.{EXTENSION_GRID_FILES}", sub_grid)
 
 
 def select_next_rotation(quaternion_list, i):
@@ -168,6 +179,7 @@ class Cube4DRotations(RotationsObject):
             num_divisions += 1
         np.random.set_state(state_before)
         self._order_rotations()
+        self.from_rotations(self.rotations)
 
     def _full_d_dim_grid(self, dtype=np.float64) -> np.ndarray:
         """
@@ -216,13 +228,14 @@ class ZeroRotations(RotationsObject):
     def gen_rotations(self, N=1, gen_algorithm="zero"):
         self.N = 1
         rot_matrix = np.eye(3)
+        rot_matrix = rot_matrix[np.newaxis, :]
         self.rotations = Rotation.from_matrix(rot_matrix)
         self.from_rotations(self.rotations)
 
 
-def build_rotations_from_name(grid_name: str, **kwargs) -> RotationsObject:
-    gnp = GridNameParser(grid_name)
-    return build_rotations(gnp.N, gnp.algo, **kwargs)
+def build_rotations_from_name(grid_name: str, b_or_o="o", use_saved=True, **kwargs) -> RotationsObject:
+    gnp = GridNameParser(grid_name, b_or_o)
+    return build_rotations(gnp.N, gnp.algo, use_saved=use_saved, **kwargs)
 
 
 def build_rotations(N: int, algo: str, **kwargs) -> RotationsObject:
@@ -232,12 +245,6 @@ def build_rotations(N: int, algo: str, **kwargs) -> RotationsObject:
                      "cube4D": Cube4DRotations,
                      "zero": ZeroRotations
                      }
-                 #
-                 # "cube4D": Cube4DGrid,
-                 # "systemE": SystemEGrid,
-                 # "cube3D": Cube3DGrid,
-                 # "ico": IcoGrid,
-                 # "zero": ZeroGrid}
     if algo not in name2rotation.keys():
         raise ValueError(f"Algorithm {algo} is not a valid grid type. "
                          f"Try 'ico', 'cube3D' ...")

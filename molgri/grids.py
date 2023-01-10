@@ -329,6 +329,9 @@ class Grid(ABC):
     def get_grid(self) -> np.ndarray:
         return self.grid
 
+    def __len__(self):
+        return self.N
+
     @abstractmethod
     def generate_grid(self):
         # order or truncate
@@ -410,6 +413,7 @@ def order_grid_points(grid: np.ndarray, N: int, start_i: int = 1) -> np.ndarray:
     Returns:
         an array of shape (N, 3) ordered in such a way that these N points have the best possible coverage.
     """
+    assert len(grid.shape) == 2 and grid.shape[1] == 3, "Grid not of shape (L, 3)"
     if N > len(grid):
         raise ValueError(f"N>len(grid)! Only {len(grid)} points can be returned!")
     for index in range(start_i, min(len(grid), N)):
@@ -478,7 +482,7 @@ class RandomQGrid(Grid):
 
     def generate_grid(self):
         result = random_quaternions(self.N)
-        self.grid = quaternion2grid(result)
+        self.grid = quaternion2grid(result)[-1]
         # No super call because ordering not needed for random points and the number of points is exact!
 
 
@@ -489,7 +493,7 @@ class RandomEGrid(Grid):
 
     def generate_grid(self):
         euler_angles = 2 * pi * self.rn_gen.random((self.N, 3))
-        self.grid = euler2grid(euler_angles)
+        self.grid = euler2grid(euler_angles)[-1]
         # No super call because ordering not needed for random points and the number of points is exact!
 
 
@@ -508,7 +512,7 @@ class SystemEGrid(Grid):
             euler_meshgrid = np.array(np.meshgrid(*(phis, thetas, psis)), dtype=float)
             euler_meshgrid = euler_meshgrid.reshape((3, -1)).T
             # convert to a grid
-            self.grid = euler2grid(euler_meshgrid)
+            self.grid = euler2grid(euler_meshgrid)[-1]
             self.grid = np.unique(np.round(self.grid, UNIQUE_TOL), axis=0)
             num_points += 1
         super().generate_grid()
@@ -531,7 +535,7 @@ class Cube4DGrid(Grid):
             # select only half the sphere
             grid_qua = grid_qua[grid_qua[:, self.d - 1] >= 0, :]
             # convert to grid
-            self.grid = quaternion2grid(grid_qua)
+            self.grid = quaternion2grid(grid_qua)[-1]
             self.grid = np.unique(np.round(self.grid, UNIQUE_TOL), axis=0)
             num_divisions += 1
         np.random.set_state(state_before)

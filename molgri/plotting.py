@@ -511,6 +511,7 @@ class PositionGridPlot(GridPlot):
 
     def _plot_data(self, color="black", **kwargs):
         points = self._prepare_data()
+        points = np.swapaxes(points, 0, 1)
         for i, point_set in enumerate(points):
             self.sc = self.ax.scatter(points[i, :, 0], points[i, :, 1], points[i, :, 2], c=color)
         if self.cell_lines:
@@ -746,6 +747,7 @@ class VoranoiConvergencePlot(AbstractPlot):
         ideal_areas = CELLS_DF_COLUMNS[3]
         time = CELLS_DF_COLUMNS[4]
         voranoi_df = self._prepare_data()
+        print(voranoi_df)
         sns.lineplot(data=voranoi_df, x=N_points, y=voranoi_areas, errorbar="sd", color=color, ax=self.ax)
         sns.scatterplot(data=voranoi_df, x=N_points, y=voranoi_areas, alpha=0.8, color="black", ax=self.ax, s=1)
         sns.scatterplot(data=voranoi_df, x=N_points, y=ideal_areas, color="black", marker="x", ax=self.ax)

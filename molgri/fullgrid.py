@@ -2,7 +2,7 @@ import numpy as np
 from numpy._typing import NDArray
 
 from molgri.grids import build_grid_from_name
-from molgri.parsers import TranslationParser
+from molgri.parsers import TranslationParser, GridNameParser
 from molgri.paths import PATH_OUTPUT_FULL_GRIDS
 from molgri.rotobj import build_rotations_from_name
 from molgri.utils import norm_per_axis
@@ -19,11 +19,14 @@ class FullGrid:
             o_grid_name: origin rotation grid
             t_grid_name: translation grid
         """
-        self.b_rotations = build_rotations_from_name(b_grid_name)
+        b_grid_name = GridNameParser(b_grid_name, "b").get_standard_grid_name()
+        self.b_rotations = build_rotations_from_name(b_grid_name, "b")
+        o_grid_name = GridNameParser(o_grid_name, "o").get_standard_grid_name()
         # TODO:this whole if sentence may still change
         if "ico" in o_grid_name or "cube3D" in o_grid_name:
             self.o_positions = build_grid_from_name(o_grid_name)
             self.o_name = self.o_positions.standard_name
+            self.o_positions = self.o_positions.get_grid()
         else:
             self.o_rotations = build_rotations_from_name(o_grid_name)
             self.o_name = self.o_rotations.standard_name
@@ -45,7 +48,6 @@ class FullGrid:
             again at all possible distances ...
         """
         dist_array = self.t_grid.get_trans_grid()
-
         o_grid = self.o_positions
         num_dist = len(dist_array)
         num_orient = len(o_grid)

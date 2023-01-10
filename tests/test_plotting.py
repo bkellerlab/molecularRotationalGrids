@@ -4,7 +4,7 @@ import pandas as pd
 
 from molgri.cells import save_voranoi_data_for_alg
 from molgri.fullgrid import FullGrid
-from molgri.constants import SMALL_NS
+from molgri.constants import SMALL_NS, GRID_ALGORITHMS
 from molgri.plotting import GridColoredWithAlphaPlot, GridPlot, AlphaViolinPlot, AlphaConvergencePlot, PolytopePlot, \
     PositionGridPlot, VoranoiConvergencePlot, groupby_min_body_energy
 

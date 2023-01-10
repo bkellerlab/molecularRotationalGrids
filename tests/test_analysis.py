@@ -134,13 +134,3 @@ def test_random_axes_count_points():
     assert np.isclose(avg, 0.5, atol=0.001)
     std = np.std(half_circle)
     assert std < 0.05
-
-
-if __name__ == "__main__":
-    test_unit_dist_on_sphere()
-    test_unit_vector()
-    test_angle_between()
-    test_random_sphere_point()
-    test_vector_within_alpha()
-    test_count_within_alpha()
-    test_random_axes_count_points()
