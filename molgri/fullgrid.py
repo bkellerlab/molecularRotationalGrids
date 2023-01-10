@@ -23,14 +23,23 @@ class FullGrid:
         self.b_rotations = build_rotations_from_name(b_grid_name, "b")
         o_grid_name = GridNameParser(o_grid_name, "o").get_standard_grid_name()
         # TODO:this whole if sentence may still change
-        if "ico" in o_grid_name or "cube3D" in o_grid_name:
-            self.o_positions = build_grid_from_name(o_grid_name)
-            self.o_name = self.o_positions.standard_name
-            self.o_positions = self.o_positions.get_grid()
-        else:
-            self.o_rotations = build_rotations_from_name(o_grid_name)
-            self.o_name = self.o_rotations.standard_name
-            self.o_positions = self.o_rotations.grid_z
+        # if "ico" in o_grid_name or "cube3D" in o_grid_name:
+        #     initial_grid = build_grid_from_name(o_grid_name)
+        #     self.o_positions = initial_grid
+        #     self.o_name = self.o_positions.standard_name
+        #     # save the same positions grid as x, y and z grid
+        #     for coord in ("x", "y", "z"):
+        #         self.o_positions.standard_name = f"{self.o_name}_{coord}"
+        #         self.o_positions.save_grid()
+        #     self.o_rotations = build_rotations_from_name(self.o_name, use_saved=True)
+        #     # are those the same?
+        #     self.o_positions = self.o_rotations.grid_z
+        #     alt_o_positions = initial_grid.get_grid()
+        #     assert np.allclose(self.o_positions, alt_o_positions)
+        # else:
+        self.o_rotations = build_rotations_from_name(o_grid_name)
+        self.o_name = self.o_rotations.standard_name
+        self.o_positions = self.o_rotations.grid_z
         self.t_grid = TranslationParser(t_grid_name)
         self.save_full_grid()
 

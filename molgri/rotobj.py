@@ -8,7 +8,7 @@ from scipy.spatial.transform import Rotation
 
 from molgri.analysis import random_quaternions
 from molgri.constants import UNIQUE_TOL, EXTENSION_GRID_FILES
-from molgri.grids import Grid, project_grid_on_sphere
+from molgri.grids import Grid, project_grid_on_sphere, build_grid
 from molgri.parsers import GridNameParser
 from molgri.paths import PATH_OUTPUT_ROTGRIDS
 from molgri.rotations import rotation2grid, grid2rotation, grid2quaternion, grid2euler
@@ -233,6 +233,21 @@ class ZeroRotations(RotationsObject):
         self.from_rotations(self.rotations)
 
 
+# this is only a test, not sure if right
+class IcoRotations(RotationsObject):
+
+    def gen_rotations(self, N = None, gen_algorithm="ico"):
+        ico_grid = build_grid(N, gen_algorithm).get_grid()
+        self.from_grids(ico_grid, ico_grid, ico_grid)
+
+
+class Cube3DRotations(RotationsObject):
+
+    def gen_rotations(self, N = None, gen_algorithm="cube3D"):
+        cube3d_grid = build_grid(N, gen_algorithm).get_grid()
+        self.from_grids(cube3d_grid, cube3d_grid, cube3d_grid)
+
+
 def build_rotations_from_name(grid_name: str, b_or_o="o", use_saved=True, **kwargs) -> RotationsObject:
     gnp = GridNameParser(grid_name, b_or_o)
     return build_rotations(gnp.N, gnp.algo, use_saved=use_saved, **kwargs)
@@ -243,7 +258,9 @@ def build_rotations(N: int, algo: str, **kwargs) -> RotationsObject:
                      "systemE": SystemERotations,
                      "randomE": RandomERotations,
                      "cube4D": Cube4DRotations,
-                     "zero": ZeroRotations
+                     "zero": ZeroRotations,
+                     "ico": IcoRotations,
+                     "cube3D": Cube3DRotations
                      }
     if algo not in name2rotation.keys():
         raise ValueError(f"Algorithm {algo} is not a valid grid type. "

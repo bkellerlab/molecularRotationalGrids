@@ -1010,30 +1010,3 @@ def get_only_one_translation_distance(df: pd.DataFrame, N_t: int, distance_index
     assert len(new_df) == start_len // N_t
     return new_df
 
-
-if __name__ == "__main__":
-    # H2O_H2O_o_ico_50_b_ico_10_t_902891566
-    # tep = TrajectoryEnergyPlot("H2O_H2O_o_ico_500_b_ico_5_t_3830884671")
-    # tep.add_energy_information("input/H2O_H2O_o_ico_500_b_ico_5_t_3830884671.xvg")
-    # tep.create_and_save(animate_rot=True)
-    #create_trajectory_energy_multiplot("H2O_H2O_o_ico_500_b_ico_5_t_3830884671", animate_rot=False)
-    #AlphaConvergencePlot("systemE", style_type=["talk"]).create_and_save(equalize=True, title="Convergence of systemE")
-
-    hpt = HammerProjectionTrajectory("H2O_H2O_run")
-    hpt.add_energy_information("input/H2O_H2O_run.xvg")
-    hpt.create_and_save()
-
-    # hpt = HammerProjectionTrajectory("H2O_H2O_o_ico_500_b_ico_5_t_3830884671")
-    # hpt.add_energy_information("input/H2O_H2O_o_ico_500_b_ico_5_t_3830884671.xvg")
-    # hpt.create_and_save()
-    #
-    # create_hammer_multiplot("H2O_H2O_o_ico_500_b_ico_5_t_3830884671")
-
-    #EnergyConvergencePlot("full_energy_H2O_H2O", test_Ns=(5, 10, 20, 30, 40, 50), property_name="LJ (SR)").create_and_save()
-    # EnergyConvergencePlot("full_energy_protein_CL", test_Ns=(10, 50, 100, 200, 300, 400, 500)).create_and_save()
-    # EnergyConvergencePlot("full_energy2", test_Ns=(100, 500, 800, 1000, 1500, 2000, 3000, 3600)).create_and_save()
-
-    # FullGrid(o_grid_name="cube4D_12", b_grid_name="zero", t_grid_name='range(1, 5, 2)')
-    # PositionGridPlot("position_grid_o_cube4D_12_b_zero_1_t_3203903466", cell_lines=True).create_and_save(
-    #     animate_rot=True, animate_seq=False)
-    # PanelPlot([VoranoiConvergencePlot(f"{i}_1_10_100") for i in GRID_ALGORITHMS[:-1]]).create_and_save()

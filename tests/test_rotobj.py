@@ -1,11 +1,12 @@
 
 from molgri.rotobj import build_rotations
+from molgri.constants import GRID_ALGORITHMS
 
 import numpy as np
 
 
 def test_rotobj2grid2rotobj():
-    for algo in ("randomE", "randomQ", "cube4D", "systemE"):
+    for algo in GRID_ALGORITHMS:
         for N in (12, 23, 51):
             rotobj_start = build_rotations(N, algo, use_saved=False)
             matrices_start = rotobj_start.rotations.as_matrix()

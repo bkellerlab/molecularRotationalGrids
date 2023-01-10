@@ -53,22 +53,6 @@ def euler2grid(euler_angles: NDArray) -> Tuple[NDArray, ...]:
     return rotation2grid(rotations)
 
 
-# def quaternion2grid_z(array_quaternions: NDArray) -> NDArray:
-#     """
-#     This function applies the quaternion to a unit z-vector to create a grid.
-#     """
-#     base_vector = np.array([0, 0, 1])
-#     return quaternion2grid(array_quaternions, base_vector)
-#
-#
-# def quaternion2grid_x(array_quaternions: NDArray) -> NDArray:
-#     """
-#     This function applies the quaternion to a unit x-vector to create a grid.
-#     """
-#     base_vector = np.array([1, 0, 0])
-#     return quaternion2grid(array_quaternions, base_vector)
-
-
 # TODO: find usages
 def grid2rotation(grid_x: NDArray, grid_y: NDArray, grid_z: NDArray) -> Rotation:
     """
@@ -130,17 +114,6 @@ def grid2euler(grid_x: NDArray, grid_y: NDArray, grid_z: NDArray) -> NDArray:
     eulers = rot_objects.as_euler("ZYX")
     np.nan_to_num(eulers, copy=False)
     return eulers
-
-
-# TODO: remove
-# def grid2quaternion_z(grid_3D: NDArray) -> NDArray:
-#     """
-#     Convert a grid to a quaternion set by measuring the angle between the grid point and z-vector.
-#     """
-#     base_vector = np.array([0, 0, 1])
-#     return grid2quaternion(grid_3D, None, None)
-
-
 
 
 # ########################## HELPER FUNCTIONS ################################
