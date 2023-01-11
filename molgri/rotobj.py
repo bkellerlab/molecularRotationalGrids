@@ -561,5 +561,9 @@ def build_rotations(N: int, algo: str, **kwargs) -> RotationsObject:
     return rot_obj
 
 
+def build_grid_from_name(grid_name: str, b_or_o="o", use_saved=True, **kwargs) -> np.ndarray:
+    return build_rotations_from_name(grid_name, b_or_o=b_or_o, use_saved=use_saved, **kwargs).grid_z
+
+
 if __name__ == "__main__":
     rot_obj = build_rotations(15, "cube4D", use_saved=False)

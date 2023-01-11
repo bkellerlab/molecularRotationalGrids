@@ -22,12 +22,12 @@ from molgri.analysis import vector_within_alpha
 from molgri.cells import voranoi_surfaces_on_stacked_spheres, voranoi_surfaces_on_sphere
 from molgri.parsers import NameParser, XVGParser, PtParser, GridNameParser, FullGridNameParser
 from molgri.utils import norm_per_axis, normalise_vectors, cart2sphA
-from .grids import Polytope, IcosahedronPolytope, CubePolytope, build_grid_from_name
+from .grids import Polytope, IcosahedronPolytope, CubePolytope,
 from .constants import DIM_SQUARE, DEFAULT_DPI, COLORS, DEFAULT_NS, EXTENSION_FIGURES, CELLS_DF_COLUMNS, \
     FULL_GRID_ALG_NAMES, UNIQUE_TOL, DIM_LANDSCAPE
 from .paths import PATH_OUTPUT_PLOTS, PATH_OUTPUT_ANIS, PATH_OUTPUT_FULL_GRIDS, PATH_OUTPUT_CELLS, PATH_INPUT_ENERGIES, \
     PATH_INPUT_BASEGRO, PATH_OUTPUT_PT
-from .rotobj import build_rotations_from_name
+from .rotobj import build_rotations_from_name,  build_grid_from_name
 
 
 class AbstractPlot(ABC):
@@ -455,7 +455,7 @@ class GridPlot(Plot3D):
         self.grid = self._prepare_data()
 
     def _prepare_data(self) -> np.ndarray:
-        my_grid = build_grid_from_name(self.data_name, use_saved=True).get_grid()
+        my_grid = build_grid_from_name(self.data_name, use_saved=True)
         return my_grid
 
     def _plot_data(self, color="black", s=30, **kwargs):
@@ -827,6 +827,10 @@ class AlphaViolinPlot(AbstractPlot):
 
 class AlphaViolinPlotRot(AlphaViolinPlot):
 
+    def __init__(self, data_name: str, **kwargs):
+        super().__init__(data_name, **kwargs)
+        self.plot_type += "_quaternion"
+
     def _prepare_data(self) -> pd.DataFrame:
         my_rots = build_rotations_from_name(self.data_name, use_saved=self.use_saved)
         # if statistics file already exists, use it, else create it
@@ -1041,6 +1045,8 @@ if __name__ == "__main__":
     # AlphaConvergencePlotRot(f"cube4D_50", use_saved=False).create_and_save()
     for alg in ("cube4D", "randomQ", "ico", "cube3D", "randomE", "systemE"): #GRID_ALGORITHMS[:-1]
         #try:
+        AlphaViolinPlot(f"{alg}_300", use_saved=False).create_and_save()
+        AlphaConvergencePlot(f"{alg}_300", use_saved=False).create_and_save()
         AlphaViolinPlotRot(f"{alg}_300", use_saved=False).create_and_save()
         AlphaConvergencePlotRot(f"{alg}_300", use_saved=False).create_and_save()
         #except:
