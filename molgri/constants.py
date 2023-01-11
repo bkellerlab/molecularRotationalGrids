@@ -26,7 +26,7 @@ PATH_EXAMPLES = resource_filename("molgri", "examples/")
 
 # algorithms
 DEFAULT_ALGORITHM_O = "ico"
-DEFAULT_ALGORITHM_B = "randomQ"
+DEFAULT_ALGORITHM_B = "cube4D"
 ZERO_ALGORITHM = "zero"
 GRID_ALGORITHMS = ("systemE", "randomE", "randomQ", "cube4D", "cube3D", "ico", "zero")
 assert DEFAULT_ALGORITHM_O in GRID_ALGORITHMS and ZERO_ALGORITHM in GRID_ALGORITHMS

@@ -1,3 +1,4 @@
+import os.path
 from abc import ABC, abstractmethod
 from typing import Union, List, Tuple
 
@@ -26,6 +27,7 @@ from .constants import DIM_SQUARE, DEFAULT_DPI, COLORS, DEFAULT_NS, EXTENSION_FI
     FULL_GRID_ALG_NAMES, UNIQUE_TOL, DIM_LANDSCAPE
 from .paths import PATH_OUTPUT_PLOTS, PATH_OUTPUT_ANIS, PATH_OUTPUT_FULL_GRIDS, PATH_OUTPUT_CELLS, PATH_INPUT_ENERGIES, \
     PATH_INPUT_BASEGRO, PATH_OUTPUT_PT
+from .rotobj import build_rotations_from_name
 
 
 class AbstractPlot(ABC):
@@ -747,7 +749,6 @@ class VoranoiConvergencePlot(AbstractPlot):
         ideal_areas = CELLS_DF_COLUMNS[3]
         time = CELLS_DF_COLUMNS[4]
         voranoi_df = self._prepare_data()
-        print(voranoi_df)
         sns.lineplot(data=voranoi_df, x=N_points, y=voranoi_areas, errorbar="sd", color=color, ax=self.ax)
         sns.scatterplot(data=voranoi_df, x=N_points, y=voranoi_areas, alpha=0.8, color="black", ax=self.ax, s=1)
         sns.scatterplot(data=voranoi_df, x=N_points, y=ideal_areas, color="black", marker="x", ax=self.ax)
@@ -789,7 +790,8 @@ class GridColoredWithAlphaPlot(GridPlot):
 
 class AlphaViolinPlot(AbstractPlot):
 
-    def __init__(self, data_name: str, *, plot_type: str = "uniformity", style_type: list = None, **kwargs):
+    def __init__(self, data_name: str, *, plot_type: str = "uniformity", style_type: list = None,
+                 use_saved=True, **kwargs):
         """
         Creates violin plots that are a measure of grid uniformity. A good grid will display minimal variation
         along a range of angles alpha.
@@ -800,16 +802,18 @@ class AlphaViolinPlot(AbstractPlot):
             style_type: a list of style properties like ['empty', 'talk', 'half_dark']
             **kwargs:
         """
+        self.use_saved = use_saved
         if style_type is None:
             style_type = ["white"]
         super().__init__(data_name, dimensions=2, style_type=style_type, plot_type=plot_type, **kwargs)
 
     def _prepare_data(self) -> pd.DataFrame:
-        my_grid = build_grid_from_name(self.data_name, use_saved=True)
+        my_grid = build_grid_from_name(self.data_name, use_saved=self.use_saved)
         # if statistics file already exists, use it, else create it
-        try:
+        if self.use_saved and os.path.exists(my_grid.statistics_path):
             ratios_df = pd.read_csv(my_grid.statistics_path, dtype=float)
-        except FileNotFoundError:
+        else:
+            os.remove(my_grid.statistics_path)
             my_grid.save_statistics()
             ratios_df = pd.read_csv(my_grid.statistics_path, dtype=float)
         return ratios_df
@@ -819,6 +823,19 @@ class AlphaViolinPlot(AbstractPlot):
         sns.violinplot(x=df["alphas"], y=df["coverages"], ax=self.ax, palette=COLORS, linewidth=1, scale="count")
         self.ax.set_xticklabels([r'$\frac{\pi}{6}$', r'$\frac{2\pi}{6}$', r'$\frac{3\pi}{6}$', r'$\frac{4\pi}{6}$',
                                  r'$\frac{5\pi}{6}$'])
+
+
+class AlphaViolinPlotRot(AlphaViolinPlot):
+
+    def _prepare_data(self) -> pd.DataFrame:
+        my_rots = build_rotations_from_name(self.data_name, use_saved=self.use_saved)
+        # if statistics file already exists, use it, else create it
+        if self.use_saved and os.path.exists(my_rots.statistics_path):
+            ratios_df = pd.read_csv(my_rots.statistics_path, dtype=float)
+        else:
+            my_rots.save_statistics()
+            ratios_df = pd.read_csv(my_rots.statistics_path, dtype=float)
+        return ratios_df
 
 
 class AlphaConvergencePlot(AlphaViolinPlot):
@@ -854,6 +871,12 @@ class AlphaConvergencePlot(AlphaViolinPlot):
         self.ax.set_xscale("log")
         self.ax.set_yscale("log")
         self.ax.get_legend().remove()
+
+
+class AlphaConvergencePlotRot(AlphaConvergencePlot, AlphaViolinPlotRot):
+
+    def __init__(self, data_name: str, **kwargs):
+        super().__init__(data_name, **kwargs)
 
 
 class PolytopePlot(Plot3D):
@@ -1010,3 +1033,15 @@ def get_only_one_translation_distance(df: pd.DataFrame, N_t: int, distance_index
     assert len(new_df) == start_len // N_t
     return new_df
 
+
+if __name__ == "__main__":
+    from molgri.constants import GRID_ALGORITHMS
+
+    # AlphaViolinPlotRot(f"cube4D_50", use_saved=False).create_and_save()
+    # AlphaConvergencePlotRot(f"cube4D_50", use_saved=False).create_and_save()
+    for alg in ("cube4D", "randomQ", "ico", "cube3D", "randomE", "systemE"): #GRID_ALGORITHMS[:-1]
+        #try:
+        AlphaViolinPlotRot(f"{alg}_300", use_saved=False).create_and_save()
+        AlphaConvergencePlotRot(f"{alg}_300", use_saved=False).create_and_save()
+        #except:
+        #    pass

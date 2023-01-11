@@ -75,3 +75,31 @@ def random_axes_count_points(array_points: np.ndarray, alpha: float, num_random_
         num_within = count_points_within_alpha(array_points, central_vector, alpha)
         all_ratios[i] = num_within/len(array_points)
     return all_ratios
+
+
+def random_quaternions_count_points(array_points: np.ndarray, alpha: float, num_random_points: int = 1000):
+    central_vectors = random_quaternions(num_random_points)
+    # # use half-sphere in both examples - if 1st component negative, flip the whole vector
+    # for i, line in enumerate(central_vectors):
+    #     if line[0] < 0:
+    #         central_vectors[i, :] = -central_vectors[i, :]
+    # for i, line in enumerate(array_points):
+    #     if line[0] < 0:
+    #         array_points[i, :] = -array_points[i, :]
+    all_ratios = np.zeros(num_random_points)
+    for i, central_vector in enumerate(central_vectors):
+        num_within = count_points_within_alpha(array_points, central_vector, alpha)
+        all_ratios[i] = num_within/len(array_points)
+    return all_ratios
+
+
+if __name__ == "__main__":
+    from molgri.rotobj import build_rotations
+    from molgri.constants import GRID_ALGORITHMS
+
+    N = 40
+
+    for algo in GRID_ALGORITHMS[:-1]:
+        quats = build_rotations(N, algo=algo).rotations.as_quat()
+        ratios = random_quaternions_count_points(quats, alpha=pi/6)
+        print(algo, np.average(ratios), np.std(ratios))
