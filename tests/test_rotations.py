@@ -1,9 +1,9 @@
 from numpy.typing import NDArray
 
-from molgri.rotations import Rotation2D, grid2euler, euler2grid, quaternion2grid, \
+from molgri.space.rotations import Rotation2D, grid2euler, euler2grid, quaternion2grid, \
     grid2quaternion, grid2rotation, rotation2grid
-from molgri.utils import normalise_vectors
-from molgri.analysis import random_sphere_points, random_quaternions
+from molgri.space.utils import normalise_vectors
+from molgri.space.analysis import random_quaternions
 from scipy.spatial.transform import Rotation
 
 from scipy.constants import pi

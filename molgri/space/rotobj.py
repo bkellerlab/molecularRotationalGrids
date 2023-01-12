@@ -8,12 +8,12 @@ from scipy.spatial.distance import cdist
 from scipy.spatial.transform import Rotation
 import pandas as pd
 
-from molgri.analysis import random_quaternions, random_quaternions_count_points, random_axes_count_points
+from molgri.space.analysis import random_quaternions, random_quaternions_count_points, random_axes_count_points
 from molgri.constants import UNIQUE_TOL, EXTENSION_GRID_FILES, GRID_ALGORITHMS, NAME2PRETTY_NAME
-from molgri.parsers import GridNameParser
+from molgri.molecules.parsers import GridNameParser
 from molgri.paths import PATH_OUTPUT_ROTGRIDS, PATH_OUTPUT_STAT
-from molgri.polytopes import Cube4DPolytope, IcosahedronPolytope, Cube3DPolytope
-from molgri.rotations import rotation2grid, grid2rotation, grid2quaternion, grid2euler
+from molgri.space.polytopes import Cube4DPolytope, IcosahedronPolytope, Cube3DPolytope
+from molgri.space.rotations import rotation2grid, grid2rotation, grid2quaternion, grid2euler
 from molgri.wrappers import time_method
 
 

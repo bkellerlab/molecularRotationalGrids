@@ -2,12 +2,13 @@ from scipy.constants import pi
 import numpy as np
 import pandas as pd
 
-from molgri.cells import save_voranoi_data_for_alg
-from molgri.fullgrid import FullGrid
+from molgri.plotting.analysis_plots import AlphaViolinPlotRot, AlphaConvergencePlotRot
+from molgri.space.cells import save_voranoi_data_for_alg
+from molgri.space.fullgrid import FullGrid
 from molgri.constants import SMALL_NS, GRID_ALGORITHMS
-from molgri.plotting import GridColoredWithAlphaPlot, GridPlot, AlphaViolinPlot, AlphaConvergencePlot, PolytopePlot, \
-    PositionGridPlot, VoranoiConvergencePlot, groupby_min_body_energy, create_trajectory_energy_multiplot, \
-    create_hammer_multiplot, HammerProjectionTrajectory
+from molgri.plotting.grid_plots import GridPlot, GridColoredWithAlphaPlot, PolytopePlot, PositionGridPlot, \
+    HammerProjectionTrajectory, create_hammer_multiplot, create_trajectory_energy_multiplot, groupby_min_body_energy
+from molgri.plotting.analysis_plots import AlphaViolinPlot, AlphaConvergencePlot, VoranoiConvergencePlot
 
 
 def test_groupby_min_body_energy():
@@ -48,6 +49,15 @@ def test_everything_runs():
     VoranoiConvergencePlot("randomE_1_8_300").create_and_save()
     create_trajectory_energy_multiplot("H2O_H2O_o_ico_500_b_ico_5_t_3830884671", animate_rot=False)
     create_hammer_multiplot("H2O_H2O_o_ico_500_b_ico_5_t_3830884671")
+
+
+def test_analysis_plots():
+    N = 100
+    for alg in GRID_ALGORITHMS[:-1]:
+        AlphaViolinPlot(f"{alg}_{N}", use_saved=False).create_and_save()
+        AlphaConvergencePlot(f"{alg}_{N}", use_saved=False).create_and_save()
+        AlphaViolinPlotRot(f"{alg}_{N}", use_saved=False).create_and_save()
+        AlphaConvergencePlotRot(f"{alg}_{N}", use_saved=False).create_and_save()
 
 
 if __name__ == "__main__":

@@ -13,8 +13,8 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 import pandas as pd
 
-from molgri.fullgrid import FullGrid
-from molgri.utils import norm_per_axis, normalise_vectors
+from molgri.space.fullgrid import FullGrid
+from molgri.space.utils import norm_per_axis, normalise_vectors
 from molgri.constants import CELLS_DF_COLUMNS, EXTENSION_FIGURES, NAME2PRETTY_NAME, DEFAULT_DPI, \
     GRID_ALGORITHMS, COLORS, SMALL_NS, UNIQUE_TOL
 from molgri.paths import PATH_OUTPUT_PLOTS, PATH_OUTPUT_CELLS

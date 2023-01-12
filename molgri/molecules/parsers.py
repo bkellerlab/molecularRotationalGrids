@@ -20,11 +20,11 @@ from scipy.spatial.transform import Rotation
 import MDAnalysis as mda
 from MDAnalysis.core import AtomGroup
 
-from .constants import EXTENSIONS, NM2ANGSTROM, GRID_ALGORITHMS, DEFAULT_ALGORITHM_O, ZERO_ALGORITHM, UNIQUE_TOL, \
+from molgri.constants import EXTENSIONS, NM2ANGSTROM, GRID_ALGORITHMS, DEFAULT_ALGORITHM_O, ZERO_ALGORITHM, \
     DEFAULT_ALGORITHM_B
-from .paths import PATH_OUTPUT_TRANSGRIDS
-from .rotations import two_vectors2rot
-from .utils import normalise_vectors
+from molgri.paths import PATH_OUTPUT_TRANSGRIDS
+from molgri.space.rotations import two_vectors2rot
+from molgri.space.utils import normalise_vectors
 
 
 class NameParser:

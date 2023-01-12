@@ -1,9 +1,9 @@
 import numpy as np
 import pytest
 
-from molgri.parsers import TranslationParser, FullGridNameParser, FileParser, GridNameParser
+from molgri.molecules.parsers import TranslationParser, FullGridNameParser, FileParser, GridNameParser
 from molgri.constants import ANGSTROM2NM, NM2ANGSTROM, DEFAULT_ALGORITHM_O
-from molgri.fullgrid import FullGrid
+from molgri.space.fullgrid import FullGrid
 
 
 def test_grid_name_parser():

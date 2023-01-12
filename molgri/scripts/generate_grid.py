@@ -6,7 +6,7 @@ import os
 from os.path import join
 import argparse
 
-from molgri.rotobj import GridInfo, build_grid_from_name
+from molgri.space.rotobj import GridInfo, build_grid_from_name
 from ..paths import PATH_OUTPUT_ROTGRIDS, PATH_OUTPUT_PLOTS, PATH_OUTPUT_ANIS, PATH_OUTPUT_STAT
 from ..constants import EXTENSION_GRID_FILES
 from molgri.plotting import GridPlot, AlphaViolinPlot, AlphaConvergencePlot

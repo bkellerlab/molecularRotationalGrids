@@ -4,15 +4,15 @@ import pytest
 from scipy.constants import pi
 from scipy.spatial import distance_matrix
 
-from molgri.fullgrid import FullGrid
-from molgri.grids import order_grid_points
-from molgri.polytopes import project_grid_on_sphere, Cube3DPolytope, IcosahedronPolytope, second_neighbours
-from molgri.rotobj import build_rotations, build_grid, build_grid_from_name
+from molgri.space.fullgrid import FullGrid
+from molgri.space.grids import order_grid_points
+from molgri.space.polytopes import project_grid_on_sphere, Cube3DPolytope, IcosahedronPolytope, second_neighbours
+from molgri.space.rotobj import build_rotations, build_grid, build_grid_from_name
 from molgri.constants import GRID_ALGORITHMS, ZERO_ALGORITHM
 
 import numpy as np
 
-from molgri.utils import normalise_vectors
+from molgri.space.utils import normalise_vectors
 
 
 def test_rotobj2grid2rotobj():

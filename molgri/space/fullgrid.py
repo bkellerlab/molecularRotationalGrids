@@ -1,10 +1,10 @@
 import numpy as np
 from numpy.typing import NDArray
 
-from molgri.parsers import TranslationParser, GridNameParser
+from molgri.molecules.parsers import TranslationParser, GridNameParser
 from molgri.paths import PATH_OUTPUT_FULL_GRIDS
-from molgri.rotobj import build_rotations_from_name
-from molgri.utils import norm_per_axis
+from molgri.space.rotobj import build_rotations_from_name
+from molgri.space.utils import norm_per_axis
 
 
 class FullGrid:

@@ -2,10 +2,10 @@ import os
 
 import numpy as np
 
-from molgri.writers import PtIOManager, directory2full_pt, converter_gro_dir_gro_file_names, full_pt2directory
-from molgri.parsers import PtParser, ParsedMolecule
+from molgri.molecules.writers import PtIOManager, directory2full_pt, converter_gro_dir_gro_file_names, full_pt2directory
+from molgri.molecules.parsers import PtParser, ParsedMolecule
 from molgri.scripts.set_up_io import freshly_create_all_folders, copy_examples
-from molgri.utils import angle_between_vectors, normalise_vectors
+from molgri.space.utils import angle_between_vectors, normalise_vectors
 from molgri.paths import PATH_OUTPUT_PT, PATH_INPUT_BASEGRO
 
 

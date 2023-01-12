@@ -6,9 +6,8 @@ For this purpose, Writers in molgri.writers module are provided.
 
 from typing import Tuple, Generator
 
-from molgri.parsers import ParsedMolecule
-from molgri.fullgrid import FullGrid
-from molgri.utils import normalise_vectors
+from molgri.molecules.parsers import ParsedMolecule
+from molgri.space.fullgrid import FullGrid
 
 
 class Pseudotrajectory:

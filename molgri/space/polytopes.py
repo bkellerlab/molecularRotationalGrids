@@ -6,7 +6,7 @@ import numpy as np
 from scipy.constants import pi, golden
 from scipy.spatial import distance_matrix
 
-from molgri.utils import dist_on_sphere
+from molgri.space.utils import dist_on_sphere
 
 
 class Polytope(ABC):

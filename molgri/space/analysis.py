@@ -2,7 +2,7 @@ import numpy as np
 from numpy.typing import NDArray
 from scipy.constants import pi
 
-from molgri.utils import angle_between_vectors
+from molgri.space.utils import angle_between_vectors
 
 
 def random_sphere_points(n: int = 1000) -> NDArray:
@@ -94,7 +94,7 @@ def random_quaternions_count_points(array_points: np.ndarray, alpha: float, num_
 
 
 if __name__ == "__main__":
-    from molgri.rotobj import build_rotations
+    from molgri.space.rotobj import build_rotations
     from molgri.constants import GRID_ALGORITHMS
 
     N = 40
