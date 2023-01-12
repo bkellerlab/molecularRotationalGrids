@@ -22,12 +22,12 @@ from molgri.analysis import vector_within_alpha
 from molgri.cells import voranoi_surfaces_on_stacked_spheres, voranoi_surfaces_on_sphere
 from molgri.parsers import NameParser, XVGParser, PtParser, GridNameParser, FullGridNameParser
 from molgri.utils import norm_per_axis, normalise_vectors, cart2sphA
-from .grids import Polytope, IcosahedronPolytope, CubePolytope,
+from molgri.polytopes import IcosahedronPolytope, Cube3DPolytope, Polytope
 from .constants import DIM_SQUARE, DEFAULT_DPI, COLORS, DEFAULT_NS, EXTENSION_FIGURES, CELLS_DF_COLUMNS, \
     FULL_GRID_ALG_NAMES, UNIQUE_TOL, DIM_LANDSCAPE
 from .paths import PATH_OUTPUT_PLOTS, PATH_OUTPUT_ANIS, PATH_OUTPUT_FULL_GRIDS, PATH_OUTPUT_CELLS, PATH_INPUT_ENERGIES, \
     PATH_INPUT_BASEGRO, PATH_OUTPUT_PT
-from .rotobj import build_rotations_from_name,  build_grid_from_name
+from .rotobj import build_rotations_from_name, build_grid_from_name
 
 
 class AbstractPlot(ABC):
@@ -455,7 +455,7 @@ class GridPlot(Plot3D):
         self.grid = self._prepare_data()
 
     def _prepare_data(self) -> np.ndarray:
-        my_grid = build_grid_from_name(self.data_name, use_saved=True)
+        my_grid = build_grid_from_name(self.data_name, use_saved=True).get_grid()
         return my_grid
 
     def _plot_data(self, color="black", s=30, **kwargs):
@@ -810,10 +810,9 @@ class AlphaViolinPlot(AbstractPlot):
     def _prepare_data(self) -> pd.DataFrame:
         my_grid = build_grid_from_name(self.data_name, use_saved=self.use_saved)
         # if statistics file already exists, use it, else create it
-        if self.use_saved and os.path.exists(my_grid.statistics_path):
+        try:
             ratios_df = pd.read_csv(my_grid.statistics_path, dtype=float)
-        else:
-            os.remove(my_grid.statistics_path)
+        except FileNotFoundError:
             my_grid.save_statistics()
             ratios_df = pd.read_csv(my_grid.statistics_path, dtype=float)
         return ratios_df
@@ -907,7 +906,7 @@ class PolytopePlot(Plot3D):
         if self.data_name == "ico":
             ico = IcosahedronPolytope()
         else:
-            ico = CubePolytope()
+            ico = Cube3DPolytope()
         for n in range(self.num_divisions):
             ico.divide_edges()
         return ico
