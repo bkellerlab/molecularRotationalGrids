@@ -1,5 +1,5 @@
 import numpy as np
-from numpy._typing import NDArray
+from numpy.typing import NDArray
 
 from molgri.parsers import TranslationParser, GridNameParser
 from molgri.paths import PATH_OUTPUT_FULL_GRIDS
@@ -23,7 +23,7 @@ class FullGrid:
         o_grid_name = GridNameParser(o_grid_name, "o").get_standard_grid_name()
         self.o_rotations = build_rotations_from_name(o_grid_name)
         self.o_name = self.o_rotations.standard_name
-        self.o_positions = self.o_rotations.grid_z
+        self.o_positions = self.o_rotations.get_grid_z_as_array()
         self.t_grid = TranslationParser(t_grid_name)
         self.save_full_grid()
 

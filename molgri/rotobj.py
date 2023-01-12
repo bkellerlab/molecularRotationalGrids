@@ -12,9 +12,10 @@ from molgri.analysis import random_quaternions, random_quaternions_count_points,
 from molgri.constants import UNIQUE_TOL, EXTENSION_GRID_FILES, GRID_ALGORITHMS, NAME2PRETTY_NAME
 from molgri.parsers import GridNameParser
 from molgri.paths import PATH_OUTPUT_ROTGRIDS, PATH_OUTPUT_STAT
-from molgri.polytopes import Cube4DPolytope, IcosahedronPolytope, project_grid_on_sphere, Cube3DPolytope
+from molgri.polytopes import Cube4DPolytope, IcosahedronPolytope, Cube3DPolytope
 from molgri.rotations import rotation2grid, grid2rotation, grid2quaternion, grid2euler
 from molgri.wrappers import time_method
+
 
 class GridInfo:
 
@@ -51,6 +52,7 @@ class GridInfo:
         np.save(f"{PATH_OUTPUT_ROTGRIDS}{self.standard_name}{additional_name}.{EXTENSION_GRID_FILES}", self.grid)
 
     def save_grid_txt(self):
+        # noinspection PyTypeChecker
         np.savetxt(f"{PATH_OUTPUT_ROTGRIDS}{self.standard_name}.txt", self.grid)
 
     def save_statistics(self, num_random: int = 100, print_message=False, alphas=None):
@@ -232,11 +234,11 @@ class RotationsObject(ABC):
         columns = ["alphas", "ideal coverages", "min coverage", "avg coverage", "max coverage", "standard deviation"]
         ratios_columns = ["coverages", "alphas", "ideal coverage"]
         ratios = [[], [], []]
-        sphere_surface = 2*pi**2 # full 4D sphere has area 2pi^2 r^3
+        sphere_surface = 2*pi**2  # full 4D sphere has area 2pi^2 r^3
         data = np.zeros((len(alphas), 6))  # 5 data columns for: alpha, ideal coverage, min, max, average, sd
         for i, alpha in enumerate(alphas):
             # explanation: see https://scialert.net/fulltext/?doi=ajms.2011.66.70&org=11
-            cone_area = 1/2 * sphere_surface * (2*alpha - np.sin(2*alpha))/np.pi # cone area of 4D cone is
+            cone_area = 1/2 * sphere_surface * (2*alpha - np.sin(2*alpha))/np.pi  # cone area of 4D cone is
             ideal_coverage = cone_area / sphere_surface
             actual_coverages = random_quaternions_count_points(self.rotations.as_quat(), alpha,
                                                                num_random_points=num_rand_points)
@@ -267,7 +269,8 @@ def select_next_rotation(quaternion_list, i):
     Returns:
         set_grid_points where the ith element in swapped with the best possible next grid point
     """
-    distances = cdist(quaternion_list[i:], quaternion_list[:i], metric="cosine") # TODO: is this right?
+    #  TODO: is this right?
+    distances = cdist(quaternion_list[i:], quaternion_list[:i], metric="cosine")
     distances.sort()
     nn_dist = distances[:, 0]
     index_max = np.argmax(nn_dist)

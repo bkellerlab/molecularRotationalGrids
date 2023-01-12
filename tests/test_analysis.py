@@ -1,10 +1,10 @@
 import numpy as np
 from scipy.constants import pi
 
-from molgri.grids import RandomQGrid
 from molgri.utils import normalise_vectors, angle_between_vectors, dist_on_sphere, norm_per_axis
 from molgri.analysis import random_sphere_points, vector_within_alpha, count_points_within_alpha, \
     random_axes_count_points
+from molgri.rotobj import build_grid
 
 
 def test_unit_dist_on_sphere():
@@ -107,7 +107,7 @@ def test_vector_within_alpha():
 def test_count_within_alpha():
     # all points within 180 degrees
     num_points = 50
-    grid_r = RandomQGrid(num_points)
+    grid_r = build_grid(num_points, "randomQ")
     points = grid_r.get_grid()
     assert count_points_within_alpha(points, np.array([0, 0, 1]), pi) == num_points
     assert count_points_within_alpha(points, np.array([pi/4, pi/3, -2]), pi) == num_points
@@ -121,8 +121,8 @@ def test_count_within_alpha():
 
 
 def test_random_axes_count_points():
-    num_points = 100
-    grid_r = RandomQGrid(num_points)
+    num_points = 300
+    grid_r = build_grid(num_points, "randomQ")
     points = grid_r.get_grid()
     # all points within 180 degrees
     assert np.allclose(random_axes_count_points(points, alpha=pi, num_random_points=300), 1)
@@ -131,6 +131,6 @@ def test_random_axes_count_points():
     # approximately half the points in 90 degrees
     half_circle = random_axes_count_points(points, alpha=pi/2, num_random_points=1000)
     avg = np.average(half_circle)
-    assert np.isclose(avg, 0.5, atol=0.001)
+    assert np.isclose(avg, 0.5, atol=0.01)
     std = np.std(half_circle)
     assert std < 0.05

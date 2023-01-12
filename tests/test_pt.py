@@ -140,6 +140,16 @@ def test_pt_rotations_origin():
                            f"{PATH_INPUT_BASEGRO}{m_path}",
                            f"{PATH_OUTPUT_PT}{file_name}.gro",
                            f"{PATH_OUTPUT_PT}{file_name}.xtc")
+    # initial angles
+    m1, m2 = next(traj_parser.generate_frame_as_molecule())
+    vec_com_0 = m2.get_center_of_mass()
+    vec_atom1_0 = m2.atoms[0].position - vec_com_0
+    vec_atom2_0 = m2.atoms[1].position - vec_com_0
+    vec_atom3_0 = m2.atoms[2].position - vec_com_0
+    angle_start_1 = angle_between_vectors(vec_com_0, vec_atom1_0)
+    angle_start_2 = angle_between_vectors(vec_com_0, vec_atom2_0)
+    angle_start_3 = angle_between_vectors(vec_com_0, vec_atom3_0)
+    # should stay the same during a trajectory
     for frame_i, frame_molecules in enumerate(traj_parser.generate_frame_as_molecule()):
         # distance of COM of second molecule to origin
         m1, m2 = frame_molecules
@@ -153,9 +163,9 @@ def test_pt_rotations_origin():
         vec_atom1 = m2.atoms[0].position - vec_com
         vec_atom2 = m2.atoms[1].position - vec_com
         vec_atom3 = m2.atoms[2].position - vec_com
-        assert np.isclose(angle_between_vectors(vec_com, vec_atom1), 1.386, atol=0.03)
-        assert np.isclose(angle_between_vectors(vec_com, vec_atom2), 1.227, atol=0.03)
-        assert np.isclose(angle_between_vectors(vec_com, vec_atom3), 2.152, atol=0.03)
+        assert np.isclose(angle_between_vectors(vec_com, vec_atom1), angle_start_1, atol=0.03)
+        assert np.isclose(angle_between_vectors(vec_com, vec_atom2), angle_start_2, atol=0.03)
+        assert np.isclose(angle_between_vectors(vec_com, vec_atom3), angle_start_3, atol=0.03)
 
 
 def test_pt_rotations_body():

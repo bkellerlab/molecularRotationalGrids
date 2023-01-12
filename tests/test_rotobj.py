@@ -7,7 +7,7 @@ from scipy.spatial import distance_matrix
 from molgri.fullgrid import FullGrid
 from molgri.grids import order_grid_points
 from molgri.polytopes import project_grid_on_sphere, Cube3DPolytope, IcosahedronPolytope, second_neighbours
-from molgri.rotobj import build_rotations, build_grid
+from molgri.rotobj import build_rotations, build_grid, build_grid_from_name
 from molgri.constants import GRID_ALGORITHMS, ZERO_ALGORITHM
 
 import numpy as np
@@ -131,7 +131,7 @@ def test_general_grid_properties():
 
 
 def test_cube_3d_grid():
-    cube_3d = build_grid(8, "cube3d")
+    cube_3d = build_grid(8, "cube3D")
     #assert len(cube_3d.polyhedron.faces) == 6
     grid = cube_3d.get_grid()
     distances = distance_matrix(grid, grid)
@@ -158,7 +158,7 @@ def test_cube_3d_grid():
 
 
 def test_zero_grid():
-    ico = build_grid(0, "ico")
+    ico = build_grid_from_name("ico_0")
     ico.get_grid()
 
 
@@ -224,8 +224,8 @@ def test_ordering():
         try:
             for N in range(14, 284, 3):
                 for addition in (1, 7):
-                    grid_1 = build_grid(N + addition, name, ordered=True).get_grid()
-                    grid_2 = build_grid(N, name, ordered=True).get_grid()
+                    grid_1 = build_grid(N + addition, name).get_grid()
+                    grid_2 = build_grid(N, name).get_grid()
                     assert np.allclose(grid_1[:N], grid_2)
         except AssertionError:
             print(name)
@@ -262,7 +262,7 @@ def test_default_full_grids():
 
     full_grid = FullGrid(t_grid_name="[1, 2, 3]", o_grid_name="3", b_grid_name="4")
     assert full_grid.get_position_grid().shape == (3, 3, 3)
-    assert full_grid.b_rotations.grid_z.shape == (4, 3)
+    assert full_grid.b_rotations.get_grid_z_as_array().shape == (4, 3)
 
 
 def test_position_grid():
