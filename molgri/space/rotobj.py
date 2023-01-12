@@ -1,4 +1,3 @@
-import os.path
 from abc import ABC, abstractmethod
 
 import numpy as np
@@ -6,9 +5,8 @@ from numpy.typing import NDArray
 from scipy.constants import pi
 from scipy.spatial.distance import cdist
 from scipy.spatial.transform import Rotation
-import pandas as pd
 
-from molgri.space.analysis import random_quaternions, random_quaternions_count_points, random_axes_count_points
+from molgri.space.analysis import random_quaternions, prepare_statistics, write_statistics
 from molgri.constants import UNIQUE_TOL, EXTENSION_GRID_FILES, GRID_ALGORITHMS, NAME2PRETTY_NAME
 from molgri.molecules.parsers import GridNameParser
 from molgri.paths import PATH_OUTPUT_ROTGRIDS, PATH_OUTPUT_STAT
@@ -37,6 +35,8 @@ class GridInfo:
         self.short_statistics_path = f"{PATH_OUTPUT_STAT}{self.standard_name}_short_stat.txt"
         self.statistics_path = f"{PATH_OUTPUT_STAT}{self.standard_name}_full_stat.csv"
         assert isinstance(self.grid, np.ndarray), "A grid must be a numpy array!"
+        if len(point_array) > N:
+            self._order_points()
         assert self.grid.shape == (N, 3), f"Grid not of correct shape! {self.grid.shape} instead of {(N, 3)}"
         assert np.allclose(np.linalg.norm(self.grid, axis=1), 1, atol=10**(-UNIQUE_TOL))
 
@@ -55,51 +55,20 @@ class GridInfo:
         # noinspection PyTypeChecker
         np.savetxt(f"{PATH_OUTPUT_ROTGRIDS}{self.standard_name}.txt", self.grid)
 
-    def save_statistics(self, num_random: int = 100, print_message=False, alphas=None):
-        if alphas is None:
-            alphas = [pi / 6, 2 * pi / 6, 3 * pi / 6, 4 * pi / 6, 5 * pi / 6]
-        # first message (what measure you are using)
-        newline = "\n"
-        m1 = f"STATISTICS: Testing the coverage of grid {self.standard_name} using {num_random} " \
-             f"random points on a sphere."
-        m2 = f"We select {num_random} random axes and count the number of grid points that fall within the angle" \
-             f"alpha (selected from [pi / 6, 2 * pi / 6, 3 * pi / 6, 4 * pi / 6, 5 * pi / 6]) of this axis. For an" \
-             f"ideally uniform grid, we expect the ratio of num_within_alpha/total_num_points to equal the ratio" \
-             f"area_of_alpha_spherical_cap/area_of_sphere, which we call ideal coverage."
-        stat_data, full_data = self._generate_statistics(alphas, num_rand_points=num_random)
-        if print_message:
-            print(m1)
-            print(stat_data)
-        # dealing with the file
-        with open(self.short_statistics_path, "w") as f:
-            f.writelines([m1, newline, newline, m2, newline, newline])
-        stat_data.to_csv(self.short_statistics_path, mode="a")
-        full_data.to_csv(self.statistics_path, mode="w")
+    def _order_points(self):
+        """
+        You are provided with a (possibly) unordered array of rotations saved in self.rotations. You must re-order
+        it so that the coverage is maximised at every step.
 
-    def _generate_statistics(self, alphas, num_rand_points: int = 100) -> tuple:
-        # write out short version ("N points", "min", "max", "average", "SD"
-        columns = ["alphas", "ideal coverages", "min coverage", "avg coverage", "max coverage", "standard deviation"]
-        ratios_columns = ["coverages", "alphas", "ideal coverage"]
-        ratios = [[], [], []]
-        sphere_surface = 4 * pi
-        data = np.zeros((len(alphas), 6))  # 5 data columns for: alpha, ideal coverage, min, max, average, sd
-        for i, alpha in enumerate(alphas):
-            cone_area = 2 * pi * (1-np.cos(alpha))
-            ideal_coverage = cone_area / sphere_surface
-            actual_coverages = random_axes_count_points(self.get_grid(), alpha, num_random_points=num_rand_points)
-            ratios[0].extend(actual_coverages)
-            ratios[1].extend([alpha]*num_rand_points)
-            ratios[2].extend([ideal_coverage]*num_rand_points)
-            data[i][0] = alpha
-            data[i][1] = ideal_coverage
-            data[i][2] = np.min(actual_coverages)
-            data[i][3] = np.average(actual_coverages)
-            data[i][4] = np.max(actual_coverages)
-            data[i][5] = np.std(actual_coverages)
-        alpha_df = pd.DataFrame(data=data, columns=columns)
-        alpha_df = alpha_df.set_index("alphas")
-        ratios_df = pd.DataFrame(data=np.array(ratios).T, columns=ratios_columns)
-        return alpha_df, ratios_df
+        Additionally, truncate at self.N.
+        """
+        self.grid = order_elements(self.grid, self.N, start_i=1)
+
+    def save_statistics(self, num_random: int = 100, print_message=False, alphas=None):
+        stat_data, full_data = prepare_statistics(self.get_grid(), alphas, d=3, num_rand_points=num_random)
+        write_statistics(stat_data, full_data, self.short_statistics_path, self.statistics_path,
+                         num_random, name=self.standard_name, dimensions=3,
+                         print_message=print_message)
 
 
 class RotationsObject(ABC):
@@ -157,11 +126,7 @@ class RotationsObject(ABC):
         Additionally, truncate at self.N.
         """
         rot_quaternions = self.rotations.as_quat()
-        if self.N > len(rot_quaternions):
-            raise ValueError(f"N>len(grid)! Only {len(rot_quaternions)} points can be returned!")
-        for index in range(1, self.N):
-            rot_quaternions = select_next_rotation(rot_quaternions, index)
-        rot_quaternions = rot_quaternions[:self.N]
+        rot_quaternions = order_elements(rot_quaternions, self.N, start_i=1)
         self.rotations = Rotation.from_quat(rot_quaternions)
         self.from_rotations(self.rotations)
 
@@ -207,75 +172,39 @@ class RotationsObject(ABC):
             sub_grid.save_grid(additional_name=label)
 
     def save_statistics(self, num_random: int = 100, print_message=False, alphas=None):
-        if alphas is None:
-            alphas = [pi / 6, 2 * pi / 6, 3 * pi / 6, 4 * pi / 6, 5 * pi / 6]
-        # first message (what measure you are using)
-        newline = "\n"
-        m1 = f"STATISTICS: Testing the coverage of grid {self.standard_name} using {num_random} " \
-             f"random points on a sphere."
-        m2 = f"We select {num_random} random axes and count the number of grid points that fall within the angle" \
-             f"alpha (selected from [pi / 6, 2 * pi / 6, 3 * pi / 6, 4 * pi / 6, 5 * pi / 6]) of this axis. For an" \
-             f"ideally uniform grid, we expect the ratio of num_within_alpha/total_num_points to equal the ratio" \
-             f"area_of_alpha_spherical_cap/area_of_sphere, which we call ideal coverage."
-        stat_data, full_data = self._generate_statistics(alphas, num_rand_points=num_random)
-        if print_message:
-            print(m1)
-            print(stat_data)
-        # dealing with the file
-        with open(self.short_statistics_path, "w") as f:
-            f.writelines([m1, newline, newline, m2, newline, newline])
-        if os.path.exists(self.statistics_path):
-            os.remove(self.statistics_path)
-        stat_data.to_csv(self.short_statistics_path, mode="a")
-        full_data.to_csv(self.statistics_path, mode="w")
-
-    def _generate_statistics(self, alphas, num_rand_points: int = 1000) -> tuple:
-        # write out short version ("N points", "min", "max", "average", "SD"
-        columns = ["alphas", "ideal coverages", "min coverage", "avg coverage", "max coverage", "standard deviation"]
-        ratios_columns = ["coverages", "alphas", "ideal coverage"]
-        ratios = [[], [], []]
-        sphere_surface = 2*pi**2  # full 4D sphere has area 2pi^2 r^3
-        data = np.zeros((len(alphas), 6))  # 5 data columns for: alpha, ideal coverage, min, max, average, sd
-        for i, alpha in enumerate(alphas):
-            # explanation: see https://scialert.net/fulltext/?doi=ajms.2011.66.70&org=11
-            cone_area = 1/2 * sphere_surface * (2*alpha - np.sin(2*alpha))/np.pi  # cone area of 4D cone is
-            ideal_coverage = cone_area / sphere_surface
-            actual_coverages = random_quaternions_count_points(self.rotations.as_quat(), alpha,
-                                                               num_random_points=num_rand_points)
-            ratios[0].extend(actual_coverages)
-            ratios[1].extend([alpha]*num_rand_points)
-            ratios[2].extend([ideal_coverage]*num_rand_points)
-            data[i][0] = alpha
-            data[i][1] = ideal_coverage
-            data[i][2] = np.min(actual_coverages)
-            data[i][3] = np.average(actual_coverages)
-            data[i][4] = np.max(actual_coverages)
-            data[i][5] = np.std(actual_coverages)
-        alpha_df = pd.DataFrame(data=data, columns=columns)
-        alpha_df = alpha_df.set_index("alphas")
-        ratios_df = pd.DataFrame(data=np.array(ratios).T, columns=ratios_columns)
-        return alpha_df, ratios_df
+        stat_data, full_data = prepare_statistics(self.rotations.as_quat(), alphas, d=4, num_rand_points=num_random)
+        write_statistics(stat_data, full_data, self.short_statistics_path, self.statistics_path,
+                         num_random, name=self.standard_name, dimensions=4,
+                         print_message=print_message)
 
 
-def select_next_rotation(quaternion_list, i):
+def order_elements(points: np.ndarray, N: int, start_i: int = 1) -> NDArray:
     """
-    Provide an array of quaternions where the first i are already sorted. Find the best next quaternion out of points
-    in quaternion_list[i:] to maximise coverage
+    You are provided with a (possibly) unordered grid and return a grid with N points ordered in such a way that
+    these N points have the best possible coverage.
 
     Args:
-        quaternion_list: array of shape (L, 4) where elements up to i are already ordered
-        i: index how far the array is already ordered (up to bun not including i).
+        points: grid, array of shape (L, 3) to be ordered where L should be >= N
+        N: number of grid points wished at the end
+        start_i: from which index to start ordering (in case the first i elements already ordered)
 
     Returns:
-        set_grid_points where the ith element in swapped with the best possible next grid point
+        an array of shape (N, 3) ordered in such a way that these N points have the best possible coverage.
     """
-    #  TODO: is this right?
-    distances = cdist(quaternion_list[i:], quaternion_list[:i], metric="cosine")
-    distances.sort()
-    nn_dist = distances[:, 0]
-    index_max = np.argmax(nn_dist)
-    quaternion_list[[i, i + index_max]] = quaternion_list[[i + index_max, i]]
-    return quaternion_list
+
+    def select_next_el(quaternion_list, i):
+        distances = cdist(quaternion_list[i:], quaternion_list[:i], metric="cosine")
+        distances.sort()
+        nn_dist = distances[:, 0]
+        index_max = np.argmax(nn_dist)
+        quaternion_list[[i, i + index_max]] = quaternion_list[[i + index_max, i]]
+        return quaternion_list
+
+    if N > len(points):
+        raise ValueError(f"N>len(grid)! Only {len(points)} points can be returned!")
+    for index in range(start_i, min(len(points), N)):
+        points = select_next_el(points, index)
+    return points[:N]
 
 
 class RandomQRotations(RotationsObject):
@@ -318,6 +247,10 @@ class RandomERotations(RotationsObject):
 
 class ZeroRotations(RotationsObject):
 
+    def __init__(self, N: int = None, gen_algorithm: str = None, use_saved=True, time_generation=False):
+        assert N == 1, "Zero grid only makes sense for N=1"
+        super().__init__(N=N, gen_algorithm=gen_algorithm, use_saved=use_saved, time_generation=time_generation)
+
     def gen_rotations(self):
         self.N = 1
         rot_matrix = np.eye(3)
@@ -353,14 +286,29 @@ class Cube4DRotations(PolyhedronRotations):
 class IcoAndCube3DRotations(PolyhedronRotations):
 
     def gen_rotations(self):
-        #desired_N = self.N
+        desired_N = self.N
         super().gen_rotations()
         grid_z_arr = np.array([y["projection"] for x, y in self.polyhedron.G.nodes(data=True)]).squeeze()
-        rng = np.random.default_rng()
-        rng.shuffle(grid_z_arr)
+        #rng = np.random.default_rng()
+        #rng.shuffle(grid_z_arr)
         # TODO: should you try ordering grid points?
-        grid_z = GridInfo(grid_z_arr[:self.N], N=self.N, gen_alg=self.gen_algorithm)
-        self.from_grids(grid_z, grid_z, grid_z)
+        grid_z = GridInfo(grid_z_arr, N=self.N, gen_alg=self.gen_algorithm)
+        #grid_z.N = desired_N
+        #grid_z._order_points()
+
+        alpha = np.pi / 2
+        x_rot = np.array([[1, 0, 0], [0, np.cos(alpha), -np.sin(alpha)], [0, np.sin(alpha), np.cos(alpha)]])
+        y_rot = np.array([[np.cos(alpha), 0, np.sin(alpha)], [0, 1, 0], [-np.sin(alpha), 0, np.cos(alpha)]])
+        z_rot = np.array([[np.cos(alpha), -np.sin(alpha), 0], [np.sin(alpha), np.cos(alpha), 0], [0, 0, 1]])
+        grid_x_arr = np.dot(np.dot(grid_z.get_grid(), z_rot), y_rot)
+        grid_x = GridInfo(grid_x_arr, N=desired_N, gen_alg=self.gen_algorithm)
+        grid_y_arr = np.dot(np.dot(grid_z.get_grid(), z_rot), x_rot)
+        grid_y = GridInfo(grid_x_arr, N=desired_N, gen_alg=self.gen_algorithm)
+        #print(grid_x_arr[:5])
+        #print(grid_z.get_grid()[:5])
+        self.from_grids(grid_x, grid_y, grid_z)
+        #self.N = desired_N
+        self.save_all()
         #self.N = desired_N
         #self._order_rotations()
 
@@ -412,5 +360,5 @@ def build_grid(N: int, algo: str, **kwargs) -> GridInfo:
 if __name__ == "__main__":
     for alg in GRID_ALGORITHMS[:-1]:
         print(alg)
-        rots = build_rotations_from_name(f"{alg}_{72}", use_saved=True)
+        rots = build_rotations_from_name(f"{alg}_{72}", use_saved=False)
         print(len(rots.rotations), len(rots.get_grid_z_as_array()))

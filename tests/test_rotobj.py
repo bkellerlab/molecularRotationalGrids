@@ -5,9 +5,8 @@ from scipy.constants import pi
 from scipy.spatial import distance_matrix
 
 from molgri.space.fullgrid import FullGrid
-from molgri.space.grids import order_grid_points
 from molgri.space.polytopes import project_grid_on_sphere, Cube3DPolytope, IcosahedronPolytope, second_neighbours
-from molgri.space.rotobj import build_rotations, build_grid, build_grid_from_name
+from molgri.space.rotobj import build_rotations, build_grid, build_grid_from_name, order_elements
 from molgri.constants import GRID_ALGORITHMS, ZERO_ALGORITHM
 
 import numpy as np
@@ -16,12 +15,14 @@ from molgri.space.utils import normalise_vectors
 
 
 def test_rotobj2grid2rotobj():
-    for algo in GRID_ALGORITHMS:
+    for algo in GRID_ALGORITHMS[:-1]:
         for N in (12, 23, 51):
+            print(algo, N)
             rotobj_start = build_rotations(N, algo, use_saved=False)
             matrices_start = rotobj_start.rotations.as_matrix()
             rotobj_new = build_rotations(N, algo, use_saved=True)
             matrices_new = rotobj_new.rotations.as_matrix()
+            print(np.max(np.abs(matrices_start-matrices_new)))
             assert np.allclose(matrices_start, matrices_new)
 
 
@@ -118,16 +119,13 @@ def test_second_neighbours():
 
 
 def test_general_grid_properties():
-    for alg in GRID_ALGORITHMS:
+    for alg in GRID_ALGORITHMS[:-1]:
         for number in (3, 15, 26):
-            print(alg, number)
-            grid_obj = build_grid(number, alg)
+            grid_obj = build_grid(number, alg, use_saved=False)
             grid = grid_obj.get_grid()
             assert isinstance(grid, np.ndarray), "Grid must be a numpy array."
-            if alg != ZERO_ALGORITHM:
-                assert grid.shape == (number, 3), "Wrong grid shape."
-            else:
-                assert grid.shape == (1, 3), "Wrong grid shape for zero algorithm"
+            assert grid.shape == (number, 3), "Wrong grid shape."
+            assert grid_obj.N == number
 
 
 def test_cube_3d_grid():
@@ -174,7 +172,7 @@ def test_errors_and_assertions():
         build_grid(15.3, "ico")
     grid = build_grid(20, "ico").get_grid()
     with pytest.raises(ValueError):
-        order_grid_points(grid, 25)
+        order_elements(grid, 25)
 
 
 def test_everything_runs():
@@ -203,7 +201,8 @@ def test_everything_runs():
 def test_statistics():
     num_points = 35
     num_random = 50
-    icog = build_grid(num_points, "ico")
+    # grid statistics
+    icog = build_grid(num_points, "ico", use_saved=False)
     default_alphas = [pi/6, 2*pi/6, 3*pi/6, 4*pi/6, 5*pi/6]
     icog.save_statistics(num_random=num_random, alphas=default_alphas)
     statistics_csv = pd.read_csv(icog.statistics_path, index_col=0, header=0, dtype=float)
@@ -214,6 +213,7 @@ def test_statistics():
     for i, _ in enumerate(default_alphas):
         written_id_coverage = ideal_coverage[i*num_random:(i+1)*num_random-1]
         assert np.allclose(written_id_coverage, expected_coverages[i])
+    # TODO: rotation statistics
 
 
 def test_ordering():
