@@ -20,8 +20,11 @@ from scipy.spatial.transform import Rotation
 import MDAnalysis as mda
 from MDAnalysis.core import AtomGroup
 
-from .constants import EXTENSIONS, NM2ANGSTROM, GRID_ALGORITHMS, DEFAULT_ALGORITHM, ZERO_ALGORITHM
-from .paths import PATH_OUTPUT_TRANSGRIDS
+from molgri.constants import EXTENSIONS, NM2ANGSTROM, GRID_ALGORITHMS, DEFAULT_ALGORITHM_O, ZERO_ALGORITHM, \
+    DEFAULT_ALGORITHM_B
+from molgri.paths import PATH_OUTPUT_TRANSGRIDS
+from molgri.space.rotations import two_vectors2rot
+from molgri.space.utils import normalise_vectors
 
 
 class NameParser:
@@ -86,10 +89,10 @@ class FullGridNameParser:
         for i, split_part in enumerate(split_name):
             if split_part == "b":
                 try:
-                    self.b_grid_name = GridNameParser(f"{split_name[i+1]}_{split_name[i+2]}").get_standard_grid_name()
-                except IndexError:
                     self.b_grid_name = GridNameParser(
-                        f"{split_name[i + 1]}").get_standard_grid_name()
+                        f"{split_name[i + 1]}_{split_name[i + 2]}", "b").get_standard_grid_name()
+                except IndexError:
+                    self.b_grid_name = GridNameParser(f"{split_name[i + 1]}", "o").get_standard_grid_name()
             elif split_part == "o":
                 try:
                     self.o_grid_name = GridNameParser(
@@ -114,8 +117,8 @@ class GridNameParser(NameParser):
     Differently than pure NameParser, GridNameParser raises errors if the name doesn't correspond to a standard grid
     name.
     """
-
-    def __init__(self, name_string: str):
+    #TODO: don't simply pass if incorrectly written alg name!
+    def __init__(self, name_string: str, o_or_b="o"):
         super().__init__(name_string)
         # num of points 0 or 1 -> always zero algorithm; selected zero algorithm -> always num of points is 1
         if (self.N in (1, 0)) or (self.N is None and self.algo == ZERO_ALGORITHM):
@@ -128,16 +131,16 @@ class GridNameParser(NameParser):
         elif self.N is None and (self.algo != ZERO_ALGORITHM and self.algo is not None):
             raise ValueError(f"An algorithm provided ({self.algo}) but not number of points in {self.name_string}")
         # algorithm not provided but > 1 points -> default algorithm
-        elif self.algo is None and self.N > 1:
-            self.algo = DEFAULT_ALGORITHM
+        elif self.algo is None and self.N > 1 and o_or_b == "o":
+            self.algo = DEFAULT_ALGORITHM_O
+        elif self.algo is None and self.N > 1 and o_or_b == "b":
+            self.algo = DEFAULT_ALGORITHM_B
         # ERROR - absolutely nothing provided
         elif self.algo is None and self.N is None:
             raise ValueError(f"Algorithm name and number of grid points not recognised in name {self.name_string}.")
 
     def get_standard_grid_name(self) -> str:
         return f"{self.algo}_{self.N}"
-
-
 
 
 class ParsedMolecule:
@@ -194,6 +197,24 @@ class ParsedMolecule:
 
     def translate(self, vector: np.ndarray):
         self.atoms.translate(vector)
+
+    def rotate_to(self, position: NDArray):
+        """
+        1) scale COM position to 1
+        2) rotate around origin to get to a rotational position described by position
+        3) rescale radially to original length of position vector
+
+        Args:
+            position: 3D coordinates of a point on a sphere, end position of COM
+        """
+        assert len(position) == 3, "Position must be a 3D location in space"
+        com_normalised = normalise_vectors(self.get_center_of_mass())
+        position_normalised = normalise_vectors(position)
+        com_radius = np.linalg.norm(self.get_center_of_mass())
+        position_radius = np.linalg.norm(position)
+        rot_matrix = two_vectors2rot(com_normalised, position_normalised)
+        self.rotate_about_origin(Rotation.from_matrix(rot_matrix))
+        self.translate_radially(position_radius - com_radius)
 
     def translate_to_origin(self):
         """

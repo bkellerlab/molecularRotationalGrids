@@ -1,9 +1,9 @@
 import numpy as np
 import pytest
 
-from molgri.parsers import TranslationParser, FullGridNameParser, FileParser, GridNameParser
-from molgri.constants import ANGSTROM2NM, NM2ANGSTROM, DEFAULT_ALGORITHM
-from molgri.grids import FullGrid
+from molgri.molecules.parsers import TranslationParser, FullGridNameParser, FileParser, GridNameParser
+from molgri.constants import ANGSTROM2NM, NM2ANGSTROM, DEFAULT_ALGORITHM_O
+from molgri.space.fullgrid import FullGrid
 
 
 def test_grid_name_parser():
@@ -26,9 +26,9 @@ def test_grid_name_parser():
     with pytest.raises(ValueError):
         GridNameParser(name8).get_standard_grid_name()
     name9 = "8"
-    assert GridNameParser(name9).get_standard_grid_name() == f"{DEFAULT_ALGORITHM}_8"
+    assert GridNameParser(name9).get_standard_grid_name() == f"{DEFAULT_ALGORITHM_O}_8"
     name10 = "luhnfer_86"
-    assert GridNameParser(name10).get_standard_grid_name() == f"{DEFAULT_ALGORITHM}_86"
+    assert GridNameParser(name10).get_standard_grid_name() == f"{DEFAULT_ALGORITHM_O}_86"
     name11 = "17_ico_13"
     with pytest.raises(ValueError):
         GridNameParser(name11).get_standard_grid_name()
@@ -123,16 +123,17 @@ def test_full_grid_name_parser():
     assert fg.get_full_grid_name() == fgnp.get_standard_full_grid_name()
     # example 3
     name_o = "randomE_77"
-    name_b = "8_cube3D"
+    name_b = "8_cube4D"
     name_t = "[1, 2, 3]"
     trans_grid = TranslationParser(name_t).grid_hash
     fgnp = FullGridNameParser(f"t_{trans_grid}_b_{name_b}_o_{name_o}")
-    assert fgnp.b_grid_name == "cube3D_8"
+    assert fgnp.b_grid_name == "cube4D_8"
     assert fgnp.o_grid_name == "randomE_77"
     assert fgnp.t_grid_name == str(trans_grid)
     # compare to name of Full grid
     fg = FullGrid(b_grid_name=name_b, o_grid_name=name_o, t_grid_name=name_t)
     assert fg.get_full_grid_name() == fgnp.get_standard_full_grid_name()
+
 
 def test_parsing_xyz():
     file_name = "molgri/examples/glucose.xyz"
@@ -192,14 +193,3 @@ def test_trans_parser():
     assert tp3.grid_hash == 753285640
     tp4 = TranslationParser("linspace(2, 6, 3)")
     assert tp4.grid_hash == 753285640
-
-
-if __name__ == '__main__':
-    test_atom_gro_file()
-    test_water_gro_file()
-    test_protein_gro_file()
-    test_parsing_xyz()
-    test_parsing_pdb()
-    #test_name_parser()
-    #test_trans_parser()
-    #test_expected_errors()

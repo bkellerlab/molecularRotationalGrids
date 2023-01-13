@@ -25,10 +25,11 @@ PATH_USER_PATHS = resource_filename("molgri", "paths.py")
 PATH_EXAMPLES = resource_filename("molgri", "examples/")
 
 # algorithms
-DEFAULT_ALGORITHM = "ico"
+DEFAULT_ALGORITHM_O = "ico"
+DEFAULT_ALGORITHM_B = "cube4D"
 ZERO_ALGORITHM = "zero"
 GRID_ALGORITHMS = ("systemE", "randomE", "randomQ", "cube4D", "cube3D", "ico", "zero")
-assert DEFAULT_ALGORITHM in GRID_ALGORITHMS and ZERO_ALGORITHM in GRID_ALGORITHMS
+assert DEFAULT_ALGORITHM_O in GRID_ALGORITHMS and ZERO_ALGORITHM in GRID_ALGORITHMS
 FULL_GRID_ALG_NAMES = ("systematic Euler angles", "random Euler angles", "random quaternions", "4D cube grid",
                        "3D cube grid", "icosahedron grid", "no rotation")
 SHORT_GRID_ALG_NAMES = ("system. E.", "random E.", "random q.", "cube 4D", "cube 3D", "icosahedron", "no rotat.")

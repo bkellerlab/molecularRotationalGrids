@@ -5,7 +5,8 @@ import numpy as np
 
 from molgri.paths import PATH_INPUT_ENERGIES
 from molgri.scripts.set_up_io import freshly_create_all_folders
-from molgri.plotting import EnergyConvergencePlot, create_trajectory_energy_multiplot, create_hammer_multiplot, \
+from molgri.plotting.analysis_plots import EnergyConvergencePlot
+from molgri.plotting.grid_plots import create_trajectory_energy_multiplot, create_hammer_multiplot, \
     HammerProjectionTrajectory, TrajectoryEnergyPlot
 
 parser = argparse.ArgumentParser(description="""NOTE: This script is under development and likely to undergo changes in

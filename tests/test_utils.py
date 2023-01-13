@@ -1,7 +1,7 @@
 
 import numpy as np
 
-from molgri.utils import normalise_vectors
+from molgri.space.utils import normalise_vectors
 
 
 def test_normalising():

@@ -11,10 +11,10 @@ from MDAnalysis import Merge
 import numpy as np
 
 from molgri.constants import EXTENSION_TRAJECTORY, EXTENSION_TOPOLOGY
-from molgri.grids import FullGrid
-from molgri.parsers import FileParser, ParsedMolecule
+from molgri.space.fullgrid import FullGrid
+from molgri.molecules.parsers import FileParser, ParsedMolecule
 from molgri.paths import PATH_INPUT_BASEGRO, PATH_OUTPUT_PT
-from molgri.pts import Pseudotrajectory
+from molgri.molecules.pts import Pseudotrajectory
 from molgri.wrappers import time_method
 
 
@@ -151,11 +151,15 @@ class PtWriter:
         """
         output_path = f"{PATH_OUTPUT_PT}{self.file_name}.{extension_trajectory}"
         trajectory_writer = mda.Writer(output_path, multiframe=True)
+        last_i = 0
         for i, _ in pt.generate_pseudotrajectory():
             # for the first frame write out topology
             if i == 0:
                 self.write_structure(pt, extension_structure)
             self._merge_and_write(trajectory_writer, pt)
+            last_i = i
+        product_of_grids = pt.position_grid.shape[0] * len(pt.rot_grid_body) * pt.position_grid.shape[1]
+        assert last_i + 1 == product_of_grids, f"Length of PT not correct, {last_i}=/={product_of_grids}"
         trajectory_writer.close()
 
     def _create_dir_or_empty_it(self) -> str:
