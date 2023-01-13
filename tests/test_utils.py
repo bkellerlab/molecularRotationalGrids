@@ -1,7 +1,9 @@
 
 import numpy as np
 
-from molgri.space.utils import normalise_vectors
+from molgri.space.utils import normalise_vectors, standardise_quaternion_set, random_quaternions, \
+    randomise_quaternion_set_signs
+from tests.test_rotations import assert_two_sets_of_quaternions_equal
 
 
 def test_normalising():
@@ -47,3 +49,16 @@ def test_normalising():
     assert normalised6.shape == my_array6.shape
     assert np.allclose(np.linalg.norm(normalised6, axis=0), length6)
 
+
+def test_standardise_quaternion_set():
+    quaternions = random_quaternions(500)
+    base = random_quaternions(1).reshape((4,))
+    standard_quat = standardise_quaternion_set(quaternions, base)
+    assert_two_sets_of_quaternions_equal(quaternions, standard_quat)
+    assert np.all(base.dot(standard_quat.T)) >= 0
+
+
+def test_randomise_quaternion_set_signs():
+    quaternions = random_quaternions(500)
+    rand_quaternions = randomise_quaternion_set_signs(quaternions)
+    assert_two_sets_of_quaternions_equal(quaternions, rand_quaternions)

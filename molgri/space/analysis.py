@@ -2,51 +2,11 @@ from typing import Tuple
 
 import numpy as np
 import pandas as pd
-from numpy._typing import NDArray
 from numpy.typing import NDArray
 from scipy.constants import pi
 
-from molgri.space.utils import angle_between_vectors
-
-
-def random_sphere_points(n: int = 1000) -> NDArray:
-    """
-    Create n points that are truly randomly distributed across the sphere. Eg. to test the uniformity of your grid.
-
-    Args:
-        n: number of points
-
-    Returns:
-        an array of grid points, shape (n, 3)
-    """
-    phi = np.random.uniform(0, 2*pi, (n, 1))
-    costheta = np.random.uniform(-1, 1, (n, 1))
-    theta = np.arccos(costheta)
-
-    x = np.sin(theta) * np.cos(phi)
-    y = np.sin(theta) * np.sin(phi)
-    z = np.cos(theta)
-    return np.concatenate((x, y, z), axis=1)
-
-
-def random_quaternions(n: int = 1000) -> NDArray:
-    """
-    Create n random quaternions
-
-    Args:
-        n: number of points
-
-    Returns:
-        an array of grid points, shape (n, 4)
-    """
-    result = np.zeros((n, 4))
-    random_num = np.random.random((n, 3))
-    result[:, 0] = np.sqrt(1 - random_num[:, 0]) * np.sin(2 * pi * random_num[:, 1])
-    result[:, 1] = np.sqrt(1 - random_num[:, 0]) * np.cos(2 * pi * random_num[:, 1])
-    result[:, 2] = np.sqrt(random_num[:, 0]) * np.sin(2 * pi * random_num[:, 2])
-    result[:, 3] = np.sqrt(random_num[:, 0]) * np.cos(2 * pi * random_num[:, 2])
-    assert result.shape[1] == 4
-    return result
+from molgri.space.utils import angle_between_vectors, random_sphere_points, random_quaternions, \
+    standardise_quaternion_set, randomise_quaternion_set_signs
 
 
 def vector_within_alpha(central_vec: NDArray, side_vector: NDArray, alpha: float) -> bool or NDArray:
@@ -83,7 +43,9 @@ def random_axes_count_points(array_points: np.ndarray, alpha: float, num_random_
 
 def random_quaternions_count_points(array_points: np.ndarray, alpha: float, num_random_points: int = 1000):
     central_vectors = random_quaternions(num_random_points)
-    # # use half-sphere in both examples - if 1st component negative, flip the whole vector
+    # # use half-sphere in both examples
+    central_vectors = randomise_quaternion_set_signs(central_vectors)
+    array_points = randomise_quaternion_set_signs(array_points)
     # for i, line in enumerate(central_vectors):
     #     if line[0] < 0:
     #         central_vectors[i, :] = -central_vectors[i, :]

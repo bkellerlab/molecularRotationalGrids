@@ -2,6 +2,8 @@ from typing import Tuple
 
 import numpy as np
 from numpy._typing import NDArray
+from numpy.typing import NDArray
+from scipy.constants import pi
 
 
 def norm_per_axis(array: np.ndarray, axis: int = None) -> np.ndarray:
@@ -115,3 +117,82 @@ def cart2sphA(pts: NDArray) -> NDArray:
     Code obtained from Leon Wehrhan.
     """
     return np.array([cart2sph(x, y, z) for x, y, z in pts])
+
+
+def standardise_quaternion_set(quaternions: NDArray, standard=np.array([1, 0, 0, 0])) -> NDArray:
+    """
+    Since quaternions double-cover rotations, standardise all quaternions in this array so that their dot product with
+    the "standard" quaternion is positive. Return the quaternion array where some elements ma have been flipped to -q.
+
+    Idea: method 2 described here: https://math.stackexchange.com/questions/3888504/component-wise-averaging-of-similar-quaternions-while-handling-quaternion-doubl
+
+    Args:
+        quaternions: array (N, 4), each row a quaternion
+        standard: a single quaternion determining which half-hypersphere to use
+    """
+    assert len(quaternions.shape) == 2 and quaternions.shape[1] == 4, "Wrong shape for quaternion array"
+    assert standard.shape == (4, ), "Wrong shape for standard quaternion"
+    # Take the dot product of q1 with all subsequent quaternions qi, for 2≤i≤N, and negate any of the subsequent
+    # quaternions whose dot product with qi is negative.
+    dot_product = standard.dot(quaternions.T)
+    standard_quat = quaternions.copy()
+    standard_quat[np.where(dot_product < 0)] = -quaternions[np.where(dot_product < 0)]
+
+    assert standard_quat.shape == quaternions.shape
+    return standard_quat
+
+
+def randomise_quaternion_set_signs(quaternions: NDArray) -> NDArray:
+    """
+    Return the set of the same quaternions up to the sign of each row, which is normalised.
+    """
+    assert len(quaternions.shape) == 2 and quaternions.shape[1] == 4, "Wrong shape for quaternion array"
+    random_set = np.random.choice([-1, 1], size=(len(quaternions), 1))
+    re_signed = quaternions * random_set
+    assert re_signed.shape == quaternions.shape
+    return re_signed
+
+
+def random_sphere_points(n: int = 1000) -> NDArray:
+    """
+    Create n points that are truly randomly distributed across the sphere. Eg. to test the uniformity of your grid.
+
+    Args:
+        n: number of points
+
+    Returns:
+        an array of grid points, shape (n, 3)
+    """
+    phi = np.random.uniform(0, 2*pi, (n, 1))
+    costheta = np.random.uniform(-1, 1, (n, 1))
+    theta = np.arccos(costheta)
+
+    x = np.sin(theta) * np.cos(phi)
+    y = np.sin(theta) * np.sin(phi)
+    z = np.cos(theta)
+    return np.concatenate((x, y, z), axis=1)
+
+
+def random_quaternions(n: int = 1000) -> NDArray:
+    """
+    Create n random quaternions
+
+    Args:
+        n: number of points
+
+    Returns:
+        an array of grid points, shape (n, 4)
+    """
+    result = np.zeros((n, 4))
+    random_num = np.random.random((n, 3))
+    result[:, 0] = np.sqrt(1 - random_num[:, 0]) * np.sin(2 * pi * random_num[:, 1])
+    result[:, 1] = np.sqrt(1 - random_num[:, 0]) * np.cos(2 * pi * random_num[:, 1])
+    result[:, 2] = np.sqrt(random_num[:, 0]) * np.sin(2 * pi * random_num[:, 2])
+    result[:, 3] = np.sqrt(random_num[:, 0]) * np.cos(2 * pi * random_num[:, 2])
+    assert result.shape[1] == 4
+    return result
+
+
+if __name__ == "__main__":
+    quats = random_quaternions(15)
+    randomise_quaternion_set_signs(quats)

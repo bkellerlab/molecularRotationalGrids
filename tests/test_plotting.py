@@ -63,6 +63,9 @@ def test_analysis_plots():
 
 
 if __name__ == "__main__":
-    hpt = HammerProjectionTrajectory("H2O_H2O_o_ico_500_b_ico_5_t_3830884671")
-    hpt.add_energy_information("input/H2O_H2O_o_ico_500_b_ico_5_t_3830884671.xvg")
-    hpt.create_and_save()
+    N = 200
+    for alg in GRID_ALGORITHMS[:-1]:
+        #AlphaViolinPlot(f"{alg}_{N}", use_saved=False).create_and_save()
+        #AlphaConvergencePlot(f"{alg}_{N}", use_saved=False).create_and_save()
+        AlphaViolinPlotRot(f"{alg}_{N}", use_saved=False).create_and_save()
+        AlphaConvergencePlotRot(f"{alg}_{N}", use_saved=False).create_and_save()

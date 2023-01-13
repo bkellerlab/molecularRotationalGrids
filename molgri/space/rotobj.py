@@ -6,7 +6,8 @@ from scipy.constants import pi
 from scipy.spatial.distance import cdist
 from scipy.spatial.transform import Rotation
 
-from molgri.space.analysis import random_quaternions, prepare_statistics, write_statistics
+from molgri.space.analysis import prepare_statistics, write_statistics
+from molgri.space.utils import random_quaternions
 from molgri.constants import UNIQUE_TOL, EXTENSION_GRID_FILES, GRID_ALGORITHMS, NAME2PRETTY_NAME
 from molgri.molecules.parsers import GridNameParser
 from molgri.paths import PATH_OUTPUT_ROTGRIDS, PATH_OUTPUT_STAT
@@ -49,7 +50,7 @@ class GridInfo:
     def save_grid(self, additional_name=""):
         if additional_name:
             additional_name = f"_{additional_name}"
-        np.save(f"{PATH_OUTPUT_ROTGRIDS}{self.standard_name}{additional_name}.{EXTENSION_GRID_FILES}", self.grid)
+        np.save(f"{PATH_OUTPUT_ROTGRIDS}{self.standard_name}{additional_name}.{EXTENSION_GRID_FILES}", self.get_grid())
 
     def save_grid_txt(self):
         # noinspection PyTypeChecker
