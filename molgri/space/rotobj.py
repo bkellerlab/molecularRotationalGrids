@@ -304,10 +304,10 @@ class IcoAndCube3DRotations(PolyhedronRotations):
         grid_x_arr = np.dot(np.dot(grid_z.get_grid(), z_rot), y_rot)
         grid_x = GridInfo(grid_x_arr, N=desired_N, gen_alg=self.gen_algorithm)
         grid_y_arr = np.dot(np.dot(grid_z.get_grid(), z_rot), x_rot)
-        grid_y = GridInfo(grid_x_arr, N=desired_N, gen_alg=self.gen_algorithm)
+        grid_y = GridInfo(grid_y_arr, N=desired_N, gen_alg=self.gen_algorithm)
         #print(grid_x_arr[:5])
         #print(grid_z.get_grid()[:5])
-        self.from_grids(grid_x, grid_y, grid_z)
+        self.from_grids(grid_z, grid_z, grid_z)
         #self.N = desired_N
         self.save_all()
         #self.N = desired_N

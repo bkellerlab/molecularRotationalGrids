@@ -63,7 +63,7 @@ def test_analysis_plots():
 
 
 if __name__ == "__main__":
-    N = 200
+    N = 53
     for alg in GRID_ALGORITHMS[:-1]:
         #AlphaViolinPlot(f"{alg}_{N}", use_saved=False).create_and_save()
         #AlphaConvergencePlot(f"{alg}_{N}", use_saved=False).create_and_save()
