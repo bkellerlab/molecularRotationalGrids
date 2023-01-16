@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "molgri"
-version = "1.3.0"
+version = "1.3.1"
 description = "Generate molecular pseudotrajectories based on rotational grids."
 authors = ["Hana Zupan <hana.zupan@fu-berlin.de>"]
 license = "LICENSE"
@@ -9,6 +9,9 @@ readme = "README.md"
 keywords = ["pseudotrajectory", "molecular grids", "association", "state space discretisation"]
 packages = [
     { include = "molgri/scripts" },
+    { include = "molgri/molecules" },
+    { include = "molgri/space" },
+    { include = "molgri/plotting" },
     { include = "molgri" },
 ]
 repository = "https://github.com/bkellerlab/molecularRotationalGrids"
@@ -42,4 +45,5 @@ molgri-energy = "molgri.scripts.generate_energy:run_generate_energy"
 #dependencies = {file = "requirements.txt"}
 
 [tool.setuptools.package-data]
-mypkg = ["*.gro"]
+mypkg = ["molgri/examples/*.gro", "molgri/examples/*.pdb", "molgri/examples/*.xtc", "molgri/examples/*.xvg",
+"molgri/examples/*.xyz"]
