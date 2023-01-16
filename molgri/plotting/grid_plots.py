@@ -24,6 +24,7 @@ from molgri.space.rotobj import build_grid_from_name
 from molgri.space.utils import norm_per_axis, normalise_vectors, cart2sphA
 
 
+
 class GridPlot(Plot3D):
 
     def __init__(self, data_name, *, style_type: list = None, plot_type: str = "grid", **kwargs):
@@ -331,7 +332,7 @@ def create_trajectory_energy_multiplot(data_name, Ns=None, animate_rot=False):
     for i in range(max_index):
         tep = TrajectoryEnergyPlot(data_name, plot_points=False, plot_surfaces=True, selected_Ns=Ns, style_type=["talk"])
         tep.N_index = i
-        tep.add_energy_information(f"{PATH_INPUT_ENERGIES}{data_name}.xvg")
+        tep.add_energy_information(f"{PATH_INPUT_ENERGIES}{data_name}")
         list_single_plots.append(tep)
     TrajectoryEnergyMultiPlot(list_single_plots, n_columns=max_index, n_rows=1).create_and_save(animate_rot=animate_rot,
                                                                                                 elev=10, azim=60)
@@ -343,7 +344,7 @@ def create_hammer_multiplot(data_name, Ns=None):
     for i in range(max_index):
         tep = HammerProjectionTrajectory(data_name, selected_Ns=Ns, style_type=["talk"])
         tep.N_index = i
-        tep.add_energy_information(f"{PATH_INPUT_ENERGIES}{data_name}.xvg")
+        tep.add_energy_information(f"{PATH_INPUT_ENERGIES}{data_name}")
         list_single_plots.append(tep)
     HammerProjectionMultiPlot(list_single_plots, n_columns=max_index, n_rows=1).create_and_save()
 

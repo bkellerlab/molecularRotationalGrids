@@ -52,25 +52,29 @@ def run_generate_energy():
         Ns_list = ast.literal_eval(my_args.Ns_o)
         Ns = [int(N) for N in Ns_list]
         Ns = np.array(Ns, dtype=int)
+    # remove the xvg ending if necessary
+    if my_args.xvg.endswith(".xvg"):
+        data_name = my_args.xvg[:-4]
+    else:
+        data_name = my_args.xvg
     if my_args.p1d:
         if my_args.convergence:
-            EnergyConvergencePlot(my_args.xvg, test_Ns=Ns, property_name=my_args.label).create_and_save()
+            EnergyConvergencePlot(data_name, test_Ns=Ns, property_name=my_args.label).create_and_save()
         else:
-            EnergyConvergencePlot(my_args.xvg, no_convergence=True, property_name=my_args.label).create_and_save()
-            #print("1D plot only makes sense in comparison. Select --convergence flag if you want to create it.")
+            EnergyConvergencePlot(data_name, no_convergence=True, property_name=my_args.label).create_and_save()
     if my_args.p2d:
         if my_args.convergence:
-            create_hammer_multiplot(my_args.xvg, Ns=Ns)
+            create_hammer_multiplot(data_name, Ns=Ns)
         else:
-            hpt = HammerProjectionTrajectory(my_args.xvg)
-            hpt.add_energy_information(f"{PATH_INPUT_ENERGIES}{my_args.xvg}.xvg")
+            hpt = HammerProjectionTrajectory(data_name)
+            hpt.add_energy_information(f"{PATH_INPUT_ENERGIES}{data_name}")
             hpt.create_and_save()
     if my_args.p3d:
         if my_args.convergence:
-            create_trajectory_energy_multiplot(my_args.xvg, Ns=Ns, animate_rot=my_args.animate)
+            create_trajectory_energy_multiplot(data_name, Ns=Ns, animate_rot=my_args.animate)
         else:
-            tep = TrajectoryEnergyPlot(my_args.xvg, plot_points=False, plot_surfaces=True)
-            tep.add_energy_information(f"{PATH_INPUT_ENERGIES}{my_args.xvg}.xvg")
+            tep = TrajectoryEnergyPlot(data_name, plot_points=False, plot_surfaces=True)
+            tep.add_energy_information(f"{PATH_INPUT_ENERGIES}{data_name}")
             tep.create_and_save(animate_rot=my_args.animate)
     if my_args.animate and not my_args.p3d:
         print("Warning! No animation possible since no 3D plot is constructed. Use --p3d --animate if you "
@@ -80,6 +84,7 @@ def run_generate_energy():
     if my_args.Ns_o and not my_args.convergence:
         print("You have selected a list of test N values with flag --Ns_o. Do you want to test convergence? "
               "Please select an additional flag --convergence.")
+
 
 if __name__ == '__main__':
     run_generate_energy()

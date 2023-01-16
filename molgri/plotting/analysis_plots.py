@@ -146,7 +146,7 @@ class EnergyConvergencePlot(AbstractPlot):
         super().__init__(data_name, plot_type=plot_type, **kwargs)
 
     def _prepare_data(self) -> pd.DataFrame:
-        file_name = f"{PATH_INPUT_ENERGIES}{self.data_name}.xvg"
+        file_name = f"{PATH_INPUT_ENERGIES}{self.data_name}"
         file_parsed = XVGParser(file_name)
         self.property_name, correct_column = file_parsed.get_column_index_by_name(self.property_name)
         self.unit = file_parsed.get_y_unit()

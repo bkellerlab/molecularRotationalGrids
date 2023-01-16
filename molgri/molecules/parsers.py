@@ -430,8 +430,12 @@ class TranslationParser(object):
 class XVGParser(object):
 
     def __init__(self, path_xvg: str):
-        self.path_name = path_xvg
-        reader = XVGReader(path_xvg)
+        # this is done in order to function with .xvg ending or with no ending
+        if not path_xvg.endswith(".xvg"):
+             self.path_name = f"{path_xvg}.xvg"
+        else:
+            self.path_name = path_xvg
+        reader = XVGReader(self.path_name)
         self.all_values = reader._auxdata_values
         reader.close()
 

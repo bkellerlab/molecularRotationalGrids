@@ -8,6 +8,10 @@ def test_scripts_run():
     os.system("python -m molgri.scripts.generate_pt -m1 H2O -m2 NH3 -origingrid 15 -bodygrid ico_10 -transgrid 'range(1, 5, 2)' --as_dir")
     os.system("python -m molgri.scripts.generate_pt -m1 NH3 -m2 NH3 -origingrid cube3D_9 -bodygrid zero -transgrid 'range(1, 5, 2)' --extension_trajectory 'xyz' --extension_topology 'gro'")
     os.system("python -m molgri.scripts.generate_energy -xvg H2O_H2O_o_ico_500_b_ico_5_t_3830884671 --p1d --p2d --p3d --animate")
-    os.system('python -m molgri.scripts.generate_energy -xvg H2O_H2O_o_ico_500_b_ico_5_t_3830884671 --p1d --p2d --p3d--convergence' )
+    os.system('python -m molgri.scripts.generate_energy -xvg H2O_H2O_o_ico_500_b_ico_5_t_3830884671 --p1d --p2d --p3d --convergence' )
+    os.system(
+        'python -m molgri.scripts.generate_energy -xvg H2O_H2O_o_ico_500_b_ico_5_t_3830884671.xvg --p1d --p2d --p3d --convergence')
+    os.system(
+        'python -m molgri.scripts.generate_energy -xvg H2O_H2O_o_ico_500_b_ico_5_t_3830884671.xvg --p1d --p2d --p3d')
     os.system(
         'python -m molgri.scripts.generate_energy -xvg H2O_H2O_o_ico_500_b_ico_5_t_3830884671 --p1d --p2d --p3d --animate --Ns_o "(50, 100, 500)"')
