@@ -12,7 +12,7 @@ from molgri.constants import UNIQUE_TOL, EXTENSION_GRID_FILES, GRID_ALGORITHMS, 
 from molgri.molecules.parsers import GridNameParser
 from molgri.paths import PATH_OUTPUT_ROTGRIDS, PATH_OUTPUT_STAT
 from molgri.space.polytopes import Cube4DPolytope, IcosahedronPolytope, Cube3DPolytope
-from molgri.space.rotations import rotation2grid, grid2rotation, grid2quaternion, grid2euler
+from molgri.space.rotations import rotation2grid, grid2rotation, grid2quaternion, grid2euler, two_vectors2rot
 from molgri.wrappers import time_method
 
 
@@ -290,28 +290,32 @@ class IcoAndCube3DRotations(PolyhedronRotations):
         desired_N = self.N
         super().gen_rotations()
         grid_z_arr = np.array([y["projection"] for x, y in self.polyhedron.G.nodes(data=True)]).squeeze()
-        #rng = np.random.default_rng()
-        #rng.shuffle(grid_z_arr)
         # TODO: should you try ordering grid points?
         grid_z = GridInfo(grid_z_arr, N=self.N, gen_alg=self.gen_algorithm)
-        #grid_z.N = desired_N
-        #grid_z._order_points()
 
-        alpha = np.pi / 2
-        x_rot = np.array([[1, 0, 0], [0, np.cos(alpha), -np.sin(alpha)], [0, np.sin(alpha), np.cos(alpha)]])
-        y_rot = np.array([[np.cos(alpha), 0, np.sin(alpha)], [0, 1, 0], [-np.sin(alpha), 0, np.cos(alpha)]])
-        z_rot = np.array([[np.cos(alpha), -np.sin(alpha), 0], [np.sin(alpha), np.cos(alpha), 0], [0, 0, 1]])
-        grid_x_arr = np.dot(np.dot(grid_z.get_grid(), z_rot), y_rot)
+        z_vec = np.array([0, 0, 1])
+        matrices = np.zeros((desired_N, 3, 3))
+        for i in range(desired_N):
+            matrices[i] = two_vectors2rot(z_vec, grid_z.get_grid()[i])
+        rot_z = Rotation.from_matrix(matrices)
+
+        all_x_vec = np.zeros((desired_N, 3))
+        all_y_vec = np.zeros((desired_N, 3))
+        all_z_vec = np.zeros((desired_N, 3))
+        all_x_vec[:, 0] = 1
+        all_y_vec[:, 1] = 1
+        all_z_vec[:, 2] = 1
+        grid_x_arr = rot_z.apply(all_x_vec)            #R_xz.apply(grid_z.get_grid())
         grid_x = GridInfo(grid_x_arr, N=desired_N, gen_alg=self.gen_algorithm)
-        grid_y_arr = np.dot(np.dot(grid_z.get_grid(), z_rot), x_rot)
+        grid_y_arr = rot_z.apply(all_y_vec)             #R_yz.apply(grid_z.get_grid(), inverse=True)
         grid_y = GridInfo(grid_y_arr, N=desired_N, gen_alg=self.gen_algorithm)
-        #print(grid_x_arr[:5])
-        #print(grid_z.get_grid()[:5])
-        self.from_grids(grid_z, grid_z, grid_z)
-        #self.N = desired_N
+
+        # angles
+        # from molgri.space.utils import angle_between_vectors
+        # for vec1, vec2, vec3 in zip(grid_x.get_grid(), grid_y.get_grid(), grid_z.get_grid()):
+        #     print("angle", angle_between_vectors(vec1, vec3)/pi, angle_between_vectors(vec2, vec3)/pi, angle_between_vectors(vec1, vec2)/pi)
+        self.from_grids(grid_x, grid_y, grid_z)
         self.save_all()
-        #self.N = desired_N
-        #self._order_rotations()
 
 
 # this is only a test, not sure if right

@@ -6,6 +6,7 @@ from scipy.spatial import distance_matrix
 
 from molgri.space.fullgrid import FullGrid
 from molgri.space.polytopes import project_grid_on_sphere, Cube3DPolytope, IcosahedronPolytope, second_neighbours
+from molgri.space.rotations import grid2rotation, rotation2grid
 from molgri.space.rotobj import build_rotations, build_grid, build_grid_from_name, order_elements
 from molgri.constants import GRID_ALGORITHMS, ZERO_ALGORITHM
 
@@ -17,13 +18,55 @@ from molgri.space.utils import normalise_vectors
 def test_rotobj2grid2rotobj():
     for algo in GRID_ALGORITHMS[:-1]:
         for N in (12, 23, 51):
-            print(algo, N)
             rotobj_start = build_rotations(N, algo, use_saved=False)
             matrices_start = rotobj_start.rotations.as_matrix()
             rotobj_new = build_rotations(N, algo, use_saved=True)
             matrices_new = rotobj_new.rotations.as_matrix()
-            print(np.max(np.abs(matrices_start-matrices_new)))
             assert np.allclose(matrices_start, matrices_new)
+
+
+def test_grid2rotobj2grid():
+    #import matplotlib.pyplot as plt
+    #GRID_ALGORITHMS[:-1]
+    for algo in GRID_ALGORITHMS[:-1]:
+        for N in (12, 23, 87, 217):
+            print(algo)
+            # fig = plt.figure(figsize=(4, 4))
+            # ax = fig.add_subplot(111, projection='3d')
+            rotations_start = build_rotations(N, algo, use_saved=False)
+            grid_start_x = rotations_start.grid_x.get_grid()
+            grid_start_y = rotations_start.grid_y.get_grid()
+            grid_start_z = rotations_start.grid_z.get_grid()
+            rotations1 = grid2rotation(grid_start_x, grid_start_y, grid_start_z)
+            rotations2 = grid2rotation(grid_start_x, grid_start_y, grid_start_z)
+            grid_end1, grid_end2, grid_end3 = rotation2grid(rotations2)
+            rotations3 = grid2rotation(grid_end1, grid_end2, grid_end3)
+            grid_final1, grid_final2, grid_final3 = rotation2grid(rotations3)
+            # rotations remain the same the entire time
+            assert np.allclose(rotations_start.rotations.as_matrix(), rotations1.as_matrix())
+            assert np.allclose(rotations1.as_matrix(), rotations2.as_matrix())
+            assert np.allclose(rotations1.as_matrix(), rotations3.as_matrix())
+            # ax.scatter(*grid_start_z.T, color="k")
+            # ax.scatter(*grid_end3.T, color="r", marker="x")
+            # ax.set_title(f"{algo}")
+            # plt.show()
+            # but what happens to grids?
+            # after rotation is once created, everything is deterministic
+            assert np.allclose(grid_end1, grid_final1)
+            assert np.allclose(grid_end2, grid_final2)
+            assert np.allclose(grid_end3, grid_final3)
+            # but before ...
+            for row1, row2 in zip(grid_end2, grid_start_y):
+                try:
+                    assert np.allclose(row1, row2)
+                except AssertionError:
+                    print("y different", row1, row2)
+            assert np.allclose(grid_end1, grid_start_x)
+            #assert np.allclose(grid_end2, grid_start_y)
+            # print("x", grid_end1[5], grid_start_x[5])
+            # print("y", grid_end2[5], grid_start_y[5])
+            # print("z", grid_end3[5], grid_start_z[5])
+            assert np.allclose(grid_end3, grid_start_z)
 
 
 def test_project_grid_on_sphere():

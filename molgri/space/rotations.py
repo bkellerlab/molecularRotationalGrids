@@ -86,10 +86,17 @@ def grid2rotation(grid_x: NDArray, grid_y: NDArray, grid_z: NDArray) -> Rotation
     rot_matrices = np.concatenate((grid_x, grid_y, grid_z), axis=1)
     rot_matrices = rot_matrices.reshape((-1, 3, 3))
     rot_matrices = rot_matrices.swapaxes(1, 2)
+    #print(grid_x[0], grid_y[0], grid_z[0])
+    b = rot_matrices[0]
+    #print("b", rot_matrices[0])
     assert len(rot_matrices) == len(grid_x) == len(grid_y) == len(grid_z)
     # rot_matrices is an array in which each "row" is a 3x3 rotational matrix
     # create a rotational object set from a stack of rotational matrices
     rotations = Rotation.from_matrix(rot_matrices)
+    a = rotations.as_matrix()[0]
+    vec = np.random.random((3, 1))
+    #print(a.dot(vec), b.dot(vec))
+    #print("a", rotations.as_matrix()[0])
     return rotations
 
 
@@ -191,3 +198,13 @@ class Rotation2D:
             result = self.rot_matrix.dot(vector_set.T)
         result = result.squeeze()
         return result.T
+
+
+if __name__ == "__main__":
+    from molgri.space.rotobj import build_grid_from_name
+    ico_grid = build_grid_from_name("ico_18", "o", use_saved=False).get_grid()
+    g2r = grid2rotation(ico_grid, ico_grid, ico_grid)
+    z_vec = np.array([0, 0, 1])
+    rodrigue = two_vectors2rot(z_vec, ico_grid[0])
+    print(g2r.as_matrix()[0])
+    print(rodrigue)
