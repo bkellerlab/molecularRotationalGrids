@@ -88,17 +88,10 @@ def grid2rotation(grid_x: NDArray, grid_y: NDArray, grid_z: NDArray) -> Rotation
     rot_matrices = np.concatenate((grid_x, grid_y, grid_z), axis=1)
     rot_matrices = rot_matrices.reshape((-1, 3, 3))
     rot_matrices = rot_matrices.swapaxes(1, 2)
-    #print(grid_x[0], grid_y[0], grid_z[0])
-    b = rot_matrices[0]
-    #print("b", rot_matrices[0])
     assert len(rot_matrices) == len(grid_x) == len(grid_y) == len(grid_z)
     # rot_matrices is an array in which each "row" is a 3x3 rotational matrix
     # create a rotational object set from a stack of rotational matrices
     rotations = Rotation.from_matrix(rot_matrices)
-    a = rotations.as_matrix()[0]
-    vec = np.random.random((3, 1))
-    #print(a.dot(vec), b.dot(vec))
-    #print("a", rotations.as_matrix()[0])
     return rotations
 
 
@@ -143,7 +136,6 @@ def skew(x: NDArray) -> NDArray:
                          [m[2], 0, -m[0]],
                          [-m[1], m[0], 0]])
 
-    print(x.shape)
     assert x.shape == (3,) or (len(x.shape) == 2 and x.shape[1] == 3)
 
     if x.shape == (3,):
@@ -189,18 +181,18 @@ def two_vectors2rot(x: NDArray, y: NDArray) -> NDArray:
     assert np.allclose(np.linalg.norm(x, axis=1), 1) and np.allclose(np.linalg.norm(y, axis=1), 1)
 
     v = np.cross(x, y)
-    s = np.linalg.norm(v)
-    c = np.dot(x, y.T)  #[0, 0]
-    if s != 0:
-        print(N_eye_matrices(N, d=3).shape, skew(v).shape, skew(v).dot(skew(v)).shape)
-        my_matrix = N_eye_matrices(N, d=3) + skew(v) + skew(v).dot(skew(v)) * (1 - c) / s ** 2
-    elif s == 0 and c == 1:
-        # if sin = 0, meaning that there is no rotation (or half circle)
-        my_matrix = N_eye_matrices(N, d=3)
-    else:
-        my_matrix = -N_eye_matrices(N, d=3)
+    s = np.linalg.norm(v, axis=1)
+    c = np.matmul(x, y.T)
+    c = c.diagonal()
+    factor = (1 - c) / s ** 2
+    my_matrix = N_eye_matrices(N, d=3) + skew(v) + np.matmul(skew(v), skew(v)) * factor[:, np.newaxis, np.newaxis]
+
+    sinus_zero = s[:, np.newaxis, np.newaxis] == 0
+    cosinus_one = c[:, np.newaxis, np.newaxis] == 1
+    my_matrix = np.where(np.logical_and(sinus_zero, cosinus_one), N_eye_matrices(N, d=3), my_matrix)
+    my_matrix = np.where(np.logical_and(sinus_zero, ~cosinus_one),
+                         -N_eye_matrices(N, d=3), my_matrix)
     if len(x) == len(y) == 1:
-        print(my_matrix)
         my_matrix = my_matrix[0]
         assert my_matrix.shape == (3, 3)
     else:

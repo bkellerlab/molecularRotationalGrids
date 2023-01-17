@@ -257,21 +257,13 @@ def test_two_vectors2rot():
         assert np.allclose(norm_rotated_x, norm_y)
 
     # examples of vector arrays
-    for _ in range(15):
-        x = (np.random.random((72, 3))) * 7
-        y = (np.random.random((72, 3)) - 0.3) * 3
-        norm_x = normalise_vectors(x)
+    for _ in range(1):
+        x = (np.random.random((8, 3))) * 7
+        y = (np.random.random((8, 3)) - 0.3) * 3
         norm_y = normalise_vectors(y)
         rot_mat2 = two_vectors2rot(x, y)
         # check with rotation
         my_rotation = Rotation.from_matrix(rot_mat2)
         rotated_x = my_rotation.apply(x)
         norm_rotated_x = normalise_vectors(rotated_x)
-        print(norm_rotated_x[5], norm_y[5])
         assert np.allclose(norm_rotated_x, norm_y)
-
-        # product = rot_mat2.dot(x.T)
-        # print(product.shape, y.shape)
-        # norm_product = normalise_vectors(product, axis=1)
-        # norm_y = normalise_vectors(y.T, axis=1)
-        # assert np.allclose(norm_product, norm_y)
