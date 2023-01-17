@@ -51,4 +51,16 @@ def run_generate_pt():
 
 
 if __name__ == '__main__':
+
+    import cProfile, pstats, io
+    from pstats import SortKey
+
+    pr = cProfile.Profile()
+    pr.enable()
     run_generate_pt()
+    pr.disable()
+    s = io.StringIO()
+    sortby = "tottime"
+    ps = pstats.Stats(pr, stream=s).sort_stats(sortby)
+    ps.print_stats(25)
+    print(s.getvalue())

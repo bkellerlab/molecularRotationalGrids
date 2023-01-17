@@ -290,7 +290,6 @@ class IcoAndCube3DRotations(PolyhedronRotations):
         desired_N = self.N
         super().gen_rotations()
         grid_z_arr = np.array([y["projection"] for x, y in self.polyhedron.G.nodes(data=True)]).squeeze()
-        # TODO: should you try ordering grid points?
         grid_z = GridInfo(grid_z_arr, N=self.N, gen_alg=self.gen_algorithm)
 
         z_vec = np.array([0, 0, 1])
@@ -299,21 +298,11 @@ class IcoAndCube3DRotations(PolyhedronRotations):
             matrices[i] = two_vectors2rot(z_vec, grid_z.get_grid()[i])
         rot_z = Rotation.from_matrix(matrices)
 
-        all_x_vec = np.zeros((desired_N, 3))
-        all_y_vec = np.zeros((desired_N, 3))
-        all_z_vec = np.zeros((desired_N, 3))
-        all_x_vec[:, 0] = 1
-        all_y_vec[:, 1] = 1
-        all_z_vec[:, 2] = 1
-        grid_x_arr = rot_z.apply(all_x_vec)            #R_xz.apply(grid_z.get_grid())
+        grid_x_arr = rot_z.apply(np.array([1, 0, 0]))
         grid_x = GridInfo(grid_x_arr, N=desired_N, gen_alg=self.gen_algorithm)
-        grid_y_arr = rot_z.apply(all_y_vec)             #R_yz.apply(grid_z.get_grid(), inverse=True)
+        grid_y_arr = rot_z.apply(np.array([0, 1, 0]))
         grid_y = GridInfo(grid_y_arr, N=desired_N, gen_alg=self.gen_algorithm)
 
-        # angles
-        # from molgri.space.utils import angle_between_vectors
-        # for vec1, vec2, vec3 in zip(grid_x.get_grid(), grid_y.get_grid(), grid_z.get_grid()):
-        #     print("angle", angle_between_vectors(vec1, vec3)/pi, angle_between_vectors(vec2, vec3)/pi, angle_between_vectors(vec1, vec2)/pi)
         self.from_grids(grid_x, grid_y, grid_z)
         self.save_all()
 

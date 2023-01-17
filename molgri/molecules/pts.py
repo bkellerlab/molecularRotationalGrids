@@ -30,8 +30,6 @@ class Pseudotrajectory:
             full_grid: an object combining all relevant grids
         """
         self.molecule = molecule
-        #self.trans_grid = full_grid.t_grid
-        #self.rot_grid_origin = full_grid.o_rotations.grid_z # TODO: this could in future be a different (averaged?) grid
         self.position_grid = full_grid.get_position_grid()
         self.rot_grid_body = full_grid.b_rotations.rotations
         self.current_frame = 0
@@ -48,29 +46,11 @@ class Pseudotrajectory:
         """
         # center second molecule if not centered yet
         self.molecule.translate_to_origin()
-        #trans_increments = self.trans_grid.get_increments()
-        #increment_sum = self.trans_grid.sum_increments_from_first_radius()
-        # move in z-direction for first increment
-        #self.molecule.translate_radially(trans_increments[0])
-        # first step: rotation around origin
-        #com_before = self.molecule.get_center_of_mass()
         for origin_rotations in self.position_grid:
-            #self.molecule.rotate_to(origin_rotation)
-            # second step: rotation around body
             for body_rotation in self.rot_grid_body:
                 self.molecule.rotate_about_body(body_rotation)
-                # write the frame at initial distance
-                # yield self.current_frame, self.molecule
-                # self.current_frame += 1
-
-                #for radial_translation in
-                # final step: translation for the rest of increments
                 for origin_rotation in origin_rotations:
                     self.molecule.rotate_to(origin_rotation)
-                # for translation in trans_increments[1:]:
-                #     self.molecule.translate_radially(translation)
                     yield self.current_frame, self.molecule
                     self.current_frame += 1
-                #self.molecule.translate_radially(-increment_sum)
                 self.molecule.rotate_about_body(body_rotation, inverse=True)
-            #self.molecule.rotate_about_origin(origin_rotation, inverse=True)

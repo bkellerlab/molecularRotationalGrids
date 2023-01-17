@@ -72,7 +72,7 @@ class AlphaViolinPlot(AbstractPlot):
 
     def _plot_data(self, color=None, **kwargs):
         df = self._prepare_data()
-        sns.violinplot(x=df["alphas"], y=df["coverages"], ax=self.ax, palette=COLORS, linewidth=1, scale="count")
+        sns.violinplot(x=df["alphas"], y=df["coverages"], ax=self.ax, palette=COLORS, linewidth=1, scale="count", cut=0)
         self.ax.set_xticklabels([r'$\frac{\pi}{6}$', r'$\frac{2\pi}{6}$', r'$\frac{3\pi}{6}$', r'$\frac{4\pi}{6}$',
                                  r'$\frac{5\pi}{6}$'])
 
@@ -161,7 +161,7 @@ class EnergyConvergencePlot(AbstractPlot):
     def _plot_data(self, **kwargs):
         df = self._prepare_data()
         new_column_names = [f"{i}" for i in self.test_Ns]
-        sns.violinplot(df[new_column_names], ax=self.ax, scale="area", inner="stick")
+        sns.violinplot(df[new_column_names], ax=self.ax, scale="count", inner="stick", cut=0)
         self.ax.set_xlabel("N")
         if self.unit:
             self.ax.set_ylabel(f"{self.property_name} [{self.unit}]")
