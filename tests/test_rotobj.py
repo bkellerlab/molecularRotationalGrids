@@ -26,13 +26,8 @@ def test_rotobj2grid2rotobj():
 
 
 def test_grid2rotobj2grid():
-    #import matplotlib.pyplot as plt
-    #GRID_ALGORITHMS[:-1]
     for algo in GRID_ALGORITHMS[:-1]:
         for N in (12, 23, 87, 217):
-            print(algo)
-            # fig = plt.figure(figsize=(4, 4))
-            # ax = fig.add_subplot(111, projection='3d')
             rotations_start = build_rotations(N, algo, use_saved=False)
             grid_start_x = rotations_start.grid_x.get_grid()
             grid_start_y = rotations_start.grid_y.get_grid()
@@ -46,11 +41,6 @@ def test_grid2rotobj2grid():
             assert np.allclose(rotations_start.rotations.as_matrix(), rotations1.as_matrix())
             assert np.allclose(rotations1.as_matrix(), rotations2.as_matrix())
             assert np.allclose(rotations1.as_matrix(), rotations3.as_matrix())
-            # ax.scatter(*grid_start_z.T, color="k")
-            # ax.scatter(*grid_end3.T, color="r", marker="x")
-            # ax.set_title(f"{algo}")
-            # plt.show()
-            # but what happens to grids?
             # after rotation is once created, everything is deterministic
             assert np.allclose(grid_end1, grid_final1)
             assert np.allclose(grid_end2, grid_final2)
@@ -62,10 +52,7 @@ def test_grid2rotobj2grid():
                 except AssertionError:
                     print("y different", row1, row2)
             assert np.allclose(grid_end1, grid_start_x)
-            #assert np.allclose(grid_end2, grid_start_y)
-            # print("x", grid_end1[5], grid_start_x[5])
-            # print("y", grid_end2[5], grid_start_y[5])
-            # print("z", grid_end3[5], grid_start_z[5])
+            assert np.allclose(grid_end2, grid_start_y)
             assert np.allclose(grid_end3, grid_start_z)
 
 

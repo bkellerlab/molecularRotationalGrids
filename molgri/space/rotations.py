@@ -161,9 +161,11 @@ def two_vectors2rot(x: NDArray, y: NDArray) -> NDArray:
     c = np.dot(x.T, y)[0, 0]
     if s != 0:
         my_matrix = np.eye(3) + skew(v[0]) + skew(v[0]).dot(skew(v[0])) * (1 - c) / s ** 2
-    else:
+    elif s == 0 and c == 1:
         # if sin = 0, meaning that there is no rotation (or half circle)
         my_matrix = np.eye(3)
+    else:
+        my_matrix = -np.eye(3)
     return my_matrix
 
 
