@@ -302,12 +302,10 @@ class IcoAndCube3DRotations(PolyhedronRotations):
         grid_x = GridInfo(grid_x_arr, N=desired_N, gen_alg=self.gen_algorithm)
         grid_y_arr = rot_z.apply(np.array([0, 1, 0]))
         grid_y = GridInfo(grid_y_arr, N=desired_N, gen_alg=self.gen_algorithm)
-
         self.from_grids(grid_x, grid_y, grid_z)
         self.save_all()
 
 
-# this is only a test, not sure if right
 class IcoRotations(IcoAndCube3DRotations):
 
     def __init__(self, N: int, gen_algorithm, **kwargs):

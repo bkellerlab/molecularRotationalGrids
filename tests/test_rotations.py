@@ -1,7 +1,7 @@
 from numpy.typing import NDArray
 
 from molgri.space.rotations import Rotation2D, grid2euler, euler2grid, quaternion2grid, \
-    grid2quaternion, grid2rotation, rotation2grid
+    grid2quaternion, grid2rotation, rotation2grid, two_vectors2rot
 from molgri.space.utils import normalise_vectors, random_quaternions
 from scipy.spatial.transform import Rotation
 
@@ -232,3 +232,38 @@ def assert_two_sets_of_eulers_equal(euler1: NDArray, euler2: NDArray):
         # first and last angle must match up to pi
         assert np.isclose(e1[0] % pi, e2[0] % pi)
         assert np.isclose(e1[-1] % pi, e2[-1] % pi)
+
+
+def test_two_vectors2rot():
+    # examples of single vectors
+    x = np.array([1, 0, 0])
+    z = np.array([0, 0, 1])
+    rot_mat1 = two_vectors2rot(x, z)
+    assert np.allclose(rot_mat1[:, 0], [0, 0, 1])
+
+    for _ in range(15):
+        x = (np.random.random((3,)) - 0.5) * 7
+        y = (np.random.random((3,)) - 0.3) * 3
+        rot_mat2 = two_vectors2rot(x, y)
+        # check with dot product
+        product = rot_mat2.dot(x.T)
+        norm_product = normalise_vectors(product)
+        norm_y = normalise_vectors(y)
+        assert np.allclose(norm_product, norm_y)
+        # check with rotation
+        my_rotation = Rotation.from_matrix(rot_mat2)
+        rotated_x = my_rotation.apply(x)
+        norm_rotated_x = normalise_vectors(rotated_x)
+        assert np.allclose(norm_rotated_x, norm_y)
+
+    # examples of vector arrays
+    for _ in range(1):
+        x = (np.random.random((8, 3))) * 7
+        y = (np.random.random((8, 3)) - 0.3) * 3
+        norm_y = normalise_vectors(y)
+        rot_mat2 = two_vectors2rot(x, y)
+        # check with rotation
+        my_rotation = Rotation.from_matrix(rot_mat2)
+        rotated_x = my_rotation.apply(x)
+        norm_rotated_x = normalise_vectors(rotated_x)
+        assert np.allclose(norm_rotated_x, norm_y)
