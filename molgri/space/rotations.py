@@ -4,6 +4,8 @@ import numpy as np
 from numpy.typing import NDArray
 from scipy.spatial.transform import Rotation
 
+from molgri.space.utils import normalise_vectors
+
 
 def rotation2grid(rotations: Rotation) -> Tuple[NDArray, ...]:
     """
@@ -127,46 +129,101 @@ def grid2euler(grid_x: NDArray, grid_y: NDArray, grid_z: NDArray) -> NDArray:
 
 def skew(x: NDArray) -> NDArray:
     """
-    Take a matrix and return its skew matrix.
+    Take a vector or an array of vectors and return its skew matrix/matrices.
 
     Args:
-        x: a matrix
+        x: a vector (3,) or (N, 3)
 
     Returns:
         skew matrix, see structure below
     """
-    return np.array([[0, -x[2], x[1]],
-                     [x[2], 0, -x[0]],
-                     [-x[1], x[0], 0]])
+
+    def skew_2D(m):
+        return np.array([[0, -m[2], m[1]],
+                         [m[2], 0, -m[0]],
+                         [-m[1], m[0], 0]])
+
+    print(x.shape)
+    assert x.shape == (3,) or (len(x.shape) == 2 and x.shape[1] == 3)
+
+    if x.shape == (3,):
+        return skew_2D(x)
+    else:
+        skew_matrix = np.zeros((len(x), 3, 3))
+        for i, row in enumerate(x):
+            skew_matrix[i] = skew_2D(row)
+        return skew_matrix
 
 
 def two_vectors2rot(x: NDArray, y: NDArray) -> NDArray:
-    # TODO: this could be done on arrays
     """
-    Take vectors x and y and return the rotational matrix that transforms x into y.
+    Take vectors x and y (or arrays of vectors with the same number of elements and return the
+    rotational matrix that transforms x into y.
 
     Args:
-        x: an array of shape (3,), first vector
-        y: an array of shape (3,),  second vector
+        x: an array of shape (3,), first vector, or an array of vectors of size (N, 3)
+        y: an array of shape (3,),  second vector, or an array of vectors of size (N, 3)
 
     Returns:
         a 3x3 rotational matrix
     """
-    x = x[:, np.newaxis]
-    y = y[:, np.newaxis]
-    assert y.shape == x.shape == (3, 1)
-    assert np.isclose(np.linalg.norm(x), 1) and np.isclose(np.linalg.norm(y), 1)
-    v = np.cross(x.T, y.T)
+    # checking the inputs
+    assert y.shape == x.shape, "Arrays must be of same size."
+    if len(x.shape) == 1:
+        assert x.shape == (3,)
+    elif len(x.shape) == 2:
+        assert x.shape[1] == 3
+    else:
+        raise AttributeError("Arrays must be 1D or 2D")
+
+    # converting 1D vectors in (1, 3) shape
+    if y.shape == x.shape == (3,):
+        x = x[np.newaxis, :]
+        y = y[np.newaxis, :]
+        assert y.shape == x.shape == (1, 3)
+    N = len(x)
+
+    # if not normalised yet, normalise
+    x = normalise_vectors(x, axis=1)
+    y = normalise_vectors(y, axis=1)
+    assert np.allclose(np.linalg.norm(x, axis=1), 1) and np.allclose(np.linalg.norm(y, axis=1), 1)
+
+    v = np.cross(x, y)
     s = np.linalg.norm(v)
-    c = np.dot(x.T, y)[0, 0]
+    c = np.dot(x, y.T)  #[0, 0]
     if s != 0:
-        my_matrix = np.eye(3) + skew(v[0]) + skew(v[0]).dot(skew(v[0])) * (1 - c) / s ** 2
+        print(N_eye_matrices(N, d=3).shape, skew(v).shape, skew(v).dot(skew(v)).shape)
+        my_matrix = N_eye_matrices(N, d=3) + skew(v) + skew(v).dot(skew(v)) * (1 - c) / s ** 2
     elif s == 0 and c == 1:
         # if sin = 0, meaning that there is no rotation (or half circle)
-        my_matrix = np.eye(3)
+        my_matrix = N_eye_matrices(N, d=3)
     else:
-        my_matrix = -np.eye(3)
+        my_matrix = -N_eye_matrices(N, d=3)
+    if len(x) == len(y) == 1:
+        print(my_matrix)
+        my_matrix = my_matrix[0]
+        assert my_matrix.shape == (3, 3)
+    else:
+        assert my_matrix.shape == (len(x), 3, 3)
     return my_matrix
+
+
+def N_eye_matrices(N, d=3):
+    """
+    Returns a (N, d, d) array in which each 'row' is an identity matrix.
+
+    Args:
+        N: number of rows
+        d: dimension of the identity matrix
+
+    Returns:
+
+    """
+    shape = (N, d, d)
+    identity_d = np.zeros(shape)
+    idx = np.arange(shape[1])
+    identity_d[:, idx, idx] = 1
+    return identity_d
 
 
 class Rotation2D:
@@ -200,13 +257,3 @@ class Rotation2D:
             result = self.rot_matrix.dot(vector_set.T)
         result = result.squeeze()
         return result.T
-
-
-if __name__ == "__main__":
-    from molgri.space.rotobj import build_grid_from_name
-    ico_grid = build_grid_from_name("ico_18", "o", use_saved=False).get_grid()
-    g2r = grid2rotation(ico_grid, ico_grid, ico_grid)
-    z_vec = np.array([0, 0, 1])
-    rodrigue = two_vectors2rot(z_vec, ico_grid[0])
-    print(g2r.as_matrix()[0])
-    print(rodrigue)
