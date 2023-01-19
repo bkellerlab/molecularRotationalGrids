@@ -184,9 +184,10 @@ def two_vectors2rot(x: NDArray, y: NDArray) -> NDArray:
     s = np.linalg.norm(v, axis=1)
     c = np.matmul(x, y.T)
     c = c.diagonal()
-    factor = (1 - c) / s ** 2
+    np.seterr(all="ignore")
+    factor = np.divide((1 - c), s ** 2)
     my_matrix = N_eye_matrices(N, d=3) + skew(v) + np.matmul(skew(v), skew(v)) * factor[:, np.newaxis, np.newaxis]
-
+    np.seterr(all="warn")
     sinus_zero = s[:, np.newaxis, np.newaxis] == 0
     cosinus_one = c[:, np.newaxis, np.newaxis] == 1
     my_matrix = np.where(np.logical_and(sinus_zero, cosinus_one), N_eye_matrices(N, d=3), my_matrix)

@@ -31,9 +31,10 @@ def test_everything_runs():
     GridPlot("cube3D_12", style_type=["talk", "half_dark"]).create_and_save()
     GridPlot("ico_22", style_type=["talk", "dark"]).create_and_save()
     # examples of statistics/convergence plots
-    AlphaViolinPlot("ico_250").create_and_save(title="ico grid, 250")
+    AlphaViolinPlot("ico_250", use_saved=False).create_and_save(title="ico grid, 250")
     #AlphaConvergencePlot("systemE", style_type=["talk"]).create_and_save(equalize=True, title="Convergence of systemE")
-    AlphaConvergencePlot("ico_17", style_type=None).create_and_save(title="Convergence of ico", main_ticks_only=True)
+    AlphaConvergencePlot("ico_17", style_type=None, use_saved=False).create_and_save(
+        title="Convergence of ico", main_ticks_only=True)
     # examples of polyhedra
     PolytopePlot("ico", num_divisions=2, faces={0, 1, 2, 3, 4}).create_and_save(equalize=True, elev=190, azim=120,
                                                                        x_max_limit=0.55, x_min_limit=-0.6)
@@ -52,10 +53,10 @@ def test_everything_runs():
 
 
 def test_analysis_plots():
-    N = 30
+    N = 12
     for alg in GRID_ALGORITHMS[:-1]:
         GridPlot(f"{alg}_{N}").create_and_save(x_label="x", y_label="y", z_label="z",
-                                               animate_rot=True, animate_seq=False, main_ticks_only=True)
+                                               animate_rot=False, animate_seq=False, main_ticks_only=True)
         AlphaViolinPlot(f"{alg}_{N}", use_saved=False).create_and_save()
         AlphaConvergencePlot(f"{alg}_{N}", use_saved=False).create_and_save()
         AlphaViolinPlotRot(f"{alg}_{N}", use_saved=False).create_and_save()
@@ -63,7 +64,7 @@ def test_analysis_plots():
 
 
 if __name__ == "__main__":
-    N = 601
+    N = 602
     for alg in GRID_ALGORITHMS[:-1]:
         GridPlot(f"{alg}_{N}").create_and_save(x_label="x", y_label="y", z_label="z",
                                                animate_rot=True, animate_seq=False, main_ticks_only=True)

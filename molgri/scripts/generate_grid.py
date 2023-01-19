@@ -5,8 +5,9 @@ This is a user-friendly script for generating a custom rotational grid.
 import os
 from os.path import join
 import argparse
+from typing import Tuple
 
-from molgri.space.rotobj import GridInfo, build_rotations
+from molgri.space.rotobj import build_rotations
 from ..paths import PATH_OUTPUT_ROTGRIDS, PATH_OUTPUT_PLOTS, PATH_OUTPUT_ANIS, PATH_OUTPUT_STAT
 from ..constants import EXTENSION_GRID_FILES
 from molgri.plotting.grid_plots import GridPlot
@@ -37,7 +38,7 @@ parser.add_argument('--readable', action='store_true',
                     help='save the grid file in a txt format as well')
 
 
-def prepare_grid(args, grid_name: str) -> GridInfo:
+def prepare_grid(args, grid_name: str) -> Tuple:
     name = grid_name
     algo = args.algorithm
     n_points = args.N
@@ -46,11 +47,6 @@ def prepare_grid(args, grid_name: str) -> GridInfo:
     my_rotations = build_rotations(n_points, algo, use_saved=use_saved, time_generation=True)
     if os.path.exists(join(PATH_OUTPUT_ROTGRIDS, f"{name}.{EXTENSION_GRID_FILES}")) and not args.recalculate:
         print(f"Grid with name {name} is already saved. If you want to recalculate it, select --recalculate flag.")
-    #     my_grid = build_grid_from_name(name, use_saved=True, time_generation=True)
-    # else:
-    #     my_grid = build_grid_from_name(name, algo, use_saved=False, time_generation=True)
-    #     my_grid.save_grid()
-    #     print(f"Generated a {my_grid.decorator_label} with {my_grid.N} points.")
     my_grid = my_rotations.get_grid_z_as_grid()
     print(f"Generated a {my_rotations.decorator_label} with {my_rotations.N} points.")
     # if running from another script, args may not include the readable attribute

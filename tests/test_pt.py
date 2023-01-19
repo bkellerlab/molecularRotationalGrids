@@ -275,7 +275,7 @@ def test_frames_in_directory():
 
 def test_directory_combined_to_pt():
     # check that a full directory can be split
-    n_b = 7
+    n_b = 17
     n_o = 1
     manager = PtIOManager("H2O", "NH3", f"cube4D_{n_o}", f"cube4D_{n_b}", "[1, 2, 3]")
     manager.construct_pt(as_dir=False)

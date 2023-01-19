@@ -156,14 +156,9 @@ class Cube4DPolytope(Polytope):
         assert np.all([np.isclose(x, 0.5) or np.isclose(x, -0.5) for row in vertices for x in row ])
         assert len(set(vertices)) == 16
         vertices = np.array(vertices)
-        # for i, vert1 in enumerate(vertices):
-        #     for j, vert2 in enumerate(vertices[i+1:]):
-        #         print(np.sum(vert1 - vert2))
-        # create edges
         point_connections = _calc_edges(vertices, self.side_len)
         # add vertices and edges to the graph
         for i, vert in enumerate(vertices):
-            #set_of_faces = tuple(faces_i for faces_i, face in enumerate(self.faces) if i in face)
             self.G.add_node(tuple(vert), level=self.current_level, face=None,
                             projection=project_grid_on_sphere(vert[np.newaxis, :]))
         for key, value in point_connections.items():
@@ -173,7 +168,6 @@ class Cube4DPolytope(Polytope):
                                                       self.G.nodes[tuple(vi)]["projection"]))
         # just to check ...
         assert self.G.number_of_nodes() == 16
-        #assert self.G.number_of_edges() == 32
         self.side_len = self.side_len / 2
 
 
@@ -347,3 +341,11 @@ def project_grid_on_sphere(grid: np.ndarray) -> np.ndarray:
     grid = np.divide(grid, largest_abs)
     norms = np.linalg.norm(grid, axis=1)[:, np.newaxis]
     return np.divide(grid, norms)
+
+
+if __name__ == "__main__":
+    cube4D = Cube4DPolytope()
+    cube4D.divide_edges()
+    rotations = np.array([y["projection"] for x, y in cube4D.G.nodes(data=True)]).squeeze()
+    rotations = rotations[rotations[:, 0] > 0]
+    print(len(rotations), len(np.unique(abs)))

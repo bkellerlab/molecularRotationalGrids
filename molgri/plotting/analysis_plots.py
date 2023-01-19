@@ -61,7 +61,7 @@ class AlphaViolinPlot(AbstractPlot):
         super().__init__(data_name, dimensions=2, style_type=style_type, plot_type=plot_type, **kwargs)
 
     def _prepare_data(self) -> pd.DataFrame:
-        my_grid = build_grid_from_name(self.data_name, use_saved=self.use_saved)
+        my_grid = build_grid_from_name(self.data_name, use_saved=self.use_saved, print_warnings=False)
         # if statistics file already exists, use it, else create it
         try:
             ratios_df = pd.read_csv(my_grid.statistics_path, dtype=float)
@@ -84,7 +84,7 @@ class AlphaViolinPlotRot(AlphaViolinPlot):
         self.plot_type += "_quaternion"
 
     def _prepare_data(self) -> pd.DataFrame:
-        my_rots = build_rotations_from_name(self.data_name, use_saved=self.use_saved)
+        my_rots = build_rotations_from_name(self.data_name, use_saved=self.use_saved, print_warnings=False)
         # if statistics file already exists, use it, else create it
         if self.use_saved and os.path.exists(my_rots.statistics_path):
             ratios_df = pd.read_csv(my_rots.statistics_path, dtype=float)

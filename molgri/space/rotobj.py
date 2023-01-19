@@ -7,7 +7,7 @@ from scipy.spatial.distance import cdist
 from scipy.spatial.transform import Rotation
 
 from molgri.space.analysis import prepare_statistics, write_statistics
-from molgri.space.utils import random_quaternions
+from molgri.space.utils import random_quaternions, standardise_quaternion_set
 from molgri.constants import UNIQUE_TOL, EXTENSION_GRID_FILES, GRID_ALGORITHMS, NAME2PRETTY_NAME
 from molgri.molecules.parsers import GridNameParser
 from molgri.paths import PATH_OUTPUT_ROTGRIDS, PATH_OUTPUT_STAT
@@ -16,11 +16,11 @@ from molgri.space.rotations import rotation2grid, grid2rotation, grid2quaternion
 from molgri.wrappers import time_method
 
 
-class GridInfo:
+class SphereGrid:
 
     def __init__(self, point_array: NDArray, N: int, gen_alg: str = None):
         """
-        Generate a grid with one of generation algorithms.
+        A grid consisting of points on a sphere in 3D.
 
         Args:
             point_array: (N, 3) array in which each row is a 3D point with norm 1
@@ -74,7 +74,8 @@ class GridInfo:
 
 class RotationsObject(ABC):
 
-    def __init__(self, N: int = None, gen_algorithm: str = None, use_saved=True, time_generation=False):
+    def __init__(self, N: int = None, gen_algorithm: str = None, use_saved=True, time_generation=False,
+                 print_warnings=True):
         self.grid_x = None
         self.grid_y = None
         self.grid_z = None
@@ -92,11 +93,11 @@ class RotationsObject(ABC):
         if use_saved:
             try:
                 grid_x_arr = np.load(f"{PATH_OUTPUT_ROTGRIDS}{gen_algorithm}_{N}_x.{EXTENSION_GRID_FILES}")
-                grid_x = GridInfo(grid_x_arr, self.N, self.gen_algorithm)
+                grid_x = SphereGrid(grid_x_arr, self.N, self.gen_algorithm)
                 grid_y_arr = np.load(f"{PATH_OUTPUT_ROTGRIDS}{gen_algorithm}_{N}_y.{EXTENSION_GRID_FILES}")
-                grid_y = GridInfo(grid_y_arr, self.N, self.gen_algorithm)
+                grid_y = SphereGrid(grid_y_arr, self.N, self.gen_algorithm)
                 grid_z_arr = np.load(f"{PATH_OUTPUT_ROTGRIDS}{gen_algorithm}_{N}_z.{EXTENSION_GRID_FILES}")
-                grid_z = GridInfo(grid_z_arr, self.N, self.gen_algorithm)
+                grid_z = SphereGrid(grid_z_arr, self.N, self.gen_algorithm)
                 self.from_grids(grid_x, grid_y, grid_z)
             except FileNotFoundError:
                 gen_func()
@@ -104,6 +105,18 @@ class RotationsObject(ABC):
         else:
             gen_func()
             self.save_all()
+        # grid of correct shape
+        z_array = self.get_grid_z_as_array()
+        assert z_array.shape == (self.N, 3), f"Wrong shape: {z_array.shape} != {(self.N, 3)}"
+        # rotations unique
+        quats = self.rotations.as_quat()
+        if print_warnings and len(quats) != len(provide_unique(quats, as_quat=True)):
+            print(f"Warning! {len(quats) - len(provide_unique(quats, as_quat=True))} "
+                  f"quaternions of {self.standard_name} non-unique (distance < 10^-{UNIQUE_TOL}).")
+        # grids unique
+        if print_warnings and len(z_array) != len(provide_unique(z_array)):
+            print(f"Warning! {len(z_array) - len(provide_unique(z_array))} grid points"
+                  f" of {self.standard_name} non-unique (distance < 10^-{UNIQUE_TOL}).")
 
     @abstractmethod
     def gen_rotations(self):
@@ -116,7 +129,7 @@ class RotationsObject(ABC):
     def get_grid_z_as_array(self) -> NDArray:
         return self.grid_z.get_grid()
 
-    def get_grid_z_as_grid(self) -> GridInfo:
+    def get_grid_z_as_grid(self) -> SphereGrid:
         return self.grid_z
 
     def _order_rotations(self):
@@ -139,12 +152,12 @@ class RotationsObject(ABC):
     def from_rotations(self, rotations: Rotation):
         self.rotations = rotations
         grid_x, grid_y, grid_z = rotation2grid(rotations)
-        self.grid_x = GridInfo(grid_x, N=len(rotations), gen_alg=self.gen_algorithm)
-        self.grid_y = GridInfo(grid_y, N=len(rotations), gen_alg=self.gen_algorithm)
-        self.grid_z = GridInfo(grid_z, N=len(rotations), gen_alg=self.gen_algorithm)
+        self.grid_x = SphereGrid(grid_x, N=len(rotations), gen_alg=self.gen_algorithm)
+        self.grid_y = SphereGrid(grid_y, N=len(rotations), gen_alg=self.gen_algorithm)
+        self.grid_z = SphereGrid(grid_z, N=len(rotations), gen_alg=self.gen_algorithm)
         self._determine_N()
 
-    def from_grids(self, grid_x: GridInfo, grid_y: GridInfo, grid_z: GridInfo):
+    def from_grids(self, grid_x: SphereGrid, grid_y: SphereGrid, grid_z: SphereGrid):
         self.grid_x = grid_x
         self.grid_y = grid_y
         self.grid_z = grid_z
@@ -177,6 +190,29 @@ class RotationsObject(ABC):
         write_statistics(stat_data, full_data, self.short_statistics_path, self.statistics_path,
                          num_random, name=self.standard_name, dimensions=4,
                          print_message=print_message)
+
+
+def provide_unique(el_array: NDArray, tol: int = UNIQUE_TOL, as_quat=False) -> NDArray:
+    """
+    Take an array of any shape in which each row is an element. Return only the elements that are unique up to
+    the tolerance.
+    # TODO: maybe you could do some sort of decomposition to determine the point of uniqueness?
+
+    Args:
+        el_array: array with M elements of any shape
+        tol: number of decimal points to consider
+        as_quat: select True if el_array is an array of quatenions and you want to consider q and -q to be non-unique
+                 (respecting double-coverage of quaternions)
+
+    Returns:
+        array with N <= M elements of el_array that are all unique
+    """
+    if as_quat:
+        assert el_array.shape[1] == 4
+        _, indices = np.unique(standardise_quaternion_set(el_array.round(tol)), axis=0, return_index=True)
+    else:
+        _, indices = np.unique(el_array.round(tol), axis=0, return_index=True)
+    return np.array([el_array[index] for index in sorted(indices)])
 
 
 def order_elements(points: np.ndarray, N: int, start_i: int = 1) -> NDArray:
@@ -277,8 +313,14 @@ class Cube4DRotations(PolyhedronRotations):
         super().__init__(polyhedron=Cube4DPolytope, N=N, gen_algorithm=gen_algorithm, **kwargs)
 
     def gen_rotations(self):
-        super().gen_rotations()
-        rotations = np.array([y["projection"] for x, y in self.polyhedron.G.nodes(data=True)]).squeeze()
+        rotations = []
+        while len(rotations) < self.N:
+            self.polyhedron.divide_edges()
+            # remove half of the points due to double coverage
+            quats = [y["projection"] for x, y in self.polyhedron.G.nodes(data=True)]
+            rotations = np.array(quats).squeeze()
+            # only the quaternions with positive first dimension
+            rotations = rotations[rotations[:, 0] > 0]
         self.rotations = Rotation.from_quat(rotations)
         self._order_rotations()
         self.from_rotations(self.rotations)
@@ -290,8 +332,8 @@ class IcoAndCube3DRotations(PolyhedronRotations):
         desired_N = self.N
         super().gen_rotations()
         grid_z_arr = np.array([y["projection"] for x, y in self.polyhedron.G.nodes(data=True)]).squeeze()
-        grid_z = GridInfo(grid_z_arr, N=self.N, gen_alg=self.gen_algorithm)
-
+        grid_z_arr = order_elements(grid_z_arr, len(grid_z_arr))
+        grid_z = SphereGrid(grid_z_arr, N=self.N, gen_alg=self.gen_algorithm)
         z_vec = np.array([0, 0, 1])
         matrices = np.zeros((desired_N, 3, 3))
         for i in range(desired_N):
@@ -299,9 +341,9 @@ class IcoAndCube3DRotations(PolyhedronRotations):
         rot_z = Rotation.from_matrix(matrices)
 
         grid_x_arr = rot_z.apply(np.array([1, 0, 0]))
-        grid_x = GridInfo(grid_x_arr, N=desired_N, gen_alg=self.gen_algorithm)
+        grid_x = SphereGrid(grid_x_arr, N=desired_N, gen_alg=self.gen_algorithm)
         grid_y_arr = rot_z.apply(np.array([0, 1, 0]))
-        grid_y = GridInfo(grid_y_arr, N=desired_N, gen_alg=self.gen_algorithm)
+        grid_y = SphereGrid(grid_y_arr, N=desired_N, gen_alg=self.gen_algorithm)
         self.from_grids(grid_x, grid_y, grid_z)
         self.save_all()
 
@@ -341,11 +383,11 @@ def build_rotations(N: int, algo: str, **kwargs) -> RotationsObject:
     return rot_obj
 
 
-def build_grid_from_name(grid_name: str, b_or_o="o", use_saved=True, **kwargs) -> GridInfo:
+def build_grid_from_name(grid_name: str, b_or_o="o", use_saved=True, **kwargs) -> SphereGrid:
     return build_rotations_from_name(grid_name, b_or_o=b_or_o, use_saved=use_saved, **kwargs).get_grid_z_as_grid()
 
 
-def build_grid(N: int, algo: str, **kwargs) -> GridInfo:
+def build_grid(N: int, algo: str, **kwargs) -> SphereGrid:
     return build_rotations(N=N, algo=algo, **kwargs).get_grid_z_as_grid()
 
 
