@@ -54,25 +54,3 @@ class FullGrid:
 
     def save_full_grid(self):
         np.save(f"{PATH_OUTPUT_FULL_GRIDS}position_grid_{self.get_full_grid_name()}", self.get_position_grid())
-
-
-if __name__ == "__main__":
-    fg = FullGrid(o_grid_name="randomQ_7", t_grid_name="[1, 2, 3]", b_grid_name="randomQ_14")
-    import matplotlib.pyplot as plt
-    import seaborn as sns
-
-    pos_grid = fg.get_position_grid()
-    fig = plt.figure()
-    ax = fig.add_subplot(111, projection='3d')
-    # print(pos_grid[0].shape)
-    # ax.scatter(*pos_grid[0].T, c="r")
-    # ax.scatter(*pos_grid[1].T, c="b")
-    # ax.scatter(*pos_grid[2].T, c="g")
-    # plt.show()
-    pos_grid = np.swapaxes(pos_grid, 0, 1)
-    pos_grid = pos_grid.reshape((-1, 3))
-    rgb_values = sns.color_palette("flare", len(pos_grid))
-    for i, el in enumerate(pos_grid):
-        ax.scatter(*el, c=rgb_values[i], label=i)
-        ax.text(*el, i)
-    plt.show()

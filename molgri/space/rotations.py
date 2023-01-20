@@ -55,7 +55,6 @@ def euler2grid(euler_angles: NDArray) -> Tuple[NDArray, ...]:
     return rotation2grid(rotations)
 
 
-# TODO: find usages
 def grid2rotation(grid_x: NDArray, grid_y: NDArray, grid_z: NDArray) -> Rotation:
     """
     Re-create a rotational object by using the (saved) grid_x, grid_y and grid_z projections. We are looking for an
@@ -95,7 +94,6 @@ def grid2rotation(grid_x: NDArray, grid_y: NDArray, grid_z: NDArray) -> Rotation
     return rotations
 
 
-# TODO: find usages
 def grid2quaternion(grid_x: NDArray, grid_y: NDArray, grid_z: NDArray) -> NDArray:
     """
     See grid2rotation; this function only reformats the output as a (N, 4) array of quaternions.
@@ -106,7 +104,6 @@ def grid2quaternion(grid_x: NDArray, grid_y: NDArray, grid_z: NDArray) -> NDArra
     return quaternions
 
 
-# TODO: find usages
 def grid2euler(grid_x: NDArray, grid_y: NDArray, grid_z: NDArray) -> NDArray:
     """
     See grid2rotation; this function only reformats the output as a (N, 3) array of Euler angles

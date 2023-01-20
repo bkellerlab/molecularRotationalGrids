@@ -6,7 +6,7 @@ from numpy.typing import NDArray
 from scipy.constants import pi
 
 from molgri.space.utils import angle_between_vectors, random_sphere_points, random_quaternions, \
-    standardise_quaternion_set, randomise_quaternion_set_signs
+    randomise_quaternion_set_signs
 
 
 def vector_within_alpha(central_vec: NDArray, side_vector: NDArray, alpha: float) -> bool or NDArray:
@@ -46,29 +46,11 @@ def random_quaternions_count_points(array_points: np.ndarray, alpha: float, num_
     # # use half-sphere in both examples
     central_vectors = randomise_quaternion_set_signs(central_vectors)
     array_points = randomise_quaternion_set_signs(array_points)
-    # for i, line in enumerate(central_vectors):
-    #     if line[0] < 0:
-    #         central_vectors[i, :] = -central_vectors[i, :]
-    # for i, line in enumerate(array_points):
-    #     if line[0] < 0:
-    #         array_points[i, :] = -array_points[i, :]
     all_ratios = np.zeros(num_random_points)
     for i, central_vector in enumerate(central_vectors):
         num_within = count_points_within_alpha(array_points, central_vector, alpha)
         all_ratios[i] = num_within/len(array_points)
     return all_ratios
-
-
-if __name__ == "__main__":
-    from molgri.space.rotobj import build_rotations
-    from molgri.constants import GRID_ALGORITHMS
-
-    N = 40
-
-    for algo in GRID_ALGORITHMS[:-1]:
-        quats = build_rotations(N, algo=algo).rotations.as_quat()
-        ratios = random_quaternions_count_points(quats, alpha=pi/6)
-        print(algo, np.average(ratios), np.std(ratios))
 
 
 def prepare_statistics(point_array: NDArray, alphas: list, d=3, num_rand_points=1000) -> Tuple:
@@ -103,7 +85,7 @@ def prepare_statistics(point_array: NDArray, alphas: list, d=3, num_rand_points=
     ratios = [[], [], []]
     data = np.zeros((len(alphas), 6))  # 5 data columns for: alpha, ideal coverage, min, max, average, sd
     for i, alpha in enumerate(alphas):
-        cone_area = cone_area_f(alpha) # cone area of 4D cone is
+        cone_area = cone_area_f(alpha)
         ideal_coverage = cone_area / sphere_surface
         actual_coverages = actual_coverages_f(point_array, alpha, num_random_points=num_rand_points)
         ratios[0].extend(actual_coverages)

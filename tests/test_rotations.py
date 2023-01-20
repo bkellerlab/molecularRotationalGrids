@@ -120,7 +120,6 @@ def test_euler2grid():
 
 def test_grid2rot():
     N = 500
-    # TODO: does that works for grids constructed in a different manner? Need to test eg ico grid extensions!
     initial_grid_x, initial_grid_y, initial_grid_z = create_random_grids(N)
 
     rotation = grid2rotation(initial_grid_x, initial_grid_y, initial_grid_z)

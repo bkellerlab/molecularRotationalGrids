@@ -64,7 +64,7 @@ def test_analysis_plots():
 
 
 if __name__ == "__main__":
-    N = 602
+    N = 357
     for alg in GRID_ALGORITHMS[:-1]:
         GridPlot(f"{alg}_{N}").create_and_save(x_label="x", y_label="y", z_label="z",
                                                animate_rot=True, animate_seq=False, main_ticks_only=True)

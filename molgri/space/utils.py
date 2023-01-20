@@ -1,7 +1,6 @@
 from typing import Tuple
 
 import numpy as np
-from numpy._typing import NDArray
 from numpy.typing import NDArray
 from scipy.constants import pi
 
@@ -191,8 +190,3 @@ def random_quaternions(n: int = 1000) -> NDArray:
     result[:, 3] = np.sqrt(random_num[:, 0]) * np.cos(2 * pi * random_num[:, 2])
     assert result.shape[1] == 4
     return result
-
-
-if __name__ == "__main__":
-    quats = random_quaternions(15)
-    randomise_quaternion_set_signs(quats)

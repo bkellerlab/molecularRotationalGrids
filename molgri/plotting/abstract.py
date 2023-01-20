@@ -114,7 +114,7 @@ class AbstractPlot(ABC):
             if self.dimensions == 2:
                 self.ax = self.fig.add_subplot(111)
             elif self.dimensions == 3 or projection is not None:
-                self.ax = self.fig.add_subplot(111, projection=projection) #, computed_zorder=False
+                self.ax = self.fig.add_subplot(111, projection=projection)
             else:
                 raise ValueError(f"Dimensions must be in (2, 3), unknown value {self.dimensions}!")
         else:
@@ -192,12 +192,12 @@ class AbstractMultiPlot(ABC):
                  plot_type: str = "multi"):
         self.ani_path = PATH_OUTPUT_ANIS
         self.dimensions = list_plots[0].dimensions
-        assert np.all([list_plot.dimensions == self.dimensions for list_plot in list_plots]), "Plots cannot have various" \
-                                                                                              "numbers of directions"
+        subplot_dims_equal = [list_plot.dimensions == self.dimensions for list_plot in list_plots]
+        assert np.all(subplot_dims_equal), "Plots cannot have various numbers of directions"
         self.n_rows = n_rows
         self.n_columns = n_columns
-        assert self.n_rows*self.n_columns == len(list_plots), f"Specify the number of rows and columns that corresponds" \
-                                                              f"to the number of the elements! " \
+        assert self.n_rows*self.n_columns == len(list_plots), f"Specify the number of rows and columns that " \
+                                                              f"corresponds to the number of the elements! " \
                                                               f"{self.n_rows}x{self.n_columns}=/={len(list_plots)}"
         self.figsize = figsize
         if self.figsize is None:
@@ -228,9 +228,9 @@ class AbstractMultiPlot(ABC):
                         subax.set_xlabel("")
             else:
                 for my_a in self.all_ax[1:]:
-                        my_a.set_ylabel("")
+                    my_a.set_ylabel("")
 
-    def unify_axis_limits(self, x_ax = False, y_ax = False, z_ax = False):
+    def unify_axis_limits(self, x_ax=False, y_ax=False, z_ax=False):
         x_lim = [np.infty, -np.infty]
         y_lim = [np.infty, -np.infty]
         z_lim = [np.infty, -np.infty]
@@ -332,8 +332,8 @@ class AbstractMultiPlot(ABC):
         self.fig.tight_layout()
         fig_path = self.list_plots[0].fig_path
         standard_name = self.list_plots[-1].data_name
-        self.fig.savefig(f"{fig_path}multi_{standard_name}_{self.plot_type}.{save_ending}", dpi=dpi, bbox_inches='tight',
-                    **kwargs)
+        self.fig.savefig(f"{fig_path}multi_{standard_name}_{self.plot_type}.{save_ending}", dpi=dpi,
+                         bbox_inches='tight', **kwargs)
 
 
 class PanelPlot(AbstractMultiPlot):

@@ -173,6 +173,13 @@ class RotationsObject(ABC):
     def as_rotation_object(self) -> Rotation:
         return grid2rotation(self.grid_x.get_grid(), self.grid_y.get_grid(), self.grid_z.get_grid())
 
+    def get_old_rotation_objects(self):
+        z_vec = np.array([0, 0, 1])
+        matrices = np.zeros((self.N, 3, 3))
+        for i in range(self.N):
+            matrices[i] = two_vectors2rot(z_vec, self.grid_z.get_grid()[i])
+        return Rotation.from_matrix(matrices)
+
     def as_quaternion(self) -> NDArray:
         return grid2quaternion(self.grid_x.get_grid(), self.grid_y.get_grid(), self.grid_z.get_grid())
 
@@ -186,6 +193,7 @@ class RotationsObject(ABC):
             sub_grid.save_grid(additional_name=label)
 
     def save_statistics(self, num_random: int = 100, print_message=False, alphas=None):
+        # self.get_old_rotation_objects().as_quat()
         stat_data, full_data = prepare_statistics(self.rotations.as_quat(), alphas, d=4, num_rand_points=num_random)
         write_statistics(stat_data, full_data, self.short_statistics_path, self.statistics_path,
                          num_random, name=self.standard_name, dimensions=4,
@@ -389,10 +397,3 @@ def build_grid_from_name(grid_name: str, b_or_o="o", use_saved=True, **kwargs) -
 
 def build_grid(N: int, algo: str, **kwargs) -> SphereGrid:
     return build_rotations(N=N, algo=algo, **kwargs).get_grid_z_as_grid()
-
-
-if __name__ == "__main__":
-    for alg in GRID_ALGORITHMS[:-1]:
-        print(alg)
-        rots = build_rotations_from_name(f"{alg}_{72}", use_saved=False)
-        print(len(rots.rotations), len(rots.get_grid_z_as_array()))

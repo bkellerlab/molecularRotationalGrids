@@ -38,7 +38,6 @@ class VoranoiConvergencePlot(AbstractPlot):
     def create(self, *args, **kwargs):
         super().create(*args, **kwargs)
         self.ax.set_xscale('log')
-        #self.ax.set_ylim(0.01, 2)
 
 
 class AlphaViolinPlot(AbstractPlot):

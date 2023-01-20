@@ -24,7 +24,6 @@ from molgri.constants import EXTENSIONS, NM2ANGSTROM, GRID_ALGORITHMS, DEFAULT_A
     DEFAULT_ALGORITHM_B
 from molgri.paths import PATH_OUTPUT_TRANSGRIDS
 from molgri.space.rotations import two_vectors2rot
-from molgri.space.utils import normalise_vectors
 
 
 class NameParser:
@@ -117,7 +116,7 @@ class GridNameParser(NameParser):
     Differently than pure NameParser, GridNameParser raises errors if the name doesn't correspond to a standard grid
     name.
     """
-    #TODO: don't simply pass if incorrectly written alg name!
+    # TODO: don't simply pass if incorrectly written alg name!
     def __init__(self, name_string: str, o_or_b="o"):
         super().__init__(name_string)
         # num of points 0 or 1 -> always zero algorithm; selected zero algorithm -> always num of points is 1
@@ -429,7 +428,7 @@ class XVGParser(object):
     def __init__(self, path_xvg: str):
         # this is done in order to function with .xvg ending or with no ending
         if not path_xvg.endswith(".xvg"):
-             self.path_name = f"{path_xvg}.xvg"
+            self.path_name = f"{path_xvg}.xvg"
         else:
             self.path_name = path_xvg
         reader = XVGReader(self.path_name)

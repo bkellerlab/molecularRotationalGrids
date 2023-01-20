@@ -44,6 +44,10 @@ def run_generate_pt():
     if my_args.only_origin:
         my_args.bodygrid = "zero"
         print("Warning: the flag --only_origin is deprecated. We suggest setting -b zero instead.")
+    if "ico" in my_args.bodygrid or "cube3D" in my_args.bodygrid:
+        print(f"Warning! You are using -b {my_args.bodygrid} to create the grid of rotations around the COM. "
+              f"We do not recommend the use of Icosahedron or 3D cube grids for this purpose; they are optimised "
+              f"for generation of origin rotations (-o). We suggest using a 4D cube grid (cube4D) instead.")
     manager = PtIOManager(name_central_molecule=my_args.m1, name_rotating_molecule=my_args.m2,
                           b_grid_name=my_args.bodygrid, o_grid_name=my_args.origingrid, t_grid_name=my_args.transgrid)
     manager.construct_pt_and_time(as_dir=my_args.as_dir, extension_trajectory=my_args.extension_trajectory,
@@ -51,16 +55,5 @@ def run_generate_pt():
 
 
 if __name__ == '__main__':
-
-    import cProfile, pstats, io
-    from pstats import SortKey
-
-    pr = cProfile.Profile()
-    pr.enable()
     run_generate_pt()
-    pr.disable()
-    s = io.StringIO()
-    sortby = "tottime"
-    ps = pstats.Stats(pr, stream=s).sort_stats(sortby)
-    ps.print_stats(25)
-    print(s.getvalue())
+

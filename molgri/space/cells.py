@@ -8,7 +8,6 @@ import numpy as np
 from numpy.typing import NDArray
 from scipy.spatial import SphericalVoronoi
 from scipy.constants import pi
-from tqdm import tqdm
 import matplotlib.pyplot as plt
 import seaborn as sns
 import pandas as pd
@@ -92,7 +91,7 @@ def plot_voranoi_convergence(N_min, N_max, r, algs=GRID_ALGORITHMS[:-1]):
     sns.set_context("talk")
     colors = COLORS
     fig, ax = plt.subplots(2, 3, sharex="all", figsize=(20, 16))
-    for plot_num in range(len(algs)): #alg, col in zip(algs, colors):
+    for plot_num in range(len(algs)):
         N_points = CELLS_DF_COLUMNS[0]
         voranoi_areas = CELLS_DF_COLUMNS[2]
         ideal_areas = CELLS_DF_COLUMNS[3]
@@ -125,7 +124,7 @@ def save_voranoi_data_for_alg(alg_name: str, N_set: tuple = SMALL_NS, radius: fl
     all_voranoi_areas = np.zeros((np.sum(N_set), len(CELLS_DF_COLUMNS)))
     current_index = 0
 
-    for i, N in enumerate(tqdm(N_set)):
+    for i, N in enumerate(N_set):
         t1_grid = time()
         pg = FullGrid(b_grid_name="none", o_grid_name=f"{alg_name}_{N}",
                       t_grid_name=f"[{radius / 10}]").get_position_grid()
@@ -151,18 +150,3 @@ def save_voranoi_data_for_alg(alg_name: str, N_set: tuple = SMALL_NS, radius: fl
         current_index += N
     voranoi_df = pd.DataFrame(data=all_voranoi_areas, columns=CELLS_DF_COLUMNS)
     voranoi_df.to_csv(f"{PATH_OUTPUT_CELLS}{alg_name}_{int(radius)}_{N_set[0]}_{N_set[-1]}.csv", encoding="utf-8")
-
-
-if __name__ == "__main__":
-
-    algs=GRID_ALGORITHMS[:-1]
-
-    r = 2
-
-    for alg in algs:
-        print(alg)
-        save_voranoi_data_for_alg(alg, N_set=SMALL_NS, radius=r)
-
-    plot_voranoi_convergence(N_min=np.min(SMALL_NS), N_max=np.max(SMALL_NS), r=int(r))
-
-

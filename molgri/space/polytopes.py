@@ -341,11 +341,3 @@ def project_grid_on_sphere(grid: np.ndarray) -> np.ndarray:
     grid = np.divide(grid, largest_abs)
     norms = np.linalg.norm(grid, axis=1)[:, np.newaxis]
     return np.divide(grid, norms)
-
-
-if __name__ == "__main__":
-    cube4D = Cube4DPolytope()
-    cube4D.divide_edges()
-    rotations = np.array([y["projection"] for x, y in cube4D.G.nodes(data=True)]).squeeze()
-    rotations = rotations[rotations[:, 0] > 0]
-    print(len(rotations), len(np.unique(abs)))

@@ -24,7 +24,6 @@ from molgri.space.rotobj import build_grid_from_name
 from molgri.space.utils import norm_per_axis, normalise_vectors, cart2sphA
 
 
-
 class GridPlot(Plot3D):
 
     def __init__(self, data_name, *, style_type: list = None, plot_type: str = "grid", **kwargs):
@@ -47,7 +46,7 @@ class GridPlot(Plot3D):
         return my_grid
 
     def _plot_data(self, color="black", s=30, **kwargs):
-        self.sc = self.ax.scatter(*self.grid.T, color=color, s=s) #, s=4)
+        self.sc = self.ax.scatter(*self.grid.T, color=color, s=s)
 
     def create(self, animate_seq=False, **kwargs):
         if "empty" in self.style_type:
@@ -195,8 +194,9 @@ class TrajectoryEnergyPlot(Plot3D):
     def _plot_data(self, **kwargs):
         my_df = self._prepare_data()
         # determine min and max of the color dimension
-        all_positions = my_df[my_df[f"{self.selected_Ns[self.N_index]}"].notnull()][["x", "y", "z"]].to_numpy()
-        all_energies = my_df[my_df[f"{self.selected_Ns[self.N_index]}"].notnull()][f"{self.selected_Ns[self.N_index]}"].to_numpy()
+        up_to_N_elements = my_df[my_df[f"{self.selected_Ns[self.N_index]}"].notnull()]
+        all_positions = up_to_N_elements[["x", "y", "z"]].to_numpy()
+        all_energies = up_to_N_elements[f"{self.selected_Ns[self.N_index]}"].to_numpy()
         # sort out what not unique
         _, indices = np.unique(all_positions.round(UNIQUE_TOL), axis=0, return_index=True)
         all_positions = np.array([all_positions[index] for index in sorted(indices)])
@@ -214,8 +214,8 @@ class TrajectoryEnergyPlot(Plot3D):
                     self.plot_points = True
             cmap = ListedColormap((sns.color_palette("coolwarm", 256).as_hex()))
             im = self.ax.scatter(*all_positions.T, c=all_energies, cmap=cmap)
-            #cbar = self.fig.colorbar(im, ax=self.ax)
-            #cbar.set_label(f"{self.property} {self.unit}", fontsize=20)
+            # cbar = self.fig.colorbar(im, ax=self.ax)
+            # cbar.set_label(f"{self.property} {self.unit}", fontsize=20)
             if not self.plot_points:
                 im.set_visible(False)
             self.ax.set_title(r"$N_{rot}$ " + f"= {self.selected_Ns[self.N_index]}", fontsize=30)
@@ -251,11 +251,9 @@ class HammerProjectionTrajectory(TrajectoryEnergyPlot, AbstractPlot):
 
         my_df = self._prepare_data()
         # determine min and max of the color dimension
-        # only_index = my_df[my_df[f"{self.selected_Ns[self.N_index]}"].notnull()].index.to_list()
-        # all_positions = np.array([*only_index])
-        # all_energies = my_df[my_df[f"{self.selected_Ns[self.N_index]}"].notnull()][f"{self.selected_Ns[self.N_index]}"]
-        all_positions = my_df[my_df[f"{self.selected_Ns[self.N_index]}"].notnull()][["x", "y", "z"]].to_numpy()
-        all_energies = my_df[my_df[f"{self.selected_Ns[self.N_index]}"].notnull()][f"{self.selected_Ns[self.N_index]}"].to_numpy()
+        up_to_N_elements = my_df[my_df[f"{self.selected_Ns[self.N_index]}"].notnull()]
+        all_positions = up_to_N_elements[["x", "y", "z"]].to_numpy()
+        all_energies = up_to_N_elements[f"{self.selected_Ns[self.N_index]}"].to_numpy()
         # sort out what not unique
         # _, indices = np.unique(all_positions.round(UNIQUE_TOL), axis=0, return_index=True)
         # all_positions = np.array([all_positions[index] for index in sorted(indices)])
@@ -268,10 +266,6 @@ class HammerProjectionTrajectory(TrajectoryEnergyPlot, AbstractPlot):
         else:
             cmap = ListedColormap((sns.color_palette("coolwarm", 256).as_hex()))
             im = self.ax.scatter(x, y, c=all_energies, cmap=cmap)
-            #cbar = self.fig.colorbar(im, ax=self.ax)
-            #cbar.set_label(f"{self.property} {self.unit}")
-            #self.ax.set_title(r"$N_{rot}$ " + f"= {self.selected_Ns[self.N_index]}", fontsize=40)
-        #plt.grid(True)
         self.ax.set_xticklabels([])
 
     def create(self, *args, **kwargs):
@@ -283,7 +277,7 @@ class TrajectoryEnergyMultiPlot(AbstractMultiPlot):
     def __init__(self, list_plots: List[TrajectoryEnergyPlot], figsize=None, **kwargs):
         if figsize is None:
             figsize = (DIM_LANDSCAPE[1]*4, DIM_LANDSCAPE[1])
-        super().__init__(list_plots, **kwargs)
+        super().__init__(list_plots, figsize=figsize, **kwargs)
 
     def create(self, *args, **kwargs):
         super().create(*args, projection="3d", **kwargs)
@@ -295,7 +289,7 @@ class HammerProjectionMultiPlot(AbstractMultiPlot):
                  n_rows=1, n_columns=5, **kwargs):
         if figsize is None:
             figsize = (DIM_LANDSCAPE[1]*n_columns, DIM_LANDSCAPE[1]*n_rows)
-        super().__init__(list_plots, plot_type=plot_type, n_rows=n_rows, n_columns=n_columns, figsize=figsize, **kwargs)
+        super().__init__(list_plots, plot_type=plot_type, n_rows=n_rows, n_columns=n_columns, figsize=figsize)
 
     def create(self, *args, projection="hammer", **kwargs):
         super().create(*args, projection=projection, **kwargs)
