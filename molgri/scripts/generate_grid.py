@@ -72,7 +72,7 @@ def run_generate_grid():
         else:
             style_type = ["talk", "empty"]
         my_gp = GridPlot(grid_name, style_type=style_type)
-        my_gp.create()
+        my_gp.create_and_save()
         print(f"Grid drawn and figure saved to {PATH_OUTPUT_PLOTS}.")
         if my_args.animate:
             my_gp.animate_figure_view()
