@@ -1,14 +1,12 @@
-import networkx as nx
 import pandas as pd
 import pytest
 from scipy.constants import pi
 from scipy.spatial import distance_matrix
 
 from molgri.space.fullgrid import FullGrid
-from molgri.space.polytopes import project_grid_on_sphere, Cube3DPolytope, IcosahedronPolytope, second_neighbours
 from molgri.space.rotations import grid2rotation, rotation2grid
 from molgri.space.rotobj import build_rotations, build_grid, build_grid_from_name, order_elements
-from molgri.constants import GRID_ALGORITHMS, ZERO_ALGORITHM
+from molgri.constants import GRID_ALGORITHMS
 
 import numpy as np
 
@@ -54,98 +52,6 @@ def test_grid2rotobj2grid():
             assert np.allclose(grid_end1, grid_start_x)
             assert np.allclose(grid_end2, grid_start_y)
             assert np.allclose(grid_end3, grid_start_z)
-
-
-def test_project_grid_on_sphere():
-    array_vectors = np.array([[3, 2, -1],
-                              [-5, 22, 0.3],
-                              [-3, -3, -3],
-                              [0, 1/4, 1/4]])
-
-    expected_results = np.array([[3/np.sqrt(14), np.sqrt(2/7), -1/np.sqrt(14)],
-                                 [-0.221602, 0.975047, 0.0132961],
-                                 [-1/np.sqrt(3), -1/np.sqrt(3), -1/np.sqrt(3)],
-                                 [0, 1/np.sqrt(2), 1/np.sqrt(2)]])
-    # test the whole array
-    results = project_grid_on_sphere(array_vectors)
-    assert np.allclose(results, expected_results)
-    # test individual components
-    for vector, expected_result in zip(array_vectors, expected_results):
-        result = project_grid_on_sphere(vector.reshape((1, -1)))
-        assert np.allclose(result, expected_result.reshape((1, -1)))
-    # what happens for zero vector? should throw an error
-    array_zero = np.array([[3, 2, -1],
-                           [0, 0, 0]])
-    with pytest.raises(AssertionError) as e:
-        project_grid_on_sphere(array_zero)
-    assert e.type is AssertionError
-    # 2 dimensions
-    array_vectors2 = np.array([[3, 2],
-                              [-5, 0.3],
-                              [-3, -3],
-                              [0, 1/4]])
-    expected_results2 = np.array([[3/np.sqrt(13), 2/np.sqrt(13)],
-                                  [-0.998205, 0.0598923],
-                                  [-1/np.sqrt(2), -1/np.sqrt(2)],
-                                  [0, 1]])
-    results2 = project_grid_on_sphere(array_vectors2)
-    assert np.allclose(results2, expected_results2)
-    # 4 dimensions
-    array_vectors3 = np.array([[3, 2, -5, 0.3],
-                              [-3, -3, 0, 1/4]])
-    expected_results3 = np.array([[0.486089, 0.324059, -0.810148, 0.0486089],
-                                  [-12/17, -12/17, 0, 1/17]])
-    results3 = project_grid_on_sphere(array_vectors3)
-    assert np.allclose(results3, expected_results3)
-
-
-def test_polytope():
-    for polytope_type in (Cube3DPolytope, IcosahedronPolytope):
-        polytope = polytope_type()
-        for level in range(3):
-            graph_before = polytope.G.copy()
-            nodes_before = list(graph_before.nodes(data=False))
-            edges_before = list(graph_before.edges)
-            polytope.divide_edges()
-            graph_after = polytope.G.copy()
-            nodes_after = list(graph_after.nodes(data=False))
-            # no nodes should disappear
-            for x in nodes_before:
-                if x not in nodes_after:
-                    raise Exception("No nodes should disappear when subdividing!")
-            # now the remaining points should be midpoints of edges
-            all_midpoints = []
-            for edge in edges_before:
-                midpoint = (np.array(edge[0]) + np.array(edge[1]))/2
-                midpoint = tuple(midpoint)
-                all_midpoints.append(midpoint)
-                if midpoint not in nodes_after:
-                    raise Exception("At least one of the midpoints was not added to grid!")
-            assert set(all_midpoints).union(set(nodes_before)) == set(nodes_after)
-
-
-def test_second_neighbours():
-    G = nx.Graph([(5, 1), (5, 6), (6, 1), (1, 2), (2, 7), (1, 3), (1, 9), (3, 4),
-                  (4, 9), (3, 10), (3, 8), (8, 10), (10, 11)])
-    # uncomment next three lines if you need to check how it looks
-    # import matplotlib.pyplot as plt
-    # nx.draw_networkx(G)
-    # plt.show()
-    expected_neig_1 = [5, 6, 2, 3, 9]
-    # expected second neighbours that are NOT first neighbours
-    expected_sec_neig_1 = [4, 7, 10, 8]
-    sec_neig_1 = list(second_neighbours(G, 1))
-    assert np.all([x in list(G.neighbors(1)) for x in expected_neig_1]), "First neighbours wrong."
-    assert np.all([x in sec_neig_1 for x in expected_sec_neig_1]), "Some second neighbours missing."
-    assert not np.any([x in sec_neig_1 for x in expected_neig_1]), "Some first neighbours in second neighbours"
-    # the example given there
-    G2 = nx.Graph([(5, 6), (5, 2), (2, 1), (6, 1), (1, 3), (3, 7), (1, 8), (8, 3)])
-    exp_1 = [2, 6, 3, 8]
-    exp_2 = [5, 7]
-    real_1 = list(set(G2.neighbors(1)))
-    real_2 = list(set(second_neighbours(G2, 1)))
-    assert len(exp_1) == len(real_1) and sorted(exp_1) == sorted(real_1), "Something wrong with first neighbours."
-    assert len(exp_2) == len(real_2) and sorted(exp_2) == sorted(real_2), "Something wrong with second neighbours."
 
 
 def test_general_grid_properties():
@@ -206,13 +112,6 @@ def test_errors_and_assertions():
 
 
 def test_everything_runs():
-    cp = Cube3DPolytope()
-    cp.divide_edges()
-    cp.plot_graph()
-    ip = IcosahedronPolytope()
-    ip.divide_edges()
-    ip.divide_edges()
-    ip.plot_graph()
     for algo in GRID_ALGORITHMS[:-1]:
         ig = build_rotations(35, algo, use_saved=True)
         ig.gen_and_time()

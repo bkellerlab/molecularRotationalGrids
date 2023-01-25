@@ -1,11 +1,21 @@
+"""
+Polytopes are networkX graphs representing bodies in 3- or 4D. Specifically, we implement the 3D polytopes
+ icosahedron and cube and the 4D polytope hypercube. Here, the nodes correspond to vertices and the connections
+ between them to the edges of the polytope. It's important that polytopes can also be subdivided in smaller units
+ so that grids with larger numbers of points can be created.
+"""
+
 from abc import ABC, abstractmethod
 from itertools import product
 
 import networkx as nx
 import numpy as np
+from numpy.typing import NDArray
+from mpl_toolkits.mplot3d import Axes3D
 from scipy.constants import pi, golden
 from scipy.spatial import distance_matrix
 
+from molgri.assertions import is_array_with_d_dim_r_rows_c_columns, all_row_norms_equal_k
 from molgri.space.utils import dist_on_sphere
 
 
@@ -13,12 +23,20 @@ class Polytope(ABC):
 
     def __init__(self, d: int = 3):
         """
-        A polytope is a d-dim object consisting of a set of vertices and connections between them (edges) saved
+        A polytope is a d-dim object consisting of a set of nodes (vertices) and connections between them (edges) saved
         in self.G property.
+
+        The basic polytope will be created when the object is initiated, eg. for 3D Cube, an object with 8 nodes.
+        All further divisions should be performed with the function self.divide_edges()
+
+        Args:
+            d: number of dimensions
         """
         self.G = nx.Graph()
+        # faces can, but not need to be saved. They consist of sublists that contain indices of points that belong to
+        # a specific face. Useful for plotting to display only one/a few faces
         self.faces = []
-        self.current_level = 0
+        self.current_level = 0              # level of division
         self.side_len = 0
         self.d = d
         self._create_level0()
@@ -27,56 +45,37 @@ class Polytope(ABC):
     def _create_level0(self):
         """This is implemented by each subclass since they have different edges, vertices and faces"""
 
-    def plot_graph(self):
+    def plot_graph(self, with_labels=True):
         """
         Plot the networkx graph of self.G.
         """
         node_labels = {i: tuple(np.round(i, 3)) for i in self.G.nodes}
-        nx.draw_networkx(self.G, pos=nx.circular_layout(self.G), with_labels=True, labels=node_labels)
+        nx.draw_networkx(self.G, pos=nx.circular_layout(self.G), with_labels=with_labels, labels=node_labels)
 
-    def plot_points(self, ax, select_faces: set = None, projection: bool = False):
+    def get_node_coordinates(self) -> NDArray:
         """
-        Plot the points of the icosahedron + possible division points. Colored by level at which the point was added.
-        Possible to select only one or a few faces on which points are to be plotted for clarity.
+        Get an array in which each row represents the self.d - dimensional coordinates of the node. These are the
+        points on the faces of the polytope, their norm may not be one (actually, will only be one at level 0).
+        """
+        nodes = self.G.nodes
+        nodes = np.array(nodes)
+        is_array_with_d_dim_r_rows_c_columns(nodes, d=2, r=self.G.number_of_nodes(), c=self.d)
+        return nodes
 
-        Args:
-            ax: axis
-            select_faces: a set of face numbers from 0 to (incl) 19, e.g. {0, 5}. If None, all faces are shown.
-            projection: True if you want to plot the projected points, not the ones on surfaces of polytope
+    def get_projection_coordinates(self) -> NDArray:
         """
-        if self.d > 3:
-            raise ValueError("Points can only be plotted for polyhedra of up to 3 dimensions.")
-        select_faces = set(range(20)) if select_faces is None else select_faces
-        level_color = ["black", "red", "blue", "green"]
-        for point in self.G.nodes(data=True):
-            # select only points that belong to at least one of the chosen select_faces
-            if len(set(point[1]["face"]).intersection(select_faces)) > 0:
-                # color selected based on the level of the node
-                level_node = point[1]["level"]
-                if projection:
-                    proj_node = point[1]["projection"]
-                    ax.scatter(*proj_node[0], color=level_color[level_node], s=30)
-                else:
-                    ax.scatter(*point[0], color=level_color[level_node], s=30)
-
-    def plot_edges(self, ax, select_faces=None, **kwargs):
+        Get an array in which each row represents the self.d - dimensional coordinates of the node projected on a
+        self.d-dimensional unit sphere. These points must have norm 1
         """
-        Plot the edges between the points. Can select to display only some faces for clarity.
-
-        Args:
-            ax: axis
-            select_faces: a set of face numbers from 0 to (incl) 19, e.g. {0, 5}. If None, all faces are shown.
-            **kwargs: other plotting arguments
-        """
-        if self.d > 3:
-            raise ValueError("Points can only be plotted for polyhedra of up to 3 dimensions.")
-        select_faces = set(range(20)) if select_faces is None else select_faces
-        for edge in self.G.edges:
-            faces_edge_1 = set(self.G.nodes[edge[0]]["face"])
-            faces_edge_2 = set(self.G.nodes[edge[1]]["face"])
-            # both the start and the end point of the edge must belong to one of the selected faces
-            if len(faces_edge_1.intersection(select_faces)) > 0 and len(faces_edge_2.intersection(select_faces)) > 0:
-                ax.plot(*np.array(edge).T, color="black",  **kwargs)
+        projections_dict = nx.get_node_attributes(self.G, "projection")
+        nodes = self.get_node_coordinates()
+        projections = np.zeros((len(nodes), self.d))
+        for i, n in enumerate(nodes):
+            projections[i] = projections_dict[tuple(n)]
+        # assertions
+        is_array_with_d_dim_r_rows_c_columns(projections, d=2, r=self.G.number_of_nodes(), c=self.d)
+        all_row_norms_equal_k(projections, 1)
+        return projections
 
     def divide_edges(self):
         """
@@ -133,6 +132,58 @@ class Polytope(ABC):
                                     )
         self.current_level += 1
         self.side_len = self.side_len / 2
+
+
+class Polyhedron(Polytope, ABC):
+
+    def __init__(self):
+        """
+        Polyhedron is a polytope of exactly three dimensions. The benefit: it can be plotted.
+        """
+        super().__init__(d=3)
+
+    def plot_points(self, ax: Axes3D, select_faces: set = None, projection: bool = False):
+        """
+        Plot the points of the polytope + possible division points. Colored by level at which the point was added.
+        Possible to select only one or a few faces on which points are to be plotted for clarity.
+
+        Args:
+            ax: axis
+            select_faces: a set of face numbers that can range from 0 to (incl) len(self.faces), e.g. {0, 5}.
+                          If None, all faces are shown.
+            projection: True if you want to plot the projected points, not the ones on surfaces of polytope
+        """
+        select_faces = set(range(len(self.faces))) if select_faces is None else select_faces
+        level_color = ["black", "red", "blue", "green"]
+        for point in self.G.nodes(data=True):
+            # select only points that belong to at least one of the chosen select_faces
+            if len(set(point[1]["face"]).intersection(select_faces)) > 0:
+                # color selected based on the level of the node
+                level_node = point[1]["level"]
+                if projection:
+                    proj_node = point[1]["projection"]
+                    ax.scatter(*proj_node[0], color=level_color[level_node], s=30)
+                else:
+                    ax.scatter(*point[0], color=level_color[level_node], s=30)
+
+    def plot_edges(self, ax, select_faces=None, **kwargs):
+        """
+        Plot the edges between the points. Can select to display only some faces for clarity.
+
+        Args:
+            ax: axis
+            select_faces: a set of face numbers from 0 to (incl) 19, e.g. {0, 5}. If None, all faces are shown.
+            **kwargs: other plotting arguments
+        """
+        if self.d > 3:
+            raise ValueError("Points can only be plotted for polyhedra of up to 3 dimensions.")
+        select_faces = set(range(20)) if select_faces is None else select_faces
+        for edge in self.G.edges:
+            faces_edge_1 = set(self.G.nodes[edge[0]]["face"])
+            faces_edge_2 = set(self.G.nodes[edge[1]]["face"])
+            # both the start and the end point of the edge must belong to one of the selected faces
+            if len(faces_edge_1.intersection(select_faces)) > 0 and len(faces_edge_2.intersection(select_faces)) > 0:
+                ax.plot(*np.array(edge).T, color="black",  **kwargs)
 
 
 class Cube4DPolytope(Polytope):
@@ -218,9 +269,9 @@ def second_neighbours(graph: nx.Graph, node):
                 yield n
 
 
-class IcosahedronPolytope(Polytope):
+class IcosahedronPolytope(Polyhedron):
     """
-    IcosahedronGrid is a graph object, its central feature is self.G (networkx graph). In the beginning, each node is
+    IcosahedronPolytope is a graph object, its central feature is self.G (networkx graph). In the beginning, each node is
     a vertex of a 3D icosahedron. It is possible to subdivide the sides, in that case a new point always appears in the
     middle of each triangle side.
     """
@@ -275,7 +326,7 @@ class IcosahedronPolytope(Polytope):
         self.side_len = side_len / 2
 
 
-class Cube3DPolytope(Polytope):
+class Cube3DPolytope(Polyhedron):
     """
     CubeGrid is a graph object, its central feature is self.G (networkx graph). In the beginning, each node is
     a vertex of a 3D cube. It is possible to subdivide the sides, in that case a new point always appears in the
