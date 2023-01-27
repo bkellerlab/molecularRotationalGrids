@@ -1,8 +1,10 @@
 """
 Polytopes are networkX graphs representing bodies in 3- or 4D. Specifically, we implement the 3D polytopes
- icosahedron and cube and the 4D polytope hypercube. Here, the nodes correspond to vertices and the connections
- between them to the edges of the polytope. It's important that polytopes can also be subdivided in smaller units
- so that grids with larger numbers of points can be created.
+ icosahedron and cube and the 4D polytope hypercube. As a start, vertices of the polytope are added as
+  nodes and edges as connections between them. For the cube, a point is also added in the middle of each face diagonal
+  and the edges to the four vertices are added. It's important that polytopes can also be subdivided in smaller units
+ so that grids with larger numbers of points can be created. For this, use divide_edges() command. 3D polytopes
+ (polyhedra) can also be plotted - points and edges separately, level of discretisation can determine the color.
 """
 
 from abc import ABC, abstractmethod
@@ -24,16 +26,16 @@ class Polytope(ABC):
     def __init__(self, d: int = 3):
         """
         A polytope is a d-dim object consisting of a set of nodes (vertices) and connections between them (edges) saved
-        in self.G property.
+        in self.G (graph).
 
-        The basic polytope will be created when the object is initiated, eg. for 3D Cube, an object with 8 nodes.
-        All further divisions should be performed with the function self.divide_edges()
+        The basic polytope will be created when the object is initiated. All further divisions should be performed
+        with the function self.divide_edges()
 
         Args:
             d: number of dimensions
         """
         self.G = nx.Graph()
-        # faces can, but not need to be saved. They consist of sublists that contain indices of points that belong to
+        # faces can, but not need to be saved. They consist of sub-lists that contain indices of points that belong to
         # a specific face. Useful for plotting to display only one/a few faces
         self.faces = []
         self.current_level = 0              # level of division
@@ -77,6 +79,7 @@ class Polytope(ABC):
         all_row_norms_equal_k(projections, 1)
         return projections
 
+    @abstractmethod
     def divide_edges(self):
         """
         Subdivide once. If previous faces are triangles, adds one point at mid-point of each edge. If they are
@@ -88,13 +91,8 @@ class Polytope(ABC):
         nodes_to_add = self._find_new_nodes()
         # add new nodes, add edges from cont. points to the node and delete the edge between the cont. points
         self._split_edges(nodes_to_add)
-        # also add edges between second neighbours at specified lengths
-        self._add_edges_of_len(self.side_len)  # ico
-        self._add_edges_of_len(self.side_len * np.sqrt(2) / 2)  # cube3d (diagonals)
-        # remove any edges of old length
-        self._remove_edges_of_len_k(4*self.side_len)
-        self._remove_edges_of_len_k(2 * self.side_len * np.sqrt(2))
-        # update counters
+
+    def _start_new_level(self):
         self.current_level += 1
         self.side_len = self.side_len / 2
 
@@ -133,7 +131,7 @@ class Polytope(ABC):
                                             self.G.nodes[neig]["projection"])
                     self.G.add_edge(new_node, neig, length=length)
 
-    def _add_edges_of_len(self, edge_len: float):
+    def _add_edges_of_len(self, edge_len: float, wished_levels: list = None):
         """Among points on the most current level, search for second neighbours and add an edge between them
         if their distance is close to edge_len
 
@@ -147,22 +145,30 @@ class Polytope(ABC):
         Args:
             edge_len: length of edge on the polyhedron surface that is condition for adding edges
         """
-        new_level = [x for x, y in self.G.nodes(data=True) if y['level'] == self.current_level+1]
+        if wished_levels is None:
+            wished_levels = [self.current_level+1, self.current_level+1]
+        else:
+            wished_levels.sort(reverse=True)
+        assert len(wished_levels) == 2
+        new_level = [x for x, y in self.G.nodes(data=True) if y['level'] == wished_levels[0]]
         #new_edges = []  # node1, node2, dist
         for new_node in new_level:
             # searching only second neighbours at appropriate level
             sec_neighbours = list(second_neighbours(self.G, new_node))
-            #sec_neighbours = [x for x in sec_neighbours if self.G.nodes[x]["level"] == self.current_level+1]
+            sec_neighbours = [x for x in sec_neighbours if self.G.nodes[x]["level"] == wished_levels[1]]
             for other_node in sec_neighbours:
                 node_dist = np.linalg.norm(np.array(new_node)-np.array(other_node))
                 # check face criterion
                 if self._find_face([new_node, other_node]):
                     # check distance criterion
-                    if np.isclose(node_dist, self.side_len) or np.isclose(node_dist, edge_len):
+                    if np.isclose(node_dist, edge_len):
                         length = dist_on_sphere(self.G.nodes[new_node]["projection"],
                                                 self.G.nodes[other_node]["projection"])
-                        # TODO: order nodes so that not added twice
-                        self.G.add_edge(new_node, other_node, length=length)
+                        # just to make sure that you don't add same edge in 2 different directions
+                        if new_node < other_node:
+                            self.G.add_edge(new_node, other_node, length=length)
+                        else:
+                            self.G.add_edge(other_node, new_node, length=length)
 
     def _find_new_nodes(self) -> list:
         """
@@ -232,7 +238,7 @@ class Polytope(ABC):
             # remove the old connection: old_point1 -------- old_point2
             self.G.remove_edge(node_vector, neighbour_vector)
 
-    def _remove_edges_of_len_k(self, k: float):
+    def _remove_edges_of_len(self, k: float):
         """
         Remove all edges from self.G that have the length k (or close to k if float)
         """
@@ -240,7 +246,6 @@ class Polytope(ABC):
             n1, n2 = edge
             if np.isclose(np.linalg.norm(np.abs(np.array(n2)-np.array(n1))), k):
                 self.G.remove_edge(n1, n2)
-
 
 
 class Polyhedron(Polytope, ABC):
@@ -320,15 +325,20 @@ class Cube4DPolytope(Polytope):
         # add vertices and edges to the graph
         for i, vert in enumerate(vertices):
             self.G.add_node(tuple(vert), level=self.current_level, face=None,
-                            projection=normalise_vectors(np.array(vert)))    #project_grid_on_sphere(vert[np.newaxis, :]))
+                            projection=normalise_vectors(np.array(vert)))
         for key, value in point_connections.items():
             for vi in value:
                 self.G.add_edge(key, tuple(vi),
                                 length=dist_on_sphere(self.G.nodes[key]["projection"],
                                                       self.G.nodes[tuple(vi)]["projection"]))
-        # just to check ...
-        assert self.G.number_of_nodes() == 16
+        # create diagonal nodes # TODO: maybe should add cube diagonal nodes?
+        self._add_square_diagonal_nodes()
         self.side_len = self.side_len / 2
+
+    def divide_edges(self):
+        super().divide_edges()
+        self._add_edges_of_len(self.side_len, wished_levels=[self.current_level + 1, self.current_level])
+        self._start_new_level()
 
 
 def _calc_edges(vertices: np.ndarray, side_len: float) -> dict:
@@ -432,6 +442,18 @@ class IcosahedronPolytope(Polyhedron):
             assert len(node[1]["face"]) == 5 and node[1]["level"] == 0
         self.side_len = side_len / 2
 
+    def divide_edges(self):
+        """
+        Subdivide once. If previous faces are triangles, adds one point at mid-point of each edge. If they are
+        squares, adds one point at mid-point of each edge + 1 in the middle of the face. New points will have a higher
+        level attribute.
+        """
+        # this positions all new points we need - simply in the middle of previous edges
+        super().divide_edges()
+        # also add edges between second neighbours that form triangles
+        self._add_edges_of_len(self.side_len, wished_levels=[self.current_level + 1, self.current_level + 1])
+        self._start_new_level()
+
 
 class Cube3DPolytope(Polyhedron):
     """
@@ -475,3 +497,12 @@ class Cube3DPolytope(Polyhedron):
         # create diagonal nodes
         self._add_square_diagonal_nodes()
         self.side_len = self.side_len / 2
+
+    def divide_edges(self):
+        super().divide_edges()
+        # also add the diagonals in the other direction
+        self._add_edges_of_len(self.side_len * np.sqrt(2) / 2,
+                               wished_levels=[self.current_level + 1, self.current_level + 1])
+        # add the straight lines connecting old points to new
+        self._add_edges_of_len(self.side_len, wished_levels=[self.current_level + 1, self.current_level])
+        self._start_new_level()

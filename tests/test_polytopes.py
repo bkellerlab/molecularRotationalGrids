@@ -148,8 +148,8 @@ def test_cube3D_polytope():
     all_rows_unique(cub.get_projection_coordinates())
     # each of 6 faces has 5 whole points + 4 * 1/3 + 4 * 1/2
     assert cub.G.number_of_nodes() == 50, "1st division: cube should have 50 nodes"
-    # each of 6 faces has 12 own edges and 8 shared edges
-    # assert cub.G.number_of_edges() == 6 * (12 + 4), "1st division: cube should have 96 edges"
+    # each of 24 sub-faces has 4 own edges and 4 shared edges -> 144
+    assert cub.G.number_of_edges() == 144, "1st division: cube should have 144 edges"
 
     # after two divisions
     cub.divide_edges()
@@ -160,20 +160,25 @@ def test_cube3D_polytope():
     all_rows_unique(cub.get_projection_coordinates())
     # each of 6 faces has 25 whole points + 4 * 1/3 + 12 * 1/2
     assert cub.G.number_of_nodes() == 194, "2nd division: cube should have 194 nodes"
-    # # each of 20 faces has 18 own edges and 3*4 shared edges
-    # assert cub.G.number_of_edges() == 20 * (18 + 6), "2nd division: cubsahedron should have 480 edges"
+    # # each of 24 * 4 sub-sub-faces has 4 own edges and 4 shared edges -> 576
+    assert cub.G.number_of_edges() == 576, "2nd division: cube should have 576 edges"
+    # after 3 divisions
+    cub.divide_edges()
+    # 194 old points + 576 for each edge sub-divided = 770
+    assert cub.G.number_of_nodes() == 770, "3rd division: cube should have 770 nodes"
+    assert cub.G.number_of_edges() == 4*576, "3rd division: cube should have 2304 edges"
 
 
 def test_edge_removal():
     cp = Cube3DPolytope()
     # cube initially has 4 * 6 = 24 diagonal edges + 12 straight ones
     # removing straigt ones we are left with 24
-    cp._remove_edges_of_len_k(2 * cp.side_len)
+    cp._remove_edges_of_len(2 * cp.side_len)
     assert cp.G.number_of_edges() == 24, "Wrong number of edges after removal of straight edges"
     # same happens if removing diagonal ones
     cp = Cube3DPolytope()
     # removing diagonal ones we are left with 12
-    cp._remove_edges_of_len_k(cp.side_len * np.sqrt(2))
+    cp._remove_edges_of_len(cp.side_len * np.sqrt(2))
     assert cp.G.number_of_edges() == 12, "Wrong number of edges after removal of diagonals"
 
 

@@ -42,7 +42,7 @@ class GridPlot(Plot3D):
         self.grid = self._prepare_data()
 
     def _prepare_data(self) -> np.ndarray:
-        my_grid = build_grid_from_name(self.data_name, use_saved=False, print_warnings=False).get_grid()
+        my_grid = build_grid_from_name(self.data_name, use_saved=False, print_warnings=True).get_grid()
         return my_grid
 
     def _plot_data(self, color="black", s=30, **kwargs):
