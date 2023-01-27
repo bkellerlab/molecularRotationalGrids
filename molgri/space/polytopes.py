@@ -6,7 +6,7 @@ Polytopes are networkX graphs representing bodies in 3- or 4D. Specifically, we 
 """
 
 from abc import ABC, abstractmethod
-from itertools import product
+from itertools import product, combinations
 
 import networkx as nx
 import numpy as np
@@ -15,8 +15,8 @@ from mpl_toolkits.mplot3d import Axes3D
 from scipy.constants import pi, golden
 from scipy.spatial import distance_matrix
 
-from molgri.assertions import is_array_with_d_dim_r_rows_c_columns, all_row_norms_equal_k
-from molgri.space.utils import dist_on_sphere
+from molgri.assertions import is_array_with_d_dim_r_rows_c_columns, all_row_norms_equal_k, form_square
+from molgri.space.utils import dist_on_sphere, normalise_vectors
 
 
 class Polytope(ABC):
@@ -79,45 +79,63 @@ class Polytope(ABC):
 
     def divide_edges(self):
         """
-        Subdivide once. If previous faces are triangles, adds three points per face (half sides). If they are
-        squares, adds 4 points per face (half sides + middle). New points will have a higher level and will
-        be appropriately added to one or more faces (if on edges).
+        Subdivide once. If previous faces are triangles, adds one point at mid-point of each edge. If they are
+        squares, adds one point at mid-point of each edge + 1 in the middle of the face. New points will have a higher
+        level attribute.
         """
         # need to keep track of what to add/remove, since we can't change the network while inside the loop
         # consists of (new_point, previous_point_1, previous_point_2) to keep all info
-        nodes_to_add = []
-        for node_vector in self.G.nodes():
-            for neighbour_vector in self.G.neighbors(node_vector):
-                # this is just to avoid doing everything twice - do it for edge A-B but not B-A
-                if node_vector < neighbour_vector:
-                    # new point is just the average of the previous two
-                    new_point = tuple((np.array(node_vector)+np.array(neighbour_vector))/2.0)
-                    nodes_to_add.append((new_point, node_vector, neighbour_vector))
+        nodes_to_add = self._find_new_nodes()
         # add new nodes, add edges from cont. points to the node and delete the edge between the cont. points
-        for el in nodes_to_add:
-            new_point, node_vector, neighbour_vector = el
-            # new point will have the set of faces that both node and neighbour vector have
-            if self.d <= 3:
-                faces_node_vector = self.G.nodes[node_vector]["face"]
-                faces_neighbour_vector = self.G.nodes[neighbour_vector]["face"]
-                face = set(faces_node_vector).intersection(faces_neighbour_vector)
-            # for higher dimensions we don't bother with faces since plotting is difficult anyway
-            else:
-                face = None
-            # diagonals get added twice, so this is necessary
-            if new_point not in self.G.nodes:
-                self.G.add_node(new_point, level=self.current_level + 1,
-                                face=face,
-                                projection=project_grid_on_sphere(np.array(new_point)[np.newaxis, :]))
-            self.G.add_edge(new_point, neighbour_vector,
-                            length=dist_on_sphere(self.G.nodes[new_point]["projection"],
-                                                  self.G.nodes[neighbour_vector]["projection"]))
-            self.G.add_edge(new_point, node_vector,
-                            length=dist_on_sphere(self.G.nodes[new_point]["projection"],
-                                                  self.G.nodes[neighbour_vector]["projection"]))
-            # self.G.remove_edge(node_vector, neighbour_vector)
+        self._split_edges(nodes_to_add)
         # also add edges between new nodes at distance side_len or sqrt(2)*side_len
+
+        # remove any edges of old length
+        self._remove_edges_of_len_k(2*self.side_len)
+        self._remove_edges_of_len_k(2 * self.side_len * np.sqrt(2))
+        # update counters
+        self.current_level += 1
+        self.side_len = self.side_len / 2
+
+    def _add_square_diagonal_nodes(self):
+        """
+        Search for any nodes that form a square with 2 neighbour nodes and 1 second neighbour node. If you find them,
+        add the middle point (average of the four) to nodes along with edges from the middle to the points that
+        form the square.
+        """
+        # here save the new node along with the 4 "father nodes" so you can later build all connections
+        new_nodes = []
+        for node in self.G.nodes:
+            neighbours = list(self.G.neighbors(node))
+            sec_neighbours = list(second_neighbours(self.G, node))
+            # prepare all combinations
+            # a possibility for a square: node, two neighbours, one second neighbour
+            for sn in sec_neighbours:
+                n_choices = list(combinations(neighbours, 2))
+                for two_n in n_choices:
+                    n1, n2 = two_n
+                    points = [node, sn, n1, n2]
+                    array_points = np.array(points)
+                    if form_square(array_points):
+                        midpoint = np.average(array_points, axis=0)
+                        new_nodes.append([tuple(midpoint), *points])
+        # add new nodes and edges
+        for new_obj in new_nodes:
+            new_node = new_obj[0]
+            new_neighbours = new_obj[1:]
+            # just in case repetition happens
+            if new_node not in self.G.nodes:
+                self.G.add_node(new_node, level=self.current_level, face=self._find_face(new_neighbours),
+                                projection=normalise_vectors(np.array(new_node)))
+                for neig in new_neighbours:
+                    length = dist_on_sphere(self.G.nodes[new_node]["projection"],
+                                            self.G.nodes[neig]["projection"])
+                    self.G.add_edge(new_node, neig, length=length)
+
+    def _add_diagonal_edges(self):
+        """Among points on the most current level, search for second neighbours and add diagonal between them"""
         new_level = [x for x, y in self.G.nodes(data=True) if y['level'] == self.current_level+1]
+        #new_edges = []  # node1, node2, dist
         for new_node in new_level:
             # searching only second neighbours at appropriate level
             sec_neighbours = list(second_neighbours(self.G, new_node))
@@ -126,12 +144,83 @@ class Polytope(ABC):
                 node_dist = np.linalg.norm(np.array(new_node)-np.array(other_node))
                 # check distance criterion
                 if np.isclose(node_dist, self.side_len) or np.isclose(node_dist, self.side_len*np.sqrt(2)):
-                    self.G.add_edge(new_node, other_node,
-                                    length=dist_on_sphere(self.G.nodes[new_node]["projection"],
-                                                          self.G.nodes[other_node]["projection"])
-                                    )
-        self.current_level += 1
-        self.side_len = self.side_len / 2
+                    length = dist_on_sphere(self.G.nodes[new_node]["projection"],
+                                            self.G.nodes[other_node]["projection"])
+                    self.G.add_edge(new_node, other_node, length=length)
+
+    def _find_new_nodes(self) -> list:
+        """
+        Helper function to find all new nodes - in between two neighbouring nodes.
+
+        Returns:
+            a list in which every element is a tuple of three elements:
+            (new_point, old_point1, old_point2)
+            where new_point is the arithmetic average of both old points.
+            The three points are all self.d-dimensional tuples
+        """
+        nodes_to_add = []
+        for node_vector in self.G.nodes():
+            for neighbour_vector in self.G.neighbors(node_vector):
+                # this is just to avoid doing everything twice - do it for edge A-B but not B-A
+                if node_vector < neighbour_vector:
+                    # new point is just the average of the previous two
+                    new_point = tuple((np.array(node_vector)+np.array(neighbour_vector))/2.0)
+                    nodes_to_add.append((new_point, node_vector, neighbour_vector))
+        return nodes_to_add
+
+    def _find_face(self, node_list: list) -> set:
+        """
+        Find the face that is common between all nodes in the list.
+
+        Args:
+            node_list: a list in which each element is a tuple of coordinates that has beed added to self.G as a node
+
+        Returns:
+            the set of faces (may be empty) that all nodes in this list share
+        """
+        face = set(self.G.nodes[node_list[0]]["face"])
+        for neig in node_list[1:]:
+            faces_neighbour_vector = self.G.nodes[neig]["face"]
+            face = face.intersection(set(faces_neighbour_vector))
+        return face
+
+    def _split_edges(self, nodes_to_add):
+        """
+        Use the output from self._find_new_nodes(), enter these points in the graph, and replace the connection
+        between the old points with two new connections: old_point1 ---- new_point and new_point ---- old_point2
+        """
+        for el in nodes_to_add:
+            new_point, node_vector, neighbour_vector = el
+            # new point will have the set of faces that both node and neighbour vector have
+            if self.d <= 3:
+                face = self._find_face([node_vector, neighbour_vector])
+            # for higher dimensions we don't bother with faces since plotting is difficult anyway
+            else:
+                face = None
+            # diagonals get added twice, so this is necessary
+            if new_point not in self.G.nodes:
+                self.G.add_node(new_point, level=self.current_level + 1,
+                                face=face,
+                                projection=normalise_vectors(np.array(new_point)))
+            # add the two new connections: old_point1 ---- new_point and new_point ---- old_point2
+            self.G.add_edge(new_point, neighbour_vector,
+                            length=dist_on_sphere(self.G.nodes[new_point]["projection"],
+                                                  self.G.nodes[neighbour_vector]["projection"]))
+            self.G.add_edge(new_point, node_vector,
+                            length=dist_on_sphere(self.G.nodes[new_point]["projection"],
+                                                  self.G.nodes[neighbour_vector]["projection"]))
+            # remove the old connection: old_point1 -------- old_point2
+            #self.G.remove_edge(node_vector, neighbour_vector)
+
+    def _remove_edges_of_len_k(self, k: float):
+        """
+        Remove all edges from self.G that have the length k (or close to k if float)
+        """
+        for edge in self.G.edges:
+            n1, n2 = edge
+            if np.isclose(np.linalg.norm(np.abs(np.array(n2)-np.array(n1))), k):
+                self.G.remove_edge(n1, n2)
+
 
 
 class Polyhedron(Polytope, ABC):
@@ -162,7 +251,8 @@ class Polyhedron(Polytope, ABC):
                 level_node = point[1]["level"]
                 if projection:
                     proj_node = point[1]["projection"]
-                    ax.scatter(*proj_node[0], color=level_color[level_node], s=30)
+                    print(proj_node)
+                    ax.scatter(*proj_node.T, color=level_color[level_node], s=30)
                 else:
                     ax.scatter(*point[0], color=level_color[level_node], s=30)
 
@@ -211,7 +301,7 @@ class Cube4DPolytope(Polytope):
         # add vertices and edges to the graph
         for i, vert in enumerate(vertices):
             self.G.add_node(tuple(vert), level=self.current_level, face=None,
-                            projection=project_grid_on_sphere(vert[np.newaxis, :]))
+                            projection=normalise_vectors(np.array(vert)))    #project_grid_on_sphere(vert[np.newaxis, :]))
         for key, value in point_connections.items():
             for vi in value:
                 self.G.add_edge(key, tuple(vi),
@@ -236,9 +326,8 @@ def _calc_edges(vertices: np.ndarray, side_len: float) -> dict:
     """
     dist = distance_matrix(vertices, vertices)
     # filter points more than 0 and less than sqrt(2)*side away from each other
-    # this gives exactly triangles and squares as neighbours
-    # each node hast 4 closest points
-    where_result = np.where((dist <= np.sqrt(2)*side_len) & (0 < dist))
+    print(side_len)
+    where_result = np.where((dist < np.sqrt(2)*side_len) & (0 < dist)) #np.sqrt(2)*
     indices_min_dist = zip(where_result[0], where_result[1])
     # key is the vertex, values are its neighbours
     tree_connections = {tuple(vert): [] for vert in vertices}
@@ -257,7 +346,7 @@ def second_neighbours(graph: nx.Graph, node):
         |      |
         2 ---- 1 ---- 3 ---- 7
                |      |
-               \--8--/
+               |__8___|
 
     First neighbours of 1: 2, 6, 3, 8
     Second neighbours of 1: 5, 7
@@ -312,7 +401,7 @@ class IcosahedronPolytope(Polyhedron):
         for i, vert in enumerate(vertices):
             set_of_faces = tuple(faces_i for faces_i, face in enumerate(self.faces) if i in face)
             self.G.add_node(tuple(vert), level=self.current_level, face=set_of_faces,
-                            projection=project_grid_on_sphere(vert[np.newaxis, :]))
+                            projection=normalise_vectors(np.array(vert)))  #project_grid_on_sphere(vert[np.newaxis, :]))
         for key, value in point_connections.items():
             for vi in value:
                 self.G.add_edge(key, tuple(vi),
@@ -355,40 +444,24 @@ class Cube3DPolytope(Polyhedron):
         vertices = np.array(vertices)
         # create edges
         point_connections = _calc_edges(vertices, self.side_len)
+        # create diagonal nodes
+        # diagonals = [(-self.side_len/2, 0, 0),
+        #              (self.side_len/2, 0, 0),
+        #              (0, -self.side_len/2, 0),
+        #              (0, self.side_len/2, 0),
+        #              (0, 0, -self.side_len/2),
+        #             (0, 0, self.side_len/2)]
         # add vertices and edges to the graph
         for i, vert in enumerate(vertices):
             set_of_faces = tuple(faces_i for faces_i, face in enumerate(self.faces) if i in face)
             self.G.add_node(tuple(vert), level=self.current_level, face=set_of_faces,
-                            projection=project_grid_on_sphere(vert[np.newaxis, :]))
+                            projection=normalise_vectors(np.array(vert)))   #project_grid_on_sphere(vert[np.newaxis, :]))
         for key, value in point_connections.items():
             for vi in value:
                 self.G.add_edge(key, tuple(vi),
                                 length=dist_on_sphere(self.G.nodes[key]["projection"],
                                                       self.G.nodes[tuple(vi)]["projection"]))
         # just to check ...
-        assert self.G.number_of_nodes() == 8
-        assert self.G.number_of_edges() == 24
         for node in self.G.nodes(data=True):
             assert len(node[1]["face"]) == 3 and node[1]["level"] == 0
         self.side_len = self.side_len / 2
-
-
-def project_grid_on_sphere(grid: np.ndarray) -> np.ndarray:
-    """
-    A grid can be seen as a collection of vectors to gridpoints. If a vector is scaled to 1, it will represent a point
-    on a unit sphere in d-1 dimensions. This function normalizes the vectors, creating vectors pointing to the
-    surface of a d-1 dimensional sphere.
-
-    Args:
-        grid: a (N, d) array where each row represents the coordinates of a grid point
-
-    Returns:
-        a (N, d) array where each row has been scaled to length 1
-    """
-    assert isinstance(grid, np.ndarray), "Grid must be a numpy array!"
-    assert len(grid.shape) == 2, "Grid must have exactly two dimensions of shape: (num of points, num of dimensions)"
-    assert not np.any(np.all(np.isclose(grid, 0), axis=1)), "There is a row with length zero, cannot normalise."
-    largest_abs = np.max(np.abs(grid), axis=1)[:, np.newaxis]
-    grid = np.divide(grid, largest_abs)
-    norms = np.linalg.norm(grid, axis=1)[:, np.newaxis]
-    return np.divide(grid, norms)

@@ -5,6 +5,7 @@ if sth is true and do not need to return anything.
 
 import numpy as np
 from numpy.typing import NDArray
+from scipy.spatial.distance import cdist
 
 from molgri.space.utils import norm_per_axis
 from molgri.constants import UNIQUE_TOL
@@ -61,3 +62,50 @@ def is_array_with_d_dim_r_rows_c_columns(my_array: NDArray, d: int = None, r: in
         assert my_array.shape[0] == r, f"The number of rows is not r: {my_array.shape[0]}=!={r}"
     if c is not None:
         assert my_array.shape[1] == c, f"The number of columns is not c: {my_array.shape[1]}=!={c}"
+
+
+def all_rows_unique(my_array: NDArray, tol: int = UNIQUE_TOL):
+    """
+    Check if all rows of the array are unique up to tol number of decimal places.
+    """
+    my_unique = np.unique(my_array.round(tol), axis=0)
+    difference = np.abs(len(my_array) - len(my_unique))
+    assert len(my_array) == len(my_unique), f"{difference} elements of an array are not unique up to tolerance."
+
+
+def form_square(point_array: NDArray, dec_places=7) -> bool:
+    """
+    From an array of exactly 4 points, determine if they form a square.
+
+    Args:
+        point_array: array of shape (4, d) where d is the number of dimensions.
+        dec_places: to how many decimal places to round when determining uniqueness
+
+    Returns:
+        True if points form a square, else False
+    """
+    is_array_with_d_dim_r_rows_c_columns(point_array, d=2, r=4)
+    distances = cdist(point_array, point_array)
+    # in each row of distances, the values must be: 1x0, 2xa (side length), 1xnp.sqrt(2)*a (diagonal length)
+    dists, counts = np.unique(np.round(distances[0], dec_places), return_counts=True)   # sorts smallest to largest
+    # from the first row, determine a and d = np.sqrt(2)*a
+    try:
+        dist_a = dists[1]
+        dist_d = np.sqrt(2) * dist_a
+    # IndexErrors occur when not a correct number of unique values and indicate that the point array isn't a square
+    except IndexError:
+        return False
+    # now check this for every row
+    for i, row in enumerate(distances):
+        dists, counts = np.unique(np.round(row, dec_places), return_counts=True)  # sorts smallest to largest
+        try:
+            once_dist_zero = np.isclose(dists[0], 0) and counts[0] == 1
+            twice_dist_a = counts[1] == 2
+            once_dist_d = counts[2] == 1 and np.isclose(dists[2], dist_d)
+        except IndexError:
+            return False
+        # if any of the conditions do not apply, return False immediately
+        if not (once_dist_d and twice_dist_a and once_dist_zero):
+            return False
+    return True
+

@@ -1,11 +1,10 @@
 import networkx as nx
 import numpy as np
-import pytest
 import matplotlib.pyplot as plt
 
-from molgri.space.polytopes import Cube3DPolytope, IcosahedronPolytope, second_neighbours, project_grid_on_sphere,\
+from molgri.space.polytopes import Cube3DPolytope, IcosahedronPolytope, second_neighbours,\
     Cube4DPolytope
-from molgri.assertions import all_row_norms_similar, all_row_norms_equal_k
+from molgri.assertions import all_row_norms_similar, all_row_norms_equal_k, all_rows_unique
 
 ALL_POLYTOPE_TYPES = (Cube3DPolytope, IcosahedronPolytope, Cube4DPolytope)
 ALL_POLYHEDRON_TYPES = (Cube3DPolytope, IcosahedronPolytope)
@@ -87,6 +86,11 @@ def test_level0():
         # upon creation, all points of length 1
         all_row_norms_equal_k(points, 1)
         projections = pol.get_projection_coordinates()
+        # all level attributes must be 0
+        for n in pol.G.nodes(data=True):
+            assert n[1]["level"] == 0, "All points should be level 0 right after creation!"
+        # number of points at level 0
+        points_at_0 = len(projections)
         # afterwards, projections always of length 1
         all_row_norms_equal_k(projections, 1)
         pol.divide_edges()
@@ -96,65 +100,104 @@ def test_level0():
         pol.get_projection_coordinates()
         projections_2 = pol.get_projection_coordinates()
         assert np.allclose(projections_1, projections_2)
+        # the first points_at_0 projections and coordinates should still be the same
+        assert np.allclose(pol.get_node_coordinates()[:points_at_0], points)
+        assert np.allclose(projections_2[:points_at_0], projections)
+
+
+def test_ico_polytope():
     #  icosahedron
     ico = IcosahedronPolytope()
     assert ico.G.number_of_nodes() == 12, "Icosahedron should have 12 nodes"
     assert ico.G.number_of_edges() == 30, "Icosahedron should have 30 edges"
     # after one division
     ico.divide_edges()
-    # for each edge new point / 2
-    assert ico.G.number_of_nodes() == 12 + 15, "1st division: icosahedron should have 27 nodes"
-    # each point has 5 connections / 2
-    assert ico.G.number_of_edges() == 27 * 5 // 2, "1st division: icosahedron should have 67 edges"
+    # for each edge new point
+    all_rows_unique(ico.get_projection_coordinates())
+    assert ico.G.number_of_nodes() == 12 + 30, "1st division: icosahedron should have 42 nodes"
+    # each of 20 faces has 3 own edges and 6 shared edges
+    assert ico.G.number_of_edges() == 20 * 6, "1st division: icosahedron should have 120 edges"
+    # after two divisions
+    ico.divide_edges()
+    # for each edge new point
+    all_rows_unique(ico.get_projection_coordinates())
+    assert ico.G.number_of_nodes() == 42 + 120, "2nd division: icosahedron should have 162 nodes"
+    # each of 20 faces has 18 own edges and 3*4 shared edges
+    assert ico.G.number_of_edges() == 20 * (18 + 6), "2nd division: icosahedron should have 480 edges"
 
 
-
-def test_project_grid_on_sphere():
-    array_vectors = np.array([[3, 2, -1],
-                              [-5, 22, 0.3],
-                              [-3, -3, -3],
-                              [0, 1/4, 1/4]])
-
-    expected_results = np.array([[3/np.sqrt(14), np.sqrt(2/7), -1/np.sqrt(14)],
-                                 [-0.221602, 0.975047, 0.0132961],
-                                 [-1/np.sqrt(3), -1/np.sqrt(3), -1/np.sqrt(3)],
-                                 [0, 1/np.sqrt(2), 1/np.sqrt(2)]])
-    # test the whole array
-    results = project_grid_on_sphere(array_vectors)
-    assert np.allclose(results, expected_results)
-    # test individual components
-    for vector, expected_result in zip(array_vectors, expected_results):
-        result = project_grid_on_sphere(vector.reshape((1, -1)))
-        assert np.allclose(result, expected_result.reshape((1, -1)))
-    # what happens for zero vector? should throw an error
-    array_zero = np.array([[3, 2, -1],
-                           [0, 0, 0]])
-    with pytest.raises(AssertionError) as e:
-        project_grid_on_sphere(array_zero)
-    assert e.type is AssertionError
-    # 2 dimensions
-    array_vectors2 = np.array([[3, 2],
-                              [-5, 0.3],
-                              [-3, -3],
-                              [0, 1/4]])
-    expected_results2 = np.array([[3/np.sqrt(13), 2/np.sqrt(13)],
-                                  [-0.998205, 0.0598923],
-                                  [-1/np.sqrt(2), -1/np.sqrt(2)],
-                                  [0, 1]])
-    results2 = project_grid_on_sphere(array_vectors2)
-    assert np.allclose(results2, expected_results2)
-    # 4 dimensions
-    array_vectors3 = np.array([[3, 2, -5, 0.3],
-                              [-3, -3, 0, 1/4]])
-    expected_results3 = np.array([[0.486089, 0.324059, -0.810148, 0.0486089],
-                                  [-12/17, -12/17, 0, 1/17]])
-    results3 = project_grid_on_sphere(array_vectors3)
-    assert np.allclose(results3, expected_results3)
-
-
-if __name__ == "__main__":
-
-    cp = Cube3DPolytope()
-    #cp.plot_graph(with_labels=False)
-
+def test_cube3D_polytope():
+    # cube3D
+    cub = Cube3DPolytope()
+    # each of 6 faces has one whole point and 4 * 1/3 points (shared by three sides)
+    assert cub.G.number_of_nodes() == 14, "Cube 3D should have 14 nodes"
+    # normal cube has 12 edges, but we add 6*2 face diagonals
+    #assert cub.G.number_of_edges() == 12 + 12, "Cube should have 24 edges"
+    fig, ax = plt.subplots(1, 1, subplot_kw={"projection": "3d"})
+    cub.plot_points(ax, select_faces={1, 2, 3})
+    cub.plot_edges(ax, select_faces={1, 2, 3})
     plt.show()
+    # after one division
+    cub.divide_edges()
+    # for each edge new point
+    all_rows_unique(cub.get_projection_coordinates())
+    # each of 6 faces has 5 whole points + 4 * 1/3 + 4 * 1/2
+    assert cub.G.number_of_nodes() == 50, "1st division: cube should have 50 nodes"
+    # each of 6 faces has 12 own edges and 8 shared edges
+
+    # list_edg = []
+    # for edge in cub.G.edges:
+    #     n1, n2 = edge
+    #     list_edg.append(np.linalg.norm(np.abs(np.array(n2)-np.array(n1))))
+    # print(np.unique(list_edg, return_counts=True))
+    # assert cub.G.number_of_edges() == 6 * (12 + 4), "1st division: cube should have 96 edges"
+
+    # after two divisions
+    cub.divide_edges()
+    all_rows_unique(cub.get_projection_coordinates())
+    # each of 6 faces has 25 whole points + 4 * 1/3 + 12 * 1/2
+    assert cub.G.number_of_nodes() == 194, "2nd division: cube should have 194 nodes"
+    # # each of 20 faces has 18 own edges and 3*4 shared edges
+    # assert cub.G.number_of_edges() == 20 * (18 + 6), "2nd division: cubsahedron should have 480 edges"
+
+
+def test_edge_removal():
+    cp = Cube3DPolytope()
+    # cube initially has 24 edges
+    # removing straigt ones we are left with 12
+    cp._remove_edges_of_len_k(2 * cp.side_len)
+    assert cp.G.number_of_edges() == 12, "Wrong number of edges after removal"
+    # same happens if removing diagonal ones
+    cp = Cube3DPolytope()
+    # cube initially has 24 edges
+    # removing straigt ones we are left with 12
+    cp._remove_edges_of_len_k(2 * cp.side_len * np.sqrt(2))
+    assert cp.G.number_of_edges() == 12, "Wrong number of edges after removal"
+
+
+def test_diag_node_addition():
+    # in Icosahedron, no diagonal nodes should be added
+    # ico = IcosahedronPolytope()
+    # nodes_before = ico.get_node_coordinates()
+    # ico._add_square_diagonal_nodes()
+    # nodes_after = ico.get_node_coordinates()
+    # assert np.allclose(nodes_before, nodes_after)
+    # # if you divide edges, still no diagonal points should be found
+    # ico.divide_edges()
+    # nodes_before2 = ico.get_node_coordinates()
+    # ico._add_square_diagonal_nodes()
+    # nodes_after2 = ico.get_node_coordinates()
+    # assert np.allclose(nodes_before2, nodes_after2)
+    # in a cube, one point per side should be added
+    cp = Cube3DPolytope()
+    fig, ax = plt.subplots(1, 1, subplot_kw={"projection": "3d"})
+    cp.plot_points(ax)
+    cp.plot_edges(ax)
+    plt.show()
+    cp._add_square_diagonal_nodes()
+    fig, ax = plt.subplots(1, 1, subplot_kw={"projection": "3d"})
+    cp.plot_points(ax)
+    cp.plot_edges(ax)
+    plt.show()
+    # TODO: test that 5 points per face
+
