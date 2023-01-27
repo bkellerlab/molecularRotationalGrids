@@ -368,12 +368,12 @@ class Cube3DRotations(IcoAndCube3DRotations):
         super().__init__(polyhedron=Cube3DPolytope, N=N, gen_algorithm=gen_algorithm, **kwargs)
 
 
-def build_rotations_from_name(grid_name: str, b_or_o="o", use_saved=True, **kwargs) -> RotationsObject:
+def build_rotations_from_name(grid_name: str, b_or_o="o", use_saved=False, **kwargs) -> RotationsObject:
     gnp = GridNameParser(grid_name, b_or_o)
     return build_rotations(gnp.N, gnp.algo, use_saved=use_saved, **kwargs)
 
 
-def build_rotations(N: int, algo: str, **kwargs) -> RotationsObject:
+def build_rotations(N: int, algo: str, use_saved=False, **kwargs) -> RotationsObject:
     name2rotation = {"randomQ": RandomQRotations,
                      "systemE": SystemERotations,
                      "randomE": RandomERotations,
@@ -387,13 +387,13 @@ def build_rotations(N: int, algo: str, **kwargs) -> RotationsObject:
                          f"Try 'ico', 'cube3D' ...")
     assert isinstance(N, int), f"Number of grid points must be an integer, currently N={N}"
     assert N >= 0, f"Number of grid points cannot be negative, currently N={N}"
-    rot_obj = name2rotation[algo](N, gen_algorithm=algo, **kwargs)
+    rot_obj = name2rotation[algo](N, gen_algorithm=algo, use_saved=use_saved, **kwargs)
     return rot_obj
 
 
-def build_grid_from_name(grid_name: str, b_or_o="o", use_saved=True, **kwargs) -> SphereGrid:
+def build_grid_from_name(grid_name: str, b_or_o="o", use_saved=False, **kwargs) -> SphereGrid:
     return build_rotations_from_name(grid_name, b_or_o=b_or_o, use_saved=use_saved, **kwargs).get_grid_z_as_grid()
 
 
-def build_grid(N: int, algo: str, **kwargs) -> SphereGrid:
-    return build_rotations(N=N, algo=algo, **kwargs).get_grid_z_as_grid()
+def build_grid(N: int, algo: str, use_saved=False, **kwargs) -> SphereGrid:
+    return build_rotations(N=N, algo=algo, use_saved=use_saved, **kwargs).get_grid_z_as_grid()

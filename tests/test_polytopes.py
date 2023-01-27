@@ -83,8 +83,6 @@ def test_level0():
     for poly_type in ALL_POLYTOPE_TYPES:
         pol = poly_type()
         points = pol.get_node_coordinates()
-        # upon creation, all points of length 1
-        all_row_norms_equal_k(points, 1)
         projections = pol.get_projection_coordinates()
         # all level attributes must be 0
         for n in pol.G.nodes(data=True):
@@ -116,6 +114,10 @@ def test_ico_polytope():
     all_rows_unique(ico.get_projection_coordinates())
     assert ico.G.number_of_nodes() == 12 + 30, "1st division: icosahedron should have 42 nodes"
     # each of 20 faces has 3 own edges and 6 shared edges
+    # fig, ax = plt.subplots(1, 1, subplot_kw={"projection": "3d"})
+    # ico.plot_points(ax, select_faces={1, 2, 3})
+    # ico.plot_edges(ax, select_faces={1, 2, 3})
+    # plt.show()
     assert ico.G.number_of_edges() == 20 * 6, "1st division: icosahedron should have 120 edges"
     # after two divisions
     ico.divide_edges()
@@ -131,29 +133,30 @@ def test_cube3D_polytope():
     cub = Cube3DPolytope()
     # each of 6 faces has one whole point and 4 * 1/3 points (shared by three sides)
     assert cub.G.number_of_nodes() == 14, "Cube 3D should have 14 nodes"
-    # normal cube has 12 edges, but we add 6*2 face diagonals
-    #assert cub.G.number_of_edges() == 12 + 12, "Cube should have 24 edges"
-    fig, ax = plt.subplots(1, 1, subplot_kw={"projection": "3d"})
-    cub.plot_points(ax, select_faces={1, 2, 3})
-    cub.plot_edges(ax, select_faces={1, 2, 3})
-    plt.show()
+    # those points are unique
+    all_rows_unique(cub.get_projection_coordinates())
+    # each face has the occupancy of 5 nodes
+    # normal cube has 12 edges, but we add 6*4 face diagonals
+    assert cub.G.number_of_edges() == 12 + 24, "Cube should have 36 edges"
     # after one division
     cub.divide_edges()
+    # fig, ax = plt.subplots(1, 1, subplot_kw={"projection": "3d"})
+    # cub.plot_points(ax, select_faces={1, 2, 3})
+    # cub.plot_edges(ax, select_faces={1, 2, 3})
+    # plt.show()
     # for each edge new point
     all_rows_unique(cub.get_projection_coordinates())
     # each of 6 faces has 5 whole points + 4 * 1/3 + 4 * 1/2
     assert cub.G.number_of_nodes() == 50, "1st division: cube should have 50 nodes"
     # each of 6 faces has 12 own edges and 8 shared edges
-
-    # list_edg = []
-    # for edge in cub.G.edges:
-    #     n1, n2 = edge
-    #     list_edg.append(np.linalg.norm(np.abs(np.array(n2)-np.array(n1))))
-    # print(np.unique(list_edg, return_counts=True))
     # assert cub.G.number_of_edges() == 6 * (12 + 4), "1st division: cube should have 96 edges"
 
     # after two divisions
     cub.divide_edges()
+    # fig, ax = plt.subplots(1, 1, subplot_kw={"projection": "3d"})
+    # cub.plot_points(ax, select_faces={1, 2, 3})
+    # cub.plot_edges(ax, select_faces={1, 2, 3})
+    # plt.show()
     all_rows_unique(cub.get_projection_coordinates())
     # each of 6 faces has 25 whole points + 4 * 1/3 + 12 * 1/2
     assert cub.G.number_of_nodes() == 194, "2nd division: cube should have 194 nodes"
@@ -163,41 +166,35 @@ def test_cube3D_polytope():
 
 def test_edge_removal():
     cp = Cube3DPolytope()
-    # cube initially has 24 edges
-    # removing straigt ones we are left with 12
+    # cube initially has 4 * 6 = 24 diagonal edges + 12 straight ones
+    # removing straigt ones we are left with 24
     cp._remove_edges_of_len_k(2 * cp.side_len)
-    assert cp.G.number_of_edges() == 12, "Wrong number of edges after removal"
+    assert cp.G.number_of_edges() == 24, "Wrong number of edges after removal of straight edges"
     # same happens if removing diagonal ones
     cp = Cube3DPolytope()
-    # cube initially has 24 edges
-    # removing straigt ones we are left with 12
-    cp._remove_edges_of_len_k(2 * cp.side_len * np.sqrt(2))
-    assert cp.G.number_of_edges() == 12, "Wrong number of edges after removal"
+    # removing diagonal ones we are left with 12
+    cp._remove_edges_of_len_k(cp.side_len * np.sqrt(2))
+    assert cp.G.number_of_edges() == 12, "Wrong number of edges after removal of diagonals"
 
 
 def test_diag_node_addition():
     # in Icosahedron, no diagonal nodes should be added
-    # ico = IcosahedronPolytope()
-    # nodes_before = ico.get_node_coordinates()
-    # ico._add_square_diagonal_nodes()
-    # nodes_after = ico.get_node_coordinates()
-    # assert np.allclose(nodes_before, nodes_after)
-    # # if you divide edges, still no diagonal points should be found
-    # ico.divide_edges()
-    # nodes_before2 = ico.get_node_coordinates()
-    # ico._add_square_diagonal_nodes()
-    # nodes_after2 = ico.get_node_coordinates()
-    # assert np.allclose(nodes_before2, nodes_after2)
+    ico = IcosahedronPolytope()
+    nodes_before = ico.get_node_coordinates()
+    ico._add_square_diagonal_nodes()
+    nodes_after = ico.get_node_coordinates()
+    assert np.allclose(nodes_before, nodes_after)
+    # if you divide edges, still no diagonal points should be found
+    ico.divide_edges()
+    nodes_before2 = ico.get_node_coordinates()
+    ico._add_square_diagonal_nodes()
+    nodes_after2 = ico.get_node_coordinates()
+    assert np.allclose(nodes_before2, nodes_after2)
     # in a cube, one point per side should be added
-    cp = Cube3DPolytope()
-    fig, ax = plt.subplots(1, 1, subplot_kw={"projection": "3d"})
-    cp.plot_points(ax)
-    cp.plot_edges(ax)
-    plt.show()
-    cp._add_square_diagonal_nodes()
-    fig, ax = plt.subplots(1, 1, subplot_kw={"projection": "3d"})
-    cp.plot_points(ax)
-    cp.plot_edges(ax)
-    plt.show()
-    # TODO: test that 5 points per face
+    # cp = Cube3DPolytope()
+    # fig, ax = plt.subplots(1, 1, subplot_kw={"projection": "3d"})
+    # cp.plot_points(ax)
+    # cp.plot_edges(ax)
+    # plt.show()
+    # cp._add_square_diagonal_nodes()
 

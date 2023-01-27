@@ -13,6 +13,10 @@ import numpy as np
 from molgri.space.utils import normalise_vectors
 
 
+# tests should always be performed on fresh data
+USE_SAVED = False
+
+
 def test_rotobj2grid2rotobj():
     for algo in GRID_ALGORITHMS[:-1]:
         for N in (12, 23, 51):
@@ -26,7 +30,7 @@ def test_rotobj2grid2rotobj():
 def test_grid2rotobj2grid():
     for algo in GRID_ALGORITHMS[:-1]:
         for N in (12, 23, 87, 217):
-            rotations_start = build_rotations(N, algo, use_saved=False)
+            rotations_start = build_rotations(N, algo, use_saved=USE_SAVED)
             grid_start_x = rotations_start.grid_x.get_grid()
             grid_start_y = rotations_start.grid_y.get_grid()
             grid_start_z = rotations_start.grid_z.get_grid()
@@ -57,7 +61,7 @@ def test_grid2rotobj2grid():
 def test_general_grid_properties():
     for alg in GRID_ALGORITHMS[:-1]:
         for number in (3, 15, 26):
-            grid_obj = build_grid(number, alg, use_saved=False)
+            grid_obj = build_grid(number, alg, use_saved=USE_SAVED)
             grid = grid_obj.get_grid()
             assert isinstance(grid, np.ndarray), "Grid must be a numpy array."
             assert grid.shape == (number, 3), "Wrong grid shape."
@@ -65,7 +69,7 @@ def test_general_grid_properties():
 
 
 def test_cube_3d_grid():
-    cube_3d = build_grid(8, "cube3D")
+    cube_3d = build_grid(8, "cube3D", use_saved=USE_SAVED)
     #assert len(cube_3d.polyhedron.faces) == 6
     grid = cube_3d.get_grid()
     distances = distance_matrix(grid, grid)
@@ -80,7 +84,7 @@ def test_cube_3d_grid():
     assert np.count_nonzero(np.isclose(distances, a * np.sqrt(3))) == 8
     # rows have the right elements
     for row in distances:
-        assert sorted(row) == sorted([0, a, a, a, a*np.sqrt(2), a*np.sqrt(2), a*np.sqrt(2), a*np.sqrt(3)])
+        assert np.allclose(sorted(row), sorted([0, a, a, a, a*np.sqrt(2), a*np.sqrt(2), a*np.sqrt(2), a*np.sqrt(3)]))
     # only selected angles possible
     for vec1 in grid:
         for vec2 in grid:
@@ -88,25 +92,25 @@ def test_cube_3d_grid():
             tetrahedron_a1 = np.arccos(-1/3)
             tetrahedron_a2 = np.arccos(1 / 3)
             assert np.any(np.isclose(angle_points, [0, np.pi/2, np.pi, np.pi/3, tetrahedron_a1, tetrahedron_a2]))
-    # subdivision must be checked by polytope tester
+    # these 8 points should form a square
 
 
 def test_zero_grid():
-    ico = build_grid_from_name("ico_0")
+    ico = build_grid_from_name("ico_0", use_saved=USE_SAVED)
     ico.get_grid()
 
 
 def test_errors_and_assertions():
     with pytest.raises(ValueError):
-        build_grid(15, "icosahedron")
+        build_grid(15, "icosahedron", use_saved=USE_SAVED)
     with pytest.raises(ValueError):
-        build_grid(15, "grid")
+        build_grid(15, "grid", use_saved=USE_SAVED)
     with pytest.raises(AssertionError):
-        build_grid(-15, "ico")
+        build_grid(-15, "ico", use_saved=USE_SAVED)
     with pytest.raises(AssertionError):
         # noinspection PyTypeChecker
-        build_grid(15.3, "ico")
-    grid = build_grid(20, "ico").get_grid()
+        build_grid(15.3, "ico", use_saved=USE_SAVED)
+    grid = build_grid(20, "ico", use_saved=USE_SAVED).get_grid()
     with pytest.raises(ValueError):
         order_elements(grid, 25)
 
@@ -153,8 +157,8 @@ def test_ordering():
         try:
             for N in range(14, 284, 3):
                 for addition in (1, 7):
-                    grid_1 = build_grid(N + addition, name).get_grid()
-                    grid_2 = build_grid(N, name).get_grid()
+                    grid_1 = build_grid(N + addition, name, use_saved=USE_SAVED).get_grid()
+                    grid_2 = build_grid(N, name, use_saved=USE_SAVED).get_grid()
                     assert np.allclose(grid_1[:N], grid_2)
         except AssertionError:
             print(name)
@@ -198,7 +202,7 @@ def test_position_grid():
     num_rot = 14
     num_trans = 4  # keep this number unless you change t_grid_name
     fg = FullGrid(b_grid_name="zero", o_grid_name=f"ico_{num_rot}", t_grid_name="[0.1, 2, 2.5, 4]")
-    ico_grid = build_grid(14, "ico").get_grid()
+    ico_grid = build_grid(14, "ico", use_saved=USE_SAVED).get_grid()
     position_grid = fg.get_position_grid()
     assert position_grid.shape == (num_rot, num_trans, 3)
     # assert lengths correct throughout the array

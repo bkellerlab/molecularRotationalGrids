@@ -88,10 +88,11 @@ class Polytope(ABC):
         nodes_to_add = self._find_new_nodes()
         # add new nodes, add edges from cont. points to the node and delete the edge between the cont. points
         self._split_edges(nodes_to_add)
-        # also add edges between new nodes at distance side_len or sqrt(2)*side_len
-
+        # also add edges between second neighbours at specified lengths
+        self._add_edges_of_len(self.side_len)  # ico
+        self._add_edges_of_len(self.side_len * np.sqrt(2) / 2)  # cube3d (diagonals)
         # remove any edges of old length
-        self._remove_edges_of_len_k(2*self.side_len)
+        self._remove_edges_of_len_k(4*self.side_len)
         self._remove_edges_of_len_k(2 * self.side_len * np.sqrt(2))
         # update counters
         self.current_level += 1
@@ -132,21 +133,36 @@ class Polytope(ABC):
                                             self.G.nodes[neig]["projection"])
                     self.G.add_edge(new_node, neig, length=length)
 
-    def _add_diagonal_edges(self):
-        """Among points on the most current level, search for second neighbours and add diagonal between them"""
+    def _add_edges_of_len(self, edge_len: float):
+        """Among points on the most current level, search for second neighbours and add an edge between them
+        if their distance is close to edge_len
+
+
+        conditions:
+         - must be second neighbours,
+         - at least one in the last level
+         - must be on the same face
+         - must be a specified length apart
+
+        Args:
+            edge_len: length of edge on the polyhedron surface that is condition for adding edges
+        """
         new_level = [x for x, y in self.G.nodes(data=True) if y['level'] == self.current_level+1]
         #new_edges = []  # node1, node2, dist
         for new_node in new_level:
             # searching only second neighbours at appropriate level
             sec_neighbours = list(second_neighbours(self.G, new_node))
-            sec_neighbours = [x for x in sec_neighbours if self.G.nodes[x]["level"] == self.current_level+1]
+            #sec_neighbours = [x for x in sec_neighbours if self.G.nodes[x]["level"] == self.current_level+1]
             for other_node in sec_neighbours:
                 node_dist = np.linalg.norm(np.array(new_node)-np.array(other_node))
-                # check distance criterion
-                if np.isclose(node_dist, self.side_len) or np.isclose(node_dist, self.side_len*np.sqrt(2)):
-                    length = dist_on_sphere(self.G.nodes[new_node]["projection"],
-                                            self.G.nodes[other_node]["projection"])
-                    self.G.add_edge(new_node, other_node, length=length)
+                # check face criterion
+                if self._find_face([new_node, other_node]):
+                    # check distance criterion
+                    if np.isclose(node_dist, self.side_len) or np.isclose(node_dist, edge_len):
+                        length = dist_on_sphere(self.G.nodes[new_node]["projection"],
+                                                self.G.nodes[other_node]["projection"])
+                        # TODO: order nodes so that not added twice
+                        self.G.add_edge(new_node, other_node, length=length)
 
     def _find_new_nodes(self) -> list:
         """
@@ -178,7 +194,11 @@ class Polytope(ABC):
         Returns:
             the set of faces (may be empty) that all nodes in this list share
         """
-        face = set(self.G.nodes[node_list[0]]["face"])
+        try:
+            face = set(self.G.nodes[node_list[0]]["face"])
+        # if faces are not defined, return empty set every time
+        except TypeError:
+            return set()
         for neig in node_list[1:]:
             faces_neighbour_vector = self.G.nodes[neig]["face"]
             face = face.intersection(set(faces_neighbour_vector))
@@ -210,7 +230,7 @@ class Polytope(ABC):
                             length=dist_on_sphere(self.G.nodes[new_point]["projection"],
                                                   self.G.nodes[neighbour_vector]["projection"]))
             # remove the old connection: old_point1 -------- old_point2
-            #self.G.remove_edge(node_vector, neighbour_vector)
+            self.G.remove_edge(node_vector, neighbour_vector)
 
     def _remove_edges_of_len_k(self, k: float):
         """
@@ -251,7 +271,6 @@ class Polyhedron(Polytope, ABC):
                 level_node = point[1]["level"]
                 if projection:
                     proj_node = point[1]["projection"]
-                    print(proj_node)
                     ax.scatter(*proj_node.T, color=level_color[level_node], s=30)
                 else:
                     ax.scatter(*point[0], color=level_color[level_node], s=30)
@@ -326,7 +345,6 @@ def _calc_edges(vertices: np.ndarray, side_len: float) -> dict:
     """
     dist = distance_matrix(vertices, vertices)
     # filter points more than 0 and less than sqrt(2)*side away from each other
-    print(side_len)
     where_result = np.where((dist < np.sqrt(2)*side_len) & (0 < dist)) #np.sqrt(2)*
     indices_min_dist = zip(where_result[0], where_result[1])
     # key is the vertex, values are its neighbours
@@ -418,8 +436,8 @@ class IcosahedronPolytope(Polyhedron):
 class Cube3DPolytope(Polyhedron):
     """
     CubeGrid is a graph object, its central feature is self.G (networkx graph). In the beginning, each node is
-    a vertex of a 3D cube. It is possible to subdivide the sides, in that case a new point always appears in the
-    middle of a square and half of previous sides.
+    a vertex of a 3D cube + 6 vertices at mid-faces. It is possible to subdivide the sides, in that case a new
+    point always appears in the middle of a square and half of previous sides.
     """
 
     def _create_level0(self):
@@ -444,24 +462,16 @@ class Cube3DPolytope(Polyhedron):
         vertices = np.array(vertices)
         # create edges
         point_connections = _calc_edges(vertices, self.side_len)
-        # create diagonal nodes
-        # diagonals = [(-self.side_len/2, 0, 0),
-        #              (self.side_len/2, 0, 0),
-        #              (0, -self.side_len/2, 0),
-        #              (0, self.side_len/2, 0),
-        #              (0, 0, -self.side_len/2),
-        #             (0, 0, self.side_len/2)]
         # add vertices and edges to the graph
         for i, vert in enumerate(vertices):
             set_of_faces = tuple(faces_i for faces_i, face in enumerate(self.faces) if i in face)
             self.G.add_node(tuple(vert), level=self.current_level, face=set_of_faces,
-                            projection=normalise_vectors(np.array(vert)))   #project_grid_on_sphere(vert[np.newaxis, :]))
+                            projection=normalise_vectors(np.array(vert)))
         for key, value in point_connections.items():
             for vi in value:
                 self.G.add_edge(key, tuple(vi),
                                 length=dist_on_sphere(self.G.nodes[key]["projection"],
                                                       self.G.nodes[tuple(vi)]["projection"]))
-        # just to check ...
-        for node in self.G.nodes(data=True):
-            assert len(node[1]["face"]) == 3 and node[1]["level"] == 0
+        # create diagonal nodes
+        self._add_square_diagonal_nodes()
         self.side_len = self.side_len / 2
