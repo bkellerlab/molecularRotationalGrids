@@ -2,8 +2,8 @@ import networkx as nx
 import numpy as np
 import matplotlib.pyplot as plt
 
-from molgri.space.polytopes import Cube3DPolytope, IcosahedronPolytope, second_neighbours,\
-    Cube4DPolytope
+from molgri.space.polytopes import Cube3DPolytope, IcosahedronPolytope, second_neighbours, \
+    Cube4DPolytope, third_neighbours
 from molgri.assertions import all_row_norms_similar, all_row_norms_equal_k, all_rows_unique
 
 ALL_POLYTOPE_TYPES = (Cube3DPolytope, IcosahedronPolytope, Cube4DPolytope)
@@ -53,10 +53,29 @@ def test_second_neighbours():
     G2 = nx.Graph([(5, 6), (5, 2), (2, 1), (6, 1), (1, 3), (3, 7), (1, 8), (8, 3)])
     exp_1 = [2, 6, 3, 8]
     exp_2 = [5, 7]
-    real_1 = list(set(G2.neighbors(1)))
-    real_2 = list(set(second_neighbours(G2, 1)))
+    real_1 = list(G2.neighbors(1))
+    real_2 = list(second_neighbours(G2, 1))
     assert len(exp_1) == len(real_1) and sorted(exp_1) == sorted(real_1), "Something wrong with first neighbours."
     assert len(exp_2) == len(real_2) and sorted(exp_2) == sorted(real_2), "Something wrong with second neighbours."
+
+
+def test_third_neighbours():
+    # should be the example in the description of the function
+    G = nx.Graph([(5, 2), (5, 6), (6, 1), (1, 2), (1, 3), (3, 7), (7, 9),
+                  (1, 11), (11, 8), (8, 10), (10, 3)])
+    # uncomment next three lines if you need to check how it looks
+    # import matplotlib.pyplot as plt
+    # nx.draw_networkx(G)
+    # plt.show()
+
+    # First neighbours of 1: 2, 6, 3, 11
+    assert sorted(list(G.neighbors(1))) == sorted([2, 6, 3, 11])
+    # Second neighbours of 1: 5, 8, 10, 7
+    assert sorted(second_neighbours(G, 1)) == sorted([5, 8, 10, 7])
+    # Third neighbours of 1: 9
+    assert sorted(third_neighbours(G, 1)) == sorted([9])
+    # third neighbours of 7: 2, 6, 11, 8
+    assert sorted(third_neighbours(G, 7)) == sorted([2, 6, 11, 8])
 
 
 def test_everything_runs():

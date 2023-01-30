@@ -380,9 +380,40 @@ def second_neighbours(graph: nx.Graph, node):
     Second neighbours of 1: 5, 7
     """
     direct_neighbours = list(graph.neighbors(node))
+    # don't repeat the same second neighbour twice
+    seen_seconds = []
     for neighbor_list in [graph.neighbors(n) for n in direct_neighbours]:
         for n in neighbor_list:
-            if n != node and n not in direct_neighbours:
+            if n != node and n not in direct_neighbours and n not in seen_seconds:
+                seen_seconds.append(n)
+                yield n
+
+
+def third_neighbours(graph: nx.Graph, node):
+    """
+    Yield second neighbors of node in graph. Analogous to second neighbours, one more degree of separation
+
+    Example:
+
+        5------6
+        |      |
+        2 ---- 1 ---- 3 ---- 7 ---- 9
+               |      |
+               11__8__10
+
+    First neighbours of 1: 2, 6, 3, 11
+    Second neighbours of 1: 5, 8, 10, 7
+    Third neighbours of 1: 9
+    """
+    direct_neighbours = list(graph.neighbors(node))
+    sec_neighbours = list(second_neighbours(graph, node))
+    # don't repeat seen third neighbours either
+    third_seen = []
+    for neighbor_list in [graph.neighbors(n) for n in sec_neighbours]:
+        for n in neighbor_list:
+            # conditions: n must not be: the node itself, its first or second neighbour or already seen third neighbour
+            if n != node and n not in direct_neighbours and n not in sec_neighbours and n not in third_seen:
+                third_seen.append(n)
                 yield n
 
 
