@@ -1,8 +1,10 @@
 import numpy as np
+from scipy.constants import pi
+from scipy.spatial.transform import Rotation
 
 from molgri.space.utils import normalise_vectors
 from molgri.assertions import all_row_norms_similar, is_array_with_d_dim_r_rows_c_columns, all_row_norms_equal_k, \
-    form_square
+    form_square, form_cube
 
 
 def test_all_row_norms_similar():
@@ -61,3 +63,29 @@ def test_form_square():
     non_planar_3d = np.array([[0, 0, 0], [2, 0, 0], [1, 1, np.sqrt(2)], [0, 2, 0]])
     np.random.shuffle(non_planar_3d)
     assert not form_square(non_planar_3d)
+
+
+def test_form_cube():
+    # a normal 3D cube
+    cube3D = np.array([[0, 0, 0], [2, 0, 0], [0, 2, 0], [0, 0, 2], [2, 2, 0], [2, 0, 2], [0, 2, 2], [2, 2, 2]])
+    assert form_cube(cube3D)
+
+    # same but an extra dimension kept constant
+    cube4D = np.array([[5, 0, 0, 0], [5, 2, 0, 0], [5, 0, 2, 0], [5, 0, 0, 2],
+                       [5, 2, 2, 0], [5, 2, 0, 2], [5, 0, 2, 2], [5, 2, 2, 2]])
+    assert form_cube(cube4D)
+
+    # 3D but not all distances the same
+    cube3D_wrong = np.array([[0, 0, 0], [1, 0, 0], [0, 2, 0], [0, 0, 2], [1, 2, 0], [1, 0, 2], [0, 2, 2], [1, 2, 2]])
+    assert not form_cube(cube3D_wrong)
+
+    # 3D but tilted
+    np.random.shuffle(cube3D)
+    rot = Rotation.from_euler("XYZ", [pi/3, -17*pi/6, -0.23])
+    tilted_cube3d = rot.apply(cube3D)
+    assert form_cube(tilted_cube3d)
+
+    # 4D but not a cube
+    cube4D_wrong = np.array([[5, 0, 0, 0], [3, 2, 0, 0], [5, 0, 2, 0], [3, 0, 0, 2],
+                       [5, 2, 2, 0], [3, 2, 0, 2], [5, 0, 2, 2], [3, 2, 2, 2]])
+    assert not form_cube(cube4D_wrong)

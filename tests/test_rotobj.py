@@ -3,6 +3,7 @@ import pytest
 from scipy.constants import pi
 from scipy.spatial import distance_matrix
 
+from molgri.assertions import form_cube
 from molgri.space.fullgrid import FullGrid
 from molgri.space.rotations import grid2rotation, rotation2grid
 from molgri.space.rotobj import build_rotations, build_grid, build_grid_from_name, order_elements
@@ -70,29 +71,8 @@ def test_general_grid_properties():
 
 def test_cube_3d_grid():
     cube_3d = build_grid(8, "cube3D", use_saved=USE_SAVED)
-    #assert len(cube_3d.polyhedron.faces) == 6
     grid = cube_3d.get_grid()
-    distances = distance_matrix(grid, grid)
-    # diagonal should be zero
-    assert np.allclose(np.diagonal(distances), 0)
-    a = 2/np.sqrt(3)
-    # 24 elements should be vertice lengths
-    assert np.count_nonzero(np.isclose(distances, a)) == 24
-    # 24 elemens are face diagonals
-    assert np.count_nonzero(np.isclose(distances, a*np.sqrt(2))) == 24
-    # 8 elements should be volume diagonals
-    assert np.count_nonzero(np.isclose(distances, a * np.sqrt(3))) == 8
-    # rows have the right elements
-    for row in distances:
-        assert np.allclose(sorted(row), sorted([0, a, a, a, a*np.sqrt(2), a*np.sqrt(2), a*np.sqrt(2), a*np.sqrt(3)]))
-    # only selected angles possible
-    for vec1 in grid:
-        for vec2 in grid:
-            angle_points = np.arccos(np.clip(np.dot(vec1, vec2), -1.0, 1.0))
-            tetrahedron_a1 = np.arccos(-1/3)
-            tetrahedron_a2 = np.arccos(1 / 3)
-            assert np.any(np.isclose(angle_points, [0, np.pi/2, np.pi, np.pi/3, tetrahedron_a1, tetrahedron_a2]))
-    # these 8 points should form a square
+    assert form_cube(grid)
 
 
 def test_zero_grid():
