@@ -7,6 +7,7 @@ import numpy as np
 from numpy.typing import NDArray
 from scipy.spatial import distance_matrix
 from scipy.spatial.distance import cdist
+import networkx as nx
 
 from molgri.space.utils import norm_per_axis
 from molgri.constants import UNIQUE_TOL
@@ -74,7 +75,26 @@ def all_rows_unique(my_array: NDArray, tol: int = UNIQUE_TOL):
     assert len(my_array) == len(my_unique), f"{difference} elements of an array are not unique up to tolerance."
 
 
-def form_square(my_array: NDArray, dec_places=7) -> bool:
+def form_square_graph(my_graph: nx.Graph, weight_property="p_dist") -> bool:
+    points = np.array(my_graph.nodes)
+    distances = np.zeros((4, 4))
+    for node in my_graph.nodes:
+        all_dist = [combi[2][weight_property] for combi in my_graph.edges(node, data=True)]
+        if len(all_dist) != 3:
+            return False
+        else:
+            distances[:, 1:] = np.array(all_dist)
+    # distances = nx.all_pairs_dijkstra_path_length(my_graph, weight=weight_property)
+    # distances = [list(dist[1].values()) for dist in distances]
+    # distances = np.array(distances)
+    old_m = cdist(points, points)
+    if form_square_array(points):
+        print("new", distances)
+        print("old", old_m)
+    return _form_square(points, distances)
+
+
+def form_square_array(my_array: NDArray, dec_places=7) -> bool:
     """
     From an array of exactly 4 points, determine if they form a square.
 
@@ -85,8 +105,12 @@ def form_square(my_array: NDArray, dec_places=7) -> bool:
     Returns:
         True if points form a square, else False
     """
-    is_array_with_d_dim_r_rows_c_columns(my_array, d=2, r=4)
     distances = cdist(my_array, my_array)
+    return _form_square(my_array, distances, dec_places=dec_places)
+
+
+def _form_square(points, distances, dec_places=7):
+    is_array_with_d_dim_r_rows_c_columns(points, d=2, r=4)
     # in each row of distances, the values must be: 1x0, 2xa (side length), 1xnp.sqrt(2)*a (diagonal length)
     dists, counts = np.unique(np.round(distances[0], dec_places), return_counts=True)   # sorts smallest to largest
     # from the first row, determine a and d = np.sqrt(2)*a
@@ -111,14 +135,15 @@ def form_square(my_array: NDArray, dec_places=7) -> bool:
     return True
 
 
-def form_cube(my_array: NDArray) -> bool:
+def form_cube(my_array: NDArray, test_angles=False) -> bool:
     """
     Similarly to form_square, check if the 8 points supplied as rows in an array form a cube. The points may have
     >= 3 dimensions.
 
     Args:
         my_array: 2-dimensional array with 8 rows and at least 3 columns. It should be checked if the points form a
-        3D cube
+                  3D cube
+        test_angles: select True if you want a more precise test that also looks at angles
 
     Returns:
         True if points form a cube, else False
@@ -128,10 +153,7 @@ def form_cube(my_array: NDArray) -> bool:
                                    f"Points with <3 dimensions cannot possibly form a cube!"
     # idea source: https://math.stackexchange.com/questions/1629899/given-eight-vertices-how-to-verify-they-form-a-cube
     distances = distance_matrix(my_array, my_array)
-    # diagonal should be zero
-    if not np.allclose(np.diagonal(distances), 0):
-        return False
-    # side length is the shortest distance occuring in distance matrix (except for 0
+    # side length is the shortest distance occurring in distance matrix (except for 0
     a = np.min(distances[np.nonzero(distances)])
     # 24 elements should be equal to a
     if not np.count_nonzero(np.isclose(distances, a)) == 24:
@@ -147,13 +169,13 @@ def form_cube(my_array: NDArray) -> bool:
         if not np.allclose(sorted(row), sorted([0, a, a, a, a*np.sqrt(2), a*np.sqrt(2), a*np.sqrt(2), a*np.sqrt(3)])):
             return False
     # only selected angles possible
-    tetrahedron_a1 = np.arccos(-1 / 3)
-    tetrahedron_a2 = np.arccos(1 / 3)
-    for vec1 in my_array:
-        for vec2 in my_array:
-            angle_points = np.arccos(np.clip(np.dot(vec1, vec2), -1.0, 1.0))
-            if not np.any(np.isclose(angle_points, [0, np.pi/2, np.pi, np.pi/3, tetrahedron_a1, tetrahedron_a2])):
-                return False
+    if test_angles:
+        tetrahedron_a1 = np.arccos(-1 / 3)
+        tetrahedron_a2 = np.arccos(1 / 3)
+        for vec1 in my_array:
+            for vec2 in my_array:
+                angle_points = np.arccos(np.clip(np.dot(vec1, vec2), -1.0, 1.0))
+                if not np.any(np.isclose(angle_points, [0, np.pi/2, np.pi, np.pi/3, tetrahedron_a1, tetrahedron_a2])):
+                    return False
     # finally, if all tests right
     return True
-

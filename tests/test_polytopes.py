@@ -3,7 +3,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 from molgri.space.polytopes import Cube3DPolytope, IcosahedronPolytope, second_neighbours, \
-    Cube4DPolytope, third_neighbours
+    Cube4DPolytope, third_neighbours, detect_all_cubes, detect_all_squares
 from molgri.assertions import all_row_norms_similar, all_row_norms_equal_k, all_rows_unique
 
 ALL_POLYTOPE_TYPES = (Cube3DPolytope, IcosahedronPolytope, Cube4DPolytope)
@@ -214,11 +214,23 @@ def test_diag_node_addition():
     ico._add_square_diagonal_nodes()
     nodes_after2 = ico.get_node_coordinates()
     assert np.allclose(nodes_before2, nodes_after2)
-    # in a cube, one point per side should be added
-    # cp = Cube3DPolytope()
-    # fig, ax = plt.subplots(1, 1, subplot_kw={"projection": "3d"})
-    # cp.plot_points(ax)
-    # cp.plot_edges(ax)
-    # plt.show()
-    # cp._add_square_diagonal_nodes()
+    # in a cube, one square per side should be detected
+    cp = Cube3DPolytope()
+    #assert len(detect_all_squares(cp.G)) == 6
+    # and after division 4 straight ones + 4 tilted ones per side
+    cp.divide_edges()
+    # assert len(detect_all_squares(cp.G)) == 6 * 4 + 6 * 4
+    fig, ax = plt.subplots(1, 1, subplot_kw={"projection": "3d"})
+    #cp.plot_points(ax)
+    cp.plot_neighbours(ax)
+    cp.plot_edges(ax, only_in_division=False)
+    plt.show()
 
+
+def test_cube_diagonal_addition():
+    cube_3d = Cube3DPolytope()
+    # should only detect one cube (the big one)
+    assert len(detect_all_cubes(cube_3d.G)) == 1
+    # after you subdivide no more will be detected since no longer third neighbours!
+    cube_4d = Cube4DPolytope()
+    assert len(detect_all_cubes(cube_4d.G)) == 8

@@ -72,7 +72,7 @@ def test_general_grid_properties():
 def test_cube_3d_grid():
     cube_3d = build_grid(8, "cube3D", use_saved=USE_SAVED)
     grid = cube_3d.get_grid()
-    assert form_cube(grid)
+    assert form_cube(grid, test_angles=True)
 
 
 def test_zero_grid():

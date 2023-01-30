@@ -328,6 +328,7 @@ class Cube4DRotations(PolyhedronRotations):
             quats = [y["projection"] for x, y in self.polyhedron.G.nodes(data=True)]
             rotations = np.array(quats).squeeze()
             # only the quaternions with positive first dimension
+            rotations = standardise_quaternion_set(rotations)
             rotations = rotations[rotations[:, 0] > 0]
         self.rotations = Rotation.from_quat(rotations)
         self._order_rotations()
