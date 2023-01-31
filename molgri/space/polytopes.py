@@ -287,11 +287,10 @@ class Polyhedron(Polytope, ABC):
                           If None, all faces are shown.
             projection: True if you want to plot the projected points, not the ones on surfaces of polytope
         """
-        select_faces = set(range(len(self.faces))) if select_faces is None else select_faces
         level_color = ["black", "red", "blue", "green"]
         for point in self.G.nodes(data=True):
             # select only points that belong to at least one of the chosen select_faces
-            if len(set(point[1]["face"]).intersection(select_faces)) > 0:
+            if select_faces is None or len(set(point[1]["face"]).intersection(select_faces)) > 0:
                 # color selected based on the level of the node
                 level_node = point[1]["level"]
                 if projection:
@@ -326,7 +325,6 @@ class PolyhedronFromG(Polyhedron):
     def __init__(self, G: nx.Graph):
         super().__init__()
         self.G = G
-        self.faces = [[]*self.G.number_of_nodes()]
 
     def _create_level0(self):
         pass
@@ -392,10 +390,14 @@ class Cube4DPolytope(Polytope):
         # print(labels)
         # nx.draw(subgraph, labels=labels, pos=nx.spring_layout(subgraph))
         # plt.show()
-        new_nodes = {old:old[1:] for old in subgraph.nodes}
+        # find the component corresponding to the constant 4th dimension
+        arnodes = np.array(subgraph.nodes)
+        dim_to_keep = list(np.where(~np.all(arnodes == arnodes[0, :], axis=0))[0])
+        new_nodes = {old: (old[dim_to_keep[0]], old[dim_to_keep[1]], old[dim_to_keep[2]]) for old in subgraph.nodes}
         subgraph_3D = nx.relabel_nodes(subgraph, new_nodes)
         sub_polyhedron = PolyhedronFromG(subgraph_3D)
         sub_polyhedron.plot_points(ax)
+        print(np.array(subgraph_3D.nodes))
         if draw_edges:
             sub_polyhedron.plot_edges(ax)
 
@@ -404,7 +406,7 @@ class Cube4DPolytope(Polytope):
         self._add_edges_of_len(self.side_len, wished_levels=[self.current_level, self.current_level],
                                only_seconds=True)
         self._add_edges_of_len(self.side_len*np.sqrt(2), wished_levels=[self.current_level, self.current_level],
-                                only_seconds=True)
+                               only_seconds=True)
         super().divide_edges()
         self._start_new_level()
         print(self.G.number_of_nodes())
@@ -677,13 +679,13 @@ if __name__ == "__main__":
     #cube4D.divide_edges()
     fig, ax = plt.subplots(1, 1, subplot_kw={
         "projection": "3d"})
-    cube4D.draw_one_cell(ax, draw_edges=True)
+    cube4D.draw_one_cell(ax, draw_edges=True, cell_index=3)
     #cub.plot_edges(ax)
     plt.show()
-
-    cube4D.divide_edges()
-    fig, ax = plt.subplots(1, 1, subplot_kw={
-        "projection": "3d"})
-    cube4D.draw_one_cell(ax, draw_edges=False)
-    #cub.plot_edges(ax)
-    plt.show()
+    #
+    # cube4D.divide_edges()
+    # fig, ax = plt.subplots(1, 1, subplot_kw={
+    #     "projection": "3d"})
+    # cube4D.draw_one_cell(ax, draw_edges=False, cell_index=0)
+    # #cub.plot_edges(ax)
+    # plt.show()
