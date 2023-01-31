@@ -19,7 +19,7 @@ from scipy.spatial import distance_matrix
 import seaborn as sns
 
 from molgri.assertions import is_array_with_d_dim_r_rows_c_columns, all_row_norms_equal_k, form_square_array, form_cube
-from molgri.space.utils import normalise_vectors
+from molgri.space.utils import normalise_vectors, dist_on_sphere
 
 
 class Polytope(ABC):
@@ -77,6 +77,37 @@ class Polytope(ABC):
         all_row_norms_equal_k(projections, 1)
         return projections
 
+    def get_N_ordered_points(self, N: int = None, projections=True, as_quat=False):
+        # can't order more points than there are
+        if N is None or N > self.G.number_of_nodes():
+            N = self.G.number_of_nodes()
+        result = np.zeros((N, self.d))
+
+        current_points = list(self.G.nodes)
+        # first point does not matter, just select the first point
+        if projections:
+            result[0] = self.G.nodes[tuple(current_points[0])]["projection"]
+        else:
+            result[0] = current_points[0]
+        current_points.pop(0)
+
+        # for the rest of the points, determine centrality of the subgraph with already used points removed
+        current_index = 1
+        while current_index < N:
+            subgraph = self.G.subgraph(current_points)
+            dict_centrality = nx.eigenvector_centrality(subgraph, max_iter=N, tol=1.0e-3, weight="length")
+            # key with largest value
+            most_distant_point = max(dict_centrality, key=dict_centrality.get)
+            # if as_quat, skip every second point as it's the same rotation quaternion
+            if not as_quat or most_distant_point[0] > 0:
+                if projections:
+                    result[current_index] = self.G.nodes[tuple(most_distant_point)]["projection"]
+                else:
+                    result[current_index] = most_distant_point
+                current_index += 1
+            current_points.remove(most_distant_point)
+        return result
+
     @abstractmethod
     def divide_edges(self):
         """
@@ -112,7 +143,9 @@ class Polytope(ABC):
                                 projection=normalise_vectors(np.array(new_node)))
                 # since a square, only need distance to one edge
                 distance = np.linalg.norm(new_node_arr - np.array(new_neighbours[0]))
-                all_new_edges = [(new_node, n, {"p_dist": distance}) for n in new_neighbours]
+                length = dist_on_sphere(self.G.nodes[new_node]["projection"],
+                                        self.G.nodes[new_neighbours[0]]["projection"])[0]
+                all_new_edges = [(new_node, n, {"p_dist": distance, "length": length}) for n in new_neighbours]
                 self.G.add_edges_from(all_new_edges)
 
     def _add_cube_diagonal_nodes(self):
@@ -133,7 +166,9 @@ class Polytope(ABC):
                                 projection=normalise_vectors(np.array(new_node)))
                 # since a cube, only need distance to one edge
                 distance = np.linalg.norm(new_node_arr - np.array(new_neighbours[0]))
-                all_new_edges = [(new_node, n, {"p_dist": distance}) for n in new_neighbours]
+                length = dist_on_sphere(self.G.nodes[new_node]["projection"],
+                                        self.G.nodes[new_neighbours[0]]["projection"])[0]
+                all_new_edges = [(new_node, n, {"p_dist": distance, "length": length}) for n in new_neighbours]
                 self.G.add_edges_from(all_new_edges)
 
     def _add_edges_of_len(self, edge_len: float, wished_levels: list = None, only_seconds=True):
@@ -169,11 +204,13 @@ class Polytope(ABC):
                 if self._find_face([new_node, other_node]):
                     # check distance criterion
                     if np.isclose(node_dist, edge_len):
+                        length = dist_on_sphere(self.G.nodes[new_node]["projection"],
+                                                self.G.nodes[other_node]["projection"])[0]
                         # just to make sure that you don't add same edge in 2 different directions
                         if new_node < other_node:
-                            self.G.add_edge(new_node, other_node, p_dist=edge_len)
+                            self.G.add_edge(new_node, other_node, p_dist=edge_len, length=length)
                         else:
-                            self.G.add_edge(other_node, new_node, p_dist=edge_len)
+                            self.G.add_edge(other_node, new_node, p_dist=edge_len, length=length)
 
     def _find_new_nodes(self) -> list:
         """
@@ -231,8 +268,10 @@ class Polytope(ABC):
                                 projection=normalise_vectors(np.array(new_point)))
             # add the two new connections: old_point1 ---- new_point and new_point ---- old_point2
             dist = np.linalg.norm(np.array(new_point)-np.array(neighbour_vector))  # the second distance the same
-            self.G.add_edge(new_point, neighbour_vector, p_dist=dist)
-            self.G.add_edge(new_point, node_vector, p_dist=dist)
+            length = dist_on_sphere(self.G.nodes[new_point]["projection"],
+                                    self.G.nodes[node_vector]["projection"])[0]
+            self.G.add_edge(new_point, neighbour_vector, p_dist=dist, length=length)
+            self.G.add_edge(new_point, node_vector, p_dist=dist, length=length)
             # remove the old connection: old_point1 -------- old_point2
             self.G.remove_edge(node_vector, neighbour_vector)
 
@@ -288,7 +327,7 @@ class Polyhedron(Polytope, ABC):
         level_color = ["black", "red", "blue", "green"]
         index_palette = sns.color_palette("coolwarm", n_colors=self.G.number_of_nodes())
 
-        for i, point in enumerate(self.get_node_coordinates()):
+        for i, point in enumerate(self.get_N_ordered_points(projections=projection)):  #self.get_node_coordinates()
             # select only points that belong to at least one of the chosen select_faces (or plot all if None selection)
             node = self.G.nodes[tuple(point)]
             point_faces = set(node["face"])
@@ -297,7 +336,6 @@ class Polyhedron(Polytope, ABC):
             if select_faces is None or len(point_faces.intersection(select_faces)) > 0:
                 # color selected based on the level of the node
                 if color_by == "level":
-                    #level_node = point[1]["level"]
                     color = level_color[point_level]
                 elif color_by == "index":
                     color = index_palette[i]
@@ -305,7 +343,6 @@ class Polyhedron(Polytope, ABC):
                     raise ValueError(f"The argument color_by={color_by} not possible (try 'index', 'level')")
 
                 if projection:
-                    #proj_node = point[1]["projection"]
                     ax.scatter(*point_projection, color=color, s=30)
                 else:
                     ax.scatter(*point, color=color, s=30)
@@ -321,12 +358,12 @@ class Polyhedron(Polytope, ABC):
         """
         if self.d > 3:
             raise ValueError("Points can only be plotted for polyhedra of up to 3 dimensions.")
-        select_faces = set(range(20)) if select_faces is None else select_faces
         for edge in self.G.edges(data=True):
             faces_edge_1 = set(self.G.nodes[edge[0]]["face"])
             faces_edge_2 = set(self.G.nodes[edge[1]]["face"])
             # both the start and the end point of the edge must belong to one of the selected faces
-            if len(faces_edge_1.intersection(select_faces)) > 0 and len(faces_edge_2.intersection(select_faces)) > 0:
+            if select_faces is None or \
+                (len(faces_edge_1.intersection(select_faces)) > 0 and len(faces_edge_2.intersection(select_faces)) > 0):
                 # usually you only want to plot edges used in division
                 ax.plot(*np.array(edge[:2]).T, color="black",  **kwargs)
 
@@ -369,7 +406,9 @@ class Cube4DPolytope(Polytope):
                             projection=normalise_vectors(np.array(vert)))
         for key, value in point_connections.items():
             for vi in value:
-                self.G.add_edge(key, tuple(vi), p_dist=self.side_len)
+                length = dist_on_sphere(self.G.nodes[key]["projection"],
+                                        self.G.nodes[tuple(vi)]["projection"])[0]
+                self.G.add_edge(key, tuple(vi), p_dist=self.side_len, length=length)
         # detect faces and cells
         cells = detect_all_cubes(self.G)
         for i, cell in enumerate(cells):
@@ -438,7 +477,9 @@ class IcosahedronPolytope(Polyhedron):
                             projection=normalise_vectors(np.array(vert)))  #project_grid_on_sphere(vert[np.newaxis, :]))
         for key, value in point_connections.items():
             for vi in value:
-                self.G.add_edge(key, tuple(vi), p_dist=self.side_len)
+                length = dist_on_sphere(self.G.nodes[key]["projection"],
+                                        self.G.nodes[tuple(vi)]["projection"])[0]
+                self.G.add_edge(key, tuple(vi), p_dist=self.side_len, length=length)
         # just to check ...
         assert self.G.number_of_nodes() == 12
         assert self.G.number_of_edges() == 30
@@ -490,7 +531,9 @@ class Cube3DPolytope(Polyhedron):
                             projection=normalise_vectors(np.array(vert)))
         for key, value in point_connections.items():
             for vi in value:
-                self.G.add_edge(key, tuple(vi), p_dist=self.side_len)
+                length = dist_on_sphere(self.G.nodes[key]["projection"],
+                                        self.G.nodes[tuple(vi)]["projection"])[0]
+                self.G.add_edge(key, tuple(vi), p_dist=self.side_len, length=length)
         # create diagonal nodes
         self._add_square_diagonal_nodes()
         self.side_len = self.side_len / 2
@@ -650,7 +693,7 @@ def detect_all_cubes(graph: nx.Graph) -> list:
 if __name__ == "__main__":
     import matplotlib.pyplot as plt
     cube3D = Cube3DPolytope()
-    cube3D.divide_edges()
+    #cube3D.divide_edges()
     fig, ax = plt.subplots(1, 1, subplot_kw={
         "projection": "3d"})
     cube3D.plot_points(ax, color_by="index", projection=False)

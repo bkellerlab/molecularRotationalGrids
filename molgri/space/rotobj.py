@@ -322,14 +322,15 @@ class Cube4DRotations(PolyhedronRotations):
 
     def gen_rotations(self):
         rotations = []
-        while len(rotations) < 2*self.N:
+        while self.polyhedron.G.number_of_nodes() < 2*self.N:
             self.polyhedron.divide_edges()
-            quats = [y["projection"] for x, y in self.polyhedron.G.nodes(data=True)]
-            rotations = np.array(quats).squeeze()
-            # only the quaternions with positive first dimension
-            rotations = standardise_quaternion_set(rotations)
+        rotations = self.polyhedron.get_N_ordered_points(self.N, as_quat=True)
+        #quats = [y["projection"] for x, y in self.polyhedron.G.nodes(data=True)]
+        #rotations = np.array(quats).squeeze()
+        # only the quaternions with positive first dimension
+        #rotations = standardise_quaternion_set(rotations)
         # remove half of the points due to double coverage
-        rotations = rotations[rotations[:, 0] > 0]
+        #rotations = rotations[rotations[:, 0] > 0]
         self.rotations = Rotation.from_quat(rotations)
         self._order_rotations()
         self.from_rotations(self.rotations)
@@ -340,7 +341,8 @@ class IcoAndCube3DRotations(PolyhedronRotations):
     def gen_rotations(self):
         desired_N = self.N
         super().gen_rotations()
-        grid_z_arr = self.polyhedron.get_projection_coordinates()
+        #grid_z_arr = self.polyhedron.get_projection_coordinates()
+        grid_z_arr = self.polyhedron.get_N_ordered_points(desired_N)
         #grid_z_arr = order_elements(grid_z_arr, len(grid_z_arr))
         grid_z = SphereGrid(grid_z_arr, N=self.N, gen_alg=self.gen_algorithm)
         z_vec = np.array([0, 0, 1])

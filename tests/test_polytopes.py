@@ -10,6 +10,14 @@ ALL_POLYTOPE_TYPES = (Cube3DPolytope, IcosahedronPolytope, Cube4DPolytope)
 ALL_POLYHEDRON_TYPES = (Cube3DPolytope, IcosahedronPolytope)
 
 
+def example_cube_graph() -> nx.Graph:
+    """
+    Simple cube graph with 8 nodes numbered 1-8, each being connected to exactly 3 other nodes.
+    """
+    G = nx.Graph([(1, 2), (1, 4), (1, 5), (2, 3), (3, 4), (2, 6), (3, 7), (4, 8), (5, 6), (6, 7), (7, 8), (5, 8)])
+    return G
+
+
 def test_polytope():
     for polytope_type in ALL_POLYHEDRON_TYPES:
         polytope = polytope_type()
@@ -200,3 +208,20 @@ def test_edge_removal():
     # removing diagonal ones we are left with 12
     cp._remove_edges_of_len(cp.side_len * np.sqrt(2))
     assert cp.G.number_of_edges() == 12, "Wrong number of edges after removal of diagonals"
+
+
+def test_centrality():
+    my_G = example_cube_graph()
+    current_points = list(range(2, 9))
+    while len(current_points) > 1:
+        subgraph_1 = my_G.subgraph(current_points)
+        dict_centrality = nx.eigenvector_centrality(subgraph_1)
+        print(dict_centrality)
+        # key with largest value
+        most_distant_point = max(dict_centrality, key=dict_centrality.get)
+        print("removing point", most_distant_point)
+        current_points.remove(most_distant_point)
+
+
+if __name__ == "__main__":
+    test_centrality()

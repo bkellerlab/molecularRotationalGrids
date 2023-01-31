@@ -78,7 +78,6 @@ def angle_between_vectors(central_vec: np.ndarray, side_vector: np.ndarray) -> n
 
 def dist_on_sphere(vector1: np.ndarray, vector2: np.ndarray) -> np.ndarray:
     """
-    Same as dist_on_sphere, but accepts and returns arrays and should only be used for already unitary vectors.
 
     Args:
         vector1: vector shape (n1, d) or (d,)
