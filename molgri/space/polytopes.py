@@ -16,10 +16,10 @@ from numpy.typing import NDArray
 from mpl_toolkits.mplot3d import Axes3D
 from scipy.constants import pi, golden
 from scipy.spatial import distance_matrix
-from scipy.spatial.distance import cdist
+import seaborn as sns
 
 from molgri.assertions import is_array_with_d_dim_r_rows_c_columns, all_row_norms_equal_k, form_square_array, form_cube
-from molgri.space.utils import dist_on_sphere, normalise_vectors
+from molgri.space.utils import normalise_vectors
 
 
 class Polytope(ABC):
@@ -36,9 +36,6 @@ class Polytope(ABC):
             d: number of dimensions
         """
         self.G = nx.Graph()
-        # faces can, but not need to be saved. They consist of sub-lists that contain indices of points that belong to
-        # a specific face. Useful for plotting to display only one/a few faces
-        self.faces = []
         self.current_level = 0              # level of division
         self.side_len = 0
         self.d = d
@@ -276,28 +273,42 @@ class Polyhedron(Polytope, ABC):
             if tuple(sel_node) in third_neig:
                 ax.scatter(*sel_node, color="orange", s=32, alpha=0.5)
 
-    def plot_points(self, ax: Axes3D, select_faces: set = None, projection: bool = False):
+    def plot_points(self, ax: Axes3D, select_faces: set = None, projection: bool = False, color_by="level"):
         """
         Plot the points of the polytope + possible division points. Colored by level at which the point was added.
         Possible to select only one or a few faces on which points are to be plotted for clarity.
 
         Args:
             ax: axis
-            select_faces: a set of face numbers that can range from 0 to (incl) len(self.faces), e.g. {0, 5}.
+            select_faces: a set of face numbers that can range from 0 to number of faces of the polyhedron, e.g. {0, 5}.
                           If None, all faces are shown.
             projection: True if you want to plot the projected points, not the ones on surfaces of polytope
+            color_by: "level" or "index"
         """
         level_color = ["black", "red", "blue", "green"]
-        for point in self.G.nodes(data=True):
-            # select only points that belong to at least one of the chosen select_faces
-            if select_faces is None or len(set(point[1]["face"]).intersection(select_faces)) > 0:
+        index_palette = sns.color_palette("coolwarm", n_colors=self.G.number_of_nodes())
+
+        for i, point in enumerate(self.get_node_coordinates()):
+            # select only points that belong to at least one of the chosen select_faces (or plot all if None selection)
+            node = self.G.nodes[tuple(point)]
+            point_faces = set(node["face"])
+            point_level = node["level"]
+            point_projection = node["projection"]
+            if select_faces is None or len(point_faces.intersection(select_faces)) > 0:
                 # color selected based on the level of the node
-                level_node = point[1]["level"]
-                if projection:
-                    proj_node = point[1]["projection"]
-                    ax.scatter(*proj_node.T, color=level_color[level_node], s=30)
+                if color_by == "level":
+                    #level_node = point[1]["level"]
+                    color = level_color[point_level]
+                elif color_by == "index":
+                    color = index_palette[i]
                 else:
-                    ax.scatter(*point[0], color=level_color[level_node], s=30)
+                    raise ValueError(f"The argument color_by={color_by} not possible (try 'index', 'level')")
+
+                if projection:
+                    #proj_node = point[1]["projection"]
+                    ax.scatter(*point_projection, color=color, s=30)
+                else:
+                    ax.scatter(*point, color=color, s=30)
 
     def plot_edges(self, ax, select_faces=None, **kwargs):
         """
@@ -344,7 +355,6 @@ class Cube4DPolytope(Polytope):
         super().__init__(d=4)
 
     def _create_level0(self):
-        self.faces = None
         self.side_len = 2 * np.sqrt(1/self.d)
         # create vertices
         vertices = list(product((-self.side_len/2, self.side_len/2), repeat=4))
@@ -362,15 +372,11 @@ class Cube4DPolytope(Polytope):
                 self.G.add_edge(key, tuple(vi), p_dist=self.side_len)
         # detect faces and cells
         cells = detect_all_cubes(self.G)
-        self.faces = []
         for i, cell in enumerate(cells):
             # find the indices of the vertices that construct this square in the list of vertices
-            in_this_cell = []
             for vertex in cell:
                 self.G.nodes[tuple(vertex)]["face"].add(i)
-                #in_this_cell.append(list(self.G.nodes).index(tuple(vertex)))
-            self.faces.append(in_this_cell)
-        # create cube diagonal nodes
+        # create cube and square diagonal nodes
         self._add_cube_diagonal_nodes()
         self._add_square_diagonal_nodes()
         self.side_len = self.side_len / 2
@@ -383,13 +389,6 @@ class Cube4DPolytope(Polytope):
             if cell_index in data.get('face')
         )
         subgraph = self.G.subgraph(nodes)
-        # print(subgraph.nodes(data=True))
-        # import matplotlib.pyplot as plt
-        # fig, ax = plt.subplots(1, 1)
-        # labels = nx.get_node_attributes(subgraph, 'face')
-        # print(labels)
-        # nx.draw(subgraph, labels=labels, pos=nx.spring_layout(subgraph))
-        # plt.show()
         # find the component corresponding to the constant 4th dimension
         arnodes = np.array(subgraph.nodes)
         dim_to_keep = list(np.where(~np.all(arnodes == arnodes[0, :], axis=0))[0])
@@ -397,7 +396,6 @@ class Cube4DPolytope(Polytope):
         subgraph_3D = nx.relabel_nodes(subgraph, new_nodes)
         sub_polyhedron = PolyhedronFromG(subgraph_3D)
         sub_polyhedron.plot_points(ax)
-        print(np.array(subgraph_3D.nodes))
         if draw_edges:
             sub_polyhedron.plot_edges(ax)
 
@@ -409,7 +407,6 @@ class Cube4DPolytope(Polytope):
                                only_seconds=True)
         super().divide_edges()
         self._start_new_level()
-        print(self.G.number_of_nodes())
 
 
 class IcosahedronPolytope(Polyhedron):
@@ -422,26 +419,9 @@ class IcosahedronPolytope(Polyhedron):
     def _create_level0(self):
         # DO NOT change order of points - faces will be wrong!
         # each face contains numbers - indices of vertices that border on this face
-        self.faces = [[0, 11, 5],
-                      [0, 5, 1],
-                      [0, 1, 7],
-                      [0, 7, 10],
-                      [0, 10, 11],
-                      [1, 5, 9],
-                      [5, 11, 4],
-                      [11, 10, 2],
-                      [10, 7, 6],
-                      [7, 1, 8],
-                      [3, 9, 4],
-                      [3, 4, 2],
-                      [3, 2, 6],
-                      [3, 6, 8],
-                      [3, 8, 9],
-                      [4, 9, 5],
-                      [2, 4, 11],
-                      [6, 2, 10],
-                      [8, 6, 7],
-                      [9, 8, 1]]
+        faces = [[0, 11, 5], [0, 5, 1], [0, 1, 7], [0, 7, 10], [0, 10, 11], [1, 5, 9], [5, 11, 4], [11, 10, 2],
+                 [10, 7, 6], [7, 1, 8], [3, 9, 4], [3, 4, 2], [3, 2, 6], [3, 6, 8], [3, 8, 9], [4, 9, 5], [2, 4, 11],
+                 [6, 2, 10], [8, 6, 7], [9, 8, 1]]
         side_len = 1 / np.sin(2 * pi / 5)
         self.side_len = side_len
         # create vertices
@@ -453,7 +433,7 @@ class IcosahedronPolytope(Polyhedron):
         point_connections = _calc_edges(vertices, side_len)
         # add vertices and edges to the graph
         for i, vert in enumerate(vertices):
-            set_of_faces = tuple(faces_i for faces_i, face in enumerate(self.faces) if i in face)
+            set_of_faces = set(faces_i for faces_i, face in enumerate(faces) if i in face)
             self.G.add_node(tuple(vert), level=self.current_level, face=set_of_faces,
                             projection=normalise_vectors(np.array(vert)))  #project_grid_on_sphere(vert[np.newaxis, :]))
         for key, value in point_connections.items():
@@ -489,12 +469,7 @@ class Cube3DPolytope(Polyhedron):
     def _create_level0(self):
         # DO NOT change order of points - faces will be wrong!
         # each face contains numbers - indices of vertices that border on this face
-        self.faces = [[0, 1, 2, 4],
-                      [0, 2, 3, 6],
-                      [0, 1, 3, 5],
-                      [3, 5, 6, 7],
-                      [1, 4, 5, 7],
-                      [2, 4, 6, 7]]
+        faces = [[0, 1, 2, 4], [0, 2, 3, 6], [0, 1, 3, 5], [3, 5, 6, 7], [1, 4, 5, 7], [2, 4, 6, 7]]
         self.side_len = 2 * np.sqrt(1/3)
         # create vertices
         vertices = [(-self.side_len/2, -self.side_len/2, -self.side_len/2),
@@ -510,7 +485,7 @@ class Cube3DPolytope(Polyhedron):
         point_connections = _calc_edges(vertices, self.side_len)
         # add vertices and edges to the graph
         for i, vert in enumerate(vertices):
-            set_of_faces = tuple(faces_i for faces_i, face in enumerate(self.faces) if i in face)
+            set_of_faces = tuple(faces_i for faces_i, face in enumerate(faces) if i in face)
             self.G.add_node(tuple(vert), level=self.current_level, face=set_of_faces,
                             projection=normalise_vectors(np.array(vert)))
         for key, value in point_connections.items():
@@ -674,12 +649,11 @@ def detect_all_cubes(graph: nx.Graph) -> list:
 
 if __name__ == "__main__":
     import matplotlib.pyplot as plt
-    cube4D = Cube4DPolytope()
-    cube4D.divide_edges()
-    #cube4D.divide_edges()
+    cube3D = Cube3DPolytope()
+    cube3D.divide_edges()
     fig, ax = plt.subplots(1, 1, subplot_kw={
         "projection": "3d"})
-    cube4D.draw_one_cell(ax, draw_edges=True, cell_index=3)
+    cube3D.plot_points(ax, color_by="index", projection=False)
     #cub.plot_edges(ax)
     plt.show()
     #

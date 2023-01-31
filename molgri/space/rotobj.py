@@ -219,8 +219,7 @@ def provide_unique(el_array: NDArray, tol: int = UNIQUE_TOL, as_quat=False) -> N
         assert el_array.shape[1] == 4
         _, indices = np.unique(standardise_quaternion_set(el_array.round(tol)), axis=0, return_index=True)
     else:
-        _, indices, counts = np.unique(el_array.round(tol), axis=0, return_index=True, return_counts=True)
-        print(counts)
+        _, indices = np.unique(el_array.round(tol), axis=0, return_index=True)
     return np.array([el_array[index] for index in sorted(indices)])
 
 
@@ -341,8 +340,8 @@ class IcoAndCube3DRotations(PolyhedronRotations):
     def gen_rotations(self):
         desired_N = self.N
         super().gen_rotations()
-        grid_z_arr = np.array([y["projection"] for x, y in self.polyhedron.G.nodes(data=True)]).squeeze()
-        grid_z_arr = order_elements(grid_z_arr, len(grid_z_arr))
+        grid_z_arr = self.polyhedron.get_projection_coordinates()
+        #grid_z_arr = order_elements(grid_z_arr, len(grid_z_arr))
         grid_z = SphereGrid(grid_z_arr, N=self.N, gen_alg=self.gen_algorithm)
         z_vec = np.array([0, 0, 1])
         matrices = np.zeros((desired_N, 3, 3))
