@@ -219,7 +219,8 @@ def provide_unique(el_array: NDArray, tol: int = UNIQUE_TOL, as_quat=False) -> N
         assert el_array.shape[1] == 4
         _, indices = np.unique(standardise_quaternion_set(el_array.round(tol)), axis=0, return_index=True)
     else:
-        _, indices = np.unique(el_array.round(tol), axis=0, return_index=True)
+        _, indices, counts = np.unique(el_array.round(tol), axis=0, return_index=True, return_counts=True)
+        print(counts)
     return np.array([el_array[index] for index in sorted(indices)])
 
 
@@ -322,14 +323,14 @@ class Cube4DRotations(PolyhedronRotations):
 
     def gen_rotations(self):
         rotations = []
-        while len(rotations) < self.N:
+        while len(rotations) < 2*self.N:
             self.polyhedron.divide_edges()
-            # remove half of the points due to double coverage
             quats = [y["projection"] for x, y in self.polyhedron.G.nodes(data=True)]
             rotations = np.array(quats).squeeze()
             # only the quaternions with positive first dimension
             rotations = standardise_quaternion_set(rotations)
-            rotations = rotations[rotations[:, 0] > 0]
+        # remove half of the points due to double coverage
+        rotations = rotations[rotations[:, 0] > 0]
         self.rotations = Rotation.from_quat(rotations)
         self._order_rotations()
         self.from_rotations(self.rotations)

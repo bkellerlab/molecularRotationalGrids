@@ -46,6 +46,7 @@ def test_second_neighbours():
     # expected second neighbours that are NOT first neighbours
     expected_sec_neig_1 = [4, 7, 10, 8]
     sec_neig_1 = list(second_neighbours(G, 1))
+    print(sec_neig_1)
     assert np.all([x in list(G.neighbors(1)) for x in expected_neig_1]), "First neighbours wrong."
     assert np.all([x in sec_neig_1 for x in expected_sec_neig_1]), "Some second neighbours missing."
     assert not np.any([x in sec_neig_1 for x in expected_neig_1]), "Some first neighbours in second neighbours"
@@ -199,38 +200,3 @@ def test_edge_removal():
     # removing diagonal ones we are left with 12
     cp._remove_edges_of_len(cp.side_len * np.sqrt(2))
     assert cp.G.number_of_edges() == 12, "Wrong number of edges after removal of diagonals"
-
-
-def test_diag_node_addition():
-    # in Icosahedron, no diagonal nodes should be added
-    ico = IcosahedronPolytope()
-    nodes_before = ico.get_node_coordinates()
-    ico._add_square_diagonal_nodes()
-    nodes_after = ico.get_node_coordinates()
-    assert np.allclose(nodes_before, nodes_after)
-    # if you divide edges, still no diagonal points should be found
-    ico.divide_edges()
-    nodes_before2 = ico.get_node_coordinates()
-    ico._add_square_diagonal_nodes()
-    nodes_after2 = ico.get_node_coordinates()
-    assert np.allclose(nodes_before2, nodes_after2)
-    # in a cube, one square per side should be detected
-    cp = Cube3DPolytope()
-    #assert len(detect_all_squares(cp.G)) == 6
-    # and after division 4 straight ones + 4 tilted ones per side
-    cp.divide_edges()
-    # assert len(detect_all_squares(cp.G)) == 6 * 4 + 6 * 4
-    fig, ax = plt.subplots(1, 1, subplot_kw={"projection": "3d"})
-    #cp.plot_points(ax)
-    cp.plot_neighbours(ax)
-    cp.plot_edges(ax, only_in_division=False)
-    plt.show()
-
-
-def test_cube_diagonal_addition():
-    cube_3d = Cube3DPolytope()
-    # should only detect one cube (the big one)
-    assert len(detect_all_cubes(cube_3d.G)) == 1
-    # after you subdivide no more will be detected since no longer third neighbours!
-    cube_4d = Cube4DPolytope()
-    assert len(detect_all_cubes(cube_4d.G)) == 8

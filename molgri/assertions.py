@@ -75,23 +75,23 @@ def all_rows_unique(my_array: NDArray, tol: int = UNIQUE_TOL):
     assert len(my_array) == len(my_unique), f"{difference} elements of an array are not unique up to tolerance."
 
 
-def form_square_graph(my_graph: nx.Graph, weight_property="p_dist") -> bool:
-    points = np.array(my_graph.nodes)
-    distances = np.zeros((4, 4))
-    for node in my_graph.nodes:
-        all_dist = [combi[2][weight_property] for combi in my_graph.edges(node, data=True)]
-        if len(all_dist) != 3:
-            return False
-        else:
-            distances[:, 1:] = np.array(all_dist)
-    # distances = nx.all_pairs_dijkstra_path_length(my_graph, weight=weight_property)
-    # distances = [list(dist[1].values()) for dist in distances]
-    # distances = np.array(distances)
-    old_m = cdist(points, points)
-    if form_square_array(points):
-        print("new", distances)
-        print("old", old_m)
-    return _form_square(points, distances)
+# def form_square_graph(my_graph: nx.Graph, weight_property="p_dist") -> bool:
+#     points = np.array(my_graph.nodes)
+#     distances = np.zeros((4, 4))
+#     for node in my_graph.nodes:
+#         all_dist = [combi[2][weight_property] for combi in my_graph.edges(node, data=True)]
+#         if len(all_dist) != 3:
+#             return False
+#         else:
+#             distances[:, 1:] = np.array(all_dist)
+#     # distances = nx.all_pairs_dijkstra_path_length(my_graph, weight=weight_property)
+#     # distances = [list(dist[1].values()) for dist in distances]
+#     # distances = np.array(distances)
+#     old_m = cdist(points, points)
+#     if form_square_array(points):
+#         print("new", distances)
+#         print("old", old_m)
+#     return _form_square(points, distances)
 
 
 def form_square_array(my_array: NDArray, dec_places=7) -> bool:

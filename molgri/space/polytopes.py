@@ -18,8 +18,7 @@ from scipy.constants import pi, golden
 from scipy.spatial import distance_matrix
 from scipy.spatial.distance import cdist
 
-from molgri.assertions import is_array_with_d_dim_r_rows_c_columns, all_row_norms_equal_k, form_square_array, form_cube, \
-    form_square_graph
+from molgri.assertions import is_array_with_d_dim_r_rows_c_columns, all_row_norms_equal_k, form_square_array, form_cube
 from molgri.space.utils import dist_on_sphere, normalise_vectors
 
 
@@ -81,22 +80,6 @@ class Polytope(ABC):
         all_row_norms_equal_k(projections, 1)
         return projections
 
-    def connect_all_seconds(self):
-        for node in self.G.nodes:
-            secs = list(second_neighbours(self.G, node))
-            for sec in secs:
-                if not self.G.has_edge(node, sec):
-                    dist = np.linalg.norm(np.array(sec)-np.array(node))
-                    self.G.add_edge(node, sec, p_dist=dist, in_division=False)
-
-    def connect_all_thirds(self):
-        for node in self.G.nodes:
-            secs = list(third_neighbours(self.G, node))
-            for sec in secs:
-                if not self.G.has_edge(node, sec):
-                    dist = np.linalg.norm(np.array(sec) - np.array(node))
-                    self.G.add_edge(node, sec, p_dist=dist, in_division=False)
-
     @abstractmethod
     def divide_edges(self):
         """
@@ -119,7 +102,6 @@ class Polytope(ABC):
         Detect nodes that form a square. If you find them, add the middle point (average of the four) to nodes along
         with edges from the middle to the points that form the square.
         """
-        self.connect_all_seconds()
         # here save the new node along with the 4 "father nodes" so you can later build all connections
         square_nodes = detect_all_squares(self.G)
         # add new nodes and edges
@@ -133,7 +115,7 @@ class Polytope(ABC):
                                 projection=normalise_vectors(np.array(new_node)))
                 # since a square, only need distance to one edge
                 distance = np.linalg.norm(new_node_arr - np.array(new_neighbours[0]))
-                all_new_edges = [(new_node, n, {"p_dist": distance, "in_division": True}) for n in new_neighbours]
+                all_new_edges = [(new_node, n, {"p_dist": distance}) for n in new_neighbours]
                 self.G.add_edges_from(all_new_edges)
 
     def _add_cube_diagonal_nodes(self):
@@ -141,9 +123,6 @@ class Polytope(ABC):
         Detect nodes that form a cube. If you find them, add the middle point (average of the eight) to nodes along
         with edges from the middle to the points that form the square.
         """
-        # add all second neighbour connections
-        self.connect_all_seconds()
-        self.connect_all_thirds()
         # here save the new node along with the 4 "father nodes" so you can later build all connections
         cube_nodes = detect_all_cubes(self.G)
         # add new nodes and edges
@@ -157,10 +136,10 @@ class Polytope(ABC):
                                 projection=normalise_vectors(np.array(new_node)))
                 # since a cube, only need distance to one edge
                 distance = np.linalg.norm(new_node_arr - np.array(new_neighbours[0]))
-                all_new_edges = [(new_node, n, {"p_dist": distance, "in_division": True}) for n in new_neighbours]
+                all_new_edges = [(new_node, n, {"p_dist": distance}) for n in new_neighbours]
                 self.G.add_edges_from(all_new_edges)
 
-    def _add_edges_of_len(self, edge_len: float, wished_levels: list = None):
+    def _add_edges_of_len(self, edge_len: float, wished_levels: list = None, only_seconds=True):
         """Among points on the most current level, search for second neighbours and add an edge between them
         if their distance is close to edge_len
 
@@ -182,8 +161,11 @@ class Polytope(ABC):
         new_level = [x for x, y in self.G.nodes(data=True) if y['level'] == wished_levels[0]]
         for new_node in new_level:
             # searching only second neighbours at appropriate level
-            sec_neighbours = list(second_neighbours(self.G, new_node))
-            sec_neighbours = [x for x in sec_neighbours if self.G.nodes[x]["level"] == wished_levels[1]]
+            if only_seconds:
+                sec_neighbours = list(second_neighbours(self.G, new_node))
+                sec_neighbours = [x for x in sec_neighbours if self.G.nodes[x]["level"] == wished_levels[1]]
+            else:
+                sec_neighbours = [x for x in self.G.nodes if self.G.nodes[x]["level"] == wished_levels[1]]
             for other_node in sec_neighbours:
                 node_dist = np.linalg.norm(np.array(new_node)-np.array(other_node))
                 # check face criterion
@@ -192,11 +174,9 @@ class Polytope(ABC):
                     if np.isclose(node_dist, edge_len):
                         # just to make sure that you don't add same edge in 2 different directions
                         if new_node < other_node:
-                            self.G.add_edge(new_node, other_node, p_dist=edge_len, in_division=True)
+                            self.G.add_edge(new_node, other_node, p_dist=edge_len)
                         else:
-                            self.G.add_edge(other_node, new_node, p_dist=edge_len, in_division=True)
-                    else:
-                        self.G.add_edge(new_node, other_node, p_dist=node_dist, in_division=False)
+                            self.G.add_edge(other_node, new_node, p_dist=edge_len)
 
     def _find_new_nodes(self) -> list:
         """
@@ -210,7 +190,7 @@ class Polytope(ABC):
         """
         nodes_to_add = []
         for node_vector in self.G.nodes():
-            for neighbour_vector in divisible_neighbours(self.G, node_vector):
+            for neighbour_vector in self.G.neighbors(node_vector):
                 # this is just to avoid doing everything twice - do it for edge A-B but not B-A
                 if node_vector < neighbour_vector:
                     # new point is just the average of the previous two
@@ -246,11 +226,7 @@ class Polytope(ABC):
         for el in nodes_to_add:
             new_point, node_vector, neighbour_vector = el
             # new point will have the set of faces that both node and neighbour vector have
-            if self.d <= 3:
-                face = self._find_face([node_vector, neighbour_vector])
-            # for higher dimensions we don't bother with faces since plotting is difficult anyway
-            else:
-                face = None
+            face = self._find_face([node_vector, neighbour_vector])
             # diagonals get added twice, so this is necessary
             if new_point not in self.G.nodes:
                 self.G.add_node(new_point, level=self.current_level + 1,
@@ -258,8 +234,8 @@ class Polytope(ABC):
                                 projection=normalise_vectors(np.array(new_point)))
             # add the two new connections: old_point1 ---- new_point and new_point ---- old_point2
             dist = np.linalg.norm(np.array(new_point)-np.array(neighbour_vector))  # the second distance the same
-            self.G.add_edge(new_point, neighbour_vector, p_dist=dist, in_division=True)
-            self.G.add_edge(new_point, node_vector, p_dist=dist, in_division=True)
+            self.G.add_edge(new_point, neighbour_vector, p_dist=dist)
+            self.G.add_edge(new_point, node_vector, p_dist=dist)
             # remove the old connection: old_point1 -------- old_point2
             self.G.remove_edge(node_vector, neighbour_vector)
 
@@ -267,10 +243,12 @@ class Polytope(ABC):
         """
         Remove all edges from self.G that have the length k (or close to k if float)
         """
+        to_remove = []
         for edge in self.G.edges(data=True):
             n1, n2, data = edge
             if np.isclose(data["p_dist"], k):
-                self.G.remove_edge(n1, n2)
+                to_remove.append((n1, n2))
+        self.G.remove_edges_from(to_remove)
 
 
 class Polyhedron(Polytope, ABC):
@@ -284,11 +262,11 @@ class Polyhedron(Polytope, ABC):
     def plot_neighbours(self, ax: Axes3D, node_i=0):
         all_nodes = self.get_node_coordinates()
         node = tuple(all_nodes[node_i])
-        neig = divisible_neighbours(self.G, node)
+        neig = self.G.neighbors(node)
         sec_neig = list(second_neighbours(self.G, node))
         third_neig = list(third_neighbours(self.G, node))
         for sel_node in all_nodes:
-            ax.scatter(*sel_node, color="black", s=30)
+            #ax.scatter(*sel_node, color="black", s=30)
             if np.allclose(sel_node, node):
                 ax.scatter(*sel_node, color="red", s=40, alpha=0.5)
             if tuple(sel_node) in neig:
@@ -322,7 +300,7 @@ class Polyhedron(Polytope, ABC):
                 else:
                     ax.scatter(*point[0], color=level_color[level_node], s=30)
 
-    def plot_edges(self, ax, select_faces=None, only_in_division=True, **kwargs):
+    def plot_edges(self, ax, select_faces=None, **kwargs):
         """
         Plot the edges between the points. Can select to display only some faces for clarity.
 
@@ -340,11 +318,21 @@ class Polyhedron(Polytope, ABC):
             # both the start and the end point of the edge must belong to one of the selected faces
             if len(faces_edge_1.intersection(select_faces)) > 0 and len(faces_edge_2.intersection(select_faces)) > 0:
                 # usually you only want to plot edges used in division
-                if not only_in_division:
-                    ax.plot(*np.array(edge[:2]).T, color="black",  **kwargs)
-                elif edge[2]["in_division"]:
-                    ax.plot(*np.array(edge[:2]).T, color="black", **kwargs)
-                # else this edge is not plotted
+                ax.plot(*np.array(edge[:2]).T, color="black",  **kwargs)
+
+
+class PolyhedronFromG(Polyhedron):
+
+    def __init__(self, G: nx.Graph):
+        super().__init__()
+        self.G = G
+        self.faces = [[]*self.G.number_of_nodes()]
+
+    def _create_level0(self):
+        pass
+
+    def divide_edges(self):
+        pass
 
 
 class Cube4DPolytope(Polytope):
@@ -358,8 +346,6 @@ class Cube4DPolytope(Polytope):
         super().__init__(d=4)
 
     def _create_level0(self):
-        # DO NOT change order of points - faces will be wrong!
-        # each face contains numbers - indices of vertices that border on this face
         self.faces = None
         self.side_len = 2 * np.sqrt(1/self.d)
         # create vertices
@@ -371,19 +357,57 @@ class Cube4DPolytope(Polytope):
         point_connections = _calc_edges(vertices, self.side_len)
         # add vertices and edges to the graph
         for i, vert in enumerate(vertices):
-            self.G.add_node(tuple(vert), level=self.current_level, face=None,
+            self.G.add_node(tuple(vert), level=self.current_level, face=set(),
                             projection=normalise_vectors(np.array(vert)))
         for key, value in point_connections.items():
             for vi in value:
-                self.G.add_edge(key, tuple(vi), p_dist=self.side_len, in_division=True)
-        # create diagonal nodes # TODO: maybe should add cube diagonal nodes?
+                self.G.add_edge(key, tuple(vi), p_dist=self.side_len)
+        # detect faces and cells
+        cells = detect_all_cubes(self.G)
+        self.faces = []
+        for i, cell in enumerate(cells):
+            # find the indices of the vertices that construct this square in the list of vertices
+            in_this_cell = []
+            for vertex in cell:
+                self.G.nodes[tuple(vertex)]["face"].add(i)
+                #in_this_cell.append(list(self.G.nodes).index(tuple(vertex)))
+            self.faces.append(in_this_cell)
+        # create cube diagonal nodes
         self._add_cube_diagonal_nodes()
+        self._add_square_diagonal_nodes()
         self.side_len = self.side_len / 2
 
+    def draw_one_cell(self, ax, cell_index=0, draw_edges=True):
+        nodes = (
+            node
+            for node, data
+            in self.G.nodes(data=True)
+            if cell_index in data.get('face')
+        )
+        subgraph = self.G.subgraph(nodes)
+        # print(subgraph.nodes(data=True))
+        # import matplotlib.pyplot as plt
+        # fig, ax = plt.subplots(1, 1)
+        # labels = nx.get_node_attributes(subgraph, 'face')
+        # print(labels)
+        # nx.draw(subgraph, labels=labels, pos=nx.spring_layout(subgraph))
+        # plt.show()
+        new_nodes = {old:old[1:] for old in subgraph.nodes}
+        subgraph_3D = nx.relabel_nodes(subgraph, new_nodes)
+        sub_polyhedron = PolyhedronFromG(subgraph_3D)
+        sub_polyhedron.plot_points(ax)
+        if draw_edges:
+            sub_polyhedron.plot_edges(ax)
+
     def divide_edges(self):
+        # this is the recipe for full division of cells - important that it is before the super call!
+        self._add_edges_of_len(self.side_len, wished_levels=[self.current_level, self.current_level],
+                               only_seconds=True)
+        self._add_edges_of_len(self.side_len*np.sqrt(2), wished_levels=[self.current_level, self.current_level],
+                                only_seconds=True)
         super().divide_edges()
-        self._add_edges_of_len(self.side_len, wished_levels=[self.current_level + 1, self.current_level])
         self._start_new_level()
+        print(self.G.number_of_nodes())
 
 
 class IcosahedronPolytope(Polyhedron):
@@ -432,7 +456,7 @@ class IcosahedronPolytope(Polyhedron):
                             projection=normalise_vectors(np.array(vert)))  #project_grid_on_sphere(vert[np.newaxis, :]))
         for key, value in point_connections.items():
             for vi in value:
-                self.G.add_edge(key, tuple(vi), p_dist=self.side_len, in_division=True)
+                self.G.add_edge(key, tuple(vi), p_dist=self.side_len)
         # just to check ...
         assert self.G.number_of_nodes() == 12
         assert self.G.number_of_edges() == 30
@@ -489,7 +513,7 @@ class Cube3DPolytope(Polyhedron):
                             projection=normalise_vectors(np.array(vert)))
         for key, value in point_connections.items():
             for vi in value:
-                self.G.add_edge(key, tuple(vi), p_dist=self.side_len, in_division=True)
+                self.G.add_edge(key, tuple(vi), p_dist=self.side_len)
         # create diagonal nodes
         self._add_square_diagonal_nodes()
         self.side_len = self.side_len / 2
@@ -531,11 +555,6 @@ def _calc_edges(vertices: np.ndarray, side_len: float) -> dict:
     return tree_connections
 
 
-def divisible_neighbours(graph: nx.Graph, node):
-    direct_neighbours = list(graph.neighbors(node))
-    return [n for n in direct_neighbours if graph.get_edge_data(n, node)["in_division"]]
-
-
 def second_neighbours(graph: nx.Graph, node):
     """Yield second neighbors of node in graph. Ignore second neighbours that are also first neighbours.
     Second neighbors may repeat!
@@ -551,10 +570,10 @@ def second_neighbours(graph: nx.Graph, node):
     First neighbours of 1: 2, 6, 3, 8
     Second neighbours of 1: 5, 7
     """
-    direct_neighbours = divisible_neighbours(graph, node)
+    direct_neighbours = list(graph.neighbors(node))
     # don't repeat the same second neighbour twice
     seen_seconds = []
-    for neighbor_list in [divisible_neighbours(graph, n) for n in direct_neighbours]:
+    for neighbor_list in [graph.neighbors(n) for n in direct_neighbours]:
         for n in neighbor_list:
             if n != node and n not in direct_neighbours and n not in seen_seconds:
                 # if no edge there, put it there just to record the distance
@@ -578,11 +597,11 @@ def third_neighbours(graph: nx.Graph, node):
     Second neighbours of 1: 5, 8, 10, 7
     Third neighbours of 1: 9
     """
-    direct_neighbours = divisible_neighbours(graph, node)
+    direct_neighbours = list(graph.neighbors(node))
     sec_neighbours = list(second_neighbours(graph, node))
     # don't repeat seen third neighbours either
     third_seen = []
-    for neighbor_list in [divisible_neighbours(graph, n) for n in sec_neighbours]:
+    for neighbor_list in [graph.neighbors(n) for n in sec_neighbours]:
         for n in neighbor_list:
             # conditions: n must not be: the node itself, its first or second neighbour or already seen third neighbour
             if n != node and n not in direct_neighbours and n not in sec_neighbours and n not in third_seen:
@@ -616,8 +635,7 @@ def detect_all_squares(graph: nx.Graph) -> list:
                 n1, n2 = two_n
                 # points sorted by size so that no duplicates occur
                 points = sorted([node, sn, n1, n2])
-                subgraph = graph.subgraph(points)
-                if form_square_graph(subgraph) and points not in square_nodes:
+                if form_square_array(np.array(points)) and points not in square_nodes:
                     square_nodes.append([*points])
     return square_nodes
 
@@ -653,22 +671,19 @@ def detect_all_cubes(graph: nx.Graph) -> list:
 
 
 if __name__ == "__main__":
-    import itertools
-    import networkx as nx
-    import time
+    import matplotlib.pyplot as plt
+    cube4D = Cube4DPolytope()
+    cube4D.divide_edges()
+    #cube4D.divide_edges()
+    fig, ax = plt.subplots(1, 1, subplot_kw={
+        "projection": "3d"})
+    cube4D.draw_one_cell(ax, draw_edges=True)
+    #cub.plot_edges(ax)
+    plt.show()
 
-    for N in range(8, 80):
-        points = np.random.random((N, 3))
-        points = [tuple(p) for p in points]
-        graph = nx.Graph()
-        graph.add_nodes_from(points)
-        graph.add_edges_from(itertools.combinations(points, 2))
-        t1 = time.time()
-        detect_all_squares(graph)
-        t2 = time.time()
-        print(f"SQUARES N={N}, connections {graph.number_of_edges()}, time is {t2-t1}")
-        t1 = time.time()
-        detect_all_cubes(graph)
-        t2 = time.time()
-        print(f"CUBES N={N}, connections {graph.number_of_edges()}, time is {t2 - t1}")
-        # 3000 connections in 1s
+    cube4D.divide_edges()
+    fig, ax = plt.subplots(1, 1, subplot_kw={
+        "projection": "3d"})
+    cube4D.draw_one_cell(ax, draw_edges=False)
+    #cub.plot_edges(ax)
+    plt.show()
