@@ -3,8 +3,9 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 from molgri.space.polytopes import Cube3DPolytope, IcosahedronPolytope, second_neighbours, \
-    Cube4DPolytope, third_neighbours, detect_all_cubes, detect_all_squares
+    Cube4DPolytope, third_neighbours, detect_all_cubes, detect_all_squares, PolyhedronFromG
 from molgri.assertions import all_row_norms_similar, all_row_norms_equal_k, all_rows_unique
+from molgri.space.utils import normalise_vectors, dist_on_sphere
 
 ALL_POLYTOPE_TYPES = (Cube3DPolytope, IcosahedronPolytope, Cube4DPolytope)
 ALL_POLYHEDRON_TYPES = (Cube3DPolytope, IcosahedronPolytope)
@@ -15,6 +16,17 @@ def example_cube_graph() -> nx.Graph:
     Simple cube graph with 8 nodes numbered 1-8, each being connected to exactly 3 other nodes.
     """
     G = nx.Graph([(1, 2), (1, 4), (1, 5), (2, 3), (3, 4), (2, 6), (3, 7), (4, 8), (5, 6), (6, 7), (7, 8), (5, 8)])
+
+    # make the graph more like a normal polyhedron
+    previous = list(range(1, 9))
+    coords = [(1/2, -1/2, 1/2), (-1/2, -1/2, 1/2), (-1/2, 1/2, 1/2), (1/2, 1/2, 1/2), (1/2, -1/2, -1/2),
+              (-1/2, -1/2, -1/2), (-1/2, 1/2, -1/2), (1/2, 1/2, -1/2)]
+    G = nx.relabel_nodes(G, {p: c for p, c in zip(previous, coords)})
+    # add level and projection
+    nx.set_node_attributes(G, 0, name="level")
+    nx.set_node_attributes(G, set(), name="face")
+    nx.set_node_attributes(G, {node: normalise_vectors(np.array(node)) for node in G.nodes}, name="projection")
+    nx.set_edge_attributes(G, {(n1, n2): dist_on_sphere(G.nodes[n1]["projection"], G.nodes[n2]["projection"])[0] for n1, n2 in G.edges}, name="length")
     return G
 
 
@@ -210,18 +222,52 @@ def test_edge_removal():
     assert cp.G.number_of_edges() == 12, "Wrong number of edges after removal of diagonals"
 
 
-def test_centrality():
+def test_sorting():
     my_G = example_cube_graph()
-    current_points = list(range(2, 9))
-    while len(current_points) > 1:
-        subgraph_1 = my_G.subgraph(current_points)
-        dict_centrality = nx.eigenvector_centrality(subgraph_1)
-        print(dict_centrality)
-        # key with largest value
-        most_distant_point = max(dict_centrality, key=dict_centrality.get)
-        print("removing point", most_distant_point)
-        current_points.remove(most_distant_point)
+    polyh = PolyhedronFromG(my_G)
+    side_len = 1
+
+    # N < number of points, N == number of points, N > number of points
+    N1 = 4
+    points_before = polyh.get_node_coordinates()
+    projections_before = polyh.get_projection_coordinates()
+    sorted_points = polyh.get_N_ordered_points(N1, projections=False)
+    sorted_projections = polyh.get_N_ordered_points(N1, projections=True)
+    points_after = polyh.get_node_coordinates()
+    projections_after = polyh.get_projection_coordinates()
+    # first assert it does not mess up the representation of all points
+    assert np.allclose(points_before, points_after)
+    assert np.allclose(projections_before, projections_after)
+    # secondly assert the right shape
+    assert sorted_points.shape == (4, 3)
+    assert sorted_projections.shape == (4, 3)
+    # assert that the sorted points come exactly from the list of points
+    assert np.all([point in points_before for point in sorted_points])
+    assert np.all([point in projections_before for point in sorted_projections])
+    # assert the distance between first and second point is np.sqrt(3)*side_len
+    assert np.isclose(np.linalg.norm(sorted_points[0]-sorted_points[1]), np.sqrt(3)*side_len)
+    # and between third and fourth too
+    assert np.isclose(np.linalg.norm(sorted_points[2] - sorted_points[3]), np.sqrt(3) * side_len)
+    # assert the distance between first and second projection is twice the radius - 2
+    assert np.isclose(np.linalg.norm(sorted_projections[0] - sorted_projections[1]), 2)
+    # and between third and fourth too
+    assert np.isclose(np.linalg.norm(sorted_projections[2] - sorted_projections[3]), 2)
+    # TODO: test exactly N or more than N
 
 
-if __name__ == "__main__":
-    test_centrality()
+def test_detect_square_and_cubes():
+    my_G = example_cube_graph()
+    polyh = PolyhedronFromG(my_G)
+    # you should detect 6 square faces in a 3D cube consisting of only 8 vertices
+    assert len(detect_all_squares(my_G)) == 6
+    # and you should detect exactly one cube
+    assert len(detect_all_cubes(my_G)) == 1
+    # you should also be able to add those points to the polyhedron
+    points_before = polyh.G.number_of_nodes()
+    polyh._add_square_diagonal_nodes()
+    points_after = polyh.G.number_of_nodes()
+    assert points_after - points_before == 6
+    # can't do that, you'd get a point at (0, 0, 0) and can't calculate the projection
+    # polyh._add_cube_diagonal_nodes()
+    # points_after_2 = polyh.G.number_of_nodes()
+    # assert points_after_2 - points_after == 1

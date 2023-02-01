@@ -4,10 +4,13 @@ if sth is true and do not need to return anything.
 """
 
 import numpy as np
+from numpy._typing import NDArray
 from numpy.typing import NDArray
+from scipy.constants import pi
 from scipy.spatial import distance_matrix
 from scipy.spatial.distance import cdist
 import networkx as nx
+from scipy.spatial.transform import Rotation
 
 from molgri.space.utils import norm_per_axis
 from molgri.constants import UNIQUE_TOL
@@ -179,3 +182,45 @@ def form_cube(my_array: NDArray, test_angles=False) -> bool:
                     return False
     # finally, if all tests right
     return True
+
+
+def quaternion_in_array(quat: NDArray, quat_array: NDArray) -> bool:
+    quat1 = quat[np.newaxis, :]
+    for quat2 in quat_array:
+        if two_sets_of_quaternions_equal(quat1, quat2[np.newaxis, :]):
+            return False
+    return True
+
+
+def two_sets_of_quaternions_equal(quat1: NDArray, quat2: NDArray) -> bool:
+    assert quat1.shape == quat2.shape
+    assert quat1.shape[1] == 4
+    # quaternions are the same if they are equal up to a +- sign
+    # I have checked this fact and it is mathematically correct
+    for q1, q2 in zip(quat1, quat2):
+        if not np.allclose(q1, q2) or np.allclose(q1, -q2):
+            return False
+    return True
+
+
+def assert_two_sets_of_eulers_equal(euler1: NDArray, euler2: NDArray):
+    # TODO: can you check more than that?
+    # see: https://en.wikipedia.org/wiki/Euler_angles#Signs,_ranges_and_conventions
+    assert euler1.shape == euler2.shape
+    assert euler1.shape[1] == 3
+    # first of all, check that the corresponding rot matrices are the same
+    rot1 = Rotation.from_euler("ZYX", euler1)
+    rot2 = Rotation.from_euler("ZYX", euler2)
+    assert np.allclose(rot1.as_matrix(), rot2.as_matrix())
+
+    # TODO: check for gimbal locks
+
+    # further checks
+    for e1, e2 in zip(euler1, euler2):
+        # if within [-pi/2, pi/2], euler angles must match exactly
+        for comp1, comp2 in zip(e1, e2):
+            if -pi/2 <= comp1 <= pi/2 and -pi/2 <= comp2 <= pi/2:
+                assert np.isclose(comp1, comp2)
+        # first and last angle must match up to pi
+        assert np.isclose(e1[0] % pi, e2[0] % pi)
+        assert np.isclose(e1[-1] % pi, e2[-1] % pi)

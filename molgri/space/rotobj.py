@@ -322,9 +322,14 @@ class Cube4DRotations(PolyhedronRotations):
 
     def gen_rotations(self):
         rotations = []
-        while self.polyhedron.G.number_of_nodes() < 2*self.N:
+        while True:
             self.polyhedron.divide_edges()
-        rotations = self.polyhedron.get_N_ordered_points(self.N, as_quat=True)
+            try:
+                rotations = self.polyhedron.get_N_ordered_points(self.N, as_quat=True)
+                break
+            except AssertionError or ValueError:
+                # not enough unique points have been created yet
+                continue
         #quats = [y["projection"] for x, y in self.polyhedron.G.nodes(data=True)]
         #rotations = np.array(quats).squeeze()
         # only the quaternions with positive first dimension

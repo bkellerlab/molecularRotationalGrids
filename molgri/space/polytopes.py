@@ -1,10 +1,10 @@
 """
 Polytopes are networkX graphs representing bodies in 3- or 4D. Specifically, we implement the 3D polytopes
- icosahedron and cube and the 4D polytope hypercube. As a start, vertices of the polytope are added as
-  nodes and edges as connections between them. For the cube, a point is also added in the middle of each face diagonal
-  and the edges to the four vertices are added. It's important that polytopes can also be subdivided in smaller units
- so that grids with larger numbers of points can be created. For this, use divide_edges() command. 3D polytopes
- (polyhedra) can also be plotted - points and edges separately, level of discretisation can determine the color.
+icosahedron and cube and the 4D polytope hypercube. As a start, vertices of the polytope are added as
+nodes and edges as connections between them. For the cube, a point is also added in the middle of each face diagonal
+and the edges to the four vertices are added. It's important that polytopes can also be subdivided in smaller units
+so that grids with larger numbers of points can be created. For this, use divide_edges() command. 3D polytopes
+(polyhedra) can also be plotted - points and edges separately, level of discretisation can determine the color.
 """
 
 from abc import ABC, abstractmethod
@@ -18,7 +18,8 @@ from scipy.constants import pi, golden
 from scipy.spatial import distance_matrix
 import seaborn as sns
 
-from molgri.assertions import is_array_with_d_dim_r_rows_c_columns, all_row_norms_equal_k, form_square_array, form_cube
+from molgri.assertions import is_array_with_d_dim_r_rows_c_columns, all_row_norms_equal_k, form_square_array, form_cube, \
+    two_sets_of_quaternions_equal, quaternion_in_array
 from molgri.space.utils import normalise_vectors, dist_on_sphere
 
 
@@ -79,10 +80,11 @@ class Polytope(ABC):
 
     def get_N_ordered_points(self, N: int = None, projections=True, as_quat=False):
         # can't order more points than there are
-        if N is None or N > self.G.number_of_nodes():
+        if N > self.G.number_of_nodes():
+            raise ValueError(f"Cannot order more points than there are! N={N} > {self.G.number_of_nodes()}")
+        if N is None:
             N = self.G.number_of_nodes()
         result = np.zeros((N, self.d))
-
         current_points = list(self.G.nodes)
         # first point does not matter, just select the first point
         if projections:
@@ -93,19 +95,22 @@ class Polytope(ABC):
 
         # for the rest of the points, determine centrality of the subgraph with already used points removed
         current_index = 1
-        while current_index < N:
+        while current_index < N and len(current_points):
             subgraph = self.G.subgraph(current_points)
-            dict_centrality = nx.eigenvector_centrality(subgraph, max_iter=N, tol=1.0e-3, weight="length")
+            max_iter = np.max([100, 3*N])  # bigger graphs may need more iterations than default
+            dict_centrality = nx.eigenvector_centrality(subgraph, max_iter=max_iter, tol=1.0e-3, weight="length")
             # key with largest value
             most_distant_point = max(dict_centrality, key=dict_centrality.get)
-            # if as_quat, skip every second point as it's the same rotation quaternion
-            if not as_quat or most_distant_point[0] > 0:
+            # if as_quat, skip points that are rotationally equal to already added rotation quaternions
+            if not as_quat or not quaternion_in_array(np.array(most_distant_point), result[:current_index]):
                 if projections:
                     result[current_index] = self.G.nodes[tuple(most_distant_point)]["projection"]
                 else:
                     result[current_index] = most_distant_point
                 current_index += 1
             current_points.remove(most_distant_point)
+        assert current_index == len(result), "Not enough points to be ordered," \
+                                             " maybe quaternion duplicates are a problem?"
         return result
 
     @abstractmethod
