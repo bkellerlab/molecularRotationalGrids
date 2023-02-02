@@ -5,7 +5,7 @@ from scipy.constants import pi
 from molgri.assertions import form_cube
 from molgri.space.fullgrid import FullGrid
 from molgri.space.rotations import grid2rotation, rotation2grid
-from molgri.space.rotobj import build_rotations, build_grid, build_grid_from_name, order_elements
+from molgri.space.rotobj import build_rotations, build_grid, build_grid_from_name
 from molgri.constants import GRID_ALGORITHMS
 
 import numpy as np
@@ -71,6 +71,7 @@ def test_general_grid_properties():
 def test_cube_3d_grid():
     cube_3d = build_grid(8, "cube3D", use_saved=USE_SAVED)
     grid = cube_3d.get_grid()
+    print(grid)
     assert form_cube(grid, test_angles=True)
 
 
@@ -90,8 +91,6 @@ def test_errors_and_assertions():
         # noinspection PyTypeChecker
         build_grid(15.3, "ico", use_saved=USE_SAVED)
     grid = build_grid(20, "ico", use_saved=USE_SAVED).get_grid()
-    with pytest.raises(ValueError):
-        order_elements(grid, 25)
 
 
 def test_everything_runs():

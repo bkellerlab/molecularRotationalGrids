@@ -231,31 +231,30 @@ def test_sorting():
     side_len = 1
 
     # N < number of points, N == number of points, N > number of points
-    N1 = 4
-    points_before = polyh.get_node_coordinates()
-    projections_before = polyh.get_projection_coordinates()
-    sorted_points = polyh.get_N_ordered_points(N1, projections=False)
-    sorted_projections = polyh.get_N_ordered_points(N1, projections=True)
-    points_after = polyh.get_node_coordinates()
-    projections_after = polyh.get_projection_coordinates()
-    # first assert it does not mess up the representation of all points
-    assert np.allclose(points_before, points_after)
-    assert np.allclose(projections_before, projections_after)
-    # secondly assert the right shape
-    assert sorted_points.shape == (4, 3)
-    assert sorted_projections.shape == (4, 3)
-    # assert that the sorted points come exactly from the list of points
-    assert np.all([point in points_before for point in sorted_points])
-    assert np.all([point in projections_before for point in sorted_projections])
-    # assert the distance between first and second point is np.sqrt(3)*side_len
-    assert np.isclose(np.linalg.norm(sorted_points[0]-sorted_points[1]), np.sqrt(3)*side_len)
-    # and between third and fourth too
-    assert np.isclose(np.linalg.norm(sorted_points[2] - sorted_points[3]), np.sqrt(3) * side_len)
-    # assert the distance between first and second projection is twice the radius - 2
-    assert np.isclose(np.linalg.norm(sorted_projections[0] - sorted_projections[1]), 2)
-    # and between third and fourth too
-    assert np.isclose(np.linalg.norm(sorted_projections[2] - sorted_projections[3]), 2)
-    # TODO: test exactly N or more than N
+    for N1 in (4, 8):
+        points_before = polyh.get_node_coordinates()
+        projections_before = polyh.get_projection_coordinates()
+        sorted_points = polyh.get_N_ordered_points(N1, projections=False)
+        sorted_projections = polyh.get_N_ordered_points(N1, projections=True)
+        points_after = polyh.get_node_coordinates()
+        projections_after = polyh.get_projection_coordinates()
+        # first assert it does not mess up the representation of all points
+        assert np.allclose(points_before, points_after)
+        assert np.allclose(projections_before, projections_after)
+        # secondly assert the right shape
+        assert sorted_points.shape == (N1, 3)
+        assert sorted_projections.shape == (N1, 3)
+        # assert that the sorted points come exactly from the list of points
+        assert np.all([point in points_before for point in sorted_points])
+        assert np.all([point in projections_before for point in sorted_projections])
+        # assert the distance between first and second point is np.sqrt(3)*side_len
+        assert np.isclose(np.linalg.norm(sorted_points[0]-sorted_points[1]), np.sqrt(3)*side_len)
+        # and between third and fourth too
+        assert np.isclose(np.linalg.norm(sorted_points[2] - sorted_points[3]), np.sqrt(3) * side_len)
+        # assert the distance between first and second projection is twice the radius - 2
+        assert np.isclose(np.linalg.norm(sorted_projections[0] - sorted_projections[1]), 2)
+        # and between third and fourth too
+        assert np.isclose(np.linalg.norm(sorted_projections[2] - sorted_projections[3]), 2)
 
 
 def test_detect_square_and_cubes():

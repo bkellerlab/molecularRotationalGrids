@@ -156,6 +156,7 @@ def form_cube(my_array: NDArray, test_angles=False) -> bool:
                                    f"Points with <3 dimensions cannot possibly form a cube!"
     # idea source: https://math.stackexchange.com/questions/1629899/given-eight-vertices-how-to-verify-they-form-a-cube
     distances = distance_matrix(my_array, my_array)
+    print(distances)
     # side length is the shortest distance occurring in distance matrix (except for 0
     a = np.min(distances[np.nonzero(distances)])
     # 24 elements should be equal to a

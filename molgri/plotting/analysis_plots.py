@@ -6,7 +6,7 @@ import seaborn as sns
 from numpy.typing import ArrayLike
 from seaborn import color_palette
 
-from molgri.constants import CELLS_DF_COLUMNS, COLORS, DEFAULT_NS
+from molgri.constants import CELLS_DF_COLUMNS, COLORS, DEFAULT_NS, TEXT_ALPHAS_3D, TEXT_ALPHAS_4D
 from molgri.molecules.parsers import NameParser, XVGParser
 from molgri.paths import PATH_OUTPUT_CELLS, PATH_INPUT_ENERGIES
 from molgri.plotting.abstract import AbstractPlot
@@ -62,9 +62,9 @@ class AlphaViolinPlot(AbstractPlot):
     def _prepare_data(self) -> pd.DataFrame:
         my_grid = build_grid_from_name(self.data_name, use_saved=self.use_saved, print_warnings=False)
         # if statistics file already exists, use it, else create it
-        try:
+        if self.use_saved and os.path.exists(my_grid.statistics_path):
             ratios_df = pd.read_csv(my_grid.statistics_path, dtype=float)
-        except FileNotFoundError:
+        else:
             my_grid.save_statistics()
             ratios_df = pd.read_csv(my_grid.statistics_path, dtype=float)
         return ratios_df
@@ -72,8 +72,7 @@ class AlphaViolinPlot(AbstractPlot):
     def _plot_data(self, color=None, **kwargs):
         df = self._prepare_data()
         sns.violinplot(x=df["alphas"], y=df["coverages"], ax=self.ax, palette=COLORS, linewidth=1, scale="count", cut=0)
-        self.ax.set_xticklabels([r'$\frac{\pi}{6}$', r'$\frac{2\pi}{6}$', r'$\frac{3\pi}{6}$', r'$\frac{4\pi}{6}$',
-                                 r'$\frac{5\pi}{6}$'])
+        self.ax.set_xticklabels(TEXT_ALPHAS_3D)
 
 
 class AlphaViolinPlotRot(AlphaViolinPlot):
@@ -91,6 +90,11 @@ class AlphaViolinPlotRot(AlphaViolinPlot):
             my_rots.save_statistics()
             ratios_df = pd.read_csv(my_rots.statistics_path, dtype=float)
         return ratios_df
+
+    def _plot_data(self, color=None, **kwargs):
+        df = self._prepare_data()
+        sns.violinplot(x=df["alphas"], y=df["coverages"], ax=self.ax, palette=COLORS, linewidth=1, scale="count", cut=0)
+        self.ax.set_xticklabels(TEXT_ALPHAS_4D)
 
 
 class AlphaConvergencePlot(AlphaViolinPlot):
@@ -121,7 +125,7 @@ class AlphaConvergencePlot(AlphaViolinPlot):
             full_df.append(df)
         full_df = pd.concat(full_df, axis=0, ignore_index=True)
         sns.lineplot(x=full_df["N"], y=full_df["coverages"], ax=self.ax, hue=full_df["alphas"],
-                     palette=color_palette("hls", 5), linewidth=1)
+                     palette=color_palette("hls", len(TEXT_ALPHAS_3D)), linewidth=1)
         sns.lineplot(x=full_df["N"], y=full_df["ideal coverage"], style=full_df["alphas"], ax=self.ax, color="black")
         self.ax.set_xscale("log")
         self.ax.set_yscale("log")

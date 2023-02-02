@@ -7,6 +7,7 @@ from scipy.constants import pi
 
 from molgri.space.utils import angle_between_vectors, random_sphere_points, random_quaternions, \
     randomise_quaternion_set_signs
+from molgri.constants import DEFAULT_ALPHAS_3D, DEFAULT_ALPHAS_4D, TEXT_ALPHAS_3D, TEXT_ALPHAS_4D
 
 
 def vector_within_alpha(central_vec: NDArray, side_vector: NDArray, alpha: float) -> bool or NDArray:
@@ -67,7 +68,10 @@ def prepare_statistics(point_array: NDArray, alphas: list, d=3, num_rand_points=
         (data_frame_summary, data_frame_full)
     """
     if alphas is None:
-        alphas = [pi / 6, 2 * pi / 6, 3 * pi / 6, 4 * pi / 6, 5 * pi / 6]
+        if d == 3:
+            alphas = DEFAULT_ALPHAS_3D
+        else:
+            alphas = DEFAULT_ALPHAS_4D
     assert d == 3 or d == 4, f"Statistics available only for 3 or 4 dimensions, not d={d}"
     assert point_array.shape[1] == d, f"Provided array not in shape (N, {d})"
     if d == 3:
@@ -111,13 +115,15 @@ def write_statistics(stat_data: pd.DataFrame, full_data: pd.DataFrame,
     if dimensions == 3:
         m1 = f"STATISTICS: Testing the coverage of grid {name} using {num_random} " \
              f"random points on a sphere. This statistics is useful for the position grid."
+        labels = TEXT_ALPHAS_3D
     elif dimensions == 4:
         m1 = f"STATISTICS: Testing the coverage of quaternions {name} using {num_random} " \
              f"random quaternions. This statistics is useful for the relative orientations."
+        labels = TEXT_ALPHAS_4D
     else:
         raise ValueError("Dimensions must be 3 or 4.")
     m2 = f"We select {num_random} random axes and count the number of grid points that fall within the angle" \
-         f"alpha (selected from [pi / 6, 2 * pi / 6, 3 * pi / 6, 4 * pi / 6, 5 * pi / 6]) of this axis. For an" \
+         f"alpha (selected from {labels}) of this axis. For an" \
          f"ideally uniform grid, we expect the ratio of num_within_alpha/total_num_points to equal the ratio" \
          f"area_of_alpha_spherical_cap/area_of_sphere, which we call ideal coverage."
     if print_message:
