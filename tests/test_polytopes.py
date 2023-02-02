@@ -135,7 +135,6 @@ def test_level0():
         projections_1 = pol.get_projection_coordinates()
         all_row_norms_equal_k(projections_1, 1)
         # the ordering of projections does not change
-        pol.get_projection_coordinates()
         projections_2 = pol.get_projection_coordinates()
         assert np.allclose(projections_1, projections_2)
         # the first points_at_0 projections and coordinates should still be the same

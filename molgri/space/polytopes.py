@@ -20,12 +20,12 @@ import seaborn as sns
 
 from molgri.assertions import is_array_with_d_dim_r_rows_c_columns, all_row_norms_equal_k, form_square_array, form_cube, \
     two_sets_of_quaternions_equal, quaternion_in_array
-from molgri.space.utils import normalise_vectors, dist_on_sphere
+from molgri.space.utils import normalise_vectors, dist_on_sphere, standardise_quaternion_set
 
 
 class Polytope(ABC):
 
-    def __init__(self, d: int = 3):
+    def __init__(self, d: int = 3, is_quat: bool = False):
         """
         A polytope is a d-dim object consisting of a set of nodes (vertices) and connections between them (edges) saved
         in self.G (graph).
@@ -40,6 +40,13 @@ class Polytope(ABC):
         self.current_level = 0              # level of division
         self.side_len = 0
         self.d = d
+        self.is_quat = is_quat
+
+        # saved objects in order to not re-construct them unnecessarily
+        self.current_nodes = (None, self.current_level)
+        self.current_projections = (None, self.current_level)
+
+        # function that depends on the object being created
         self._create_level0()
 
     @abstractmethod
@@ -58,9 +65,20 @@ class Polytope(ABC):
         Get an array in which each row represents the self.d - dimensional coordinates of the node. These are the
         points on the faces of the polytope, their norm may not be one (actually, will only be one at level 0).
         """
+        # check if saved available and the level of division has not changed since saving
+        if self.current_nodes[0] is not None and self.current_level == self.current_nodes[1]:
+            # noinspection PyTypeChecker
+            return self.current_nodes[0]
         nodes = self.G.nodes
         nodes = np.array(nodes)
-        is_array_with_d_dim_r_rows_c_columns(nodes, d=2, r=self.G.number_of_nodes(), c=self.d)
+        # TODO: use saved if no new division has taken place
+        if self.is_quat:
+            nodes = standardise_quaternion_set(nodes)
+            # determine unique without sorting
+            _, indices = np.unique(nodes, axis=0, return_index=True)
+            nodes = np.array([nodes[index] for index in sorted(indices)])
+        # save nodes for further use:
+        self.current_nodes = (nodes, self.current_level)
         return nodes
 
     def get_projection_coordinates(self) -> NDArray:
@@ -68,24 +86,32 @@ class Polytope(ABC):
         Get an array in which each row represents the self.d - dimensional coordinates of the node projected on a
         self.d-dimensional unit sphere. These points must have norm 1
         """
+        # check if saved available and the level of division has not changed since saving
+        if self.current_projections[0] is not None and self.current_level == self.current_nodes[1]:
+            # noinspection PyTypeChecker
+            return self.current_projections[0]
         projections_dict = nx.get_node_attributes(self.G, "projection")
         nodes = self.get_node_coordinates()
         projections = np.zeros((len(nodes), self.d))
         for i, n in enumerate(nodes):
             projections[i] = projections_dict[tuple(n)]
         # assertions
-        is_array_with_d_dim_r_rows_c_columns(projections, d=2, r=self.G.number_of_nodes(), c=self.d)
+        is_array_with_d_dim_r_rows_c_columns(projections, d=2, r=len(nodes), c=self.d)
         all_row_norms_equal_k(projections, 1)
+
+        # save projections for further use:
+        self.current_projections = (projections, self.current_level)
         return projections
 
-    def get_N_ordered_points(self, N: int = None, projections=True, as_quat=False):
+    def get_N_ordered_points(self, N: int = None, projections=True):
+        current_points = [tuple(point) for point in self.get_node_coordinates()]
+        N_available = len(current_points)
         # can't order more points than there are
-        if N > self.G.number_of_nodes():
-            raise ValueError(f"Cannot order more points than there are! N={N} > {self.G.number_of_nodes()}")
         if N is None:
-            N = self.G.number_of_nodes()
+            N = N_available
+        if N > N_available:
+            raise ValueError(f"Cannot order more points than there are! N={N} > {N_available}")
         result = np.zeros((N, self.d))
-        current_points = list(self.G.nodes)
         # first point does not matter, just select the first point
         if projections:
             result[0] = self.G.nodes[tuple(current_points[0])]["projection"]
@@ -94,23 +120,17 @@ class Polytope(ABC):
         current_points.pop(0)
 
         # for the rest of the points, determine centrality of the subgraph with already used points removed
-        current_index = 1
-        while current_index < N and len(current_points):
+        for i in range(1, N):
             subgraph = self.G.subgraph(current_points)
-            max_iter = np.max([100, 3*N])  # bigger graphs may need more iterations than default
+            max_iter = np.max([100, 3*N_available])  # bigger graphs may need more iterations than default
             dict_centrality = nx.eigenvector_centrality(subgraph, max_iter=max_iter, tol=1.0e-3, weight="length")
             # key with largest value
             most_distant_point = max(dict_centrality, key=dict_centrality.get)
-            # if as_quat, skip points that are rotationally equal to already added rotation quaternions
-            if not as_quat or not quaternion_in_array(np.array(most_distant_point), result[:current_index]):
-                if projections:
-                    result[current_index] = self.G.nodes[tuple(most_distant_point)]["projection"]
-                else:
-                    result[current_index] = most_distant_point
-                current_index += 1
+            if projections:
+                result[i] = self.G.nodes[tuple(most_distant_point)]["projection"]
+            else:
+                result[i] = most_distant_point
             current_points.remove(most_distant_point)
-        assert current_index == len(result), "Not enough points to be ordered," \
-                                             " maybe quaternion duplicates are a problem?"
         return result
 
     @abstractmethod
@@ -298,7 +318,7 @@ class Polyhedron(Polytope, ABC):
         """
         Polyhedron is a polytope of exactly three dimensions. The benefit: it can be plotted.
         """
-        super().__init__(d=3)
+        super().__init__(d=3, is_quat=False)
 
     def plot_neighbours(self, ax: Axes3D, node_i=0):
         all_nodes = self.get_node_coordinates()
@@ -332,7 +352,7 @@ class Polyhedron(Polytope, ABC):
         level_color = ["black", "red", "blue", "green"]
         index_palette = sns.color_palette("coolwarm", n_colors=self.G.number_of_nodes())
 
-        for i, point in enumerate(self.get_N_ordered_points(projections=projection)):  #self.get_node_coordinates()
+        for i, point in enumerate(self.get_N_ordered_points(projections=False)):  #self.get_node_coordinates()
             # select only points that belong to at least one of the chosen select_faces (or plot all if None selection)
             node = self.G.nodes[tuple(point)]
             point_faces = set(node["face"])
@@ -394,7 +414,7 @@ class Cube4DPolytope(Polytope):
     """
 
     def __init__(self):
-        super().__init__(d=4)
+        super().__init__(d=4, is_quat=True)
 
     def _create_level0(self):
         self.side_len = 2 * np.sqrt(1/self.d)

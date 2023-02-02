@@ -198,7 +198,7 @@ def two_sets_of_quaternions_equal(quat1: NDArray, quat2: NDArray) -> bool:
     # quaternions are the same if they are equal up to a +- sign
     # I have checked this fact and it is mathematically correct
     for q1, q2 in zip(quat1, quat2):
-        if not np.allclose(q1, q2) or np.allclose(q1, -q2):
+        if not (np.allclose(q1, q2) or np.allclose(q1, -q2)):
             return False
     return True
 
