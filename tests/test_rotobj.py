@@ -1,7 +1,6 @@
 import pandas as pd
 import pytest
 from scipy.constants import pi
-from scipy.spatial import distance_matrix
 
 from molgri.assertions import form_cube
 from molgri.space.fullgrid import FullGrid

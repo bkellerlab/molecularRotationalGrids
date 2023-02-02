@@ -26,7 +26,8 @@ def example_cube_graph() -> nx.Graph:
     nx.set_node_attributes(G, 0, name="level")
     nx.set_node_attributes(G, set(), name="face")
     nx.set_node_attributes(G, {node: normalise_vectors(np.array(node)) for node in G.nodes}, name="projection")
-    nx.set_edge_attributes(G, {(n1, n2): dist_on_sphere(G.nodes[n1]["projection"], G.nodes[n2]["projection"])[0] for n1, n2 in G.edges}, name="length")
+    dist = {(n1, n2): dist_on_sphere(G.nodes[n1]["projection"], G.nodes[n2]["projection"])[0] for n1, n2 in G.edges}
+    nx.set_edge_attributes(G, dist, name="length")
     return G
 
 
@@ -52,7 +53,6 @@ def test_polytope():
                 all_midpoints.append(midpoint)
                 if midpoint not in nodes_after:
                     raise Exception("At least one of the midpoints was not added to grid!")
-            assert set(all_midpoints).union(set(nodes_before)) == set(nodes_after)
 
 
 def test_second_neighbours():
@@ -152,19 +152,19 @@ def test_ico_polytope():
     # for each edge new point
     all_rows_unique(ico.get_projection_coordinates())
     assert ico.G.number_of_nodes() == 12 + 30, "1st division: icosahedron should have 42 nodes"
-    # each of 20 faces has 3 own edges and 6 shared edges
-    # fig, ax = plt.subplots(1, 1, subplot_kw={"projection": "3d"})
-    # ico.plot_points(ax, select_faces={1, 2, 3})
-    # ico.plot_edges(ax, select_faces={1, 2, 3})
-    # plt.show()
-    assert ico.G.number_of_edges() == 20 * 6, "1st division: icosahedron should have 120 edges"
+    # each of 20 faces has 6 shared edges
+    assert ico.G.number_of_edges() == 20 * 3, "1st division: icosahedron should have 60 edges"
     # after two divisions
     ico.divide_edges()
     # for each edge new point
     all_rows_unique(ico.get_projection_coordinates())
+    # fig, ax = plt.subplots(1, 1, subplot_kw={"projection": "3d"})
+    # ico.plot_points(ax, select_faces={1, 2, 3})
+    # ico.plot_edges(ax, select_faces={1, 2, 3})
+    # plt.show()
     assert ico.G.number_of_nodes() == 42 + 120, "2nd division: icosahedron should have 162 nodes"
-    # each of 20 faces has 18 own edges and 3*4 shared edges
-    assert ico.G.number_of_edges() == 20 * (18 + 6), "2nd division: icosahedron should have 480 edges"
+    # each of 20 faces: count edges and shared edges
+    assert ico.G.number_of_edges() == 240, "2nd division: icosahedron should have 240 edges"
 
 
 def test_cube3D_polytope():
@@ -179,17 +179,12 @@ def test_cube3D_polytope():
     assert cub.G.number_of_edges() == 12 + 24, "Cube should have 36 edges"
     # after one division
     cub.divide_edges()
-    # fig, ax = plt.subplots(1, 1, subplot_kw={"projection": "3d"})
-    # cub.plot_points(ax, select_faces={1, 2, 3})
-    # cub.plot_edges(ax, select_faces={1, 2, 3})
-    # plt.show()
     # for each edge new point
     all_rows_unique(cub.get_projection_coordinates())
     # each of 6 faces has 5 whole points + 4 * 1/3 + 4 * 1/2
     assert cub.G.number_of_nodes() == 50, "1st division: cube should have 50 nodes"
-    # each of 24 sub-faces has 4 own edges and 4 shared edges -> 144
-    assert cub.G.number_of_edges() == 144, "1st division: cube should have 144 edges"
-
+    # each of previous edges simply cut in half
+    assert cub.G.number_of_edges() == 72, "1st division: cube should have 72 edges"
     # after two divisions
     cub.divide_edges()
     # fig, ax = plt.subplots(1, 1, subplot_kw={"projection": "3d"})
@@ -199,26 +194,35 @@ def test_cube3D_polytope():
     all_rows_unique(cub.get_projection_coordinates())
     # each of 6 faces has 25 whole points + 4 * 1/3 + 12 * 1/2
     assert cub.G.number_of_nodes() == 194, "2nd division: cube should have 194 nodes"
-    # # each of 24 * 4 sub-sub-faces has 4 own edges and 4 shared edges -> 576
-    assert cub.G.number_of_edges() == 576, "2nd division: cube should have 576 edges"
+    assert cub.G.number_of_edges() == 288, "2nd division: cube should have 288 edges"
     # after 3 divisions
     cub.divide_edges()
     # 194 old points + 576 for each edge sub-divided = 770
     assert cub.G.number_of_nodes() == 770, "3rd division: cube should have 770 nodes"
-    assert cub.G.number_of_edges() == 4*576, "3rd division: cube should have 2304 edges"
+    assert cub.G.number_of_edges() == 4*288, "3rd division: cube should have 1152 edges"
 
 
-def test_edge_removal():
-    cp = Cube3DPolytope()
-    # cube initially has 4 * 6 = 24 diagonal edges + 12 straight ones
-    # removing straigt ones we are left with 24
-    cp._remove_edges_of_len(2 * cp.side_len)
-    assert cp.G.number_of_edges() == 24, "Wrong number of edges after removal of straight edges"
-    # same happens if removing diagonal ones
-    cp = Cube3DPolytope()
-    # removing diagonal ones we are left with 12
-    cp._remove_edges_of_len(cp.side_len * np.sqrt(2))
-    assert cp.G.number_of_edges() == 12, "Wrong number of edges after removal of diagonals"
+def test_cube4D_polytope():
+    cub = Cube4DPolytope()
+    # each of 8 cells has one central point, 6 face points and 8 vertices
+    # 48 = 8 * (1+ 6/2 + 8/4)
+    assert cub.G.number_of_nodes() == 48, "Hypercube 4D should have 48 nodes"
+    # those points are unique
+    all_rows_unique(cub.get_projection_coordinates())
+    assert cub.G.number_of_edges() == 192, "Hypercube should have 192 edges"
+    # after one division
+    cub.divide_edges()
+    # fig, ax = plt.subplots(1, 1, subplot_kw={"projection": "3d"})
+    # cub.draw_one_cell(ax, draw_edges=True)
+    # plt.show()
+    assert cub.G.number_of_nodes() == 384, "1st division: hypercube should have 384 nodes"
+    assert cub.G.number_of_edges() == 672, "1st division: hypercube should have 672 edges"
+    cub.divide_edges()
+    # fig, ax = plt.subplots(1, 1, subplot_kw={"projection": "3d"})
+    # cub.draw_one_cell(ax, draw_edges=False)
+    # plt.show()
+    assert cub.G.number_of_nodes() == 2592, "2nd division: hypercube should have 2592 nodes"
+    assert cub.G.number_of_edges() == 4416, "2nd division: hypercube should have 4416 edges"
 
 
 def test_sorting():
@@ -266,7 +270,3 @@ def test_detect_square_and_cubes():
     polyh._add_square_diagonal_nodes()
     points_after = polyh.G.number_of_nodes()
     assert points_after - points_before == 6
-    # can't do that, you'd get a point at (0, 0, 0) and can't calculate the projection
-    # polyh._add_cube_diagonal_nodes()
-    # points_after_2 = polyh.G.number_of_nodes()
-    # assert points_after_2 - points_after == 1

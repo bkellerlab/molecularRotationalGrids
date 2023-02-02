@@ -140,6 +140,25 @@ def standardise_quaternion_set(quaternions: NDArray, standard=np.array([1, 0, 0,
     return standard_quat
 
 
+def unique_quaternion_set(quaternions: NDArray) -> NDArray:
+    """
+    Standardise the quaternion set so that q and -q are converted to the same object. If now any repetitions exist,
+    remove them from the array.
+
+    Args:
+        quaternions: array (N, 4), each row a quaternion
+
+    Returns:
+        quaternions: array (M <= N, 4), each row a quaternion different from all other ones
+    """
+    # standardizing is necessary to be able to use unique on quaternions
+    nodes = standardise_quaternion_set(quaternions)
+    # determine unique without sorting
+    _, indices = np.unique(nodes, axis=0, return_index=True)
+    quaternions = np.array([nodes[index] for index in sorted(indices)])
+    return quaternions
+
+
 def randomise_quaternion_set_signs(quaternions: NDArray) -> NDArray:
     """
     Return the set of the same quaternions up to the sign of each row, which is normalised.

@@ -65,7 +65,7 @@ def test_analysis_plots():
 
 if __name__ == "__main__":
     N = 500
-    for alg in ("cube4D", ): #GRID_ALGORITHMS[:-1]
+    for alg in GRID_ALGORITHMS[:-1]:
         GridPlot(f"{alg}_{N}").create_and_save(x_label="x", y_label="y", z_label="z",
                                                animate_rot=True, animate_seq=False, main_ticks_only=True)
         AlphaViolinPlot(f"{alg}_{N}", use_saved=False).create_and_save()
