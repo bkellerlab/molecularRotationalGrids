@@ -216,14 +216,13 @@ class SystemERotations(RotationsObject):
         rot_matrices = []
         while len(rot_matrices) < self.N:
             phis = np.linspace(0, 2 * pi, num_points)
-            costhetas = np.linspace(-1, 1, num_points)
-            thetas = np.arccos(costhetas)
             thetas = np.linspace(0, 2 * pi, num_points)
             psis = np.linspace(0, 2 * pi, num_points)
             euler_meshgrid = np.array(np.meshgrid(*(phis, thetas, psis)), dtype=float)
             euler_meshgrid = euler_meshgrid.reshape((3, -1)).T
             self.rotations = Rotation.from_euler("ZYX", euler_meshgrid)
             # remove non-unique rotational matrices
+            self._select_unique_rotations()
             rot_matrices = self.rotations.as_matrix()
             num_points += 1
         # maybe just shuffle rather than order

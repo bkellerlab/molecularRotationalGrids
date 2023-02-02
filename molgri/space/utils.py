@@ -3,6 +3,7 @@ from typing import Tuple
 import numpy as np
 from numpy.typing import NDArray
 from scipy.constants import pi
+from scipy.spatial.transform import Rotation
 
 
 def norm_per_axis(array: np.ndarray, axis: int = None) -> np.ndarray:
@@ -172,7 +173,7 @@ def randomise_quaternion_set_signs(quaternions: NDArray) -> NDArray:
 
 def random_sphere_points(n: int = 1000) -> NDArray:
     """
-    Create n points that are truly randomly distributed across the sphere. Eg. to test the uniformity of your grid.
+    Create n points that are truly randomly distributed across the sphere.
 
     Args:
         n: number of points
@@ -180,14 +181,10 @@ def random_sphere_points(n: int = 1000) -> NDArray:
     Returns:
         an array of grid points, shape (n, 3)
     """
-    phi = np.random.uniform(0, 2*pi, (n, 1))
-    costheta = np.random.uniform(-1, 1, (n, 1))
-    theta = np.arccos(costheta)
-
-    x = np.sin(theta) * np.cos(phi)
-    y = np.sin(theta) * np.sin(phi)
-    z = np.cos(theta)
-    return np.concatenate((x, y, z), axis=1)
+    z_vec = np.array([0, 0, 1])
+    quats = random_quaternions(n)
+    rot = Rotation.from_quat(quats)
+    return rot.apply(z_vec)
 
 
 def random_quaternions(n: int = 1000) -> NDArray:

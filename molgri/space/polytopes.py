@@ -161,10 +161,13 @@ class Polytope(ABC):
         # for the rest of the points, determine centrality of the subgraph with already used points removed
         for i in range(1, N):
             subgraph = self.G.subgraph(current_points)
-            max_iter = np.max([100, 3*N_available])  # bigger graphs may need more iterations than default
+            max_iter = np.max([100, 10*N_available])  # bigger graphs may need more iterations than default
+            #dict_centrality = nx.load_centrality(subgraph, weight="length")
+            # katz_centrality
+            #dict_centrality = nx.katz_centrality_numpy(subgraph, weight="length") #max_iter=max_iter, tol=1.0e-3,
             dict_centrality = nx.eigenvector_centrality(subgraph, max_iter=max_iter, tol=1.0e-3, weight="length")
             # key with largest value is the point in the center of the remaining graph
-            most_distant_point = max(dict_centrality, key=dict_centrality.get)
+            most_distant_point = min(dict_centrality, key=dict_centrality.get)
             if projections:
                 result[i] = self.G.nodes[tuple(most_distant_point)]["projection"]
             else:
@@ -238,7 +241,7 @@ class Polytope(ABC):
                 distance = np.linalg.norm(new_node_arr - np.array(new_neighbours[0]))
                 length = dist_on_sphere(self.G.nodes[new_node]["projection"],
                                         self.G.nodes[new_neighbours[0]]["projection"])[0]
-                all_new_edges = [(new_node, n, {"p_dist": distance, "length": length}) for n in new_neighbours]
+                all_new_edges = [(new_node, n, {"p_dist": distance, "length": 1/length}) for n in new_neighbours]
                 self.G.add_edges_from(all_new_edges)
 
     def _add_edges_of_len(self, edge_len: float, wished_levels: list = None, only_seconds=True, only_face=True):
@@ -277,9 +280,9 @@ class Polytope(ABC):
                                                 self.G.nodes[other_node]["projection"])[0]
                         # just to make sure that you don't add same edge in 2 different directions
                         if new_node < other_node:
-                            self.G.add_edge(new_node, other_node, p_dist=edge_len, length=length)
+                            self.G.add_edge(new_node, other_node, p_dist=edge_len, length=1/length)
                         else:
-                            self.G.add_edge(other_node, new_node, p_dist=edge_len, length=length)
+                            self.G.add_edge(other_node, new_node, p_dist=edge_len, length=1/length)
 
     def _find_face(self, node_list: list) -> set:
         """
@@ -685,3 +688,18 @@ def detect_all_cubes(graph: nx.Graph) -> list:
                     if form_cube(array_points) and points not in cube_nodes:
                         cube_nodes.append([*points])
     return cube_nodes
+
+if __name__ == "__main__":
+    import matplotlib.pyplot as plt
+    cube3D = Cube3DPolytope()
+    #cube3D.divide_edges()
+    cube3D.get_N_ordered_points()
+    # nx.draw(cube3D.G, node_color='pink'
+    # )
+    edge_labels = dict([((n1, n2), np.round(data["length"], 3))
+                        for n1, n2, data in cube3D.G.edges(data=True)])
+    nx.draw_networkx(cube3D.G, pos=nx.spring_layout(cube3D.G), with_labels=False)
+    nx.draw_networkx_edge_labels(cube3D.G, pos=nx.spring_layout(cube3D.G), edge_labels=edge_labels,
+        font_color='red'
+    )
+    plt.show()
