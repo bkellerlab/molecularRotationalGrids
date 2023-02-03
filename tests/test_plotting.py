@@ -64,7 +64,7 @@ def test_analysis_plots():
 
 
 if __name__ == "__main__":
-    N = 300
+    N = 546
     for alg in ("cube3D", "cube4D", "ico"): #GRID_ALGORITHMS[:-1]
         GridPlot(f"{alg}_{N}").create_and_save(x_label="x", y_label="y", z_label="z",
                                                animate_rot=True, animate_seq=False, main_ticks_only=True)

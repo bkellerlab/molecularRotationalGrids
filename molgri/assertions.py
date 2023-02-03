@@ -160,6 +160,7 @@ def form_cube(my_array: NDArray, test_angles=False) -> bool:
     a = np.min(distances[np.nonzero(distances)])
     # 24 elements should be equal to a
     if not np.count_nonzero(np.isclose(distances, a)) == 24:
+        print("Wrong count of len a")
         return False
     # 24 elements are face diagonals
     if not np.count_nonzero(np.isclose(distances, a*np.sqrt(2))) == 24:
@@ -170,6 +171,7 @@ def form_cube(my_array: NDArray, test_angles=False) -> bool:
     # the side length is a and as a consequence, distances to other points should be: 1x0, 3xa, 3xsqrt(2)*a, 1xsqrt(3)*a
     for row in distances:
         if not np.allclose(sorted(row), sorted([0, a, a, a, a*np.sqrt(2), a*np.sqrt(2), a*np.sqrt(2), a*np.sqrt(3)])):
+            print("One row not composed correctly")
             return False
     # only selected angles possible
     if test_angles:
@@ -179,6 +181,7 @@ def form_cube(my_array: NDArray, test_angles=False) -> bool:
             for vec2 in my_array:
                 angle_points = np.arccos(np.clip(np.dot(vec1, vec2), -1.0, 1.0))
                 if not np.any(np.isclose(angle_points, [0, np.pi/2, np.pi, np.pi/3, tetrahedron_a1, tetrahedron_a2])):
+                    print(f"angle {angle_points} not close to {[0, np.pi/2, np.pi, np.pi/3, tetrahedron_a1, tetrahedron_a2]}")
                     return False
     # finally, if all tests right
     return True
@@ -224,3 +227,14 @@ def assert_two_sets_of_eulers_equal(euler1: NDArray, euler2: NDArray):
         # first and last angle must match up to pi
         assert np.isclose(e1[0] % pi, e2[0] % pi)
         assert np.isclose(e1[-1] % pi, e2[-1] % pi)
+
+if __name__ == "__main__":
+    ex_array = np.array([[-0.57735027, -0.57735027, -0.57735027],
+ [ 0.57735027,  0.57735027,  0.57735027],
+ [-0.57735027, -0.57735027,  0.57735027],
+ [ 0.57735027,  0.57735027, -0.57735027],
+ [-0.57735027,  0.57735027, -0.57735027],
+ [ 0.57735027, -0.57735027,  0.57735027],
+ [ 0.57735027, -0.57735027, -0.57735027],
+ [-0.57735027,  0.57735027,  0.57735027]])
+    form_cube(ex_array, test_angles=True)

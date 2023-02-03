@@ -167,7 +167,7 @@ class Polytope(ABC):
             #dict_centrality = nx.katz_centrality_numpy(subgraph, weight="length") #max_iter=max_iter, tol=1.0e-3,
             dict_centrality = nx.eigenvector_centrality(subgraph, max_iter=max_iter, tol=1.0e-3, weight="length")
             # key with largest value is the point in the center of the remaining graph
-            most_distant_point = min(dict_centrality, key=dict_centrality.get)
+            most_distant_point = max(dict_centrality, key=dict_centrality.get)
             if projections:
                 result[i] = self.G.nodes[tuple(most_distant_point)]["projection"]
             else:
