@@ -142,6 +142,26 @@ class Polytope(ABC):
         Raises:
             ValueError if N larger than the number of available unique nodes
         """
+
+        def remove_and_reconnect(g, node):
+            """Remove a node and reconnect edges"""
+            sources = list(g.neighbors(node))
+            targets = list(g.neighbors(node))
+
+            new_edges = list(product(sources, targets))
+            distances = [g.edges[(node, s)]["p_dist"]+g.edges[(node, t)]["p_dist"] for s, t in new_edges]
+            new_edges = [(edge[0], edge[1], {"p_dist": distances[i]}) for i, edge in enumerate(new_edges) if edge[0] != edge[1]]  # remove self-loops
+            g.add_edges_from(new_edges)
+
+            g.remove_node(node)
+            # neig_mdp = list(nx.neighbors(subgraph, most_distant_point))
+            # for n in neig_mdp:
+            #     first_edge_p_dist = subgraph.edges[(n, most_distant_point)]["p_dist"]
+            #     sec_n = list(second_neighbours(subgraph, n))
+            #     sec_n = [s for s in sec_n if s in neig_mdp]
+            #     for s in sec_n:
+            #         second_edge_p_dist
+
         # important to use the getter
         current_points = [tuple(point) for point in self.get_node_coordinates()]
         N_available = len(current_points)
@@ -156,23 +176,35 @@ class Polytope(ABC):
             result[0] = self.G.nodes[tuple(current_points[0])]["projection"]
         else:
             result[0] = current_points[0]
-        current_points.pop(0)
 
+        subgraph = self.G.subgraph(current_points).copy()
+        remove_and_reconnect(subgraph, current_points[0])
+        print("first_point", current_points[0])
+        current_points.pop(0)
         # for the rest of the points, determine centrality of the subgraph with already used points removed
         for i in range(1, N):
-            subgraph = self.G.subgraph(current_points)
+            #subgraph = self.G.subgraph(current_points)
             max_iter = np.max([100, 10*N_available])  # bigger graphs may need more iterations than default
             #dict_centrality = nx.load_centrality(subgraph, weight="length")
             # katz_centrality
-            #dict_centrality = nx.katz_centrality_numpy(subgraph, weight="length") #max_iter=max_iter, tol=1.0e-3,
-            dict_centrality = nx.eigenvector_centrality(subgraph, max_iter=max_iter, tol=1.0e-3, weight="length")
+            #dict_centrality = nx.eigenvector_centrality(subgraph, weight="length", max_iter=max_iter, tol=1.0e-3) #max_iter=max_iter, tol=1.0e-3,
+            #dict_centrality = nx.katz_centrality_numpy(subgraph, weight="p_dist") #max_iter=max_iter, tol=1e-8,
+            # large beta is needed since we are interested in global centrality
+            dict_centrality = dict()
+            for k, v in nx.all_pairs_dijkstra_path_length(subgraph, weight="length"):
+                #print(k, np.sum(list(v.values())))
+                dict_centrality[k] = np.sum(list(v.values()))
+            #print(dict_centrality)
+            #dict_centrality = nx.katz_centrality_numpy(subgraph, alpha=500, beta=500, weight="p_dist")  # max_iter=max_iter, tol=1e-8,
+            #print(i, dict_centrality)
             # key with largest value is the point in the center of the remaining graph
-            most_distant_point = max(dict_centrality, key=dict_centrality.get)
+            most_distant_point = min(dict_centrality, key=dict_centrality.get)
             if projections:
                 result[i] = self.G.nodes[tuple(most_distant_point)]["projection"]
             else:
                 result[i] = most_distant_point
             current_points.remove(most_distant_point)
+            remove_and_reconnect(subgraph, most_distant_point)
         return result
 
     def divide_edges(self):
@@ -239,10 +271,15 @@ class Polytope(ABC):
                                 projection=normalise_vectors(np.array(new_node)))
                 # since an average, only need to calculate distances once
                 distance = np.linalg.norm(new_node_arr - np.array(new_neighbours[0]))
-                length = dist_on_sphere(self.G.nodes[new_node]["projection"],
-                                        self.G.nodes[new_neighbours[0]]["projection"])[0]
-                all_new_edges = [(new_node, n, {"p_dist": distance, "length": 1/length}) for n in new_neighbours]
-                self.G.add_edges_from(all_new_edges)
+                for n in new_neighbours:
+                    # IMPORTANT: even if distances on a polyhedron are the same, distances on the sphere no longer
+                    # are since the distance of points to the origin depends on where on the face of the polyhedron
+                    # the newly connected points appear
+                    length = dist_on_sphere(self.G.nodes[new_node]["projection"],
+                                            self.G.nodes[n]["projection"])[0]
+                    self.G.add_edge(new_node, n, p_dist=distance, length=length)
+                #all_new_edges = [(new_node, n, {"p_dist": distance, "length": length}) for n in new_neighbours]
+                #self.G.add_edges_from(all_new_edges)
 
     def _add_edges_of_len(self, edge_len: float, wished_levels: list = None, only_seconds=True, only_face=True):
         """
@@ -280,9 +317,9 @@ class Polytope(ABC):
                                                 self.G.nodes[other_node]["projection"])[0]
                         # just to make sure that you don't add same edge in 2 different directions
                         if new_node < other_node:
-                            self.G.add_edge(new_node, other_node, p_dist=edge_len, length=1/length)
+                            self.G.add_edge(new_node, other_node, p_dist=edge_len, length=length)
                         else:
-                            self.G.add_edge(other_node, new_node, p_dist=edge_len, length=1/length)
+                            self.G.add_edge(other_node, new_node, p_dist=edge_len, length=length)
 
     def _find_face(self, node_list: list) -> set:
         """
@@ -365,8 +402,9 @@ class Polyhedron(Polytope, ABC):
                     ax.scatter(*point_projection, color=color, s=30)
                 else:
                     ax.scatter(*point, color=color, s=30)
+                    ax.text(*point, s=f"{i}")
 
-    def plot_edges(self, ax, select_faces=None, **kwargs):
+    def plot_edges(self, ax, select_faces=None, label=None, **kwargs):
         """
         Plot the edges between the points. Can select to display only some faces for clarity.
 
@@ -381,11 +419,15 @@ class Polyhedron(Polytope, ABC):
             faces_edge_1 = set(self.G.nodes[edge[0]]["face"])
             faces_edge_2 = set(self.G.nodes[edge[1]]["face"])
             # both the start and the end point of the edge must belong to one of the selected faces
-            n1_on_face = len(faces_edge_1.intersection(select_faces)) > 0
-            n2_on_face = len(faces_edge_2.intersection(select_faces)) > 0
-            if select_faces is None or (n1_on_face and n2_on_face):
+            n1_on_face = select_faces is None or len(faces_edge_1.intersection(select_faces)) > 0
+            n2_on_face = select_faces is None or len(faces_edge_2.intersection(select_faces)) > 0
+            if n1_on_face and n2_on_face:
                 # usually you only want to plot edges used in division
                 ax.plot(*np.array(edge[:2]).T, color="black",  **kwargs)
+                if label:
+                    midpoint = np.average(np.array(edge[:2]), axis=0)
+                    s=edge[2][f"{label}"]
+                    ax.text(*midpoint, s=f"{s:.3f}")
 
 
 class PolyhedronFromG(Polyhedron):

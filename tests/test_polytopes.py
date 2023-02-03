@@ -1,6 +1,7 @@
 import networkx as nx
 import numpy as np
 import matplotlib.pyplot as plt
+from scipy.constants import pi
 
 from molgri.space.polytopes import Cube3DPolytope, IcosahedronPolytope, second_neighbours, \
     Cube4DPolytope, third_neighbours, detect_all_cubes, detect_all_squares, PolyhedronFromG
@@ -28,6 +29,8 @@ def example_cube_graph() -> nx.Graph:
     nx.set_node_attributes(G, {node: normalise_vectors(np.array(node)) for node in G.nodes}, name="projection")
     dist = {(n1, n2): dist_on_sphere(G.nodes[n1]["projection"], G.nodes[n2]["projection"])[0] for n1, n2 in G.edges}
     nx.set_edge_attributes(G, dist, name="length")
+    side_len = 1
+    nx.set_edge_attributes(G, side_len, name="p_dist")
     return G
 
 
@@ -255,6 +258,16 @@ def test_sorting():
         assert np.isclose(np.linalg.norm(sorted_projections[0] - sorted_projections[1]), 2)
         # and between third and fourth too
         assert np.isclose(np.linalg.norm(sorted_projections[2] - sorted_projections[3]), 2)
+    # now let's add mid-points
+    polyh.divide_edges()
+    sorted_points = polyh.get_N_ordered_points(12, projections=False)
+    # the first newly added points - index 8 and 9 - must be at distance sqrt(2)*side_len
+    print(np.linalg.norm(sorted_points[8] - sorted_points[9]), np.sqrt(2) * side_len)
+    assert np.isclose(np.linalg.norm(sorted_points[8] - sorted_points[9]), np.sqrt(2) * side_len)
+    fig, ax = plt.subplots(1, 1, subplot_kw={"projection": "3d"})
+    polyh.plot_points(ax, color_by="index")
+    # cube3D.plot_edges(ax, label="p_dist")
+    plt.show()
 
 
 def test_detect_square_and_cubes():
@@ -269,3 +282,43 @@ def test_detect_square_and_cubes():
     polyh._add_square_diagonal_nodes()
     points_after = polyh.G.number_of_nodes()
     assert points_after - points_before == 6
+
+
+def test_edge_attributes():
+    # ico
+    ico = IcosahedronPolytope()
+    side_len = 1 / np.sin(2 * pi / 5)
+    arch_len = np.arccos(1-side_len**2/2)
+    # after subdivision:
+    for i in range(3):
+        edges = ico.G.edges(data=True)
+        for n1, n2, data in edges:
+            assert np.isclose(data["p_dist"], side_len)
+            #assert np.isclose(data["length"], arch_len)
+        ico.divide_edges()
+        side_len = side_len / 2
+    # cube3D
+    cube3D = Cube3DPolytope()
+    side_len = 2 * np.sqrt(1/3)
+    # after subdivision:
+    for i in range(3):
+        edges = cube3D.G.edges(data=True)
+        for n1, n2, data in edges:
+            assert np.isclose(data["p_dist"], side_len) or np.isclose(data["p_dist"], np.sqrt(2)*side_len/2)
+        # fig, ax = plt.subplots(1, 1, subplot_kw={"projection": "3d"})
+        # cube3D.plot_points(ax, color_by="index")
+        # cube3D.plot_edges(ax, label="p_dist")
+        # plt.show()
+        cube3D.divide_edges()
+        side_len = side_len / 2
+    # cube4D
+    cube4D = Cube4DPolytope()
+    side_len = 2 * np.sqrt(1/4)
+    # after subdivision:
+    for i in range(3):
+        edges = cube4D.G.edges(data=True)
+        for n1, n2, data in edges:
+            assert np.isclose(data["p_dist"], side_len) or np.isclose(data["p_dist"], np.sqrt(2)*side_len/2) or \
+                   np.isclose(data["p_dist"], np.sqrt(3)*side_len/2) or np.isclose(data["p_dist"], side_len/2)
+        cube4D.divide_edges()
+        side_len = side_len / 2
