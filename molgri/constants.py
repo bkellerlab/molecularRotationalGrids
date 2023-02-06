@@ -1,5 +1,6 @@
 from seaborn import color_palette
 from pkg_resources import resource_filename
+from scipy.constants import pi
 
 PM2ANGSTROM = 0.01
 NM2ANGSTROM = 10
@@ -50,6 +51,16 @@ DEFAULT_NS = (3,    4,    5,    6,    8,   10,   12,   15,   18,   23,
               30,   34,   41,   50,   62,   75,   100, 112,  137,  167,  204,
               249,  300,  370,  452,  500,  672,  819, 1000)
 
+## SIXTS
+## DEFAULT_ALPHAS_4D = (pi / 6, 2 * pi / 6, 3 * pi / 6, 4 * pi / 6, 5 * pi / 6)
+## TEXT_ALPHAS_4D = [r'$\frac{\pi}{6}$', r'$\frac{2\pi}{6}$', r'$\frac{3\pi}{6}$', r'$\frac{4\pi}{6}$',
+##                  r'$\frac{5\pi}{6}$']
+
+DEFAULT_ALPHAS_3D = (pi/12, pi / 6, 3*pi/12, 2 * pi / 6, 5 * pi / 12)
+TEXT_ALPHAS_3D = [r'$\frac{\pi}{12}$', r'$\frac{\pi}{6}$', r'$\frac{3\pi}{12}$', r'$\frac{2\pi}{6}$',
+                  r'$\frac{5\pi}{12}$']
+DEFAULT_ALPHAS_4D = DEFAULT_ALPHAS_3D
+TEXT_ALPHAS_4D = TEXT_ALPHAS_3D
 
 EXTENSIONS = ('PSF', 'TOP', 'PRMTOP', 'PARM7', 'PDB', 'ENT', 'XPDB', 'PQR', 'GRO', 'CRD', 'PDBQT', 'DMS',
               'TPR', 'MOL2', 'DATA', 'LAMMPSDUMP', 'XYZ', 'TXYZ', 'ARC', 'GMS', 'CONFIG', 'HISTORY', 'XML',

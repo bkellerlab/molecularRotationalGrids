@@ -1,5 +1,5 @@
-from numpy.typing import NDArray
-
+from molgri.assertions import assert_two_sets_of_eulers_equal, \
+    two_sets_of_quaternions_equal
 from molgri.space.rotations import Rotation2D, grid2euler, euler2grid, quaternion2grid, \
     grid2quaternion, grid2rotation, rotation2grid, two_vectors2rot
 from molgri.space.utils import normalise_vectors, random_quaternions
@@ -77,7 +77,7 @@ def test_quat2grid():
     grid_x, grid_y, grid_z = quaternion2grid(initial_quaternions)
     # re-create quaternions
     after_quaternions = grid2quaternion(grid_x, grid_y, grid_z)
-    assert_two_sets_of_quaternions_equal(initial_quaternions, after_quaternions)
+    assert two_sets_of_quaternions_equal(initial_quaternions, after_quaternions)
 
 
 def test_euler2grid():
@@ -165,7 +165,7 @@ def test_grid2quat():
     assert np.allclose(new_grid_y, new_grid_y2)
     assert np.allclose(new_grid_z, new_grid_z2)
 
-    assert_two_sets_of_quaternions_equal(quaternions, quaternions2)
+    assert two_sets_of_quaternions_equal(quaternions, quaternions2)
 
 
 def test_grid2euler():
@@ -199,38 +199,6 @@ def test_grid2euler():
 def create_random_grids(N: int = 500):
     initial_rot = Rotation.random(N)
     return rotation2grid(initial_rot)
-
-
-def assert_two_sets_of_quaternions_equal(quat1: NDArray, quat2: NDArray):
-    assert quat1.shape == quat2.shape
-    assert quat1.shape[1] == 4
-    # quaternions are the same if they are equal up to a +- sign
-    # I have checked this fact and it is mathematically correct
-    for q1, q2 in zip(quat1, quat2):
-        assert np.allclose(q1, q2) or np.allclose(q1, -q2)
-
-
-def assert_two_sets_of_eulers_equal(euler1: NDArray, euler2: NDArray):
-    # TODO: can you check more than that?
-    # see: https://en.wikipedia.org/wiki/Euler_angles#Signs,_ranges_and_conventions
-    assert euler1.shape == euler2.shape
-    assert euler1.shape[1] == 3
-    # first of all, check that the corresponding rot matrices are the same
-    rot1 = Rotation.from_euler("ZYX", euler1)
-    rot2 = Rotation.from_euler("ZYX", euler2)
-    assert np.allclose(rot1.as_matrix(), rot2.as_matrix())
-
-    # TODO: check for gimbal locks
-
-    # further checks
-    for e1, e2 in zip(euler1, euler2):
-        # if within [-pi/2, pi/2], euler angles must match exactly
-        for comp1, comp2 in zip(e1, e2):
-            if -pi/2 <= comp1 <= pi/2 and -pi/2 <= comp2 <= pi/2:
-                assert np.isclose(comp1, comp2)
-        # first and last angle must match up to pi
-        assert np.isclose(e1[0] % pi, e2[0] % pi)
-        assert np.isclose(e1[-1] % pi, e2[-1] % pi)
 
 
 def test_two_vectors2rot():

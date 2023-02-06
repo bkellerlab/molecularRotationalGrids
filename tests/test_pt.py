@@ -252,7 +252,7 @@ def test_frames_in_directory():
     n_b = 4
     n_o = 2
     n_t = 3
-    manager = PtIOManager("H2O", "NH3", f"randomE_{n_o}", f"systemE_{n_b}", "[1, 2, 3]")
+    manager = PtIOManager("H2O", "NH3", f"ico_{n_o}", f"cube3D_{n_b}", "[1, 2, 3]")
     manager.construct_pt(as_dir=True)
     file_name = manager.determine_pt_name()
     base_p, fn, fp, dp = converter_gro_dir_gro_file_names(pt_directory_path=f"{PATH_OUTPUT_PT}{file_name}",
@@ -263,7 +263,7 @@ def test_frames_in_directory():
     filelist = [f for f in os.listdir(f"{dp}") if f.endswith(".xtc")]
     assert len(filelist) == n_b*n_o*n_t, "Not correct number of .xtc files in a directory."
     # compare contents of individual files mit the single all-frame PT
-    manager = PtIOManager("H2O", "NH3", f"randomE_{n_o}", f"systemE_{n_b}", "[1, 2, 3]")
+    manager = PtIOManager("H2O", "NH3", f"ico_{n_o}", f"cube3D_{n_b}", "[1, 2, 3]")
     manager.construct_pt(as_dir=False)
     # check that a directory joined version is the same as the normal one
     with open(new_name, "rb") as f1:
@@ -277,7 +277,7 @@ def test_directory_combined_to_pt():
     # check that a full directory can be split
     n_b = 17
     n_o = 1
-    manager = PtIOManager("H2O", "NH3", f"cube4D_{n_o}", f"cube4D_{n_b}", "[1, 2, 3]")
+    manager = PtIOManager("H2O", "NH3", f"cube3D_{n_o}", f"cube4D_{n_b}", "[1, 2, 3]")
     manager.construct_pt(as_dir=False)
     file_name = manager.determine_pt_name()
     base_p, fn, fp, dp = converter_gro_dir_gro_file_names(pt_file_path=f"{PATH_OUTPUT_PT}{file_name}.xtc")
@@ -291,7 +291,7 @@ def test_directory_combined_to_pt():
         os.rmdir(new_dir_name)
     os.rename(dp, new_dir_name)
     # the non-split version / created during PT creation
-    manager2 = PtIOManager("H2O", "NH3", f"cube4D_{n_o}", f"cube4D_{n_b}", "[1, 2, 3]")
+    manager2 = PtIOManager("H2O", "NH3", f"cube3D_{n_o}", f"cube4D_{n_b}", "[1, 2, 3]")
     manager2.construct_pt(as_dir=True)
     filelist1 = [f for f in os.listdir(f"{new_dir_name}") if f.endswith(".xtc")]
     filelist2 = [f for f in os.listdir(f"{dp}") if f.endswith(".xtc")]

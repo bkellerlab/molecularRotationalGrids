@@ -42,7 +42,7 @@ class GridPlot(Plot3D):
         self.grid = self._prepare_data()
 
     def _prepare_data(self) -> np.ndarray:
-        my_grid = build_grid_from_name(self.data_name, use_saved=False, print_warnings=False).get_grid()
+        my_grid = build_grid_from_name(self.data_name, use_saved=False, print_warnings=True).get_grid()
         return my_grid
 
     def _plot_data(self, color="black", s=30, **kwargs):
@@ -299,7 +299,7 @@ class GridColoredWithAlphaPlot(GridPlot):
     def __init__(self, data_name, vector: np.ndarray, alpha_set: list, plot_type: str = "colorful_grid", **kwargs):
         super().__init__(data_name, plot_type=plot_type, **kwargs)
         self.alpha_central_vector = vector
-        self.alpha_set = alpha_set
+        self.alpha_set = list(alpha_set)
         self.alpha_set.sort()
         self.alpha_set.append(pi)
 

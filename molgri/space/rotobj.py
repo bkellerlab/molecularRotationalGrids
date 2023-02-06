@@ -36,8 +36,6 @@ class SphereGrid:
         self.short_statistics_path = f"{PATH_OUTPUT_STAT}{self.standard_name}_short_stat.txt"
         self.statistics_path = f"{PATH_OUTPUT_STAT}{self.standard_name}_full_stat.csv"
         assert isinstance(self.grid, np.ndarray), "A grid must be a numpy array!"
-        if len(point_array) > N:
-            self._order_points()
         assert self.grid.shape == (N, 3), f"Grid not of correct shape! {self.grid.shape} instead of {(N, 3)}"
         assert np.allclose(np.linalg.norm(self.grid, axis=1), 1, atol=10**(-UNIQUE_TOL))
 
@@ -55,15 +53,6 @@ class SphereGrid:
     def save_grid_txt(self):
         # noinspection PyTypeChecker
         np.savetxt(f"{PATH_OUTPUT_ROTGRIDS}{self.standard_name}.txt", self.grid)
-
-    def _order_points(self):
-        """
-        You are provided with a (possibly) unordered array of rotations saved in self.rotations. You must re-order
-        it so that the coverage is maximised at every step.
-
-        Additionally, truncate at self.N.
-        """
-        self.grid = order_elements(self.grid, self.N, start_i=1)
 
     def save_statistics(self, num_random: int = 100, print_message=False, alphas=None):
         stat_data, full_data = prepare_statistics(self.get_grid(), alphas, d=3, num_rand_points=num_random)
@@ -131,18 +120,6 @@ class RotationsObject(ABC):
 
     def get_grid_z_as_grid(self) -> SphereGrid:
         return self.grid_z
-
-    def _order_rotations(self):
-        """
-        You are provided with a (possibly) unordered array of rotations saved in self.rotations. You must re-order
-        it so that the coverage is maximised at every step.
-
-        Additionally, truncate at self.N.
-        """
-        rot_quaternions = self.rotations.as_quat()
-        rot_quaternions = order_elements(rot_quaternions, self.N, start_i=1)
-        self.rotations = Rotation.from_quat(rot_quaternions)
-        self.from_rotations(self.rotations)
 
     def _select_unique_rotations(self):
         rot_matrices = self.rotations.as_matrix()
@@ -223,35 +200,6 @@ def provide_unique(el_array: NDArray, tol: int = UNIQUE_TOL, as_quat=False) -> N
     return np.array([el_array[index] for index in sorted(indices)])
 
 
-def order_elements(points: np.ndarray, N: int, start_i: int = 1) -> NDArray:
-    """
-    You are provided with a (possibly) unordered grid and return a grid with N points ordered in such a way that
-    these N points have the best possible coverage.
-
-    Args:
-        points: grid, array of shape (L, 3) to be ordered where L should be >= N
-        N: number of grid points wished at the end
-        start_i: from which index to start ordering (in case the first i elements already ordered)
-
-    Returns:
-        an array of shape (N, 3) ordered in such a way that these N points have the best possible coverage.
-    """
-
-    def select_next_el(quaternion_list, i):
-        distances = cdist(quaternion_list[i:], quaternion_list[:i], metric="cosine")
-        distances.sort()
-        nn_dist = distances[:, 0]
-        index_max = np.argmax(nn_dist)
-        quaternion_list[[i, i + index_max]] = quaternion_list[[i + index_max, i]]
-        return quaternion_list
-
-    if N > len(points):
-        raise ValueError(f"N>len(grid)! Only {len(points)} points can be returned!")
-    for index in range(start_i, min(len(points), N)):
-        points = select_next_el(points, index)
-    return points[:N]
-
-
 class RandomQRotations(RotationsObject):
 
     def gen_rotations(self):
@@ -277,10 +225,10 @@ class SystemERotations(RotationsObject):
             self._select_unique_rotations()
             rot_matrices = self.rotations.as_matrix()
             num_points += 1
-        self._order_rotations()
+        # maybe just shuffle rather than order
+        np.random.shuffle(rot_matrices)
         # convert to a grid
-        self.from_rotations(self.rotations)
-        # self.grid = euler2grid(euler_meshgrid)
+        self.from_rotations(Rotation.from_matrix(rot_matrices[:self.N]))
 
 
 class RandomERotations(RotationsObject):
@@ -311,7 +259,7 @@ class PolyhedronRotations(RotationsObject):
         super().__init__(*args, **kwargs)
 
     def gen_rotations(self):
-        while self.polyhedron.G.number_of_nodes() < self.N:
+        while len(self.polyhedron.get_node_coordinates()) < self.N:
             self.polyhedron.divide_edges()
 
 
@@ -321,16 +269,9 @@ class Cube4DRotations(PolyhedronRotations):
         super().__init__(polyhedron=Cube4DPolytope, N=N, gen_algorithm=gen_algorithm, **kwargs)
 
     def gen_rotations(self):
-        rotations = []
-        while len(rotations) < self.N:
-            self.polyhedron.divide_edges()
-            # remove half of the points due to double coverage
-            quats = [y["projection"] for x, y in self.polyhedron.G.nodes(data=True)]
-            rotations = np.array(quats).squeeze()
-            # only the quaternions with positive first dimension
-            rotations = rotations[rotations[:, 0] > 0]
+        super().gen_rotations()
+        rotations = self.polyhedron.get_N_ordered_points(self.N)
         self.rotations = Rotation.from_quat(rotations)
-        self._order_rotations()
         self.from_rotations(self.rotations)
 
 
@@ -339,15 +280,13 @@ class IcoAndCube3DRotations(PolyhedronRotations):
     def gen_rotations(self):
         desired_N = self.N
         super().gen_rotations()
-        grid_z_arr = np.array([y["projection"] for x, y in self.polyhedron.G.nodes(data=True)]).squeeze()
-        grid_z_arr = order_elements(grid_z_arr, len(grid_z_arr))
+        grid_z_arr = self.polyhedron.get_N_ordered_points(desired_N)
         grid_z = SphereGrid(grid_z_arr, N=self.N, gen_alg=self.gen_algorithm)
         z_vec = np.array([0, 0, 1])
         matrices = np.zeros((desired_N, 3, 3))
         for i in range(desired_N):
             matrices[i] = two_vectors2rot(z_vec, grid_z.get_grid()[i])
         rot_z = Rotation.from_matrix(matrices)
-
         grid_x_arr = rot_z.apply(np.array([1, 0, 0]))
         grid_x = SphereGrid(grid_x_arr, N=desired_N, gen_alg=self.gen_algorithm)
         grid_y_arr = rot_z.apply(np.array([0, 1, 0]))
@@ -368,12 +307,12 @@ class Cube3DRotations(IcoAndCube3DRotations):
         super().__init__(polyhedron=Cube3DPolytope, N=N, gen_algorithm=gen_algorithm, **kwargs)
 
 
-def build_rotations_from_name(grid_name: str, b_or_o="o", use_saved=True, **kwargs) -> RotationsObject:
+def build_rotations_from_name(grid_name: str, b_or_o="o", use_saved=False, **kwargs) -> RotationsObject:
     gnp = GridNameParser(grid_name, b_or_o)
     return build_rotations(gnp.N, gnp.algo, use_saved=use_saved, **kwargs)
 
 
-def build_rotations(N: int, algo: str, **kwargs) -> RotationsObject:
+def build_rotations(N: int, algo: str, use_saved=False, **kwargs) -> RotationsObject:
     name2rotation = {"randomQ": RandomQRotations,
                      "systemE": SystemERotations,
                      "randomE": RandomERotations,
@@ -387,13 +326,13 @@ def build_rotations(N: int, algo: str, **kwargs) -> RotationsObject:
                          f"Try 'ico', 'cube3D' ...")
     assert isinstance(N, int), f"Number of grid points must be an integer, currently N={N}"
     assert N >= 0, f"Number of grid points cannot be negative, currently N={N}"
-    rot_obj = name2rotation[algo](N, gen_algorithm=algo, **kwargs)
+    rot_obj = name2rotation[algo](N, gen_algorithm=algo, use_saved=use_saved, **kwargs)
     return rot_obj
 
 
-def build_grid_from_name(grid_name: str, b_or_o="o", use_saved=True, **kwargs) -> SphereGrid:
+def build_grid_from_name(grid_name: str, b_or_o="o", use_saved=False, **kwargs) -> SphereGrid:
     return build_rotations_from_name(grid_name, b_or_o=b_or_o, use_saved=use_saved, **kwargs).get_grid_z_as_grid()
 
 
-def build_grid(N: int, algo: str, **kwargs) -> SphereGrid:
-    return build_rotations(N=N, algo=algo, **kwargs).get_grid_z_as_grid()
+def build_grid(N: int, algo: str, use_saved=False, **kwargs) -> SphereGrid:
+    return build_rotations(N=N, algo=algo, use_saved=use_saved, **kwargs).get_grid_z_as_grid()
