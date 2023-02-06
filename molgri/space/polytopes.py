@@ -144,23 +144,17 @@ class Polytope(ABC):
         """
 
         def remove_and_reconnect(g, node):
-            """Remove a node and reconnect edges"""
+            """Remove a node and reconnect edges, adding the properties of previous edges together."""
             sources = list(g.neighbors(node))
             targets = list(g.neighbors(node))
 
             new_edges = list(product(sources, targets))
             distances = [g.edges[(node, s)]["p_dist"]+g.edges[(node, t)]["p_dist"] for s, t in new_edges]
-            new_edges = [(edge[0], edge[1], {"p_dist": distances[i]}) for i, edge in enumerate(new_edges) if edge[0] != edge[1]]  # remove self-loops
+            # remove self-loops
+            new_edges = [(edge[0], edge[1], {"p_dist": distances[i]}) for i, edge in enumerate(new_edges) if
+                         edge[0] != edge[1]]
             g.add_edges_from(new_edges)
-
             g.remove_node(node)
-            # neig_mdp = list(nx.neighbors(subgraph, most_distant_point))
-            # for n in neig_mdp:
-            #     first_edge_p_dist = subgraph.edges[(n, most_distant_point)]["p_dist"]
-            #     sec_n = list(second_neighbours(subgraph, n))
-            #     sec_n = [s for s in sec_n if s in neig_mdp]
-            #     for s in sec_n:
-            #         second_edge_p_dist
 
         # important to use the getter
         current_points = [tuple(point) for point in self.get_node_coordinates()]
@@ -179,24 +173,15 @@ class Polytope(ABC):
 
         subgraph = self.G.subgraph(current_points).copy()
         remove_and_reconnect(subgraph, current_points[0])
-        print("first_point", current_points[0])
         current_points.pop(0)
         # for the rest of the points, determine centrality of the subgraph with already used points removed
         for i in range(1, N):
-            #subgraph = self.G.subgraph(current_points)
             max_iter = np.max([100, 10*N_available])  # bigger graphs may need more iterations than default
-            #dict_centrality = nx.load_centrality(subgraph, weight="length")
-            # katz_centrality
-            #dict_centrality = nx.eigenvector_centrality(subgraph, weight="length", max_iter=max_iter, tol=1.0e-3) #max_iter=max_iter, tol=1.0e-3,
-            #dict_centrality = nx.katz_centrality_numpy(subgraph, weight="p_dist") #max_iter=max_iter, tol=1e-8,
-            # large beta is needed since we are interested in global centrality
-            dict_centrality = dict()
-            for k, v in nx.all_pairs_dijkstra_path_length(subgraph, weight="length"):
-                #print(k, np.sum(list(v.values())))
-                dict_centrality[k] = np.sum(list(v.values()))
-            #print(dict_centrality)
-            #dict_centrality = nx.katz_centrality_numpy(subgraph, alpha=500, beta=500, weight="p_dist")  # max_iter=max_iter, tol=1e-8,
-            #print(i, dict_centrality)
+            dict_centrality = nx.eigenvector_centrality(subgraph, weight="p_dist", max_iter=max_iter, tol=1.0e-3)
+            # option 2 with dijkstra
+            # dict_centrality = dict()
+            # for k, v in nx.all_pairs_dijkstra_path_length(subgraph, weight="length"):
+            #     dict_centrality[k] = np.sum(list(v.values()))
             # key with largest value is the point in the center of the remaining graph
             most_distant_point = min(dict_centrality, key=dict_centrality.get)
             if projections:

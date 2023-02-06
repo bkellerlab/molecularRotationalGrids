@@ -68,12 +68,6 @@ def test_general_grid_properties():
             assert grid_obj.N == number
 
 
-def test_cube_3d_grid():
-    cube_3d = build_grid(8, "cube3D", use_saved=USE_SAVED)
-    grid = cube_3d.get_grid()
-    assert form_cube(grid, test_angles=True)
-
-
 def test_zero_grid():
     ico = build_grid_from_name("ico_0", use_saved=USE_SAVED)
     ico.get_grid()

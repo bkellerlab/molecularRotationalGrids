@@ -262,12 +262,11 @@ def test_sorting():
     polyh.divide_edges()
     sorted_points = polyh.get_N_ordered_points(12, projections=False)
     # the first newly added points - index 8 and 9 - must be at distance sqrt(2)*side_len
-    print(np.linalg.norm(sorted_points[8] - sorted_points[9]), np.sqrt(2) * side_len)
     assert np.isclose(np.linalg.norm(sorted_points[8] - sorted_points[9]), np.sqrt(2) * side_len)
-    fig, ax = plt.subplots(1, 1, subplot_kw={"projection": "3d"})
-    polyh.plot_points(ax, color_by="index")
-    # cube3D.plot_edges(ax, label="p_dist")
-    plt.show()
+    # fig, ax = plt.subplots(1, 1, subplot_kw={"projection": "3d"})
+    # polyh.plot_points(ax, color_by="index")
+    # # cube3D.plot_edges(ax, label="p_dist")
+    # plt.show()
 
 
 def test_detect_square_and_cubes():

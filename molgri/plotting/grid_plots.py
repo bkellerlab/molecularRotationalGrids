@@ -299,7 +299,7 @@ class GridColoredWithAlphaPlot(GridPlot):
     def __init__(self, data_name, vector: np.ndarray, alpha_set: list, plot_type: str = "colorful_grid", **kwargs):
         super().__init__(data_name, plot_type=plot_type, **kwargs)
         self.alpha_central_vector = vector
-        self.alpha_set = alpha_set
+        self.alpha_set = list(alpha_set)
         self.alpha_set.sort()
         self.alpha_set.append(pi)
 

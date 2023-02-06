@@ -180,7 +180,6 @@ def form_cube(my_array: NDArray, test_angles=False) -> bool:
             for vec2 in my_array:
                 angle_points = np.arccos(np.clip(np.dot(vec1, vec2), -1.0, 1.0))
                 if not np.any(np.isclose(angle_points, all_angle_choices, atol=1e-7)):
-                    print(f"angle {angle_points} not close to {all_angle_choices}")
                     return False
     # finally, if all tests right
     return True

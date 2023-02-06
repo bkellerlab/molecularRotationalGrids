@@ -1,3 +1,4 @@
+import matplotlib.pyplot as plt
 import numpy as np
 from scipy.constants import pi
 
@@ -113,12 +114,15 @@ def test_count_within_alpha():
     assert count_points_within_alpha(points, np.array([0, 0, 1]), pi) == num_points
     assert count_points_within_alpha(points, np.array([pi/4, pi/3, -2]), pi) == num_points
     np.random.seed(1)
-    points = random_sphere_points(50)
+    N = 500
+    points = random_sphere_points(N)
     vector = np.random.rand(3)
     vector /= np.linalg.norm(vector)
-    assert count_points_within_alpha(points, vector, pi/6) == 4
-    assert count_points_within_alpha(points, vector, pi/3) == 16
-    assert count_points_within_alpha(points, vector, pi/2) == 25
+    # correct proportion of points at different alphas
+    for alpha in (pi/6, pi/3, pi/2, 14*pi/17):
+        expected_num = 2 * pi * (1 - np.cos(alpha)) / (4 * pi) * N
+        counted_num = count_points_within_alpha(points, vector, alpha)
+        assert 0.95 * expected_num < counted_num < 1.05 * expected_num
 
 
 def test_random_axes_count_points():
