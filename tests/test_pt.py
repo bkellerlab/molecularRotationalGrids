@@ -252,7 +252,7 @@ def test_frames_in_directory():
     n_b = 4
     n_o = 2
     n_t = 3
-    manager = PtIOManager("H2O", "NH3", f"ico_{n_o}", f"systemE_{n_b}", "[1, 2, 3]")
+    manager = PtIOManager("H2O", "NH3", f"ico_{n_o}", f"cube3D_{n_b}", "[1, 2, 3]")
     manager.construct_pt(as_dir=True)
     file_name = manager.determine_pt_name()
     base_p, fn, fp, dp = converter_gro_dir_gro_file_names(pt_directory_path=f"{PATH_OUTPUT_PT}{file_name}",
@@ -263,7 +263,7 @@ def test_frames_in_directory():
     filelist = [f for f in os.listdir(f"{dp}") if f.endswith(".xtc")]
     assert len(filelist) == n_b*n_o*n_t, "Not correct number of .xtc files in a directory."
     # compare contents of individual files mit the single all-frame PT
-    manager = PtIOManager("H2O", "NH3", f"ico_{n_o}", f"systemE_{n_b}", "[1, 2, 3]")
+    manager = PtIOManager("H2O", "NH3", f"ico_{n_o}", f"cube3D_{n_b}", "[1, 2, 3]")
     manager.construct_pt(as_dir=False)
     # check that a directory joined version is the same as the normal one
     with open(new_name, "rb") as f1:
