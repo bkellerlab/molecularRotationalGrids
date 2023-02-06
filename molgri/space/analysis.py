@@ -44,7 +44,6 @@ def random_axes_count_points(array_points: np.ndarray, alpha: float, num_random_
 
 def random_quaternions_count_points(array_points: np.ndarray, alpha: float, num_random_points: int = 1000):
     central_vectors = random_quaternions(num_random_points)
-    # # use half-sphere in both examples
     central_vectors = randomise_quaternion_set_signs(central_vectors)
     array_points = randomise_quaternion_set_signs(array_points)
     all_ratios = np.zeros(num_random_points)

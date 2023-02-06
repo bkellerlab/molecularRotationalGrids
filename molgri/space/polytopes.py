@@ -151,7 +151,7 @@ class Polytope(ABC):
             new_edges = list(product(sources, targets))
             distances = [g.edges[(node, s)]["p_dist"]+g.edges[(node, t)]["p_dist"] for s, t in new_edges]
             # remove self-loops
-            new_edges = [(edge[0], edge[1], {"p_dist": distances[i]}) for i, edge in enumerate(new_edges) if
+            new_edges = [(edge[0], edge[1], {"p_dist": distances[j]}) for j, edge in enumerate(new_edges) if
                          edge[0] != edge[1]]
             g.add_edges_from(new_edges)
             g.remove_node(node)
@@ -176,6 +176,8 @@ class Polytope(ABC):
         current_points.pop(0)
         # for the rest of the points, determine centrality of the subgraph with already used points removed
         for i in range(1, N):
+            # TODO: use sub-graphs removed_points and remaining_points
+            # maybe nx.degree could also be useful?
             max_iter = np.max([100, 10*N_available])  # bigger graphs may need more iterations than default
             dict_centrality = nx.eigenvector_centrality(subgraph, weight="p_dist", max_iter=max_iter, tol=1.0e-3)
             # option 2 with dijkstra
@@ -263,8 +265,6 @@ class Polytope(ABC):
                     length = dist_on_sphere(self.G.nodes[new_node]["projection"],
                                             self.G.nodes[n]["projection"])[0]
                     self.G.add_edge(new_node, n, p_dist=distance, length=length)
-                #all_new_edges = [(new_node, n, {"p_dist": distance, "length": length}) for n in new_neighbours]
-                #self.G.add_edges_from(all_new_edges)
 
     def _add_edges_of_len(self, edge_len: float, wished_levels: list = None, only_seconds=True, only_face=True):
         """
@@ -396,6 +396,7 @@ class Polyhedron(Polytope, ABC):
         Args:
             ax: axis
             select_faces: a set of face numbers from 0 to (incl) 19, e.g. {0, 5}. If None, all faces are shown.
+            label: select the name of edge parameter if you want to display it
             **kwargs: other plotting arguments
         """
         if self.d > 3:
@@ -411,7 +412,7 @@ class Polyhedron(Polytope, ABC):
                 ax.plot(*np.array(edge[:2]).T, color="black",  **kwargs)
                 if label:
                     midpoint = np.average(np.array(edge[:2]), axis=0)
-                    s=edge[2][f"{label}"]
+                    s = edge[2][f"{label}"]
                     ax.text(*midpoint, s=f"{s:.3f}")
 
 
@@ -465,7 +466,7 @@ class Cube4DPolytope(Polytope):
                 self.G.nodes[tuple(vertex)]["face"].add(i)
         # create cube and square diagonal nodes
         self._add_cube_diagonal_nodes()
-        self._add_square_diagonal_nodes()
+        # self._add_square_diagonal_nodes() # it functions better without
         self.side_len = self.side_len / 2
         self.current_level += 1
 
@@ -715,18 +716,3 @@ def detect_all_cubes(graph: nx.Graph) -> list:
                     if form_cube(array_points) and points not in cube_nodes:
                         cube_nodes.append([*points])
     return cube_nodes
-
-if __name__ == "__main__":
-    import matplotlib.pyplot as plt
-    cube3D = Cube3DPolytope()
-    #cube3D.divide_edges()
-    cube3D.get_N_ordered_points()
-    # nx.draw(cube3D.G, node_color='pink'
-    # )
-    edge_labels = dict([((n1, n2), np.round(data["length"], 3))
-                        for n1, n2, data in cube3D.G.edges(data=True)])
-    nx.draw_networkx(cube3D.G, pos=nx.spring_layout(cube3D.G), with_labels=False)
-    nx.draw_networkx_edge_labels(cube3D.G, pos=nx.spring_layout(cube3D.G), edge_labels=edge_labels,
-        font_color='red'
-    )
-    plt.show()
