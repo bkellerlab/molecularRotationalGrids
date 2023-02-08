@@ -1,6 +1,10 @@
 import functools
+import os
+import datetime
 import timeit
 from typing import Callable
+import logging
+from abc import ABC, abstractmethod
 
 
 import numpy as np
@@ -9,13 +13,18 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 
 
-from molgri.paths import PATH_OUTPUT_TIMING
+from molgri.paths import PATH_OUTPUT_TIMING, PATH_OUTPUT_LOGGING
 from molgri.molecules.writers import PtIOManager
+from molgri.space.utils import find_first_free_index, format_name
+
+
+
 
 
 class PerformanceManager:
 
-    def __init__(self, measured_function: Callable, varied_parameter: str, function_kwargs: dict = None):
+    def __init__(self, measured_function: Callable, varied_parameter: str, function_kwargs: dict = None,
+                 ):
         """
         All arguments (except the varied one) should be provided as kwargs
         Args:
@@ -43,17 +52,20 @@ class PerformanceManager:
             times = timeit.repeat(functools.partial(self.measured_function, **self.kwargs),
                                   repeat=repeat, number=1)
             df_list.extend([[value, t] for t in times])
-        self.df = pd.DataFrame(np.array(df_list), columns=[self.varied_parameter, "t"])
-        self.df["t"] = pd.to_numeric(self.df["t"])
+        self.df = pd.DataFrame(np.array(df_list), columns=[self.varied_parameter, "Time [s]"])
+        self.df["Time [s]"] = pd.to_numeric(self.df["Time [s]"])
 
     def save_to_file(self, name_to_save: str):
+        # determine index to use in a file
+        free_index = find_first_free_index(path=PATH_OUTPUT_TIMING, name=name_to_save, ending="csv")
+        path_csv = format_name(file_path=PATH_OUTPUT_TIMING, file_name=name_to_save, num=free_index, suffix="csv")
         if self.df is None:
             self.timeit()
-        index = 1
-        self.df.to_csv(f"{PATH_OUTPUT_TIMING}{name_to_save}_{index}.csv")
+        self.df.to_csv(path_csv)
 
 
-def plot_performance(df_data: pd.DataFrame, ax: plt.Axes, x: str, y: str = "t"):
+
+def plot_performance(df_data: pd.DataFrame, ax: plt.Axes, x: str, y: str = "Time [s]"):
     sns.lineplot(data=df_data, ax=ax, x=x, y=y)
 
 
@@ -62,6 +74,9 @@ def time_pt(m1: str, m2: str, b_name: str = "50", o_name: str = "50", t_name: st
     manager = PtIOManager(name_central_molecule=m1, name_rotating_molecule=m2,
                           b_grid_name=b_name, o_grid_name=o_name, t_grid_name=t_name)
     manager.construct_pt(as_dir=False)
+    # logging
+    path_logger = format_name(file_path=PATH_OUTPUT_LOGGING, file_name=name_to_save, num=free_index)
+    PtLogger(path_logger).log_set_up()
 
 
 def test_funct(one_arg, second_arg):
@@ -70,9 +85,8 @@ def test_funct(one_arg, second_arg):
 
 if __name__ == "__main__":
     #timeit.timeit('time_with_timeit()', setup="from __main__ import time_with_timeit", number=10)
-    # TODO: logging could be useful here too
     pm = PerformanceManager(time_pt, "b_name", function_kwargs={"m1": "H2O", "m2": "H2O", "o_name": "cube3D_10"})
-    number_options = np.linspace(5, 500, num=20, dtype=int)
+    number_options = np.linspace(5, 50, num=5, dtype=int)
     number_options = np.unique(number_options)
     number_options = [f"ico_{num}" for num in number_options]
     pm.set_parameter_range(number_options)

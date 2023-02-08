@@ -1,9 +1,32 @@
-
+import os
 import numpy as np
 
 from molgri.space.utils import normalise_vectors, standardise_quaternion_set, random_quaternions, \
-    randomise_quaternion_set_signs
+    randomise_quaternion_set_signs, find_first_free_index
 from molgri.assertions import two_sets_of_quaternions_equal
+
+
+def test_find_first_free_index():
+    # where no exists before
+    my_file = "one_file"
+    my_ending = "css"
+    assert find_first_free_index(name=my_file, index_places=7, ending=my_ending) == 0
+    # save some (and delete later)
+    with open(f"{my_file}_001.{my_ending}", "w") as f:
+        f.writelines("test example 001")
+    assert find_first_free_index(name=my_file, index_places=3, ending=my_ending) == 0
+    with open(f"{my_file}_000.{my_ending}", "w") as f:
+        f.writelines("test example 000")
+    assert find_first_free_index(name=my_file, index_places=3, ending=my_ending) == 2
+    # delete them
+    os.remove(f"{my_file}_000.{my_ending}")
+    os.remove(f"{my_file}_001.{my_ending}")
+    # without ending
+    assert find_first_free_index(name=my_file, index_places=2) == 0
+    with open(f"{my_file}_00", "w") as f:
+        f.writelines("test example 00")
+    assert find_first_free_index(name=my_file, index_places=2) == 1
+    os.remove(f"{my_file}_00")
 
 
 def test_normalising():

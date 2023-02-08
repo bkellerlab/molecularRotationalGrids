@@ -36,6 +36,7 @@ parser.add_argument('--extension_trajectory', type=str, default=EXTENSION_TRAJEC
                     help=f"File extension for generated (pseudo)-trajectories [default: {EXTENSION_TRAJECTORY}]")
 parser.add_argument('--extension_structure', type=str, default=EXTENSION_TOPOLOGY,
                     help=f"File extension for generated topologies [default: {EXTENSION_TOPOLOGY}]")
+parser.add_argument('--save_as', type=str, default=None, help='define the (base) name of output file')
 
 
 def run_generate_pt():
@@ -49,9 +50,10 @@ def run_generate_pt():
               f"We do not recommend the use of Icosahedron or 3D cube grids for this purpose; they are optimised "
               f"for generation of origin rotations (-o). We suggest using a 4D cube grid (cube4D) instead.")
     manager = PtIOManager(name_central_molecule=my_args.m1, name_rotating_molecule=my_args.m2,
-                          b_grid_name=my_args.bodygrid, o_grid_name=my_args.origingrid, t_grid_name=my_args.transgrid)
+                          output_name=my_args.save_as, b_grid_name=my_args.bodygrid, o_grid_name=my_args.origingrid,
+                          t_grid_name=my_args.transgrid)
     manager.construct_pt_and_time(as_dir=my_args.as_dir, extension_trajectory=my_args.extension_trajectory,
-                                  extension_structure=my_args.extension_structure)
+                                  extension_structure=my_args.extension_structure, print_messages=True)
 
 
 if __name__ == '__main__':

@@ -10,18 +10,20 @@ import MDAnalysis as mda
 from MDAnalysis import Merge
 import numpy as np
 
-from molgri.constants import EXTENSION_TRAJECTORY, EXTENSION_TOPOLOGY
+from molgri.constants import EXTENSION_TRAJECTORY, EXTENSION_TOPOLOGY, EXTENSION_LOGGING
+from molgri.logfiles import PtLogger
 from molgri.space.fullgrid import FullGrid
 from molgri.molecules.parsers import FileParser, ParsedMolecule
-from molgri.paths import PATH_INPUT_BASEGRO, PATH_OUTPUT_PT
+from molgri.paths import PATH_INPUT_BASEGRO, PATH_OUTPUT_PT, PATH_OUTPUT_LOGGING
 from molgri.molecules.pts import Pseudotrajectory
+from molgri.space.utils import find_first_free_index, format_name, paths_free_4_all
 from molgri.wrappers import time_method
 
 
 class PtIOManager:
 
     def __init__(self, name_central_molecule: str, name_rotating_molecule: str, o_grid_name: str, b_grid_name: str,
-                 t_grid_name: str):
+                 t_grid_name: str, output_name: str = None):
         """
         This class gets only strings as inputs - what a user is expected to provide. The first two strings
         determine where to find input molecular structures, last three how to construct a full grid.
@@ -38,6 +40,7 @@ class PtIOManager:
                          in form 'num' (eg. '50') OR as string 'zero' or 'None' if no rotations needed
             t_grid_name: translation grid that will be forwarded to TranslationParser, can be a list of numbers,
                          a range or linspace function inside a string
+            output_name: select the name under which all associated files will be saved (if None use names of molecules)
         """
         # parsing input files
         central_file_path = f"{PATH_INPUT_BASEGRO}{name_central_molecule}"
@@ -52,7 +55,13 @@ class PtIOManager:
         self.writer = PtWriter(name_to_save=self.determine_pt_name(),
                                parsed_central_molecule=self.central_molecule)
         self.pt = Pseudotrajectory(self.rotating_molecule, self.full_grid)
-        self.decorator_label = f"Pseudotrajectory {self.determine_pt_name()}"  # needed for timing write-out
+        # if the user doesn't select a name, use names of the two molecules as the default
+        if output_name is None:
+            name_c_molecule = self.central_parser.get_file_name()
+            name_r_molecule = self.rotating_parser.get_file_name()
+            output_name = f"{name_c_molecule}_{name_r_molecule}"
+        self.output_name = output_name
+        self.decorator_label = f"Pseudotrajectory {self.output_name}"  # needed for timing write-out
 
     def determine_pt_name(self) -> str:
         """
@@ -66,9 +75,21 @@ class PtIOManager:
         name_full_grid = self.full_grid.get_full_grid_name()
         return f"{name_c_molecule}_{name_r_molecule}_{name_full_grid}"
 
+    def _get_all_output_paths(self, extension_trajectory: str = EXTENSION_TRAJECTORY,
+                              extension_structure: str = EXTENSION_TOPOLOGY) -> tuple:
+        """
+        Return paths to (trajectory_file, structure_file, log_file) with unique number ID.
+        """
+
+        # determine the first free file name
+        paths = [PATH_OUTPUT_PT, PATH_OUTPUT_PT, PATH_OUTPUT_LOGGING]
+        names = [self.output_name]*3
+        endings = [extension_trajectory, extension_structure, EXTENSION_LOGGING]
+        return paths_free_4_all(list_paths=paths, list_names=names, list_endings=endings)
+
     def construct_pt(self, extension_trajectory: str = EXTENSION_TRAJECTORY,
                      extension_structure: str = EXTENSION_TOPOLOGY,
-                     as_dir: bool = False):
+                     as_dir: bool = False, print_messages=False):
         """
         The highest-level method to be called in order to generate and save a pseudotrajectory.
 
@@ -77,11 +98,22 @@ class PtIOManager:
             extension_structure: what extension to provide to the structure (topology) file
             as_dir: if True, don't save trajectory in one file but split it in frames
         """
+        path_t, path_s, path_l = self._get_all_output_paths(extension_trajectory=extension_trajectory,
+                                                            extension_structure=extension_structure)
+        logger = PtLogger(path_l)
+        logger.log_set_up(self)
+        # log set-up before calculating PT in case any errors occur in-between
+        if print_messages:
+            print(f"Saved the log file to {path_l}")
+        # generate a pt
         if as_dir:
             selected_function = self.writer.write_frames_in_directory
         else:
             selected_function = self.writer.write_full_pt
-        selected_function(self.pt, extension_trajectory=extension_trajectory, extension_structure=extension_structure)
+        selected_function(self.pt, path_t, path_s)
+        if print_messages:
+            print(f"Saved pseudo-trajectory to {path_t} and structure file to {path_s}")
+
 
     @time_method
     def construct_pt_and_time(self, **kwargs):
@@ -92,6 +124,23 @@ class PtIOManager:
             see construct_pt
         """
         self.construct_pt(**kwargs)
+
+
+def _create_dir_or_empty_it(directory_name):
+    """
+    Helper function that determines the name of the directory in which single frames of the trajectory are
+    saved. If the directory already exists, its previous contents are deleted.
+
+    Returns:
+        path to the directory
+    """
+    try:
+        os.mkdir(directory_name)
+    except FileExistsError:
+        # delete contents if folder already exist
+        filelist = [f for f in os.listdir(directory_name)]
+        for f in filelist:
+            os.remove(os.path.join(directory_name, f))
 
 
 class PtWriter:
@@ -125,7 +174,7 @@ class PtWriter:
         merged_universe.dimensions = self.box
         writer.write(merged_universe)
 
-    def write_structure(self, pt: Pseudotrajectory, extension_structure: str = "gro"):
+    def write_structure(self, pt: Pseudotrajectory, path_structure: str):
         """
         Write the one-frame topology file, eg in .gro format.
 
@@ -133,14 +182,14 @@ class PtWriter:
             pt: a Pseudotrajectory object with method .get_molecule() that returns current ParsedMolecule
             extension_structure: determines type of file to which topology should be saved
         """
-        structure_path = f"{PATH_OUTPUT_PT}{self.file_name}.{extension_structure}"
+        #structure_path = f"{PATH_OUTPUT_PT}{self.file_name}.{extension_structure}"
         if not np.all(self.box == pt.get_molecule().get_box()):
             print(f"Warning! Simulation boxes of both molecules are different. Selecting the box of "
                   f"central molecule with dimensions {self.box}")
-        with mda.Writer(structure_path) as structure_writer:
+        with mda.Writer(path_structure) as structure_writer:
             self._merge_and_write(structure_writer, pt)
 
-    def write_full_pt(self, pt: Pseudotrajectory, extension_trajectory: str = "xtc", extension_structure: str = "gro"):
+    def write_full_pt(self, pt: Pseudotrajectory, path_trajectory: str, path_structure: str):
         """
         Write the trajectory file as well as the structure file (only at the first time-step).
 
@@ -149,39 +198,20 @@ class PtWriter:
             extension_trajectory: determines type of file to which trajectory should be saved
             extension_structure: determines type of file to which topology should be saved
         """
-        output_path = f"{PATH_OUTPUT_PT}{self.file_name}.{extension_trajectory}"
-        trajectory_writer = mda.Writer(output_path, multiframe=True)
+        #output_path = f"{PATH_OUTPUT_PT}{self.file_name}.{extension_trajectory}"
+        trajectory_writer = mda.Writer(path_trajectory, multiframe=True)
         last_i = 0
         for i, _ in pt.generate_pseudotrajectory():
             # for the first frame write out topology
             if i == 0:
-                self.write_structure(pt, extension_structure)
+                self.write_structure(pt, path_structure)
             self._merge_and_write(trajectory_writer, pt)
             last_i = i
         product_of_grids = pt.position_grid.shape[0] * len(pt.rot_grid_body) * pt.position_grid.shape[1]
         assert last_i + 1 == product_of_grids, f"Length of PT not correct, {last_i}=/={product_of_grids}"
         trajectory_writer.close()
 
-    def _create_dir_or_empty_it(self) -> str:
-        """
-        Helper function that determines the name of the directory in which single frames of the trajectory are
-        saved. If the directory already exists, its previous contents are deleted.
-
-        Returns:
-            path to the directory
-        """
-        directory = f"{PATH_OUTPUT_PT}{self.file_name}"
-        try:
-            os.mkdir(directory)
-        except FileExistsError:
-            # delete contents if folder already exist
-            filelist = [f for f in os.listdir(directory)]
-            for f in filelist:
-                os.remove(os.path.join(directory, f))
-        return directory
-
-    def write_frames_in_directory(self, pt: Pseudotrajectory, extension_trajectory: str = "xtc",
-                                  extension_structure: str = "gro"):
+    def write_frames_in_directory(self, pt: Pseudotrajectory, path_trajectory: str, path_structure: str):
         """
         As an alternative to saving a full PT in a single trajectory file, you can create a directory with the same
         name and within it single-frame trajectories named with their frame index. Also save the structure file at
@@ -191,11 +221,12 @@ class PtWriter:
             extension_trajectory: determines type of file to which trajectory should be saved
             extension_structure: determines type of file to which topology should be saved
         """
-        directory = self._create_dir_or_empty_it()
+        directory_name, extension_trajectory = os.path.splitext(path_trajectory)
+        _create_dir_or_empty_it(directory_name)
         for i, _ in pt.generate_pseudotrajectory():
             if i == 0:
-                self.write_structure(pt, extension_structure)
-            f = f"{directory}/{i}.{extension_trajectory}"
+                self.write_structure(pt, path_structure)
+            f = f"{directory_name}/{i}.{extension_trajectory}"
             with mda.Writer(f) as structure_writer:
                 self._merge_and_write(structure_writer, pt)
 

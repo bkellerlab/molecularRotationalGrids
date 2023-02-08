@@ -42,9 +42,9 @@ class SpaceParser:
 
     def _create_rotobj(self):
         assert self.dimension == 4, "Cannot create hypergrid from initiated 3D object"
-        assert self.N >= 1, f"N must be a positive integer, not {N}"
+        assert self.N >= 1, f"N must be a positive integer, not {self.N}"
         rot_obj_factory = get_RotationsObject(self.alg_name)
-        rot_obj = rot_obj_factory.__init__(N=self.N, gen_algorithm=self.alg_name, use_saved=self.use_saved_data)
+        rot_obj = rot_obj_factory(N=self.N, gen_algorithm=self.alg_name, use_saved=self.use_saved_data)
         return rot_obj
 
     def get_hypergrid(self):

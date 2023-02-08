@@ -20,6 +20,7 @@ EXTENSION_GRID_FILES = "npy"
 EXTENSION_FIGURES = "png"
 EXTENSION_TRAJECTORY = "xtc"
 EXTENSION_TOPOLOGY = "gro"
+EXTENSION_LOGGING = "log"
 
 # here write non-user-defined paths
 PATH_USER_PATHS = resource_filename("molgri", "paths.py")
