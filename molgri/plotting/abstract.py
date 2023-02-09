@@ -92,13 +92,18 @@ class AbstractPlot(ABC):
         for axis in [self.ax.xaxis, self.ax.yaxis]:
             axis.set_major_locator(ticker.MaxNLocator(integer=True))
 
-    def _axis_limits(self, x_min_limit=None, x_max_limit=None, y_min_limit=None, y_max_limit=None, **kwargs):
+    def _axis_limits(self, x_min_limit=None, x_max_limit=None, y_min_limit=None, y_max_limit=None,
+                     z_min_limit=None, z_max_limit = None, **kwargs):
         if x_max_limit is not None and x_min_limit is None:
             x_min_limit = - x_max_limit
         self.ax.set_xlim(x_min_limit, x_max_limit)
         if y_max_limit is not None and y_min_limit is None:
             y_min_limit = - y_max_limit
         self.ax.set_ylim(y_min_limit, y_max_limit)
+        if self.dimensions == 3:
+            if z_max_limit is not None and z_min_limit is None:
+                z_min_limit = - z_max_limit
+            self.ax.set_zlim(z_min_limit, z_max_limit)
 
     # noinspection PyUnusedLocal
     def _create_fig_ax(self, ax: Union[Axes, Axes3D], sharex: str = "all", sharey: str = "all", projection=None):

@@ -22,7 +22,7 @@ from molgri.space.analysis import vector_within_alpha
 from molgri.space.cells import voranoi_surfaces_on_stacked_spheres, voranoi_surfaces_on_sphere
 from molgri.space.polytopes import Polytope, IcosahedronPolytope, Cube3DPolytope
 from molgri.space.rotobj import build_grid_from_name
-from molgri.space.utils import norm_per_axis, normalise_vectors, cart2sphA, random_quaternions
+from molgri.space.utils import norm_per_axis, normalise_vectors, cart2sphA, random_quaternions, random_sphere_points
 
 
 class GridPlot(Plot3D):
@@ -416,58 +416,67 @@ def get_only_one_translation_distance(df: pd.DataFrame, N_t: int, distance_index
     return new_df
 
 
-class QuaternionPlot(Plot3D):
+class TravelingSpherePlot(AbstractPlot):
 
     def _prepare_data(self) -> NDArray:
-        # from molgri.space.input import SpaceParser
-        # cu = SpaceParser(N=500, alg_name="cube4D", dimension=4, use_saved_data=False)
+        # from molgri.space.input import RotationsFactory
+        # cu = RotationsFactory(N=500, alg_name="cube4D", dimension=4, use_saved_data=False)
         # return cu.get_hypergrid()
-        return random_quaternions(500)
+        if self.dimensions == 2:
+            return random_sphere_points(2000)
+        else:
+            return random_quaternions(2000)
 
     def _plot_data(self, **kwargs):
-        points_4D = self._prepare_data()
-        self.sc = self.ax.scatter(*points_4D[:, :3].T, c=points_4D[:, 3].T)
+        points_3D = self._prepare_data()
+        self.ax = self.fig.add_subplot(111, projection="3d")
+        self.sc = self.ax.scatter(*points_3D[:, :3].T)
 
-    def translate_through_dimension(self, dimension_index=-1):
-
-        points_4D = self._prepare_data()
+    def translate_through_dimension(self):
+        dimension_index = -1
+        points_3D = self._prepare_data()
         # sort by the value of the specific dimension you are looking at
-        ind = np.argsort(points_4D[:, dimension_index])
-        points_4D = points_4D[ind]
+        ind = np.argsort(points_3D[:, dimension_index])
+        points_3D = points_3D[ind]
         # map the 4th dimension into values 0-1
-        alphas = points_4D[:, dimension_index].T
+        alphas = points_3D[:, dimension_index].T
         alphas = (alphas - np.min(alphas))/np.ptp(alphas)
 
         all_points = []
-        for line in points_4D:
-            all_points.append(self.ax.scatter(*line[:3], color="black", alpha=1))
+        for line in points_3D:
+            all_points.append(self.ax.scatter(*line[:self.dimensions], color="black", alpha=1))
+
+        step = 20
 
         def animate(frame):
             # plot current point
-            current_time = alphas[frame]
-
-            #print(*points_4D[frame, :3].T)
-            #points.set_data(points_4D[frame, :2])
-            #points.set_3d_properties(points_4D[frame, 2], 'z')
-            # update old alphas
+            current_time = alphas[frame*step]
 
             for i, p in enumerate(all_points):
-                p.set_alpha(1 - np.abs(alphas[i]-current_time))
-            #print([p.get_alpha() for p in all_points])
-            #self.sc.set_alpha(rate)
+                new_alpha = np.max([0, 1 - np.abs(alphas[i]-current_time)*10])
+                p.set_alpha(new_alpha)
             return self.ax,
 
-        anim = FuncAnimation(self.fig, animate)  #, frames=180, interval=50
-        writergif = PillowWriter(fps=10, bitrate=-1)
+        anim = FuncAnimation(self.fig, animate, frames=len(points_3D)//step, interval=100)  #, frames=180, interval=50
+        writergif = PillowWriter(fps=100//step, bitrate=-1)
         # noinspection PyTypeChecker
         anim.save(f"{self.ani_path}{self.data_name}_{self.plot_type}.gif", writer=writergif, dpi=400)
         return anim
 
-
 if __name__ == "__main__":
-    qp = QuaternionPlot("test_q", style_type=["none"])
+    qp = TravelingSpherePlot("test_3D_2", style_type=["none"])
+    qp._create_fig_ax(ax=None)
+    qp._set_up_empty()
+    qp._axis_limits(-1, 1, -1, 1)
+    qp._equalize_axes()
+    #qp.create_and_save()
+    qp.translate_through_dimension()
+
+    # 4D
+    qp = TravelingSpherePlot("test_4D_2", style_type=["half_empty"], dimensions=3)
     qp._create_fig_ax(ax=None, projection="3d")
     qp._set_up_empty()
     qp._axis_limits(-1, 1, -1, 1, -1, 1)
     qp._equalize_axes()
-    qp.translate_through_dimension(dimension_index=-1)
+    #qp.create_and_save()
+    qp.translate_through_dimension()

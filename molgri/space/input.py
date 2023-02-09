@@ -9,7 +9,7 @@ from molgri.space.rotobj import RandomQRotations, SystemERotations, RandomERotat
     IcoRotations, Cube3DRotations, RotationsObject
 
 
-class SpaceParser:
+class RotationsFactory:
     """
     This object deals with parsing inputs connected to rotational grids - should raise errors if critical details
     are missing or select defaults if non-critical details are missing.
@@ -77,13 +77,40 @@ class SpaceParser:
             N_list = np.unique(N_list)
         full_df = []
         for N in N_list:
-            grid_factory = SpaceParser(N=N, alg_name=self.alg_name, dimension=self.dimension,
-                                       use_saved_data=self.use_saved_data)
+            grid_factory = RotationsFactory(N=N, alg_name=self.alg_name, dimension=self.dimension,
+                                            use_saved_data=self.use_saved_data)
             df = grid_factory.get_hypergrid_uniformity(alphas=alphas)
             df["N"] = N
             full_df.append(df)
         full_df = pd.concat(full_df, axis=0, ignore_index=True)
         return full_df
+
+
+class SphericalGridFactory(RotationsFactory): pass
+
+
+class QuaternionGridFactory:
+
+    @classmethod
+    def create(cls, alg_name: str, *args, **kwargs):
+        if alg_name == "randomQ":
+            return RandomQRotations(*args, **kwargs)
+        elif alg_name == "systemE":
+            return SystemERotations(*args, **kwargs)
+        elif alg_name == "randomE":
+            return RandomERotations(*args, **kwargs)
+        elif alg_name == "cube4D":
+            return Cube4DRotations(*args, **kwargs)
+        elif alg_name == "zero":
+            return ZeroRotations
+        elif alg_name == "ico":
+            return IcoRotations
+        elif alg_name == "cube3D":
+            return Cube3DRotations
+        else:
+            raise ValueError(f"The algorithm {alg_name} not familiar to QuaternionGridFactory.")
+
+
 
 
 def get_RotationsObject(alg_name) -> RotationsObject:
