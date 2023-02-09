@@ -21,7 +21,7 @@ def time_method(my_method):
         t1 = time()
         func_value = my_method(*args, **kwargs)
         t2 = time()
-        print(f"Timing the generation of {self_arg.decorator_label}: ", end="")
+        print(f"Timing the generation of {self_arg.get_decorator_name()}: ", end="")
         print(f"{timedelta(seconds=t2-t1)} hours:minutes:seconds")
         return func_value
     return decorated

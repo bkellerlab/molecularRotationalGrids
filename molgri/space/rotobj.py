@@ -1,4 +1,5 @@
-from abc import ABC, abstractmethod
+from abc import ABC, abstractmethod, abstractproperty
+from typing import List, Type
 
 import numpy as np
 from numpy.typing import NDArray
@@ -16,9 +17,91 @@ from molgri.space.rotations import rotation2grid, grid2rotation, grid2quaternion
 from molgri.wrappers import time_method
 
 
-class SphereGrid:
+class SphereGridNDim(ABC):
 
-    def __init__(self, point_array: NDArray, N: int, gen_alg: str = None):
+    def __init__(self, dimensions: int, N: int = None, gen_alg: str = None, use_saved: bool = True,
+                 print_messages: bool = True, time_generation: bool = False):
+        self.dimensions = dimensions
+        self.N = N
+        self.gen_algorithm = gen_alg
+        self.use_saved = use_saved
+        self.time_generation = time_generation
+        self.print_messages = print_messages
+        self.grid: NDArray = None
+
+    def __len__(self):
+        return self.N
+
+    def __str__(self):
+        return f"Object {type(self).__name__} <{self.get_decorator_name()}>"
+
+    ##################################################################################################################
+    #                      generation/loading of grids
+    ##################################################################################################################
+
+    def gen_grid(self):
+        # condition that there is still something to generate
+        if self.grid is None:
+            # whether to load or to generate
+            if self.use_saved:
+        assert isinstance(self.grid, np.ndarray), "A grid must be a numpy array!"
+        assert self.grid.shape == (self.N, self.dimensions), f"Grid not of correct shape!"
+        assert np.allclose(np.linalg.norm(self.grid, axis=1), 1, atol=10 ** (-UNIQUE_TOL)), "A grid must have norm 1!"
+
+    @abstractmethod
+    def _gen_grid(self):
+        pass
+
+    @time_method
+    def gen_and_time(self):
+        return self._gen_grid()
+
+    ##################################################################################################################
+    #                      name and path getters
+    ##################################################################################################################
+
+    def get_standard_name(self) -> str:
+        if self.N is None:
+            return self.gen_algorithm
+        else:
+            return f"{self.gen_algorithm}_{self.N}"
+
+    def get_decorator_name(self) -> str:
+        return f"{NAME2PRETTY_NAME[self.gen_algorithm]} algorithm, {self.N} points"
+
+    def get_grid_path(self, extension) -> str:
+        return f"{PATH_OUTPUT_ROTGRIDS}{self.get_standard_name()}_{self.dimensions}d.{extension}"
+
+    def get_statistics_path(self, extension) -> str:
+        return f"{PATH_OUTPUT_STAT}{self.get_standard_name()}_{self.dimensions}d.{extension}"
+
+    ##################################################################################################################
+    #                      useful methods
+    ##################################################################################################################
+
+    def get_grid_as_array(self) -> NDArray:
+        self.gen_grid()
+        return self.grid
+
+    def save_grid(self, extension: str = EXTENSION_GRID_FILES):
+        np.save(self.get_grid_path(extension=extension), self.get_grid_as_array())
+
+    def save_uniformity_statistics(self, num_random: int = 100, alphas=None):
+        short_statistics_path = self.get_statistics_path(extension="txt")
+        statistics_path = self.get_statistics_path(extension="csv")
+        stat_data, full_data = prepare_statistics(self.get_grid_as_array(), alphas, d=self.dimensions,
+                                                  num_rand_points=num_random)
+        write_statistics(stat_data, full_data, short_statistics_path, statistics_path,
+                         num_random, name=self.get_standard_name(), dimensions=self.dimensions,
+                         print_message=self.print_messages)
+
+    def save_convergence_statistics(self):
+        pass
+
+
+class SphereGrid(SphereGridNDim):
+
+    def __init__(self, point_array: NDArray, N: int, gen_alg: str = None, **kwargs):
         """
         A grid consisting of points on a sphere in 3D.
 
@@ -26,71 +109,111 @@ class SphereGrid:
             point_array: (N, 3) array in which each row is a 3D point with norm 1
             gen_alg: info with which alg the grid was created
         """
-        assert gen_alg in GRID_ALGORITHMS, f"{gen_alg} is not a valid generation algorithm name"
+        super().__init__(dimensions=3, N=N, gen_alg=gen_alg, **kwargs)
         self.grid = point_array
-        self.N = N
-        self.standard_name = f"{gen_alg}_{N}"
-        self.decorator_label = f"rotation grid {self.standard_name}"
-        self.nn_dist_arch = None
-        self.nn_dist_cup = None
-        self.short_statistics_path = f"{PATH_OUTPUT_STAT}{self.standard_name}_short_stat.txt"
-        self.statistics_path = f"{PATH_OUTPUT_STAT}{self.standard_name}_full_stat.csv"
-        assert isinstance(self.grid, np.ndarray), "A grid must be a numpy array!"
-        assert self.grid.shape == (N, 3), f"Grid not of correct shape! {self.grid.shape} instead of {(N, 3)}"
-        assert np.allclose(np.linalg.norm(self.grid, axis=1), 1, atol=10**(-UNIQUE_TOL))
+        # self.N = N
+        # self.algorithm_name = gen_alg
+        # self.standard_name = f"{gen_alg}_{N}"
+        # self.decorator_label = self.get_decorator_name()
+        # self.nn_dist_arch = None
+        # self.nn_dist_cup = None
 
-    def get_grid(self) -> np.ndarray:
-        return self.grid
+    # def get_grid(self) -> np.ndarray:
+    #     return self.grid
 
-    def __len__(self):
-        return self.N
+    # def __len__(self):
+    #     return self.N
+    #
+    # def get_decorator_name(self):
+    #     return f"{NAME2PRETTY_NAME[self.gen_algorithm]} algorithm, {self.N} points"
+    #
+    # def __str__(self):
+    #     return f"Object {type(self).__name__} <{self.get_decorator_name()}>"
 
-    def save_grid(self, additional_name=""):
-        if additional_name:
-            additional_name = f"_{additional_name}"
-        np.save(f"{PATH_OUTPUT_ROTGRIDS}{self.standard_name}{additional_name}.{EXTENSION_GRID_FILES}", self.get_grid())
+    # def save_grid(self, additional_name=""):
+    #     if additional_name:
+    #         additional_name = f"_{additional_name}"
+    #     np.save(f"{PATH_OUTPUT_ROTGRIDS}{self.standard_name}{additional_name}.{EXTENSION_GRID_FILES}", self.get_grid())
+    #
+    # def save_grid_txt(self):
+    #     # noinspection PyTypeChecker
+    #     np.savetxt(f"{PATH_OUTPUT_ROTGRIDS}{self.standard_name}.txt", self.grid)
+    #
+    # def save_statistics(self, num_random: int = 100, print_message=False, alphas=None):
+    #     stat_data, full_data = prepare_statistics(self.get_grid(), alphas, d=3, num_rand_points=num_random)
+    #     write_statistics(stat_data, full_data, self.short_statistics_path, self.statistics_path,
+    #                      num_random, name=self.standard_name, dimensions=3,
+    #                      print_message=print_message)
 
-    def save_grid_txt(self):
-        # noinspection PyTypeChecker
-        np.savetxt(f"{PATH_OUTPUT_ROTGRIDS}{self.standard_name}.txt", self.grid)
 
-    def save_statistics(self, num_random: int = 100, print_message=False, alphas=None):
-        stat_data, full_data = prepare_statistics(self.get_grid(), alphas, d=3, num_rand_points=num_random)
-        write_statistics(stat_data, full_data, self.short_statistics_path, self.statistics_path,
-                         num_random, name=self.standard_name, dimensions=3,
-                         print_message=print_message)
+class RotationsObject(SphereGridNDim, ABC):
 
+    # property of the sub-class is the algorithm name
+    algorithm_name = "None"
 
-class RotationsObject(ABC):
+    def __init__(self, **kwargs):
+        """
+        When initiating a class, start by saving required properties but not yet generating any points. For actually
+        creating/reading points from a file, you need to run the gen_rotations(N) method.
+        Args:
+            N:
+            gen_algorithm:
+            use_saved:
+            time_generation:
+            print_warnings:
+        """
+        super().__init__(N=None, gen_alg=self.algorithm_name, **kwargs)
+        # self.grid_x = None
+        # self.grid_y = None
+        # self.grid_z = None
+        # self.rotations = None
+        # self.N = None
+        # self.gen_algorithm = self.algorithm_name
+        # self.use_saved = use_saved
+        # self.time_generation = time_generation
+        # self.print_warnings = print_warnings
 
-    def __init__(self, N: int = None, gen_algorithm: str = None, use_saved=True, time_generation=False,
-                 print_warnings=True):
-        self.grid_x = None
-        self.grid_y = None
-        self.grid_z = None
-        self.rotations = None
-        self.N = N
-        self.gen_algorithm = gen_algorithm
-        self.standard_name = f"{gen_algorithm}_{N}"
-        self.decorator_label = f"{NAME2PRETTY_NAME[self.gen_algorithm]} with {self.N} points"
-        self.short_statistics_path = f"{PATH_OUTPUT_STAT}{self.standard_name}_short_stat_rotobj.txt"
-        self.statistics_path = f"{PATH_OUTPUT_STAT}{self.standard_name}_full_stat_rotobj.csv"
-        if time_generation:
-            gen_func = self.gen_and_time
+    def __str__(self):
+        return f"Object {type(self).__name__} <{self.get_decorator_name()}>"
+
+    def get_standard_name(self):
+        if self.N is None:
+            return self.algorithm_name
         else:
-            gen_func = self.gen_rotations
-        if use_saved:
+            return f"{self.algorithm_name}_{self.N}"
+
+    def get_decorator_name(self):
+        dec_name = f"{NAME2PRETTY_NAME[self.algorithm_name]} algorithm"
+        if self.N is not None:
+            dec_name += f", {self.N} points"
+        return dec_name
+
+    def _set_N(self, N: int):
+        assert N > 0, "N must be a positive integer"
+        self.N = N
+
+    def create_rotations(self, N: int):
+        """
+        Standard method to run in order to create/use saved rotational quaternions
+
+        Args:
+            N: number of points
+        """
+        self._set_N(N)
+        gen_func = self.gen_and_time if self.time_generation else self.gen_rotations
+
+        if self.use_saved:
             try:
-                grid_x_arr = np.load(f"{PATH_OUTPUT_ROTGRIDS}{gen_algorithm}_{N}_x.{EXTENSION_GRID_FILES}")
+                grid_x_arr = np.load(f"{PATH_OUTPUT_ROTGRIDS}{self.get_standard_name()}_x.{EXTENSION_GRID_FILES}")
                 grid_x = SphereGrid(grid_x_arr, self.N, self.gen_algorithm)
-                grid_y_arr = np.load(f"{PATH_OUTPUT_ROTGRIDS}{gen_algorithm}_{N}_y.{EXTENSION_GRID_FILES}")
+                grid_y_arr = np.load(f"{PATH_OUTPUT_ROTGRIDS}{self.get_standard_name()}_y.{EXTENSION_GRID_FILES}")
                 grid_y = SphereGrid(grid_y_arr, self.N, self.gen_algorithm)
-                grid_z_arr = np.load(f"{PATH_OUTPUT_ROTGRIDS}{gen_algorithm}_{N}_z.{EXTENSION_GRID_FILES}")
+                grid_z_arr = np.load(f"{PATH_OUTPUT_ROTGRIDS}{self.get_standard_name()}_z.{EXTENSION_GRID_FILES}")
                 grid_z = SphereGrid(grid_z_arr, self.N, self.gen_algorithm)
                 self.from_grids(grid_x, grid_y, grid_z)
+                return
             except FileNotFoundError:
                 gen_func()
-                self.save_all()
         else:
             gen_func()
             self.save_all()
@@ -99,26 +222,18 @@ class RotationsObject(ABC):
         assert z_array.shape == (self.N, 3), f"Wrong shape: {z_array.shape} != {(self.N, 3)}"
         # rotations unique
         quats = self.rotations.as_quat()
-        if print_warnings and len(quats) != len(provide_unique(quats, as_quat=True)):
+        if self.print_warnings and len(quats) != len(provide_unique(quats, as_quat=True)):
             print(f"Warning! {len(quats) - len(provide_unique(quats, as_quat=True))} "
-                  f"quaternions of {self.standard_name} non-unique (distance < 10^-{UNIQUE_TOL}).")
+                  f"quaternions of {self.get_standard_name()} non-unique (distance < 10^-{UNIQUE_TOL}).")
         # grids unique
-        if print_warnings and len(z_array) != len(provide_unique(z_array)):
+        if self.print_warnings and len(z_array) != len(provide_unique(z_array)):
             print(f"Warning! {len(z_array) - len(provide_unique(z_array))} grid points"
-                  f" of {self.standard_name} non-unique (distance < 10^-{UNIQUE_TOL}).")
-
-    @abstractmethod
-    def gen_rotations(self):
-        pass
-
-    @time_method
-    def gen_and_time(self):
-        self.gen_rotations()
+                  f" of {self.get_standard_name()} non-unique (distance < 10^-{UNIQUE_TOL}).")
 
     def get_grid_z_as_array(self) -> NDArray:
         return self.grid_z.get_grid()
 
-    def get_grid_z_as_grid(self) -> SphereGrid:
+    def get_sphere_grid(self) -> SphereGrid:
         return self.grid_z
 
     def _select_unique_rotations(self):
@@ -170,10 +285,12 @@ class RotationsObject(ABC):
             sub_grid.save_grid(additional_name=label)
 
     def save_statistics(self, num_random: int = 100, print_message=False, alphas=None):
+        short_statistics_path = f"{PATH_OUTPUT_STAT}{self.get_standard_name()}_short_stat_rotobj.txt"
+        statistics_path = f"{PATH_OUTPUT_STAT}{self.get_standard_name()}_full_stat_rotobj.csv"
         # self.get_old_rotation_objects().as_quat()
         stat_data, full_data = prepare_statistics(self.rotations.as_quat(), alphas, d=4, num_rand_points=num_random)
-        write_statistics(stat_data, full_data, self.short_statistics_path, self.statistics_path,
-                         num_random, name=self.standard_name, dimensions=4,
+        write_statistics(stat_data, full_data, short_statistics_path, statistics_path,
+                         num_random, name=self.get_standard_name(), dimensions=4,
                          print_message=print_message)
 
 
@@ -202,6 +319,8 @@ def provide_unique(el_array: NDArray, tol: int = UNIQUE_TOL, as_quat=False) -> N
 
 class RandomQRotations(RotationsObject):
 
+    algorithm_name = "randomQ"
+
     def gen_rotations(self):
         assert self.N is not None, "Select the number of points N!"
         quaternions = random_quaternions(self.N)
@@ -210,8 +329,9 @@ class RandomQRotations(RotationsObject):
 
 class SystemERotations(RotationsObject):
 
+    algorithm_name = "systemE"
+
     def gen_rotations(self):
-        assert self.N is not None, "Select the number of points N!"
         num_points = 1
         rot_matrices = []
         while len(rot_matrices) < self.N:
@@ -233,6 +353,8 @@ class SystemERotations(RotationsObject):
 
 class RandomERotations(RotationsObject):
 
+    algorithm_name = "randomE"
+
     def gen_rotations(self):
         euler_angles = 2 * pi * np.random.random((self.N, 3))
         self.from_rotations(Rotation.from_euler("ZYX", euler_angles))
@@ -240,9 +362,10 @@ class RandomERotations(RotationsObject):
 
 class ZeroRotations(RotationsObject):
 
-    def __init__(self, N: int = None, gen_algorithm: str = None, use_saved=True, time_generation=False):
-        assert N == 1, "Zero grid only makes sense for N=1"
-        super().__init__(N=N, gen_algorithm=gen_algorithm, use_saved=use_saved, time_generation=time_generation)
+    algorithm_name = "zero"
+
+    # def __init__(self, use_saved=True, **kwargs):
+    #     super().__init__(use_saved=use_saved, **)
 
     def gen_rotations(self):
         self.N = 1
@@ -265,8 +388,10 @@ class PolyhedronRotations(RotationsObject):
 
 class Cube4DRotations(PolyhedronRotations):
 
-    def __init__(self, N: int, gen_algorithm, **kwargs):
-        super().__init__(polyhedron=Cube4DPolytope, N=N, gen_algorithm=gen_algorithm, **kwargs)
+    algorithm_name = "cube4D"
+
+    def __init__(self, **kwargs):
+        super().__init__(polyhedron=Cube4DPolytope, **kwargs)
 
     def gen_rotations(self):
         super().gen_rotations()
@@ -297,14 +422,23 @@ class IcoAndCube3DRotations(PolyhedronRotations):
 
 class IcoRotations(IcoAndCube3DRotations):
 
-    def __init__(self, N: int, gen_algorithm, **kwargs):
-        super().__init__(polyhedron=IcosahedronPolytope, N=N, gen_algorithm=gen_algorithm, **kwargs)
+    algorithm_name = "ico"
+
+    def __init__(self, **kwargs):
+        super().__init__(polyhedron=IcosahedronPolytope, **kwargs)
 
 
 class Cube3DRotations(IcoAndCube3DRotations):
 
-    def __init__(self, N: int, gen_algorithm, **kwargs):
-        super().__init__(polyhedron=Cube3DPolytope, N=N, gen_algorithm=gen_algorithm, **kwargs)
+    algorithm_name = "cube3D"
+
+    def __init__(self, **kwargs):
+        super().__init__(polyhedron=Cube3DPolytope, **kwargs)
+
+
+class AllRotObjObjects:
+    sub_obj = List[Type[RotationsObject]]
+
 
 
 def build_rotations_from_name(grid_name: str, b_or_o="o", use_saved=False, **kwargs) -> RotationsObject:
@@ -331,8 +465,8 @@ def build_rotations(N: int, algo: str, use_saved=False, **kwargs) -> RotationsOb
 
 
 def build_grid_from_name(grid_name: str, b_or_o="o", use_saved=False, **kwargs) -> SphereGrid:
-    return build_rotations_from_name(grid_name, b_or_o=b_or_o, use_saved=use_saved, **kwargs).get_grid_z_as_grid()
+    return build_rotations_from_name(grid_name, b_or_o=b_or_o, use_saved=use_saved, **kwargs).get_sphere_grid()
 
 
 def build_grid(N: int, algo: str, use_saved=False, **kwargs) -> SphereGrid:
-    return build_rotations(N=N, algo=algo, use_saved=use_saved, **kwargs).get_grid_z_as_grid()
+    return build_rotations(N=N, algo=algo, use_saved=use_saved, **kwargs).get_sphere_grid()

@@ -7,9 +7,9 @@ from os.path import join
 import argparse
 from typing import Tuple
 
-from molgri.space.rotobj import build_rotations
-from ..paths import PATH_OUTPUT_ROTGRIDS, PATH_OUTPUT_PLOTS, PATH_OUTPUT_ANIS, PATH_OUTPUT_STAT
-from ..constants import EXTENSION_GRID_FILES
+from molgri.space.factories import RotationsFactory
+from molgri.paths import PATH_OUTPUT_ROTGRIDS, PATH_OUTPUT_PLOTS, PATH_OUTPUT_ANIS, PATH_OUTPUT_STAT
+from molgri.constants import EXTENSION_GRID_FILES
 from molgri.plotting.grid_plots import GridPlot
 from molgri.plotting.analysis_plots import AlphaViolinPlot, AlphaConvergencePlot, AlphaViolinPlotRot, \
     AlphaConvergencePlotRot
@@ -24,6 +24,8 @@ requiredNamed.add_argument('-algorithm', metavar='a', type=str, nargs='?', requi
                                 ' (ico, cube3D, cube4D, randomQ, randomE, systemE)')
 parser.add_argument('--recalculate', action='store_true',
                     help='recalculate the grid even if a saved version already exists')
+parser.add_argument('--dimensions', type=int, default=3,
+                    help='select 3 for grids on a sphere in 3D space and 4 for grids on a hypersphere in 4D space')
 parser.add_argument('--statistics', action='store_true',
                     help='write out statistics and draw uniformity and convergence plots')
 parser.add_argument('--draw', action='store_true',
@@ -44,11 +46,12 @@ def prepare_grid(args, grid_name: str) -> Tuple:
     n_points = args.N
     # if already exists and no --recalculate flag, just display a message
     use_saved = not args.recalculate
-    my_rotations = build_rotations(n_points, algo, use_saved=use_saved, time_generation=True)
+    my_rotations = RotationsFactory(N=n_points, alg_name=algo, dimension=args.dimension, use_saved_data=use_saved,
+                                    time_generation=True)
     if os.path.exists(join(PATH_OUTPUT_ROTGRIDS, f"{name}.{EXTENSION_GRID_FILES}")) and not args.recalculate:
         print(f"Grid with name {name} is already saved. If you want to recalculate it, select --recalculate flag.")
-    my_grid = my_rotations.get_grid_z_as_grid()
-    print(f"Generated a {my_rotations.decorator_label} with {my_rotations.N} points.")
+    my_grid = my_rotations.get_grid()
+    print(f"Generated a {my_rotations.} with {my_rotations.N} points.")
     # if running from another script, args may not include the readable attribute
     try:
         if args.readable:

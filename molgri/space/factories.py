@@ -2,11 +2,12 @@ import os
 
 import numpy as np
 import pandas as pd
+from numpy.typing import NDArray
 
 from molgri.constants import DEFAULT_ALGORITHM_O, DEFAULT_ALGORITHM_B, ZERO_ALGORITHM, DEFAULT_ALPHAS_3D, \
     DEFAULT_ALPHAS_4D, DEFAULT_NS
 from molgri.space.rotobj import RandomQRotations, SystemERotations, RandomERotations, Cube4DRotations, ZeroRotations, \
-    IcoRotations, Cube3DRotations, RotationsObject
+    IcoRotations, Cube3DRotations, SphereGrid, AllRotObjObjects
 
 
 class RotationsFactory:
@@ -24,7 +25,7 @@ class RotationsFactory:
      The idea is that all plotting functions (and FullGrid) should only rely on those getters.
     """
 
-    def __init__(self, N: int, alg_name: str, dimension: int, use_saved_data: bool):
+    def __init__(self, N: int, alg_name: str, dimension: int, use_saved_data: bool, **kwargs):
         # use defaults; explicitly pass None if defaults are to be used
         assert dimension == 3 or dimension == 4, f"Can only generate space grids with 3 or 4 dimensions not {dimension}"
         if alg_name is None and N == 1:
@@ -39,17 +40,27 @@ class RotationsFactory:
         self.alg_name = alg_name
         self.dimension = dimension
         self.use_saved_data = use_saved_data
+        self.kwargs = kwargs
 
     def _create_rotobj(self):
-        assert self.dimension == 4, "Cannot create hypergrid from initiated 3D object"
+        assert self.dimension == 4, "Cannot create hyper-grid from initiated 3D object"
         assert self.N >= 1, f"N must be a positive integer, not {self.N}"
-        rot_obj_factory = get_RotationsObject(self.alg_name)
-        rot_obj = rot_obj_factory(N=self.N, gen_algorithm=self.alg_name, use_saved=self.use_saved_data)
-        return rot_obj
+        return QuaternionGridFactory.create(self.alg_name, N=self.N, use_saved=self.use_saved_data, **self.kwargs)
 
-    def get_hypergrid(self):
-        rot_obj = self._create_rotobj()
-        return rot_obj.as_quaternion()
+    def _create_sphere_grid(self):
+        assert self.dimension == 3, "Cannot create sphere grid from initiated 4D object"
+        assert self.N >= 1, f"N must be a positive integer, not {self.N}"
+        return SphereGridFactory.create(self.alg_name, N=self.N, use_saved=self.use_saved_data, **self.kwargs)
+
+    # def get_hypergrid(self):
+    #     rot_obj = self._create_rotobj()
+    #     return rot_obj.as_quaternion()
+
+    def get_grid(self):
+        if self.dimension == 3:
+            return self._create_sphere_grid()
+        elif self.dimension == 4:
+            return self._create_rotobj()
 
     def _create_uniformity(self):
         """Common method for 3- and 4D."""
@@ -86,40 +97,46 @@ class RotationsFactory:
         return full_df
 
 
-class SphericalGridFactory(RotationsFactory): pass
+class SphereGridFactory(RotationsFactory):
+
+    @classmethod
+    def create(cls, alg_name: str, N: int, *args, **kwargs) -> SphereGrid:
+        return QuaternionGridFactory().create(alg_name=alg_name, N=N, *args, **kwargs).get_sphere_grid()
 
 
 class QuaternionGridFactory:
 
     @classmethod
-    def create(cls, alg_name: str, *args, **kwargs):
+    def create(cls, alg_name: str, N: int, *args, **kwargs) -> AllRotObjObjects.sub_obj:
         if alg_name == "randomQ":
-            return RandomQRotations(*args, **kwargs)
+            selected_sub_obj = RandomQRotations(*args, **kwargs)
         elif alg_name == "systemE":
-            return SystemERotations(*args, **kwargs)
+            selected_sub_obj = SystemERotations(*args, **kwargs)
         elif alg_name == "randomE":
-            return RandomERotations(*args, **kwargs)
+            selected_sub_obj = RandomERotations(*args, **kwargs)
         elif alg_name == "cube4D":
-            return Cube4DRotations(*args, **kwargs)
+            selected_sub_obj = Cube4DRotations(*args, **kwargs)
         elif alg_name == "zero":
-            return ZeroRotations
+            selected_sub_obj = ZeroRotations(*args, **kwargs)
         elif alg_name == "ico":
-            return IcoRotations
+            selected_sub_obj = IcoRotations(*args, **kwargs)
         elif alg_name == "cube3D":
-            return Cube3DRotations
+            selected_sub_obj = Cube3DRotations(*args, **kwargs)
         else:
             raise ValueError(f"The algorithm {alg_name} not familiar to QuaternionGridFactory.")
+        selected_sub_obj.create_rotations(N)
+        return selected_sub_obj
 
 
+if __name__ == "__main__":
+    from molgri.constants import GRID_ALGORITHMS
 
-
-def get_RotationsObject(alg_name) -> RotationsObject:
-    name2rotation = {"randomQ": RandomQRotations,
-                     "systemE": SystemERotations,
-                     "randomE": RandomERotations,
-                     "cube4D": Cube4DRotations,
-                     "zero": ZeroRotations,
-                     "ico": IcoRotations,
-                     "cube3D": Cube3DRotations
-                     }
-    return name2rotation[alg_name]
+    for ga in GRID_ALGORITHMS:
+        if ga == "zero":
+            num = 1
+        else:
+            num = 5
+        my_quat = QuaternionGridFactory.create(ga, num, time_generation=True, use_saved=False)
+        print(my_quat)
+        my_sphere = SphereGridFactory.create(ga, num, time_generation=True, use_saved=False)
+        print(my_sphere)
