@@ -1,12 +1,13 @@
 import numpy as np
 import pandas as pd
 
-from molgri.plotting.abstract import SphereGridPlot
+from molgri.plotting.space_plots import SphereGridPlot, PolytopePlot
 from molgri.space.cells import save_voranoi_data_for_alg
 from molgri.space.fullgrid import FullGrid
 from molgri.constants import SMALL_NS, GRID_ALGORITHMS
-from molgri.plotting.grid_plots import PolytopePlot, PositionGridPlot, create_hammer_multiplot, create_trajectory_energy_multiplot, groupby_min_body_energy
+from molgri.plotting.grid_plots import PositionGridPlot, create_hammer_multiplot, create_trajectory_energy_multiplot, groupby_min_body_energy
 from molgri.plotting.analysis_plots import VoranoiConvergencePlot
+from molgri.space.polytopes import Cube3DPolytope, Cube4DPolytope, IcosahedronPolytope
 from molgri.space.rotobj import SphereGridFactory
 
 
@@ -21,11 +22,6 @@ def test_groupby_min_body_energy():
 
 
 # def test_everything_runs():
-#     # PolytopePlot("ico", num_divisions=2, faces={0, 1, 2, 3, 4}).create_and_save(equalize=True, elev=190, azim=120,
-#     #                                                                    x_max_limit=0.55, x_min_limit=-0.6)
-#     # PolytopePlot("ico", num_divisions=2, projection=True).create_and_save(equalize=True, elev=190, azim=120,
-#     #                                                              x_max_limit=0.55, x_min_limit=-0.6)
-#     # PolytopePlot("cube3D", num_divisions=3).create_and_save(equalize=True, elev=0, azim=0, x_max_limit=0.7, x_min_limit=-0.7)
 #     # create the needed file
 #     FullGrid(o_grid_name="cube3D_9", b_grid_name="zero", t_grid_name='range(1, 5, 2)')
 #     PositionGridPlot("position_grid_o_cube3D_9_b_zero_1_t_3203903466", cell_lines=True).create_and_save(
@@ -35,6 +31,13 @@ def test_groupby_min_body_energy():
 #     VoranoiConvergencePlot("randomE_1_8_300").create_and_save()
 #     create_trajectory_energy_multiplot("H2O_H2O_o_ico_500_b_ico_5_t_3830884671", animate_rot=False)
 #     create_hammer_multiplot("H2O_H2O_o_ico_500_b_ico_5_t_3830884671")
+
+
+def test_polytope_plots():
+    for pol in (Cube3DPolytope(), Cube4DPolytope(), IcosahedronPolytope()):
+        pol.divide_edges()
+        pp = PolytopePlot(pol)
+        pp.create_all_plots()
 
 
 def test_space_plots():
@@ -48,4 +51,4 @@ def test_space_plots():
 
 
 if __name__ == "__main__":
-    test_space_plots()
+    test_polytope_plots()

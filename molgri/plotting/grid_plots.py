@@ -11,12 +11,10 @@ from scipy.spatial import geometric_slerp
 
 from molgri.constants import UNIQUE_TOL, DIM_SQUARE, DIM_LANDSCAPE
 from molgri.molecules.parsers import XVGParser, FullGridNameParser, PtParser
-from molgri.paths import PATH_OUTPUT_FULL_GRIDS, PATH_INPUT_BASEGRO, PATH_OUTPUT_PT, PATH_INPUT_ENERGIES, \
-    PATH_OUTPUT_PLOTS
+from molgri.paths import PATH_OUTPUT_FULL_GRIDS, PATH_INPUT_BASEGRO, PATH_OUTPUT_PT, PATH_INPUT_ENERGIES
 from molgri.plotting.abstract import Plot3D, AbstractPlot, AbstractMultiPlot
 from molgri.plotting.analysis_plots import points_up_to_Ns, test_or_create_Ns
 from molgri.space.cells import voranoi_surfaces_on_stacked_spheres, voranoi_surfaces_on_sphere
-from molgri.space.polytopes import Polytope, IcosahedronPolytope, Cube3DPolytope
 from molgri.space.utils import norm_per_axis, normalise_vectors, cart2sphA
 
 
@@ -249,45 +247,6 @@ def create_hammer_multiplot(data_name, Ns=None):
         tep.add_energy_information(f"{PATH_INPUT_ENERGIES}{data_name}")
         list_single_plots.append(tep)
     HammerProjectionMultiPlot(list_single_plots, n_columns=max_index, n_rows=1).create_and_save()
-
-
-class PolytopePlot(Plot3D):
-
-    def __init__(self, data_name: str, num_divisions=3, faces=None, projection=False, **kwargs):
-        """
-        Plotting (some faces of) polyhedra, demonstrating the subdivision of faces with points.
-
-        Args:
-            data_name:
-            num_divisions: how many levels of faces subdivisions should be drawn
-            faces: a set of indices indicating which faces to draw
-            projection: if True display points projected on a sphere, not on faces
-            **kwargs:
-        """
-        self.num_divisions = num_divisions
-        self.faces = faces
-        self.projection = projection
-        plot_type = f"polytope_{num_divisions}"
-        super().__init__(data_name, fig_path=PATH_OUTPUT_PLOTS, plot_type=plot_type, style_type=["empty"],
-                         **kwargs)
-
-    def _prepare_data(self) -> Polytope:
-        if self.data_name == "ico":
-            ico = IcosahedronPolytope()
-        else:
-            ico = Cube3DPolytope()
-        for n in range(self.num_divisions):
-            ico.divide_edges()
-        return ico
-
-    def _plot_data(self, **kwargs):
-        if self.faces is None and self.data_name == "ico":
-            self.faces = {12}
-        elif self.faces is None:
-            self.faces = {3}
-        ico = self._prepare_data()
-        ico.plot_points(self.ax, select_faces=self.faces, projection=self.projection)
-        ico.plot_edges(self.ax, select_faces=self.faces)
 
 
 def groupby_min_body_energy(df: pd.DataFrame, target_column: str, N_b: int) -> pd.DataFrame:

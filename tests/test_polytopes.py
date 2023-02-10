@@ -106,9 +106,9 @@ def test_everything_runs():
     # test all
     for polytope_type in ALL_POLYTOPE_TYPES:
         pol = polytope_type()
-        pol.plot_graph()
+        #pol.plot_graph()
         pol.divide_edges()
-        pol.plot_graph(with_labels=False)
+        #pol.plot_graph(with_labels=False)
         all_row_norms_similar(pol.get_projection_coordinates())
     # test only 3D
     for polytope_type in ALL_POLYHEDRON_TYPES:

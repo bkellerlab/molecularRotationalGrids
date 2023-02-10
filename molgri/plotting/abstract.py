@@ -1,4 +1,4 @@
-from abc import ABC, abstractmethod
+from abc import ABC
 from typing import Union, List
 
 import numpy as np
@@ -8,14 +8,9 @@ from matplotlib.animation import FuncAnimation, PillowWriter
 from matplotlib.axes import Axes
 from matplotlib import ticker
 from mpl_toolkits.mplot3d.axes3d import Axes3D
-from numpy._typing import NDArray
-from seaborn import color_palette
 
-from molgri.constants import DIM_SQUARE, DEFAULT_DPI, COLORS, EXTENSION_FIGURES, FULL_GRID_ALG_NAMES, DEFAULT_ALPHAS_3D, \
-    DEFAULT_ALPHAS_4D, TEXT_ALPHAS_3D, TEXT_ALPHAS_4D
+from molgri.constants import DIM_SQUARE, DEFAULT_DPI, COLORS, EXTENSION_FIGURES, FULL_GRID_ALG_NAMES
 from molgri.paths import PATH_OUTPUT_PLOTS, PATH_OUTPUT_ANIS
-from molgri.space.analysis import vector_within_alpha
-from molgri.space.rotobj import SphereGridNDim
 
 
 class AbstractPlot(ABC):
@@ -435,163 +430,3 @@ class Plot3D(AbstractPlot, ABC):
             self.ax.set_zlabel(z_label, **kwargs)
 
 
-class SphereGridPlot(AbstractPlot):
-
-    def __init__(self, sphere_grid: SphereGridNDim, **kwargs):
-        data_name = sphere_grid.get_standard_name(with_dim=True)
-        super().__init__(data_name, **kwargs)
-        self.sphere_grid = sphere_grid
-        if self.sphere_grid.dimensions == 3:
-            self.alphas = DEFAULT_ALPHAS_3D
-            self.alphas_text = TEXT_ALPHAS_3D
-        else:
-            self.alphas = DEFAULT_ALPHAS_4D
-            self.alphas_text = TEXT_ALPHAS_4D
-
-    def make_grid_plot(self, ax = None):
-        """Plot the 3D grid plot, for 4D the 4th dimension plotted as color. It always has limits (-1, 1) and equalized
-        figure size"""
-        self._create_fig_ax(ax, dim=3, projection="3d")
-        self._set_up_empty()
-        points = self.sphere_grid.get_grid_as_array()
-        if points.shape[1] == 3:
-            sc = self.ax.scatter(*points.T, color="black", s=30)
-        else:
-            sc = self.ax.scatter(*points[:, :3].T, c=points[:, 3].T, s=30)  # cmap=plt.hot()
-        self._axis_limits(-1, 1, -1, 1, -1, 1)
-        self._equalize_axes()
-        self.save_plot(name_addition="grid")
-        return sc
-
-    def make_grid_colored_with_alpha(self, ax=None, central_vector: NDArray = None):
-        if self.sphere_grid.dimensions != 3:
-            print(f"make_grid_colored_with_alpha currently implemented only for 3D systems.")
-            return
-        if central_vector is None:
-            central_vector = np.zeros((self.sphere_grid.dimensions,))
-            central_vector[-1] = 1
-        points = self.sphere_grid.get_grid_as_array()
-        self._create_fig_ax(ax, dim=3, projection="3d")
-        self._set_up_empty()
-        # plot vector
-        self.ax.scatter(*central_vector, marker="x", c="k", s=30)
-        # determine color palette
-        cp = sns.color_palette("Spectral", n_colors=len(self.alphas))
-        # sort points which point in which alpha area
-        already_plotted = []
-        for i, alpha in enumerate(self.alphas):
-            possible_points = np.array([vec for vec in points if tuple(vec) not in already_plotted])
-            within_alpha = vector_within_alpha(central_vector, possible_points, alpha)
-            selected_points = [tuple(vec) for i, vec in enumerate(possible_points) if within_alpha[i]]
-            array_sel_points = np.array(selected_points)
-            if np.any(array_sel_points):
-                sc = self.ax.scatter(*array_sel_points.T, color=cp[i], s=30)
-            already_plotted.extend(selected_points)
-        self.ax.view_init(elev=10, azim=30)
-        self._axis_limits(-1, 1, -1, 1, -1, 1)
-        self._equalize_axes()
-        self.save_plot(name_addition="colorful_grid")
-
-    def make_alpha_plot(self, ax = None):
-        """
-        Creates violin plots that are a measure of grid uniformity. A good grid will display minimal variation
-        along a range of angles alpha.
-        """
-        self._create_fig_ax(ax, dim=2)
-        self._set_up_empty()
-
-        df = self.sphere_grid.get_uniformity_df(alphas=self.alphas)
-        sns.violinplot(x=df["alphas"], y=df["coverages"], ax=self.ax, palette=COLORS, linewidth=1, scale="count", cut=0)
-        self.ax.set_xticklabels(self.alphas_text)
-        self.save_plot(name_addition="uniformity")
-
-    def make_convergence_plot(self, ax = None):
-        """
-        Creates convergence plots that show how coverages approach optimal values.
-        """
-        self._create_fig_ax(ax, dim=2)
-        self._set_up_empty()
-
-        df = self.sphere_grid.get_convergence_df(alphas=self.alphas)
-
-        sns.lineplot(x=df["N"], y=df["coverages"], ax=self.ax, hue=df["alphas"],
-                     palette=color_palette("hls", len(self.alphas_text)), linewidth=1)
-        sns.lineplot(x=df["N"], y=df["ideal coverage"], style=df["alphas"], ax=self.ax, color="black")
-        self.ax.set_xscale("log")
-        self.ax.set_yscale("log")
-        self.ax.get_legend().remove()
-        self.save_plot(name_addition="convergence")
-
-    def make_polyhedron_plot(self):
-        pass
-
-    def make_rot_animation(self):
-        self.make_grid_plot()
-        self.animate_figure_view()
-
-    def make_ordering_animation(self):
-        sc = self.make_grid_plot()
-
-        def update(i):
-            current_colors = np.concatenate([facecolors_before[:i], all_white[i:]])
-            sc.set_facecolors(current_colors)
-            sc.set_edgecolors(current_colors)
-            return sc,
-
-        facecolors_before = sc.get_facecolors()
-        shape_colors = facecolors_before.shape
-        all_white = np.zeros(shape_colors)
-
-        self.ax.view_init(elev=10, azim=30)
-        ani = FuncAnimation(self.fig, func=update, frames=len(facecolors_before), interval=5, repeat=False)
-        writergif = PillowWriter(fps=3, bitrate=-1)
-        # noinspection PyTypeChecker
-        ani.save(f"{self.ani_path}{self.data_name}_order.gif", writer=writergif, dpi=400)
-
-    def make_trans_animation(self, ax=None):
-        dimension_index = -1
-        points = self.sphere_grid.get_grid_as_array()
-        # create the axis with the right num of dimensions
-        self._create_fig_ax(ax, dim=points.shape[1]-1)
-        self._set_up_empty()
-        # sort by the value of the specific dimension you are looking at
-        ind = np.argsort(points[:, dimension_index])
-        points_3D = points[ind]
-        # map the 4th dimension into values 0-1
-        alphas = points_3D[:, dimension_index].T
-        alphas = (alphas - np.min(alphas)) / np.ptp(alphas)
-
-        all_points = []
-        for line in points_3D:
-            all_points.append(self.ax.scatter(*line[:self.dimensions], color="black", alpha=1))
-
-        self._axis_limits(-1, 1, -1, 1, -1, 1)
-        self._equalize_axes()
-
-        step = 20
-
-        def animate(frame):
-            # plot current point
-            current_time = alphas[frame * step]
-
-            for i, p in enumerate(all_points):
-                new_alpha = np.max([0, 1 - np.abs(alphas[i] - current_time) * 10])
-                p.set_alpha(new_alpha)
-            return self.ax,
-
-        anim = FuncAnimation(self.fig, animate, frames=len(points_3D) // step,
-                             interval=100)  # , frames=180, interval=50
-        writergif = PillowWriter(fps=100 // step, bitrate=-1)
-        # noinspection PyTypeChecker
-        anim.save(f"{self.ani_path}{self.data_name}_trans.gif", writer=writergif, dpi=400)
-
-    def create_all_plots(self, and_animations=False):
-        self.make_grid_plot()
-        self.make_alpha_plot()
-        self.make_convergence_plot()
-        self.make_polyhedron_plot()
-        self.make_grid_colored_with_alpha()
-        if and_animations:
-            self.make_rot_animation()
-            self.make_ordering_animation()
-            self.make_trans_animation()

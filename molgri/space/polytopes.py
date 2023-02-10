@@ -29,9 +29,7 @@ from itertools import product, combinations
 import networkx as nx
 import numpy as np
 from numpy.typing import NDArray
-from mpl_toolkits.mplot3d import Axes3D
 from scipy.constants import pi, golden
-from seaborn import color_palette
 
 from molgri.assertions import is_array_with_d_dim_r_rows_c_columns, all_row_norms_equal_k, form_square_array, form_cube
 from molgri.space.utils import normalise_vectors, dist_on_sphere, unique_quaternion_set
@@ -64,17 +62,12 @@ class Polytope(ABC):
         # function that depends on the object being created
         self._create_level0()
 
+    def __str__(self):
+        return "Polytope"
+
     @abstractmethod
     def _create_level0(self):
         """This is implemented by each subclass since they have different edges, vertices and faces"""
-
-    def plot_graph(self, with_labels=True):
-        """
-        Plot the networkx graph of self.G.
-        """
-        node_labels = {i: tuple(np.round(i, 3)) for i in self.G.nodes}
-        nx.draw_networkx(self.G, pos=nx.spring_layout(self.G, weight="p_dist"), with_labels=with_labels,
-                         labels=node_labels)
 
     def get_node_coordinates(self) -> NDArray:
         """
@@ -323,100 +316,7 @@ class Polytope(ABC):
         return face
 
 
-class Polyhedron(Polytope, ABC):
-
-    def __init__(self):
-        """
-        Polyhedron is a polytope of exactly three dimensions. The benefit: it can be plotted.
-        """
-        super().__init__(d=3, is_quat=False)
-
-    def plot_neighbours(self, ax: Axes3D, node_i=0):
-        """
-        Want to see which points count as neighbours, second- or third neighbours of a specific node? Use this plotting
-        method.
-        """
-        all_nodes = self.get_node_coordinates()
-        node = tuple(all_nodes[node_i])
-        neig = self.G.neighbors(node)
-        sec_neig = list(second_neighbours(self.G, node))
-        third_neig = list(third_neighbours(self.G, node))
-        for sel_node in all_nodes:
-            ax.scatter(*sel_node, color="black", s=30, alpha=0.5)
-            if np.allclose(sel_node, node):
-                ax.scatter(*sel_node, color="red", s=40, alpha=0.5)
-            if tuple(sel_node) in neig:
-                ax.scatter(*sel_node, color="blue", s=38, alpha=0.5)
-            if tuple(sel_node) in sec_neig:
-                ax.scatter(*sel_node, color="green", s=35, alpha=0.5)
-            if tuple(sel_node) in third_neig:
-                ax.scatter(*sel_node, color="orange", s=32, alpha=0.5)
-
-    def plot_points(self, ax: Axes3D, select_faces: set = None, projection: bool = False, color_by="level"):
-        """
-        Plot the points of the polytope + possible division points. Colored by level at which the point was added.
-        Or: colored by index to see how sorting works. Possible to select only one or a few faces on which points
-        are to be plotted for clarity.
-
-        Args:
-            ax: axis
-            select_faces: a set of face numbers that can range from 0 to number of faces of the polyhedron, e.g. {0, 5}.
-                          If None, all faces are shown.
-            projection: True if you want to plot the projected points, not the ones on surfaces of polytope
-            color_by: "level" or "index"
-        """
-        level_color = ["black", "red", "blue", "green"]
-        index_palette = color_palette("coolwarm", n_colors=self.G.number_of_nodes())
-
-        for i, point in enumerate(self.get_N_ordered_points(projections=False)):
-            # select only points that belong to at least one of the chosen select_faces (or plot all if None selection)
-            node = self.G.nodes[tuple(point)]
-            point_faces = set(node["face"])
-            point_level = node["level"]
-            point_projection = node["projection"]
-            if select_faces is None or len(point_faces.intersection(select_faces)) > 0:
-                # color selected based on the level of the node or index of the sorted nodes
-                if color_by == "level":
-                    color = level_color[point_level]
-                elif color_by == "index":
-                    color = index_palette[i]
-                else:
-                    raise ValueError(f"The argument color_by={color_by} not possible (try 'index', 'level')")
-
-                if projection:
-                    ax.scatter(*point_projection, color=color, s=30)
-                else:
-                    ax.scatter(*point, color=color, s=30)
-                    ax.text(*point, s=f"{i}")
-
-    def plot_edges(self, ax, select_faces=None, label=None, **kwargs):
-        """
-        Plot the edges between the points. Can select to display only some faces for clarity.
-
-        Args:
-            ax: axis
-            select_faces: a set of face numbers from 0 to (incl) 19, e.g. {0, 5}. If None, all faces are shown.
-            label: select the name of edge parameter if you want to display it
-            **kwargs: other plotting arguments
-        """
-        if self.d > 3:
-            raise ValueError("Points can only be plotted for polyhedra of up to 3 dimensions.")
-        for edge in self.G.edges(data=True):
-            faces_edge_1 = set(self.G.nodes[edge[0]]["face"])
-            faces_edge_2 = set(self.G.nodes[edge[1]]["face"])
-            # both the start and the end point of the edge must belong to one of the selected faces
-            n1_on_face = select_faces is None or len(faces_edge_1.intersection(select_faces)) > 0
-            n2_on_face = select_faces is None or len(faces_edge_2.intersection(select_faces)) > 0
-            if n1_on_face and n2_on_face:
-                # usually you only want to plot edges used in division
-                ax.plot(*np.array(edge[:2]).T, color="black",  **kwargs)
-                if label:
-                    midpoint = np.average(np.array(edge[:2]), axis=0)
-                    s = edge[2][f"{label}"]
-                    ax.text(*midpoint, s=f"{s:.3f}")
-
-
-class PolyhedronFromG(Polyhedron):
+class PolyhedronFromG(Polytope):
 
     def __init__(self, G: nx.Graph):
         """
@@ -444,6 +344,9 @@ class Cube4DPolytope(Polytope):
     def __init__(self):
         super().__init__(d=4, is_quat=True)
 
+    def __str__(self):
+        return f"Cube4D up to level {self.current_level}"
+
     def _create_level0(self):
         self.side_len = 2 * np.sqrt(1/self.d)
         # create vertices
@@ -470,33 +373,6 @@ class Cube4DPolytope(Polytope):
         self.side_len = self.side_len / 2
         self.current_level += 1
 
-    def draw_one_cell(self, ax: Axes3D, cell_index: int = 0, draw_edges: bool = True):
-        """
-        Since you cannot visualise a 4D object directly, here's an option to visualise the 3D sub-cells of a 4D object.
-
-        Args:
-            ax: axis
-            cell_index: index of the sub-cell to plot (in cube4D that can be 0-7)
-            draw_edges: use True if you want to also draw edges, False if only points
-        """
-        # find the points that belong to the chosen cell_index
-        nodes = (
-            node
-            for node, data
-            in self.G.nodes(data=True)
-            if cell_index in data.get('face')
-        )
-        subgraph = self.G.subgraph(nodes)
-        # find the component corresponding to the constant 4th dimension
-        arr_nodes = np.array(subgraph.nodes)
-        dim_to_keep = list(np.where(~np.all(arr_nodes == arr_nodes[0, :], axis=0))[0])
-        new_nodes = {old: (old[dim_to_keep[0]], old[dim_to_keep[1]], old[dim_to_keep[2]]) for old in subgraph.nodes}
-        subgraph_3D = nx.relabel_nodes(subgraph, new_nodes)
-        # create a 3D polyhedron and use its plotting functions
-        sub_polyhedron = PolyhedronFromG(subgraph_3D)
-        sub_polyhedron.plot_points(ax)
-        if draw_edges:
-            sub_polyhedron.plot_edges(ax)
 
     def divide_edges(self):
         self._add_edges_of_len(self.side_len, wished_levels=[self.current_level-1, self.current_level-1],
@@ -506,12 +382,18 @@ class Cube4DPolytope(Polytope):
         super().divide_edges()
 
 
-class IcosahedronPolytope(Polyhedron):
+class IcosahedronPolytope(Polytope):
     """
     IcosahedronPolytope is a graph object, its central feature is self.G (networkx graph). In the beginning, each node
     is a vertex of a 3D icosahedron. It is possible to subdivide the sides, in that case a new point always appears in
     the middle of each triangle side.
     """
+
+    def __init__(self):
+        super().__init__(d=3, is_quat=False)
+
+    def __str__(self):
+        return f"Icosahedron up to level {self.current_level}"
 
     def _create_level0(self):
         # DO NOT change order of points - faces will be wrong!
@@ -554,11 +436,17 @@ class IcosahedronPolytope(Polyhedron):
         super().divide_edges()
 
 
-class Cube3DPolytope(Polyhedron):
+class Cube3DPolytope(Polytope):
     """
     In the beginning, each node is a vertex of a 3D cube + 6 vertices at mid-faces. It is possible to subdivide
     the sides, in that case a new point always appears in the middle of a square and half of previous sides.
     """
+
+    def __init__(self):
+        super().__init__(d=3, is_quat=False)
+
+    def __str__(self):
+        return f"Cube3D up to level {self.current_level}"
 
     def _create_level0(self):
         # DO NOT change order of points - faces will be wrong!

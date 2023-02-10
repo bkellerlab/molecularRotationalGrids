@@ -5,7 +5,7 @@ This is a user-friendly script for generating a custom rotational grid.
 import argparse
 
 from molgri.space.rotobj import SphereGridFactory
-from molgri.plotting.abstract import SphereGridPlot
+from molgri.plotting.space_plots import SphereGridPlot
 from ..scripts.set_up_io import freshly_create_all_folders
 
 parser = argparse.ArgumentParser()
