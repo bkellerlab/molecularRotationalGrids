@@ -2,17 +2,10 @@
 This is a user-friendly script for generating a custom rotational grid.
 """
 
-import os
-from os.path import join
 import argparse
-from typing import Tuple
 
-from molgri.space.factories import RotationsFactory
-from molgri.paths import PATH_OUTPUT_ROTGRIDS, PATH_OUTPUT_PLOTS, PATH_OUTPUT_ANIS, PATH_OUTPUT_STAT
-from molgri.constants import EXTENSION_GRID_FILES
-from molgri.plotting.grid_plots import GridPlot
-from molgri.plotting.analysis_plots import AlphaViolinPlot, AlphaConvergencePlot, AlphaViolinPlotRot, \
-    AlphaConvergencePlotRot
+from molgri.space.rotobj import SphereGridFactory
+from molgri.plotting.abstract import SphereGridPlot
 from ..scripts.set_up_io import freshly_create_all_folders
 
 parser = argparse.ArgumentParser()
@@ -36,68 +29,69 @@ parser.add_argument('--animate', action='store_true',
                     help='provide an animation of the grid rotating in 3D')
 parser.add_argument('--animate_ordering', action='store_true',
                     help='provide an animation of the grid generation')
+parser.add_argument('--animate_translation', action='store_true',
+                    help='provide an animation of the grid sliding through one of the dimensions')
 parser.add_argument('--readable', action='store_true',
                     help='save the grid file in a txt format as well')
 
 
-def prepare_grid(args, grid_name: str) -> Tuple:
-    name = grid_name
+def prepare_grid(args):
     algo = args.algorithm
     n_points = args.N
     # if already exists and no --recalculate flag, just display a message
     use_saved = not args.recalculate
-    my_rotations = RotationsFactory(N=n_points, alg_name=algo, dimension=args.dimension, use_saved_data=use_saved,
-                                    time_generation=True)
-    if os.path.exists(join(PATH_OUTPUT_ROTGRIDS, f"{name}.{EXTENSION_GRID_FILES}")) and not args.recalculate:
-        print(f"Grid with name {name} is already saved. If you want to recalculate it, select --recalculate flag.")
-    my_grid = my_rotations.get_grid()
-    print(f"Generated a {my_rotations.} with {my_rotations.N} points.")
+    my_sphere_grid = SphereGridFactory.create(N=n_points, alg_name=algo, dimensions=args.dimensions,
+                                              use_saved=use_saved, time_generation=True)
+    my_sphere_grid.save_grid()
+    print(f"The grid can be found at {my_sphere_grid.get_grid_path()}")
     # if running from another script, args may not include the readable attribute
     try:
         if args.readable:
-            my_grid.save_grid_txt()
-            print(f"Saved a human-readable version of rotation grid to {PATH_OUTPUT_ROTGRIDS}{name}.txt")
+            extension = "txt"
+            my_sphere_grid.save_grid(extension=extension)
+            path = my_sphere_grid.get_grid_path(extension=extension)
+            print(f"A .txt version of grid can be found at {path}.")
     except AttributeError:
         pass
-    return my_rotations, my_grid
+    return my_sphere_grid
 
 
 def run_generate_grid():
     freshly_create_all_folders()
     my_args = parser.parse_args()
     grid_name = f"{my_args.algorithm}_{my_args.N}"
-    my_rotations, my_grid = prepare_grid(my_args, grid_name)
+    my_rotations = prepare_grid(my_args)
+
+    # any plotting is done with this object
+    if my_args.background:
+        style_type = ["talk"]
+    else:
+        style_type = ["talk", "empty"]
+    sgp = SphereGridPlot(my_rotations, style_type=style_type)
+
     if my_args.animate or my_args.animate_ordering:
         my_args.draw = True
     if my_args.draw:
-        if my_args.background:
-            style_type = ["talk"]
-        else:
-            style_type = ["talk", "empty"]
-        my_gp = GridPlot(grid_name, style_type=style_type)
-        my_gp.create_and_save()
-        print(f"Grid drawn and figure saved to {PATH_OUTPUT_PLOTS}.")
+        sgp.make_grid_plot()
+        print(f"Grid drawn and figure saved to {sgp.fig_path}.")
         if my_args.animate:
-            my_gp.animate_figure_view()
-            print(f"Animation of the grid saved to {PATH_OUTPUT_ANIS}")
+            sgp.make_rot_animation()
+            print(f"Animation of the grid saved to {sgp.ani_path}")
         if my_args.animate_ordering:
-            my_gp.animate_grid_sequence()
-            print(f"Animation of the grid ordering saved to {PATH_OUTPUT_ANIS}")
+            sgp.make_ordering_animation()
+            print(f"Animation of the grid ordering saved to {sgp.ani_path}")
+        if my_args.animate_translation:
+            sgp.make_trans_animation()
+            print(f"Animation of the grid sliding through the last dimension saved to {sgp.ani_path}")
     if my_args.statistics:
-        # create statistic data
-        my_rotations.save_statistics(print_message=True)
-        my_grid.save_statistics(print_message=True)
-        print(f"A statistics file describing the grid {grid_name} was saved to {PATH_OUTPUT_STAT}.")
-        # create violin plot
-        AlphaViolinPlot(grid_name).create_and_save()
-        AlphaViolinPlotRot(grid_name).create_and_save()
-        print(f"A violin plot showing the uniformity of {grid_name} saved to {PATH_OUTPUT_PLOTS}.")
-        # create covergence plot
-        AlphaConvergencePlot(grid_name).create_and_save()
-        AlphaConvergencePlotRot(grid_name).create_and_save()
-        print(f"A convergence plot with number of points between 3 and {my_args.N} saved "
-              f"to {PATH_OUTPUT_PLOTS}.")
+        my_rotations.save_uniformity_statistics()
+        print(f"A statistics file describing the grid {grid_name} was saved to {my_rotations.get_statistics_path('csv')}.")
+        sgp.make_alpha_plot()
+        print(f"A violin plot showing the uniformity of {grid_name} saved to {sgp.fig_path}.")
+        sgp.make_convergence_plot()
+        print(f"A convergence plot with number of points between 3 and {my_args.N} saved to {sgp.fig_path}.")
 
 
 if __name__ == '__main__':
     run_generate_grid()
+    print("Generation finished.")

@@ -33,7 +33,9 @@ def rotation2grid(rotations: Rotation) -> Tuple[NDArray, ...]:
     return tuple(result)
 
 
-def rotation2grid4vector(rotations: Rotation, vector: NDArray) -> NDArray:
+def rotation2grid4vector(rotations: Rotation, vector: NDArray = None) -> NDArray:
+    if vector is None:
+        vector = np.array([0, 0, 1])
     return rotations.apply(vector)
 
 

@@ -91,15 +91,15 @@ def test_everything_runs():
         ig = build_rotations(35, algo, use_saved=True)
         ig.gen_and_time()
         ig.save_all()
-        ig.get_sphere_grid().save_grid_txt()
+        ig.get_z_projection_grid().save_grid_txt()
         ig = build_rotations(35, algo, use_saved=True)
         ig.gen_and_time()
         ig.save_all()
-        ig.get_sphere_grid().save_grid_txt()
+        ig.get_z_projection_grid().save_grid_txt()
         ig = build_rotations(22, algo, use_saved=False)
         ig.gen_and_time()
         ig.save_all()
-        ig.get_sphere_grid().save_grid_txt()
+        ig.get_z_projection_grid().save_grid_txt()
 
 
 def test_statistics():

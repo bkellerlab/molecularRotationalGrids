@@ -8,9 +8,12 @@ from matplotlib.animation import FuncAnimation, PillowWriter
 from matplotlib.axes import Axes
 from matplotlib import ticker
 from mpl_toolkits.mplot3d.axes3d import Axes3D
+from seaborn import color_palette
 
-from molgri.constants import DIM_SQUARE, DEFAULT_DPI, COLORS, EXTENSION_FIGURES, FULL_GRID_ALG_NAMES
+from molgri.constants import DIM_SQUARE, DEFAULT_DPI, COLORS, EXTENSION_FIGURES, FULL_GRID_ALG_NAMES, DEFAULT_ALPHAS_3D, \
+    DEFAULT_ALPHAS_4D, TEXT_ALPHAS_3D, TEXT_ALPHAS_4D
 from molgri.paths import PATH_OUTPUT_PLOTS, PATH_OUTPUT_ANIS
+from molgri.space.rotobj import AllRotObjObjects, SphereGridNDim
 
 
 class AbstractPlot(ABC):
@@ -106,7 +109,8 @@ class AbstractPlot(ABC):
             self.ax.set_zlim(z_min_limit, z_max_limit)
 
     # noinspection PyUnusedLocal
-    def _create_fig_ax(self, ax: Union[Axes, Axes3D], sharex: str = "all", sharey: str = "all", projection=None):
+    def _create_fig_ax(self, ax: Union[Axes, Axes3D], dim: int = 2, sharex: str = "all", sharey: str = "all",
+                       projection=None):
         """
         The parameters need to stay there to be consistent with AbstractMultiPlot, but are not used.
 
@@ -116,9 +120,9 @@ class AbstractPlot(ABC):
         """
         self.fig = plt.figure(figsize=self.figsize)
         if ax is None:
-            if self.dimensions == 2:
+            if dim == 2:
                 self.ax = self.fig.add_subplot(111)
-            elif self.dimensions == 3 or projection is not None:
+            elif dim == 3 or projection is not None:
                 self.ax = self.fig.add_subplot(111, projection=projection)
             else:
                 raise ValueError(f"Dimensions must be in (2, 3), unknown value {self.dimensions}!")
@@ -150,18 +154,18 @@ class AbstractPlot(ABC):
         """
         self.ax.set_aspect('equal')
 
-    @abstractmethod
-    def _prepare_data(self) -> object:
-        """
-        This function should only be used by the self._plot_data method to obtain the data that we wanna plot.
-
-        Returns:
-            dataframe, grid or similar construction
-        """
-
-    @abstractmethod
-    def _plot_data(self, **kwargs):
-        """Here, the plotting is implemented in subclasses."""
+    # @abstractmethod
+    # def _prepare_data(self) -> object:
+    #     """
+    #     This function should only be used by the self._plot_data method to obtain the data that we wanna plot.
+    #
+    #     Returns:
+    #         dataframe, grid or similar construction
+    #     """
+    #
+    # @abstractmethod
+    # def _plot_data(self, **kwargs):
+    #     """Here, the plotting is implemented in subclasses."""
 
     def _create_labels(self, x_label: str = None, y_label: str = None, **kwargs):
         if x_label:
@@ -183,12 +187,32 @@ class AbstractPlot(ABC):
         except AttributeError:
             pass
 
-    def save_plot(self, save_ending: str = EXTENSION_FIGURES, dpi: int = DEFAULT_DPI, **kwargs):
+    def save_plot(self, name_addition: str = None, save_ending: str = EXTENSION_FIGURES, dpi: int = DEFAULT_DPI, **kwargs):
         self.fig.tight_layout()
         standard_name = self.data_name
-        plt.savefig(f"{self.fig_path}{standard_name}_{self.plot_type}.{save_ending}", dpi=dpi, bbox_inches='tight',
+        if name_addition is None:
+            addition = ""
+        else:
+            addition = f"_{name_addition}"
+        plt.savefig(f"{self.fig_path}{standard_name}{addition}.{save_ending}", dpi=dpi, bbox_inches='tight',
                     **kwargs)
         plt.close()
+
+    def animate_figure_view(self) -> FuncAnimation:
+        """
+        Rotate the 3D figure for 360 degrees around itself and save the animation.
+        """
+
+        def animate(frame):
+            # rotate the view left-right
+            self.ax.view_init(azim=2*frame)
+            return self.fig
+
+        anim = FuncAnimation(self.fig, animate, frames=180, interval=50)
+        writergif = PillowWriter(fps=10, bitrate=-1)
+        # noinspection PyTypeChecker
+        anim.save(f"{self.ani_path}{self.data_name}_{self.plot_type}.gif", writer=writergif, dpi=400)
+        return anim
 
 
 class AbstractMultiPlot(ABC):
@@ -408,18 +432,134 @@ class Plot3D(AbstractPlot, ABC):
         if z_label:
             self.ax.set_zlabel(z_label, **kwargs)
 
-    def animate_figure_view(self) -> FuncAnimation:
+
+class SphereGridPlot(AbstractPlot):
+
+    def __init__(self, sphere_grid: SphereGridNDim, **kwargs):
+        data_name = sphere_grid.get_standard_name(with_dim=True)
+        super().__init__(data_name, **kwargs)
+        self.sphere_grid = sphere_grid
+        if self.sphere_grid.dimensions == 3:
+            self.alphas = DEFAULT_ALPHAS_3D
+            self.alphas_text = TEXT_ALPHAS_3D
+        else:
+            self.alphas = DEFAULT_ALPHAS_4D
+            self.alphas_text = TEXT_ALPHAS_4D
+
+    def make_grid_plot(self, ax = None):
+        """Plot the 3D grid plot, for 4D the 4th dimension plotted as color. It always has limits (-1, 1) and equalized
+        figure size"""
+        self._create_fig_ax(ax, dim=3, projection="3d")
+        self._set_up_empty()
+        points = self.sphere_grid.get_grid_as_array()
+        if points.shape[1] == 3:
+            sc = self.ax.scatter(*points.T, color="black", s=30)
+        else:
+            sc = self.ax.scatter(*points[:, :3].T, c=points[:, 3].T, s=30)  # cmap=plt.hot()
+        self._axis_limits(-1, 1, -1, 1, -1, 1)
+        self._equalize_axes()
+        self.save_plot(name_addition="grid")
+        return sc
+
+    def make_alpha_plot(self, ax = None):
         """
-        Rotate the 3D figure for 360 degrees around itself and save the animation.
+        Creates violin plots that are a measure of grid uniformity. A good grid will display minimal variation
+        along a range of angles alpha.
         """
+        self._create_fig_ax(ax, dim=2)
+        self._set_up_empty()
+
+        df = self.sphere_grid.get_uniformity_df(alphas=self.alphas)
+        sns.violinplot(x=df["alphas"], y=df["coverages"], ax=self.ax, palette=COLORS, linewidth=1, scale="count", cut=0)
+        self.ax.set_xticklabels(self.alphas_text)
+        self.save_plot(name_addition="uniformity")
+
+    def make_convergence_plot(self, ax = None):
+        """
+        Creates convergence plots that show how coverages approach optimal values.
+        """
+        self._create_fig_ax(ax, dim=2)
+        self._set_up_empty()
+
+        df = self.sphere_grid.get_convergence_df(alphas=self.alphas)
+
+        sns.lineplot(x=df["N"], y=df["coverages"], ax=self.ax, hue=df["alphas"],
+                     palette=color_palette("hls", len(self.alphas_text)), linewidth=1)
+        sns.lineplot(x=df["N"], y=df["ideal coverage"], style=df["alphas"], ax=self.ax, color="black")
+        self.ax.set_xscale("log")
+        self.ax.set_yscale("log")
+        self.ax.get_legend().remove()
+        self.save_plot(name_addition="convergence")
+
+    def make_polyhedron_plot(self):
+        pass
+
+    def make_rot_animation(self):
+        self.make_grid_plot()
+        self.animate_figure_view()
+
+    def make_ordering_animation(self):
+        sc = self.make_grid_plot()
+
+        def update(i):
+            current_colors = np.concatenate([facecolors_before[:i], all_white[i:]])
+            sc.set_facecolors(current_colors)
+            sc.set_edgecolors(current_colors)
+            return sc,
+
+        facecolors_before = sc.get_facecolors()
+        shape_colors = facecolors_before.shape
+        all_white = np.zeros(shape_colors)
+
+        self.ax.view_init(elev=10, azim=30)
+        ani = FuncAnimation(self.fig, func=update, frames=len(facecolors_before), interval=5, repeat=False)
+        writergif = PillowWriter(fps=3, bitrate=-1)
+        # noinspection PyTypeChecker
+        ani.save(f"{self.ani_path}{self.data_name}_order.gif", writer=writergif, dpi=400)
+
+    def make_trans_animation(self, ax=None):
+        dimension_index = -1
+        points = self.sphere_grid.get_grid_as_array()
+        # create the axis with the right num of dimensions
+        self._create_fig_ax(ax, dim=points.shape[1]-1)
+        self._set_up_empty()
+        # sort by the value of the specific dimension you are looking at
+        ind = np.argsort(points[:, dimension_index])
+        points_3D = points[ind]
+        # map the 4th dimension into values 0-1
+        alphas = points_3D[:, dimension_index].T
+        alphas = (alphas - np.min(alphas)) / np.ptp(alphas)
+
+        all_points = []
+        for line in points_3D:
+            all_points.append(self.ax.scatter(*line[:self.dimensions], color="black", alpha=1))
+
+        self._axis_limits(-1, 1, -1, 1, -1, 1)
+        self._equalize_axes()
+
+        step = 20
 
         def animate(frame):
-            # rotate the view left-right
-            self.ax.view_init(azim=2*frame)
-            return self.fig
+            # plot current point
+            current_time = alphas[frame * step]
 
-        anim = FuncAnimation(self.fig, animate, frames=180, interval=50)
-        writergif = PillowWriter(fps=10, bitrate=-1)
+            for i, p in enumerate(all_points):
+                new_alpha = np.max([0, 1 - np.abs(alphas[i] - current_time) * 10])
+                p.set_alpha(new_alpha)
+            return self.ax,
+
+        anim = FuncAnimation(self.fig, animate, frames=len(points_3D) // step,
+                             interval=100)  # , frames=180, interval=50
+        writergif = PillowWriter(fps=100 // step, bitrate=-1)
         # noinspection PyTypeChecker
-        anim.save(f"{self.ani_path}{self.data_name}_{self.plot_type}.gif", writer=writergif, dpi=400)
-        return anim
+        anim.save(f"{self.ani_path}{self.data_name}_trans.gif", writer=writergif, dpi=400)
+
+    def crate_all_plots(self, and_animations=False):
+        self.make_grid_plot()
+        self.make_alpha_plot()
+        self.make_convergence_plot()
+        self.make_polyhedron_plot()
+        if and_animations:
+            self.make_rot_animation()
+            self.make_ordering_animation()
+            self.make_trans_animation()
