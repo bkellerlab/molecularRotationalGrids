@@ -1,5 +1,4 @@
 import os
-
 import numpy as np
 
 from molgri.molecules.writers import PtIOManager, directory2full_pt, converter_gro_dir_gro_file_names, full_pt2directory
@@ -257,6 +256,7 @@ def test_frames_in_directory():
     file_name = manager.determine_pt_name()
     base_p, fn, fp, dp = converter_gro_dir_gro_file_names(pt_directory_path=f"{PATH_OUTPUT_PT}{file_name}",
                                                           extension="xtc")
+    print(file_name, base_p, fn, fp, dp)
     directory2full_pt(dp)
     new_name = base_p + "joined_" + fn + ".xtc"
     os.rename(fp, new_name)

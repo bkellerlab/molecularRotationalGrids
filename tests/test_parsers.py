@@ -108,6 +108,7 @@ def test_full_grid_name_parser():
     assert fgnp.t_grid_name == str(trans_grid)
     # compare to name of Full grid
     fg = FullGrid(b_grid_name=name_b, o_grid_name=name_o, t_grid_name=name_t)
+    print(fg.get_full_grid_name(), fgnp.get_standard_full_grid_name())
     assert fg.get_full_grid_name() == fgnp.get_standard_full_grid_name()
     # example 2
     name_o = "None"

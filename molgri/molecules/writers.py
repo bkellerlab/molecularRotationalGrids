@@ -61,7 +61,9 @@ class PtIOManager:
             name_r_molecule = self.rotating_parser.get_file_name()
             output_name = f"{name_c_molecule}_{name_r_molecule}"
         self.output_name = output_name
-        self.decorator_label = f"Pseudotrajectory {self.output_name}"  # needed for timing write-out
+
+    def get_decorator_name(self) -> str:
+        return f"Pt {self.determine_pt_name()}"
 
     def determine_pt_name(self) -> str:
         """

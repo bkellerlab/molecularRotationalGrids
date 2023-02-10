@@ -1,16 +1,12 @@
-import os
-
 import numpy as np
 import pandas as pd
 import seaborn as sns
 from numpy.typing import ArrayLike
-from seaborn import color_palette
 
-from molgri.constants import CELLS_DF_COLUMNS, COLORS, DEFAULT_NS, TEXT_ALPHAS_3D, TEXT_ALPHAS_4D
-from molgri.molecules.parsers import NameParser, XVGParser
+from molgri.constants import CELLS_DF_COLUMNS
+from molgri.molecules.parsers import XVGParser
 from molgri.paths import PATH_OUTPUT_CELLS, PATH_INPUT_ENERGIES
 from molgri.plotting.abstract import AbstractPlot
-from molgri.space.rotobj import build_grid_from_name, build_rotations_from_name
 
 
 class VoranoiConvergencePlot(AbstractPlot):

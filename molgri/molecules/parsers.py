@@ -32,6 +32,7 @@ class NameParser:
         self.name_string = name_string
         self.N = self._find_a_number()
         self.algo = self._find_algorithm()
+        self.dim = self._find_dimensions()
 
     def _find_a_number(self) -> int or None:
         """
@@ -70,6 +71,21 @@ class NameParser:
         # >= 2 algorithms found in the string
         if len(candidates) > 1:
             raise ValueError(f"Found two or more algorithm names in grid name {self.name_string}, can't decide.")
+        # exactly one algorithm in the string -> return it
+        elif len(candidates) == 1:
+            return candidates[0]
+        # no algorithm given -> None
+        else:
+            return None
+
+    def _find_dimensions(self) -> str or None:
+        split_string = self.name_string.split("_")
+        candidates = []
+        for fragment in split_string:
+            if len(fragment) == 2 and fragment[-1] == "d" and fragment[0].isnumeric():
+                candidates.append(int(fragment))
+        if len(candidates) > 1:
+            raise ValueError(f"Found two or more dimension names in grid name {self.name_string}, can't decide.")
         # exactly one algorithm in the string -> return it
         elif len(candidates) == 1:
             return candidates[0]
@@ -140,6 +156,15 @@ class GridNameParser(NameParser):
 
     def get_standard_grid_name(self) -> str:
         return f"{self.algo}_{self.N}"
+
+    def get_alg(self):
+        return self.algo
+
+    def get_N(self):
+        return self.N
+
+    def get_dim(self):
+        return self.dim
 
 
 class ParsedMolecule:

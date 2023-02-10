@@ -8,12 +8,14 @@ from matplotlib.animation import FuncAnimation, PillowWriter
 from matplotlib.axes import Axes
 from matplotlib import ticker
 from mpl_toolkits.mplot3d.axes3d import Axes3D
+from numpy._typing import NDArray
 from seaborn import color_palette
 
 from molgri.constants import DIM_SQUARE, DEFAULT_DPI, COLORS, EXTENSION_FIGURES, FULL_GRID_ALG_NAMES, DEFAULT_ALPHAS_3D, \
     DEFAULT_ALPHAS_4D, TEXT_ALPHAS_3D, TEXT_ALPHAS_4D
 from molgri.paths import PATH_OUTPUT_PLOTS, PATH_OUTPUT_ANIS
-from molgri.space.rotobj import AllRotObjObjects, SphereGridNDim
+from molgri.space.analysis import vector_within_alpha
+from molgri.space.rotobj import SphereGridNDim
 
 
 class AbstractPlot(ABC):
@@ -461,6 +463,35 @@ class SphereGridPlot(AbstractPlot):
         self.save_plot(name_addition="grid")
         return sc
 
+    def make_grid_colored_with_alpha(self, ax=None, central_vector: NDArray = None):
+        if self.sphere_grid.dimensions != 3:
+            print(f"make_grid_colored_with_alpha currently implemented only for 3D systems.")
+            return
+        if central_vector is None:
+            central_vector = np.zeros((self.sphere_grid.dimensions,))
+            central_vector[-1] = 1
+        points = self.sphere_grid.get_grid_as_array()
+        self._create_fig_ax(ax, dim=3, projection="3d")
+        self._set_up_empty()
+        # plot vector
+        self.ax.scatter(*central_vector, marker="x", c="k", s=30)
+        # determine color palette
+        cp = sns.color_palette("Spectral", n_colors=len(self.alphas))
+        # sort points which point in which alpha area
+        already_plotted = []
+        for i, alpha in enumerate(self.alphas):
+            possible_points = np.array([vec for vec in points if tuple(vec) not in already_plotted])
+            within_alpha = vector_within_alpha(central_vector, possible_points, alpha)
+            selected_points = [tuple(vec) for i, vec in enumerate(possible_points) if within_alpha[i]]
+            array_sel_points = np.array(selected_points)
+            if np.any(array_sel_points):
+                sc = self.ax.scatter(*array_sel_points.T, color=cp[i], s=30)
+            already_plotted.extend(selected_points)
+        self.ax.view_init(elev=10, azim=30)
+        self._axis_limits(-1, 1, -1, 1, -1, 1)
+        self._equalize_axes()
+        self.save_plot(name_addition="colorful_grid")
+
     def make_alpha_plot(self, ax = None):
         """
         Creates violin plots that are a measure of grid uniformity. A good grid will display minimal variation
@@ -554,11 +585,12 @@ class SphereGridPlot(AbstractPlot):
         # noinspection PyTypeChecker
         anim.save(f"{self.ani_path}{self.data_name}_trans.gif", writer=writergif, dpi=400)
 
-    def crate_all_plots(self, and_animations=False):
+    def create_all_plots(self, and_animations=False):
         self.make_grid_plot()
         self.make_alpha_plot()
         self.make_convergence_plot()
         self.make_polyhedron_plot()
+        self.make_grid_colored_with_alpha()
         if and_animations:
             self.make_rot_animation()
             self.make_ordering_animation()

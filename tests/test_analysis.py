@@ -1,4 +1,3 @@
-import matplotlib.pyplot as plt
 import numpy as np
 from scipy.constants import pi
 
@@ -6,7 +5,7 @@ from molgri.space.utils import normalise_vectors, angle_between_vectors, dist_on
     random_sphere_points
 from molgri.space.analysis import vector_within_alpha, count_points_within_alpha, \
     random_axes_count_points
-from molgri.space.rotobj import build_grid
+from molgri.space.rotobj import SphereGridFactory
 
 
 def test_unit_dist_on_sphere():
@@ -109,8 +108,8 @@ def test_vector_within_alpha():
 def test_count_within_alpha():
     # all points within 180 degrees
     num_points = 50
-    grid_r = build_grid(num_points, "randomQ")
-    points = grid_r.get_grid()
+    grid_r = SphereGridFactory.create(alg_name="randomQ", N=num_points, dimensions=3)
+    points = grid_r.get_grid_as_array()
     assert count_points_within_alpha(points, np.array([0, 0, 1]), pi) == num_points
     assert count_points_within_alpha(points, np.array([pi/4, pi/3, -2]), pi) == num_points
     np.random.seed(1)
@@ -127,8 +126,8 @@ def test_count_within_alpha():
 
 def test_random_axes_count_points():
     num_points = 300
-    grid_r = build_grid(num_points, "randomQ")
-    points = grid_r.get_grid()
+    grid_r = SphereGridFactory.create(alg_name="randomQ", N=num_points, dimensions=3)
+    points = grid_r.get_grid_as_array()
     # all points within 180 degrees
     assert np.allclose(random_axes_count_points(points, alpha=pi, num_random_points=300), 1)
     # no points within 0 degrees

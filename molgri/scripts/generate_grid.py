@@ -23,7 +23,7 @@ parser.add_argument('--statistics', action='store_true',
                     help='write out statistics and draw uniformity and convergence plots')
 parser.add_argument('--draw', action='store_true',
                     help='draw the grid and save the plot')
-parser.add_argument('--background', action='store_true',
+parser.add_argument('--background', action='store_true', default=True,
                     help='when drawing a grid, display axes and ticks.')
 parser.add_argument('--animate', action='store_true',
                     help='provide an animation of the grid rotating in 3D')
@@ -41,7 +41,7 @@ def prepare_grid(args):
     # if already exists and no --recalculate flag, just display a message
     use_saved = not args.recalculate
     my_sphere_grid = SphereGridFactory.create(N=n_points, alg_name=algo, dimensions=args.dimensions,
-                                              use_saved=use_saved, time_generation=True)
+                                              use_saved=use_saved, time_generation=True, print_messages=True)
     my_sphere_grid.save_grid()
     print(f"The grid can be found at {my_sphere_grid.get_grid_path()}")
     # if running from another script, args may not include the readable attribute

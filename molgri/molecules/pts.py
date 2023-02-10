@@ -6,6 +6,8 @@ For this purpose, Writers in molgri.writers module are provided.
 
 from typing import Tuple, Generator
 
+from scipy.spatial.transform import Rotation
+
 from molgri.molecules.parsers import ParsedMolecule
 from molgri.space.fullgrid import FullGrid
 
@@ -31,7 +33,7 @@ class Pseudotrajectory:
         """
         self.molecule = molecule
         self.position_grid = full_grid.get_position_grid()
-        self.rot_grid_body = full_grid.b_rotations.rotations
+        self.rot_grid_body = full_grid.get_body_rotations()
         self.current_frame = 0
 
     def get_molecule(self):

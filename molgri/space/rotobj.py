@@ -1,6 +1,5 @@
 import os
 from abc import ABC, abstractmethod
-from typing import List, Type
 
 import numpy as np
 import pandas as pd
@@ -11,21 +10,21 @@ from scipy.spatial.transform import Rotation
 from molgri.space.analysis import prepare_statistics, write_statistics
 from molgri.space.utils import random_quaternions, standardise_quaternion_set
 from molgri.constants import UNIQUE_TOL, EXTENSION_GRID_FILES, NAME2PRETTY_NAME
-from molgri.molecules.parsers import GridNameParser
 from molgri.paths import PATH_OUTPUT_ROTGRIDS, PATH_OUTPUT_STAT
-from molgri.space.polytopes import Cube4DPolytope, IcosahedronPolytope, Cube3DPolytope
-from molgri.space.rotations import rotation2grid, grid2rotation, grid2quaternion, grid2euler, two_vectors2rot, \
-    rotation2grid4vector
+from molgri.space.polytopes import Cube4DPolytope, IcosahedronPolytope, Cube3DPolytope, Polytope
+from molgri.space.rotations import grid2rotation, rotation2grid4vector
 from molgri.wrappers import time_method
 
 
 class SphereGridNDim(ABC):
 
-    def __init__(self, dimensions: int, N: int = None, gen_alg: str = None, use_saved: bool = True,
-                 print_messages: bool = True, time_generation: bool = False):
+    algorithm_name = "generic"
+
+    def __init__(self, dimensions: int, N: int = None, use_saved: bool = True,
+                 print_messages: bool = False, time_generation: bool = False):
         self.dimensions = dimensions
         self.N = N
-        self.gen_algorithm = gen_alg
+        self.gen_algorithm = self.algorithm_name
         self.use_saved = use_saved
         self.time_generation = time_generation
         self.print_messages = print_messages
@@ -60,24 +59,51 @@ class SphereGridNDim(ABC):
                     self.grid = self.gen_and_time()
                 else:
                     self.grid = self._gen_grid()
+            if self.print_messages:
+                self._check_uniformity()
         assert isinstance(self.grid, np.ndarray), "A grid must be a numpy array!"
         assert self.grid.shape == (self.N, self.dimensions), f"Grid not of correct shape!"
         assert np.allclose(np.linalg.norm(self.grid, axis=1), 1, atol=10 ** (-UNIQUE_TOL)), "A grid must have norm 1!"
 
-    @abstractmethod
     def _gen_grid(self) -> NDArray:
+        if self.dimensions == 4:
+            return self._gen_grid_4D()
+        elif self.dimensions == 3:
+            return self._gen_grid_3D()
+        else:
+            raise NotImplementedError(f"Generating sphere grids in {self.dimensions} not implemented!")
+
+    def _gen_grid_3D(self) -> NDArray:
+        """
+        This is the default of obtaining 3D grid by projecting on z-vector, should be overwritten for ico and cube3D
+        """
+        quaternions = self._gen_grid_4D()
+        rotations = Rotation.from_quat(quaternions)
+        return rotation2grid4vector(rotations)
+
+    @abstractmethod
+    def _gen_grid_4D(self) -> NDArray:
         pass
 
     @time_method
     def gen_and_time(self) -> NDArray:
         return self._gen_grid()
 
+    def _check_uniformity(self):
+        as_quat = False
+        if self.dimensions == 4:
+            as_quat = True
+        unique_grid = provide_unique(self.grid, as_quat=as_quat)
+        if len(self.grid) != len(unique_grid):
+            print(f"Warning! {len(self.grid) - len(unique_grid)} grid points of "
+                  f"{self.get_standard_name(with_dim=True)} non-unique (distance < 10^-{UNIQUE_TOL}).")
+
     ##################################################################################################################
     #                      name and path getters
     ##################################################################################################################
 
     def get_standard_name(self, with_dim=False) -> str:
-        output = self.gen_algorithm
+        output = f"{self.gen_algorithm}"
         if self.N is not None:
             output += f"_{self.N}"
         if with_dim:
@@ -150,151 +176,10 @@ class SphereGridNDim(ABC):
         return full_df
 
 
-class SphereGrid3D(SphereGridNDim):
-
-    def __init__(self, point_array: NDArray, N: int, gen_alg: str = None, **kwargs):
-        """
-        A grid consisting of points on a sphere in 3D.
-
-        Args:
-            point_array: (N, 3) array in which each row is a 3D point with norm 1
-            gen_alg: info with which alg the grid was created
-        """
-        super().__init__(dimensions=3, N=N, gen_alg=gen_alg, **kwargs)
-        self.grid = point_array
-
-    def _gen_grid(self):
-        pass
-
-
-class SphereGrid4D(SphereGridNDim, ABC):
-
-    # property of the sub-class is the algorithm name
-    algorithm_name = "None"
-
-    def __init__(self, N: int = None, **kwargs):
-        """
-        When initiating a class, start by saving required properties but not yet generating any points. For actually
-        creating/reading points from a file, you need to run the gen_rotations(N) method.
-        Args:
-            N:
-            gen_algorithm:
-            use_saved:
-            time_generation:
-            print_warnings:
-        """
-        super().__init__(N=N, dimensions=4, gen_alg=self.algorithm_name, **kwargs)
-        self.rotations = None
-
-    def _set_N(self, N: int):
-        assert N > 0, "N must be a positive integer"
-        self.N = N
-
-    def create_rotations(self, N: int):
-        """
-        Standard method to run in order to create/use saved rotational quaternions
-
-        Args:
-            N: number of points
-        """
-        self._set_N(N)
-        gen_func = self.gen_and_time if self.time_generation else self.gen_rotations
-
-        if self.use_saved:
-            try:
-                grid_x_arr = np.load(f"{PATH_OUTPUT_ROTGRIDS}{self.get_standard_name()}_x.{EXTENSION_GRID_FILES}")
-                grid_x = SphereGrid3D(grid_x_arr, self.N, self.gen_algorithm)
-                grid_y_arr = np.load(f"{PATH_OUTPUT_ROTGRIDS}{self.get_standard_name()}_y.{EXTENSION_GRID_FILES}")
-                grid_y = SphereGrid3D(grid_y_arr, self.N, self.gen_algorithm)
-                grid_z_arr = np.load(f"{PATH_OUTPUT_ROTGRIDS}{self.get_standard_name()}_z.{EXTENSION_GRID_FILES}")
-                grid_z = SphereGrid3D(grid_z_arr, self.N, self.gen_algorithm)
-                self.from_grids(grid_x, grid_y, grid_z)
-                return
-            except FileNotFoundError:
-                gen_func()
-        else:
-            gen_func()
-            self.save_all()
-        # grid of correct shape
-        z_array = self.get_grid_z_as_array()
-        assert z_array.shape == (self.N, 3), f"Wrong shape: {z_array.shape} != {(self.N, 3)}"
-        # rotations unique
-        quats = self.rotations.as_quat()
-        if self.print_warnings and len(quats) != len(provide_unique(quats, as_quat=True)):
-            print(f"Warning! {len(quats) - len(provide_unique(quats, as_quat=True))} "
-                  f"quaternions of {self.get_standard_name()} non-unique (distance < 10^-{UNIQUE_TOL}).")
-        # grids unique
-        if self.print_warnings and len(z_array) != len(provide_unique(z_array)):
-            print(f"Warning! {len(z_array) - len(provide_unique(z_array))} grid points"
-                  f" of {self.get_standard_name()} non-unique (distance < 10^-{UNIQUE_TOL}).")
-
-    # def get_grid_z_as_array(self) -> NDArray:
-    #     return self.grid_z.get_grid()
-
-    def get_z_projection_grid(self) -> SphereGrid3D:
-        if self.rotations is None:
-            self.rotations = Rotation.from_quat(self.get_grid_as_array())
-        array_3D = rotation2grid4vector(self.rotations)
-        # here use default projection, rewrite for Ico and Cube3D
-        return SphereGrid3D(array_3D, N=self.N, gen_alg=self.gen_algorithm, time_generation=self.time_generation,
-                            use_saved=self.use_saved, print_messages=self.print_messages)
-
-    def _select_unique_rotations(self):
-        rot_matrices = self.rotations.as_matrix()
-        rot_matrices = np.unique(np.round(rot_matrices, UNIQUE_TOL), axis=0)
-        self.rotations = Rotation.from_matrix(rot_matrices)
-
-    def from_rotations(self, rotations: Rotation):
-        self.rotations = rotations
-        grid_x, grid_y, grid_z = rotation2grid(rotations)
-        self.grid_x = SphereGrid3D(grid_x, N=len(rotations), gen_alg=self.gen_algorithm)
-        self.grid_y = SphereGrid3D(grid_y, N=len(rotations), gen_alg=self.gen_algorithm)
-        self.grid_z = SphereGrid3D(grid_z, N=len(rotations), gen_alg=self.gen_algorithm)
-        self._determine_N()
-
-    def from_grids(self, grid_x: SphereGrid3D, grid_y: SphereGrid3D, grid_z: SphereGrid3D):
-        self.grid_x = grid_x
-        self.grid_y = grid_y
-        self.grid_z = grid_z
-        self.rotations = self.as_rotation_object()
-        self._determine_N()
-
-    def _determine_N(self):
-        if self.rotations is None:
-            self.N = None
-        else:
-            self.N = len(self.rotations)
-
-    def as_rotation_object(self) -> Rotation:
-        return grid2rotation(self.grid_x.get_grid(), self.grid_y.get_grid(), self.grid_z.get_grid())
-
-    def get_old_rotation_objects(self):
-        z_vec = np.array([0, 0, 1])
-        matrices = np.zeros((self.N, 3, 3))
-        for i in range(self.N):
-            matrices[i] = two_vectors2rot(z_vec, self.grid_z.get_grid()[i])
-        return Rotation.from_matrix(matrices)
-
-    def as_quaternion(self) -> NDArray:
-        return grid2quaternion(self.grid_x.get_grid(), self.grid_y.get_grid(), self.grid_z.get_grid())
-
-    def as_euler(self) -> NDArray:
-        return grid2euler(self.grid_x.get_grid(), self.grid_y.get_grid(), self.grid_z.get_grid())
-
-    def save_all(self):
-        subgrids = (self.grid_x, self.grid_y, self.grid_z)
-        labels = ("x", "y", "z")
-        for label, sub_grid in zip(labels, subgrids):
-            sub_grid.save_grid(additional_name=label)
-
-    def save_statistics(self, num_random: int = 100, print_message=False, alphas=None):
-        short_statistics_path = f"{PATH_OUTPUT_STAT}{self.get_standard_name()}_short_stat_rotobj.txt"
-        statistics_path = f"{PATH_OUTPUT_STAT}{self.get_standard_name()}_full_stat_rotobj.csv"
-        # self.get_old_rotation_objects().as_quat()
-        stat_data, full_data = prepare_statistics(self.rotations.as_quat(), alphas, d=4, num_rand_points=num_random)
-        write_statistics(stat_data, full_data, short_statistics_path, statistics_path,
-                         num_random, name=self.get_standard_name(), dimensions=4,
-                         print_message=print_message)
+def _select_unique_rotations(rotations):
+    rot_matrices = rotations.as_matrix()
+    rot_matrices = np.unique(np.round(rot_matrices, UNIQUE_TOL), axis=0)
+    return Rotation.from_matrix(rot_matrices)
 
 
 def provide_unique(el_array: NDArray, tol: int = UNIQUE_TOL, as_quat=False) -> NDArray:
@@ -320,20 +205,19 @@ def provide_unique(el_array: NDArray, tol: int = UNIQUE_TOL, as_quat=False) -> N
     return np.array([el_array[index] for index in sorted(indices)])
 
 
-class RandomQRotations(SphereGrid4D):
+class RandomQRotations(SphereGridNDim):
 
     algorithm_name = "randomQ"
 
-    def _gen_grid(self) -> NDArray:
-        assert self.N is not None, "Select the number of points N!"
+    def _gen_grid_4D(self) -> NDArray:
         return random_quaternions(self.N)
 
 
-class SystemERotations(SphereGrid4D):
+class SystemERotations(SphereGridNDim):
 
     algorithm_name = "systemE"
 
-    def _gen_grid(self) -> NDArray:
+    def _gen_grid_4D(self) -> NDArray:
         num_points = 1
         rot_matrices = []
         while len(rot_matrices) < self.N:
@@ -342,33 +226,33 @@ class SystemERotations(SphereGrid4D):
             psis = np.linspace(0, 2 * pi, num_points)
             euler_meshgrid = np.array(np.meshgrid(*(phis, thetas, psis)), dtype=float)
             euler_meshgrid = euler_meshgrid.reshape((3, -1)).T
-            self.rotations = Rotation.from_euler("ZYX", euler_meshgrid)
+            rotations = Rotation.from_euler("ZYX", euler_meshgrid)
             # remove non-unique rotational matrices
-            self._select_unique_rotations()
-            rot_matrices = self.rotations.as_matrix()
+            _select_unique_rotations(rotations)
+            rot_matrices = rotations.as_matrix()
             num_points += 1
         # maybe just shuffle rather than order
         np.random.shuffle(rot_matrices)
         # convert to a grid
-        self.rotations = Rotation.from_matrix(rot_matrices[:self.N])
-        return self.rotations.as_quat()
+        rotations = Rotation.from_matrix(rot_matrices[:self.N])
+        return rotations.as_quat()
 
 
-class RandomERotations(SphereGrid4D):
+class RandomERotations(SphereGridNDim):
 
     algorithm_name = "randomE"
 
-    def _gen_grid(self) -> NDArray:
+    def _gen_grid_4D(self) -> NDArray:
         euler_angles = 2 * pi * np.random.random((self.N, 3))
-        self.rotations = Rotation.from_euler("ZYX", euler_angles)
-        return self.rotations.as_quat()
+        rotations = Rotation.from_euler("ZYX", euler_angles)
+        return rotations.as_quat()
 
 
-class ZeroRotations(SphereGrid4D):
+class ZeroRotations(SphereGridNDim):
 
     algorithm_name = "zero"
 
-    def _gen_grid(self):
+    def _gen_grid_4D(self):
         self.N = 1
         rot_matrix = np.eye(3)
         rot_matrix = rot_matrix[np.newaxis, :]
@@ -376,104 +260,57 @@ class ZeroRotations(SphereGrid4D):
         return self.rotations.as_quat()
 
 
-class PolyhedronRotations(SphereGrid4D):
-
-    def __init__(self, polyhedron, *args, **kwargs):
-        self.polyhedron = polyhedron()
-        super().__init__(*args, **kwargs)
-
-    def _gen_grid(self):
-        while len(self.polyhedron.get_node_coordinates()) < self.N:
-            self.polyhedron.divide_edges()
-
-
-class Cube4DRotations(PolyhedronRotations):
+class Cube4DRotations(SphereGridNDim):
 
     algorithm_name = "cube4D"
+    polytope = Cube4DPolytope()
 
-    def __init__(self, **kwargs):
-        super().__init__(polyhedron=Cube4DPolytope, **kwargs)
-
-    def _gen_grid(self):
-        super()._gen_grid()
-        rotations = self.polyhedron.get_N_ordered_points(self.N)
-        self.rotations = Rotation.from_quat(rotations)
-        self.from_rotations(self.rotations)
+    def _gen_grid_4D(self):
+        while len(self.polytope.get_node_coordinates()) < self.N:
+            self.polytope.divide_edges()
+        return self.polytope.get_N_ordered_points(self.N)
 
 
-class IcoAndCube3DRotations(PolyhedronRotations):
+class IcoAndCube3DRotations(SphereGridNDim):
+
+    algorithm_name: str = None
+    polytope: Polytope = None
 
     def get_z_projection_grid(self):
         "In this case, directly construct the 3D object"
 
-    def _gen_grid(self):
-        desired_N = self.N
-        super()._gen_grid()
-        grid_z_arr = self.polyhedron.get_N_ordered_points(desired_N)
-        grid_z = SphereGrid3D(grid_z_arr, N=self.N, gen_alg=self.gen_algorithm)
-        z_vec = np.array([0, 0, 1])
-        matrices = np.zeros((desired_N, 3, 3))
-        for i in range(desired_N):
-            matrices[i] = two_vectors2rot(z_vec, grid_z.get_grid()[i])
-        rot_z = Rotation.from_matrix(matrices)
-        grid_x_arr = rot_z.apply(np.array([1, 0, 0]))
-        grid_x = SphereGrid3D(grid_x_arr, N=desired_N, gen_alg=self.gen_algorithm)
-        grid_y_arr = rot_z.apply(np.array([0, 1, 0]))
-        grid_y = SphereGrid3D(grid_y_arr, N=desired_N, gen_alg=self.gen_algorithm)
-        self.from_grids(grid_x, grid_y, grid_z)
-        self.save_all()
+    def _gen_grid_3D(self):
+        while len(self.polytope.get_node_coordinates()) < self.N:
+            self.polytope.divide_edges()
+        return self.polytope.get_N_ordered_points(self.N)
+
+    def _gen_grid_4D(self):
+        grid_z_arr = self._gen_grid_3D()
+        rotations = grid2rotation(grid_z_arr, grid_z_arr, grid_z_arr)
+        return rotations.as_quat()
+        # grid_z = SphereGrid3D(grid_z_arr, N=self.N, gen_alg=self.gen_algorithm)
+        # z_vec = np.array([0, 0, 1])
+        # matrices = np.zeros((desired_N, 3, 3))
+        # for i in range(desired_N):
+        #     matrices[i] = two_vectors2rot(z_vec, grid_z.get_grid()[i])
+        # rot_z = Rotation.from_matrix(matrices)
+        # grid_x_arr = rot_z.apply(np.array([1, 0, 0]))
+        # grid_x = SphereGrid3D(grid_x_arr, N=desired_N, gen_alg=self.gen_algorithm)
+        # grid_y_arr = rot_z.apply(np.array([0, 1, 0]))
+        # grid_y = SphereGrid3D(grid_y_arr, N=desired_N, gen_alg=self.gen_algorithm)
+        # self.from_grids(grid_x, grid_y, grid_z)
 
 
 class IcoRotations(IcoAndCube3DRotations):
 
     algorithm_name = "ico"
-
-    def __init__(self, **kwargs):
-        super().__init__(polyhedron=IcosahedronPolytope, **kwargs)
+    polytope = IcosahedronPolytope()
 
 
 class Cube3DRotations(IcoAndCube3DRotations):
 
     algorithm_name = "cube3D"
-
-    def __init__(self, **kwargs):
-        super().__init__(polyhedron=Cube3DPolytope, **kwargs)
-
-
-class AllRotObjObjects:
-    sub_obj = List[Type[SphereGridNDim]]
-
-
-
-def build_rotations_from_name(grid_name: str, b_or_o="o", use_saved=False, **kwargs) -> SphereGrid4D:
-    gnp = GridNameParser(grid_name, b_or_o)
-    return build_rotations(gnp.N, gnp.algo, use_saved=use_saved, **kwargs)
-
-
-def build_rotations(N: int, algo: str, use_saved=False, **kwargs) -> SphereGrid4D:
-    name2rotation = {"randomQ": RandomQRotations,
-                     "systemE": SystemERotations,
-                     "randomE": RandomERotations,
-                     "cube4D": Cube4DRotations,
-                     "zero": ZeroRotations,
-                     "ico": IcoRotations,
-                     "cube3D": Cube3DRotations
-                     }
-    if algo not in name2rotation.keys():
-        raise ValueError(f"Algorithm {algo} is not a valid grid type. "
-                         f"Try 'ico', 'cube3D' ...")
-    assert isinstance(N, int), f"Number of grid points must be an integer, currently N={N}"
-    assert N >= 0, f"Number of grid points cannot be negative, currently N={N}"
-    rot_obj = name2rotation[algo](N, gen_algorithm=algo, use_saved=use_saved, **kwargs)
-    return rot_obj
-
-
-def build_grid_from_name(grid_name: str, b_or_o="o", use_saved=False, **kwargs) -> SphereGrid3D:
-    return build_rotations_from_name(grid_name, b_or_o=b_or_o, use_saved=use_saved, **kwargs).get_z_projection_grid()
-
-
-def build_grid(N: int, algo: str, use_saved=False, **kwargs) -> SphereGrid3D:
-    return build_rotations(N=N, algo=algo, use_saved=use_saved, **kwargs).get_z_projection_grid()
+    polytope = Cube3DPolytope()
 
 
 class SphereGridFactory:
@@ -481,23 +318,20 @@ class SphereGridFactory:
     @classmethod
     def create(cls, alg_name: str, N: int, dimensions: int, **kwargs) -> SphereGridNDim:
         if alg_name == "randomQ":
-            selected_sub_obj = RandomQRotations(N=N, **kwargs)
+            selected_sub_obj = RandomQRotations(N=N, dimensions=dimensions, **kwargs)
         elif alg_name == "systemE":
-            selected_sub_obj = SystemERotations(N=N, **kwargs)
+            selected_sub_obj = SystemERotations(N=N, dimensions=dimensions, **kwargs)
         elif alg_name == "randomE":
-            selected_sub_obj = RandomERotations(N=N,  **kwargs)
+            selected_sub_obj = RandomERotations(N=N, dimensions=dimensions, **kwargs)
         elif alg_name == "cube4D":
-            selected_sub_obj = Cube4DRotations(N=N, **kwargs)
+            selected_sub_obj = Cube4DRotations(N=N, dimensions=dimensions, **kwargs)
         elif alg_name == "zero":
-            selected_sub_obj = ZeroRotations(N=N,  **kwargs)
+            selected_sub_obj = ZeroRotations(N=N, dimensions=dimensions, **kwargs)
         elif alg_name == "ico":
-            selected_sub_obj = IcoRotations(N=N, **kwargs)
+            selected_sub_obj = IcoRotations(N=N, dimensions=dimensions, **kwargs)
         elif alg_name == "cube3D":
-            selected_sub_obj = Cube3DRotations(N=N, **kwargs)
+            selected_sub_obj = Cube3DRotations(N=N, dimensions=dimensions, **kwargs)
         else:
             raise ValueError(f"The algorithm {alg_name} not familiar to QuaternionGridFactory.")
         selected_sub_obj.gen_grid()
-        if dimensions == 3:
-            return selected_sub_obj.get_z_projection_grid()
-        else:
-            return selected_sub_obj
+        return selected_sub_obj

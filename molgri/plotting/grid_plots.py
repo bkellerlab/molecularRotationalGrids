@@ -5,11 +5,8 @@ import numpy as np
 import pandas as pd
 import seaborn as sns
 from matplotlib import pyplot as plt
-from matplotlib.animation import FuncAnimation, PillowWriter
 from matplotlib.colors import ListedColormap
 from mpl_toolkits.mplot3d.art3d import Poly3DCollection
-from numpy._typing import NDArray
-from scipy.constants import pi
 from scipy.spatial import geometric_slerp
 
 from molgri.constants import UNIQUE_TOL, DIM_SQUARE, DIM_LANDSCAPE
@@ -18,82 +15,17 @@ from molgri.paths import PATH_OUTPUT_FULL_GRIDS, PATH_INPUT_BASEGRO, PATH_OUTPUT
     PATH_OUTPUT_PLOTS
 from molgri.plotting.abstract import Plot3D, AbstractPlot, AbstractMultiPlot
 from molgri.plotting.analysis_plots import points_up_to_Ns, test_or_create_Ns
-from molgri.space.analysis import vector_within_alpha
 from molgri.space.cells import voranoi_surfaces_on_stacked_spheres, voranoi_surfaces_on_sphere
 from molgri.space.polytopes import Polytope, IcosahedronPolytope, Cube3DPolytope
-from molgri.space.rotobj import build_grid_from_name
-from molgri.space.utils import norm_per_axis, normalise_vectors, cart2sphA, random_quaternions, random_sphere_points
+from molgri.space.utils import norm_per_axis, normalise_vectors, cart2sphA
 
 
-class GridPlot(Plot3D):
-
-    def __init__(self, data_name, *, style_type: list = None, plot_type: str = "grid", **kwargs):
-        """
-        This class is used for plots and animations of grids.
-
-        Args:
-            data_name: in the form algorithm_N e.g. randomQ_60
-            style_type: a list of style properties like ['empty', 'talk', 'half_dark']
-            plot_type: change this if you need unique name for plots with same data_name
-            **kwargs:
-        """
-        if style_type is None:
-            style_type = ["talk"]
-        super().__init__(data_name, style_type=style_type, plot_type=plot_type, **kwargs)
-        self.grid = self._prepare_data()
-
-    def _prepare_data(self) -> np.ndarray:
-        my_grid = build_grid_from_name(self.data_name, use_saved=False, print_warnings=True).get_grid()
-        return my_grid
-
-    def _plot_data(self, color="black", s=30, **kwargs):
-        self.sc = self.ax.scatter(*self.grid.T, color=color, s=s)
-
-    def create(self, animate_seq=False, **kwargs):
-        if "empty" in self.style_type:
-            pad_inches = -0.2
-        else:
-            pad_inches = 0
-        x_max_limit = kwargs.pop("x_max_limit", 1)
-        y_max_limit = kwargs.pop("y_max_limit", 1)
-        z_max_limit = kwargs.pop("z_max_limit", 1)
-        super(GridPlot, self).create(equalize=True, x_max_limit=x_max_limit, y_max_limit=y_max_limit,
-                                     z_max_limit=z_max_limit, pad_inches=pad_inches, azim=30, elev=10, projection="3d",
-                                     **kwargs)
-        if animate_seq:
-            self.animate_grid_sequence()
-
-    def animate_grid_sequence(self):
-        """
-        Animate how a grid is constructed - how each individual point is added.
-
-        WARNING - I am not sure that this method always displays correct order/depth coloring - mathplotlib
-        is not the most reliable tool for 3d plots and it may change the plotting order for rendering some
-        points above others!
-        """
-
-        def update(i):
-            current_colors = np.concatenate([facecolors_before[:i], all_white[i:]])
-            self.sc.set_facecolors(current_colors)
-            self.sc.set_edgecolors(current_colors)
-            return self.sc,
-
-        facecolors_before = self.sc.get_facecolors()
-        shape_colors = facecolors_before.shape
-        all_white = np.zeros(shape_colors)
-
-        self.ax.view_init(elev=10, azim=30)
-        ani = FuncAnimation(self.fig, func=update, frames=len(facecolors_before), interval=5, repeat=False)
-        writergif = PillowWriter(fps=3, bitrate=-1)
-        # noinspection PyTypeChecker
-        ani.save(f"{self.ani_path}{self.data_name}_{self.plot_type}_ord.gif", writer=writergif, dpi=400)
-
-
-class PositionGridPlot(GridPlot):
+class PositionGridPlot(Plot3D):
 
     def __init__(self, data_name, style_type=None, cell_lines=False, plot_type="positions", **kwargs):
         self.cell_lines = cell_lines
         super().__init__(data_name, style_type=style_type, plot_type=plot_type, **kwargs)
+        self.grid = self._prepare_data()
 
     def _prepare_data(self) -> np.ndarray:
         points = np.load(f"{PATH_OUTPUT_FULL_GRIDS}{self.data_name}.npy")
@@ -294,31 +226,6 @@ class HammerProjectionMultiPlot(AbstractMultiPlot):
 
     def create(self, *args, projection="hammer", **kwargs):
         super().create(*args, projection=projection, **kwargs)
-
-
-class GridColoredWithAlphaPlot(GridPlot):
-    def __init__(self, data_name, vector: np.ndarray, alpha_set: list, plot_type: str = "colorful_grid", **kwargs):
-        super().__init__(data_name, plot_type=plot_type, **kwargs)
-        self.alpha_central_vector = vector
-        self.alpha_set = list(alpha_set)
-        self.alpha_set.sort()
-        self.alpha_set.append(pi)
-
-    def _plot_data(self, color=None, **kwargs):
-        # plot vector
-        self.ax.scatter(*self.alpha_central_vector, marker="x", c="k", s=30)
-        # determine color palette
-        cp = sns.color_palette("Spectral", n_colors=len(self.alpha_set))
-        # sort points which point in which alpha area
-        already_plotted = []
-        for i, alpha in enumerate(self.alpha_set):
-            possible_points = np.array([vec for vec in self.grid if tuple(vec) not in already_plotted])
-            within_alpha = vector_within_alpha(self.alpha_central_vector, possible_points, alpha)
-            selected_points = [tuple(vec) for i, vec in enumerate(possible_points) if within_alpha[i]]
-            array_sel_points = np.array(selected_points)
-            self.sc = self.ax.scatter(*array_sel_points.T, color=cp[i], s=30)  # , s=4)
-            already_plotted.extend(selected_points)
-        self.ax.view_init(elev=10, azim=30)
 
 
 def create_trajectory_energy_multiplot(data_name, Ns=None, animate_rot=False):
