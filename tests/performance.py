@@ -6,19 +6,14 @@ from typing import Callable
 import logging
 from abc import ABC, abstractmethod
 
-
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
 
-
 from molgri.paths import PATH_OUTPUT_TIMING, PATH_OUTPUT_LOGGING
 from molgri.molecules.writers import PtIOManager
 from molgri.space.utils import find_first_free_index, format_name
-
-
-
 
 
 class PerformanceManager:
@@ -75,8 +70,8 @@ def time_pt(m1: str, m2: str, b_name: str = "50", o_name: str = "50", t_name: st
                           b_grid_name=b_name, o_grid_name=o_name, t_grid_name=t_name)
     manager.construct_pt(as_dir=False)
     # logging
-    path_logger = format_name(file_path=PATH_OUTPUT_LOGGING, file_name=name_to_save, num=free_index)
-    PtLogger(path_logger).log_set_up()
+    #path_logger = format_name(file_path=PATH_OUTPUT_LOGGING, file_name=manager.determine_pt_name(), num=free_index)
+    #PtLogger(path_logger).log_set_up()
 
 
 def test_funct(one_arg, second_arg):
