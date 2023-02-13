@@ -6,10 +6,10 @@ from numpy.typing import ArrayLike
 from molgri.constants import CELLS_DF_COLUMNS
 from molgri.molecules.parsers import XVGParser
 from molgri.paths import PATH_OUTPUT_CELLS, PATH_INPUT_ENERGIES
-from molgri.plotting.abstract import AbstractPlot
+from molgri.plotting.abstract import RepresentationCollection
 
 
-class VoranoiConvergencePlot(AbstractPlot):
+class VoranoiConvergencePlot(RepresentationCollection):
 
     def __init__(self, data_name: str, style_type=None, plot_type="areas"):
         super().__init__(data_name, dimensions=2, style_type=style_type, plot_type=plot_type)
@@ -36,7 +36,7 @@ class VoranoiConvergencePlot(AbstractPlot):
         self.ax.set_xscale('log')
 
 
-class EnergyConvergencePlot(AbstractPlot):
+class EnergyConvergencePlot(RepresentationCollection):
 
     def __init__(self, data_name: str, test_Ns=None, property_name="Potential", no_convergence=False,
                  plot_type="energy_convergence", **kwargs):

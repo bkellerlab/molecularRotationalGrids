@@ -12,7 +12,7 @@ from scipy.spatial import geometric_slerp
 from molgri.constants import UNIQUE_TOL, DIM_SQUARE, DIM_LANDSCAPE
 from molgri.molecules.parsers import XVGParser, FullGridNameParser, PtParser
 from molgri.paths import PATH_OUTPUT_FULL_GRIDS, PATH_INPUT_BASEGRO, PATH_OUTPUT_PT, PATH_INPUT_ENERGIES
-from molgri.plotting.abstract import Plot3D, AbstractPlot, AbstractMultiPlot
+from molgri.plotting.abstract import Plot3D, RepresentationCollection, MultiRepresentationCollection
 from molgri.plotting.analysis_plots import points_up_to_Ns, test_or_create_Ns
 from molgri.space.cells import voranoi_surfaces_on_stacked_spheres, voranoi_surfaces_on_sphere
 from molgri.space.utils import norm_per_axis, normalise_vectors, cart2sphA
@@ -171,7 +171,7 @@ class TrajectoryEnergyPlot(Plot3D):
         super().create(*args, equalize=True, title=title, **kwargs)
 
 
-class HammerProjectionTrajectory(TrajectoryEnergyPlot, AbstractPlot):
+class HammerProjectionTrajectory(TrajectoryEnergyPlot, RepresentationCollection):
 
     def __init__(self, data_name: str, plot_type="hammer", figsize=DIM_SQUARE, **kwargs):
         sns.set_context("talk")
@@ -200,10 +200,10 @@ class HammerProjectionTrajectory(TrajectoryEnergyPlot, AbstractPlot):
         self.ax.set_xticklabels([])
 
     def create(self, *args, **kwargs):
-        AbstractPlot.create(self, *args, projection="hammer", **kwargs)
+        RepresentationCollection.create(self, *args, projection="hammer", **kwargs)
 
 
-class TrajectoryEnergyMultiPlot(AbstractMultiPlot):
+class TrajectoryEnergyMultiRepresentationCollection(MultiRepresentationCollection):
 
     def __init__(self, list_plots: List[TrajectoryEnergyPlot], figsize=None, **kwargs):
         if figsize is None:
@@ -214,7 +214,7 @@ class TrajectoryEnergyMultiPlot(AbstractMultiPlot):
         super().create(*args, projection="3d", **kwargs)
 
 
-class HammerProjectionMultiPlot(AbstractMultiPlot):
+class HammerProjectionMultiRepresentationCollection(MultiRepresentationCollection):
 
     def __init__(self, list_plots: List[HammerProjectionTrajectory], plot_type="hammer", figsize=None,
                  n_rows=1, n_columns=5, **kwargs):
@@ -234,8 +234,8 @@ def create_trajectory_energy_multiplot(data_name, Ns=None, animate_rot=False):
         tep.N_index = i
         tep.add_energy_information(f"{PATH_INPUT_ENERGIES}{data_name}")
         list_single_plots.append(tep)
-    TrajectoryEnergyMultiPlot(list_single_plots, n_columns=max_index, n_rows=1).create_and_save(animate_rot=animate_rot,
-                                                                                                elev=10, azim=60)
+    TrajectoryEnergyMultiRepresentationCollection(list_single_plots, n_columns=max_index, n_rows=1).create_and_save(animate_rot=animate_rot,
+                                                                                                                    elev=10, azim=60)
 
 
 def create_hammer_multiplot(data_name, Ns=None):
@@ -246,7 +246,7 @@ def create_hammer_multiplot(data_name, Ns=None):
         tep.N_index = i
         tep.add_energy_information(f"{PATH_INPUT_ENERGIES}{data_name}")
         list_single_plots.append(tep)
-    HammerProjectionMultiPlot(list_single_plots, n_columns=max_index, n_rows=1).create_and_save()
+    HammerProjectionMultiRepresentationCollection(list_single_plots, n_columns=max_index, n_rows=1).create_and_save()
 
 
 def groupby_min_body_energy(df: pd.DataFrame, target_column: str, N_b: int) -> pd.DataFrame:

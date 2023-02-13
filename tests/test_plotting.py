@@ -40,8 +40,7 @@ def test_polytope_plots():
         pp.create_all_plots()
 
 
-def test_space_plots():
-    N = 12
+def test_space_plots(N=12):
     for alg in GRID_ALGORITHMS[:-1]:
         for dim in (3, 4):
             sgf = SphereGridFactory.create(alg_name=alg, N=N, dimensions=dim,
@@ -52,3 +51,4 @@ def test_space_plots():
 
 if __name__ == "__main__":
     test_polytope_plots()
+    test_space_plots(N=600)
