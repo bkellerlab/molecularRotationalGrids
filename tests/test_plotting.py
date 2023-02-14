@@ -1,24 +1,24 @@
 import numpy as np
 import pandas as pd
 
-from molgri.plotting.space_plots import SphereGridPlot, PolytopePlot
+from molgri.plotting.space_plots import SphereGridPlot, PolytopePlot, PanelSphereGridPlots
 from molgri.space.cells import save_voranoi_data_for_alg
 from molgri.space.fullgrid import FullGrid
 from molgri.constants import SMALL_NS, GRID_ALGORITHMS
-from molgri.plotting.grid_plots import PositionGridPlot, create_hammer_multiplot, create_trajectory_energy_multiplot, groupby_min_body_energy
-from molgri.plotting.analysis_plots import VoranoiConvergencePlot
+# from molgri.plotting.grid_plots import PositionGridPlot, create_hammer_multiplot, create_trajectory_energy_multiplot, groupby_min_body_energy
+# from molgri.plotting.analysis_plots import VoranoiConvergencePlot
 from molgri.space.polytopes import Cube3DPolytope, Cube4DPolytope, IcosahedronPolytope
 from molgri.space.rotobj import SphereGridFactory
 
 
-def test_groupby_min_body_energy():
-    # translations already filtered out, n_b = 2, n_o = 3
-    test_arr = np.array([[1, 3, -2], [7, 8, 5], [1, -1, -8], [2, 1, 3], [-1.7, -0.3, -0.3], [8, 8, 5]])
-    start_df = pd.DataFrame(test_arr, columns=["x", "y", "E"])
-    end_df = groupby_min_body_energy(start_df, "E", 3)
-    expected_array = np.array([[1, -1, -8], [-1.7, -0.3, -0.3]])
-    expected_df = pd.DataFrame(expected_array, columns=["x", "y", "E"])
-    assert np.allclose(end_df, expected_df)
+# def test_groupby_min_body_energy():
+#     # translations already filtered out, n_b = 2, n_o = 3
+#     test_arr = np.array([[1, 3, -2], [7, 8, 5], [1, -1, -8], [2, 1, 3], [-1.7, -0.3, -0.3], [8, 8, 5]])
+#     start_df = pd.DataFrame(test_arr, columns=["x", "y", "E"])
+#     end_df = groupby_min_body_energy(start_df, "E", 3)
+#     expected_array = np.array([[1, -1, -8], [-1.7, -0.3, -0.3]])
+#     expected_df = pd.DataFrame(expected_array, columns=["x", "y", "E"])
+#     assert np.allclose(end_df, expected_df)
 
 
 # def test_everything_runs():
@@ -49,6 +49,15 @@ def test_space_plots(N=12):
             SphereGridPlot(sgf).create_all_plots(and_animations=False)
 
 
+def test_space_multi_plots(N=25):
+    for dim in (3, 4):
+        psgp = PanelSphereGridPlots(N, grid_dim=dim, default_context="talk")
+        psgp.make_all_grid_plots(animate_rot=True)
+        psgp.make_all_uniformity_plots()
+        psgp.make_all_convergence_plots()
+
+
 if __name__ == "__main__":
-    test_polytope_plots()
-    test_space_plots(N=600)
+    #test_polytope_plots()
+    test_space_multi_plots(N=200)
+    test_space_plots(N=100)

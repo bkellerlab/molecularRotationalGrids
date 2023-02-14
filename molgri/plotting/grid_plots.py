@@ -12,13 +12,13 @@ from scipy.spatial import geometric_slerp
 from molgri.constants import UNIQUE_TOL, DIM_SQUARE, DIM_LANDSCAPE
 from molgri.molecules.parsers import XVGParser, FullGridNameParser, PtParser
 from molgri.paths import PATH_OUTPUT_FULL_GRIDS, PATH_INPUT_BASEGRO, PATH_OUTPUT_PT, PATH_INPUT_ENERGIES
-from molgri.plotting.abstract import Plot3D, RepresentationCollection, MultiRepresentationCollection
+from molgri.plotting.abstract import RepresentationCollection, MultiRepresentationCollection
 from molgri.plotting.analysis_plots import points_up_to_Ns, test_or_create_Ns
 from molgri.space.cells import voranoi_surfaces_on_stacked_spheres, voranoi_surfaces_on_sphere
 from molgri.space.utils import norm_per_axis, normalise_vectors, cart2sphA
 
 
-class PositionGridPlot(Plot3D):
+class PositionGridPlot(RepresentationCollection):
 
     def __init__(self, data_name, style_type=None, cell_lines=False, plot_type="positions", **kwargs):
         self.cell_lines = cell_lines

@@ -1,27 +1,27 @@
-from functools import wraps
-
 import numpy as np
 import seaborn as sns
-from matplotlib.animation import FuncAnimation, PillowWriter
+from matplotlib.pyplot import Figure, Axes
+from mpl_toolkits.mplot3d.axes3d import Axes3D
+from matplotlib.animation import FuncAnimation
 from numpy.typing import NDArray
 from seaborn import color_palette
 import networkx as nx
 
 from molgri.constants import DEFAULT_ALPHAS_3D, TEXT_ALPHAS_3D, DEFAULT_ALPHAS_4D, TEXT_ALPHAS_4D, COLORS, \
     GRID_ALGORITHMS, NAME2SHORT_NAME
-from molgri.plotting.abstract import RepresentationCollection, Representation, MultiRepresentationCollection, \
+from molgri.plotting.abstract import RepresentationCollection, MultiRepresentationCollection, \
     PanelRepresentationCollection
 from molgri.space.analysis import vector_within_alpha
 from molgri.space.polytopes import Polytope, IcosahedronPolytope, Cube3DPolytope, second_neighbours, third_neighbours, \
-    PolyhedronFromG
-from molgri.space.rotobj import SphereGridNDim
+    PolyhedronFromG, Cube4DPolytope
+from molgri.space.rotobj import SphereGridNDim, SphereGridFactory
 
 
 class SphereGridPlot(RepresentationCollection):
 
     def __init__(self, sphere_grid: SphereGridNDim, **kwargs):
         data_name = sphere_grid.get_standard_name(with_dim=True)
-        super().__init__(data_name, **kwargs)
+        super().__init__(data_name, default_axes_limits=(-1, 1, -1, 1, -1, 1), **kwargs)
         self.sphere_grid = sphere_grid
         if self.sphere_grid.dimensions == 3:
             self.alphas = DEFAULT_ALPHAS_3D
@@ -33,31 +33,27 @@ class SphereGridPlot(RepresentationCollection):
     def get_possible_title(self):
         return NAME2SHORT_NAME[self.sphere_grid.algorithm_name]
 
-    def make_grid_plot(self, ax=None, fig=None, save=True):
+    def make_grid_plot(self, fig: Figure = None, ax: Axes3D = None, save: bool = True):
         """Plot the 3D grid plot, for 4D the 4th dimension plotted as color. It always has limits (-1, 1) and equalized
         figure size"""
 
-        rep = Representation(dimension=3, ax=ax, fig=fig, projection="3d", context=self.context,
-                             complexity_level=self.complexity_level)
+        self._create_fig_ax(fig=fig, ax=ax, projection="3d")
 
         points = self.sphere_grid.get_grid_as_array()
         if points.shape[1] == 3:
-            rep.ax.scatter(*points.T, color="black", s=30)
+            self.ax.scatter(*points.T, color="black", s=30)
         else:
-            rep.ax.scatter(*points[:, :3].T, c=points[:, 3].T, s=30)  # cmap=plt.hot()
+            self.ax.scatter(*points[:, :3].T, c=points[:, 3].T, s=30)  # cmap=plt.hot()
 
-        rep.ax.view_init(elev=10, azim=30)
-        rep.set_axis_limits((-1, 1, -1, 1, -1, 1))
-        rep.equalize_axes()
+        self.ax.view_init(elev=10, azim=30)
+        self._set_axis_limits()
+        self._equalize_axes()
+
         if save:
-            self._save_plot_type(rep, "grid")
-        return rep
+            self._save_plot_type("grid")
+        return self.fig, self.ax
 
     def make_grid_colored_with_alpha(self, ax=None, fig=None, central_vector: NDArray = None, save=True):
-
-        rep = Representation(dimension=3, ax=ax, fig=fig, projection="3d", context=self.context,
-                             complexity_level=self.complexity_level)
-
         if self.sphere_grid.dimensions != 3:
             print(f"make_grid_colored_with_alpha currently implemented only for 3D systems.")
             return None
@@ -65,10 +61,12 @@ class SphereGridPlot(RepresentationCollection):
             central_vector = np.zeros((self.sphere_grid.dimensions,))
             central_vector[-1] = 1
 
+        self._create_fig_ax(fig=fig, ax=ax, projection="3d")
+
         points = self.sphere_grid.get_grid_as_array()
 
         # plot vector
-        rep.ax.scatter(*central_vector, marker="x", c="k", s=30)
+        self.ax.scatter(*central_vector, marker="x", c="k", s=30)
         # determine color palette
         cp = sns.color_palette("Spectral", n_colors=len(self.alphas))
         # sort points which point in which alpha area
@@ -79,61 +77,59 @@ class SphereGridPlot(RepresentationCollection):
             selected_points = [tuple(vec) for i, vec in enumerate(possible_points) if within_alpha[i]]
             array_sel_points = np.array(selected_points)
             if np.any(array_sel_points):
-                rep.ax.scatter(*array_sel_points.T, color=cp[i], s=30)
+                self.ax.scatter(*array_sel_points.T, color=cp[i], s=30)
             already_plotted.extend(selected_points)
 
-        rep.ax.view_init(elev=10, azim=30)
-        rep.set_axis_limits((-1, 1, -1, 1, -1, 1))
-        rep.equalize_axes()
-        if save:
-            self._save_plot_type(rep, "colorful_grid")
-        return rep
+        self.ax.view_init(elev=10, azim=30)
+        self._set_axis_limits()
+        self._equalize_axes()
 
-    def make_uniformity_plot(self, ax=None, fig=None, save=True):
+        if save:
+            self._save_plot_type("colorful_grid")
+        return fig, ax
+
+    def make_uniformity_plot(self, ax: Axes = None, fig: Figure = None, save=True):
         """
         Creates violin plots that are a measure of grid uniformity. A good grid will display minimal variation
         along a range of angles alpha.
         """
 
-        rep = Representation(dimension=2, ax=ax, fig=fig, context=self.context,
-                             complexity_level=self.complexity_level)
+        self._create_fig_ax(fig=fig, ax=ax)
 
         df = self.sphere_grid.get_uniformity_df(alphas=self.alphas)
-        sns.violinplot(x=df["alphas"], y=df["coverages"], ax=rep.ax, palette=COLORS, linewidth=1, scale="count", cut=0)
-        rep.ax.set_xticklabels(self.alphas_text)
+        sns.violinplot(x=df["alphas"], y=df["coverages"], ax=self.ax, palette=COLORS, linewidth=1, scale="count", cut=0)
+        self.ax.set_xticklabels(self.alphas_text)
 
         if save:
-            self._save_plot_type(rep, "uniformity")
-        return rep
+            self._save_plot_type("uniformity")
+        return self.fig, self.ax
 
-    def make_convergence_plot(self, ax=None, fig=None, save=True):
+    def make_convergence_plot(self, ax: Axes = None, fig: Figure = None, save=True):
         """
         Creates convergence plots that show how coverages approach optimal values.
         """
-
-        rep = Representation(dimension=2, ax=ax, fig=fig, context=self.context,
-                             complexity_level=self.complexity_level)
-
+        self._create_fig_ax(fig=fig, ax=ax)
         df = self.sphere_grid.get_convergence_df(alphas=self.alphas)
 
-        sns.lineplot(x=df["N"], y=df["coverages"], ax=rep.ax, hue=df["alphas"],
+        sns.lineplot(x=df["N"], y=df["coverages"], ax=self.ax, hue=df["alphas"],
                      palette=color_palette("hls", len(self.alphas_text)), linewidth=1)
-        sns.lineplot(x=df["N"], y=df["ideal coverage"], style=df["alphas"], ax=rep.ax, color="black")
-        rep.ax.set_xscale("log")
-        rep.ax.set_yscale("log")
-        rep.ax.get_legend().remove()
+        sns.lineplot(x=df["N"], y=df["ideal coverage"], style=df["alphas"], ax=self.ax, color="black")
+
+        self.ax.get_legend().remove()
 
         if save:
-            self._save_plot_type(rep, "convergence")
-        return rep
+            self.ax.set_xscale("log")
+            self.ax.set_yscale("log")
+            self._save_plot_type("convergence")
+        return self.fig, self.ax
 
     def make_rot_animation(self):
-        plotted_points = self.make_grid_plot(save=False)
-        self.animate_figure_view(plotted_points)
+        fig, ax = self.make_grid_plot(save=False)
+        self._animate_figure_view(fig, ax)
 
     def make_ordering_animation(self):
-        representation = self.make_grid_plot(save=False)
-        sc = representation.ax.collections[0]
+        self.make_grid_plot(save=True)
+        sc = self.ax.collections[0]
 
         def update(i):
             current_colors = np.concatenate([facecolors_before[:i], all_white[i:]])
@@ -145,19 +141,22 @@ class SphereGridPlot(RepresentationCollection):
         shape_colors = facecolors_before.shape
         all_white = np.zeros(shape_colors)
 
-        representation.ax.view_init(elev=10, azim=30)
-        ani = FuncAnimation(representation.fig, func=update, frames=len(facecolors_before), interval=5, repeat=False)
-        self._save_animation_type(ani, "order", fps=3)
+        self.ax.view_init(elev=10, azim=30)
+        ani = FuncAnimation(self.fig, func=update, frames=len(facecolors_before), interval=100, repeat=False)
+        self._save_animation_type(ani, "order", fps=len(facecolors_before) // 20)
 
-    def make_trans_animation(self, ax=None):
+    def make_trans_animation(self, fig = None, ax=None):
         points = self.sphere_grid.get_grid_as_array()
         # create the axis with the right num of dimensions
 
         dimension = points.shape[1] - 1
 
-        rep = Representation(dimension=dimension, projection="3d", ax=ax, context=self.context,
-                             complexity_level=self.complexity_level)
+        if dimension == 3:
+            projection = "3d"
+        else:
+            projection = None
 
+        self._create_fig_ax(fig=fig, ax=ax, projection=projection)
         # sort by the value of the specific dimension you are looking at
         ind = np.argsort(points[:, -1])
         points_3D = points[ind]
@@ -168,10 +167,10 @@ class SphereGridPlot(RepresentationCollection):
         # plot the lower-dimensional scatterplot
         all_points = []
         for line in points_3D:
-            all_points.append(rep.ax.scatter(*line[:rep.dimension], color="black", alpha=1))
+            all_points.append(self.ax.scatter(*line[:-1], color="black", alpha=1))
 
-        rep.set_axis_limits((-1, 1) * dimension)
-        rep.equalize_axes()
+        self._set_axis_limits((-1, 1) * dimension)
+        self._equalize_axes()
 
         if len(points) < 20:
             step = 1
@@ -183,15 +182,14 @@ class SphereGridPlot(RepresentationCollection):
         def animate(frame):
             # plot current point
             current_time = alphas[frame * step]
-
             for i, p in enumerate(all_points):
                 new_alpha = np.max([0, 1 - np.abs(alphas[i] - current_time) * 10])
                 p.set_alpha(new_alpha)
-            return rep.ax,
+            return self.ax,
 
-        anim = FuncAnimation(rep.fig, animate, frames=len(points) // step,
+        anim = FuncAnimation(self.fig, animate, frames=len(points) // step,
                              interval=100)  # , frames=180, interval=50
-        self._save_animation_type(anim, "trans", fps=len(points) // 5)
+        self._save_animation_type(anim, "trans", fps=len(points) // step // 2)
 
     def create_all_plots(self, and_animations=False):
         self.make_grid_plot()
@@ -210,23 +208,21 @@ class PolytopePlot(RepresentationCollection):
         self.polytope = polytope
         split_name = str(polytope).split()
         data_name = f"{split_name[0]}_{split_name[-1]}"
-        super().__init__(data_name, **kwargs)
+        super().__init__(data_name, default_complexity_level="half_empty", **kwargs)
 
     def make_graph(self, ax=None, fig=None, with_labels=True, save=True):
         """
         Plot the networkx graph of self.G.
         """
-
-        rep = Representation(2, fig=fig, ax=ax, context=self.context, complexity_level=self.complexity_level,
-                             color_style=self.color_style)
+        self._create_fig_ax(fig=fig, ax=ax)
 
         node_labels = {i: tuple(np.round(i, 3)) for i in self.polytope.G.nodes}
         nx.draw_networkx(self.polytope.G, pos=nx.spring_layout(self.polytope.G, weight="p_dist"),
                          with_labels=with_labels, labels=node_labels)
         if save:
-            self._save_plot_type(rep, "graph")
+            self._save_plot_type("graph")
 
-    def make_neighbours_plot(self, ax = None, fig=None, node_i=0):
+    def make_neighbours_plot(self, ax: Axes3D = None, fig: Figure = None, save: bool = True, node_i: int = 0):
         """
         Want to see which points count as neighbours, second- or third neighbours of a specific node? Use this plotting
         method.
@@ -236,8 +232,7 @@ class PolytopePlot(RepresentationCollection):
             print(f"Plotting neighbours not available for d={self.polytope.d}")
             return
 
-        rep = Representation(3, fig=fig, ax=ax, context=self.context, complexity_level=self.complexity_level,
-                             color_style=self.color_style)
+        self._create_fig_ax(fig=fig, ax=ax, projection="3d")
 
         all_nodes = self.polytope.get_node_coordinates()
         node = tuple(all_nodes[node_i])
@@ -246,19 +241,20 @@ class PolytopePlot(RepresentationCollection):
         third_neig = list(third_neighbours(self.polytope.G, node))
         for sel_node in all_nodes:
 
-            rep.ax.scatter(*sel_node, color="black", s=30, alpha=0.5)
+            self.ax.scatter(*sel_node, color="black", s=30, alpha=0.5)
             if np.allclose(sel_node, node):
-                rep.ax.scatter(*sel_node, color="red", s=40, alpha=0.5)
+                self.ax.scatter(*sel_node, color="red", s=40, alpha=0.5)
             if tuple(sel_node) in neig:
-                rep.ax.scatter(*sel_node, color="blue", s=38, alpha=0.5)
+                self.ax.scatter(*sel_node, color="blue", s=38, alpha=0.5)
             if tuple(sel_node) in sec_neig:
-                rep.ax.scatter(*sel_node, color="green", s=35, alpha=0.5)
+                self.ax.scatter(*sel_node, color="green", s=35, alpha=0.5)
             if tuple(sel_node) in third_neig:
-                rep.ax.scatter(*sel_node, color="orange", s=32, alpha=0.5)
-        self.save_plot(name_addition=f"neighbours_{node_i}")
+                self.ax.scatter(*sel_node, color="orange", s=32, alpha=0.5)
+        if save:
+            self._save_plot_type(f"neighbours_{node_i}")
 
-    def make_node_plot(self, ax = None, select_faces: set = None, projection: bool = False, plot_edges=False,
-                       color_by="level"):
+    def make_node_plot(self, ax: Axes3D = None, fig: Figure = None, select_faces: set = None, projection: bool = False,
+                       plot_edges: bool = False, color_by: str = "level", save=True):
         """
         Plot the points of the polytope + possible division points. Colored by level at which the point was added.
         Or: colored by index to see how sorting works. Possible to select only one or a few faces on which points
@@ -275,8 +271,8 @@ class PolytopePlot(RepresentationCollection):
             print(f"Plotting nodes not available for d={self.polytope.d}")
             return
 
-        self._create_fig_ax(ax, dim=3, projection="3d")
-        self._set_up_empty()
+        self._create_fig_ax(fig=fig, ax=ax, projection="3d")
+
         level_color = ["black", "red", "blue", "green"]
         index_palette = color_palette("coolwarm", n_colors=self.polytope.G.number_of_nodes())
 
@@ -302,7 +298,8 @@ class PolytopePlot(RepresentationCollection):
                     self.ax.text(*point, s=f"{i}")
         if plot_edges:
             self._plot_edges(self.ax, select_faces=select_faces)
-        self.save_plot(name_addition=f"points_{color_by}")
+        if save:
+            self._save_plot_type(f"points_{color_by}")
 
     def _plot_edges(self, ax, select_faces=None, label=None, **kwargs):
         """
@@ -328,7 +325,8 @@ class PolytopePlot(RepresentationCollection):
                     s = edge[2][f"{label}"]
                     ax.text(*midpoint, s=f"{s:.3f}")
 
-    def make_cell_plot(self, ax = None, cell_index: int = 0, draw_edges: bool = True):
+    def make_cell_plot(self, ax: Axes3D = None, fig: Figure = None, cell_index: int = 0, draw_edges: bool = True,
+                       save: bool = True):
         """
         Since you cannot visualise a 4D object directly, here's an option to visualise the 3D sub-cells of a 4D object.
 
@@ -341,8 +339,7 @@ class PolytopePlot(RepresentationCollection):
             print(f"Plotting cells not available for d={self.polytope.d}")
             return
 
-        self._create_fig_ax(ax, dim=3, projection="3d")
-        self._set_up_empty()
+        self._create_fig_ax(ax=ax, fig=fig, dim=3, projection="3d")
         # find the points that belong to the chosen cell_index
         nodes = (
             node
@@ -360,7 +357,9 @@ class PolytopePlot(RepresentationCollection):
         sub_polyhedron = PolyhedronFromG(subgraph_3D)
         poly_plotter = PolytopePlot(sub_polyhedron)
         poly_plotter.make_node_plot(ax=self.ax, plot_edges=draw_edges)
-        self.save_plot(name_addition=f"cell")
+
+        if save:
+            self._save_plot_type("cell")
 
     def create_all_plots(self):
         self.make_graph(with_labels=True)
@@ -383,32 +382,33 @@ class PanelSphereGridPlots(PanelRepresentationCollection):
                                          default_color_style=default_color_style,
                                          default_complexity_level=default_complexity_level)
             list_plots.append(sphere_plot)
-        data_name = f"all_{N_points}"
+        data_name = f"all_{N_points}_{grid_dim}d"
         super().__init__(data_name, list_plots, **kwargs)
 
-    def make_all_grid_plots(self):
-        fig, all_ax, reprs = self.make_plot_for_all(3, "make_grid_plot")
-        self._save_multiplot(fig, "grid")
+    def make_all_grid_plots(self, animate_rot=False):
+        self._make_plot_for_all("make_grid_plot", projection="3d")
+        self.add_titles(list_titles=[subplot.get_possible_title() for subplot in self.list_plots],
+                        pad=-14)
+        if animate_rot:
+            self.animate_figure_view("grid")
+        self._save_multiplot("grid")
 
     def make_all_convergence_plots(self):
-        fig, all_ax, reprs = self.make_plot_for_all(2, "make_convergence_plot")
-        self._save_multiplot(fig, "convergence")
+        self._make_plot_for_all("make_convergence_plot")
+        self.add_titles(list_titles=[subplot.get_possible_title() for subplot in self.list_plots])
+        self.set_log_scale()
+        self.unify_axis_limits()
+        self._save_multiplot("convergence")
 
     def make_all_uniformity_plots(self):
-        fig, all_ax, reprs = self.make_plot_for_all(2, "make_uniformity_plot")
-        self._save_multiplot(fig, "uniformity")
+        self._make_plot_for_all("make_uniformity_plot")
+        self.add_titles(list_titles=[subplot.get_possible_title() for subplot in self.list_plots])
+        self.unify_axis_limits()
+        self._save_multiplot("uniformity")
 
 
 if __name__ == "__main__":
-    from molgri.space.rotobj import SphereGridFactory
-    sgf_ico = SphereGridFactory.create(alg_name="ico", N=200, dimensions=4,
-                                   print_messages=False, time_generation=False,
-                                   use_saved=False)
-    sp1 = SphereGridPlot(sgf_ico, default_context="talk", default_complexity_level="half_empty")
-
-    sp1.create_all_plots(and_animations=True)
-
-    psgp = PanelSphereGridPlots(200, grid_dim=4, default_context="talk", default_complexity_level="half_empty")
-    psgp.make_all_grid_plots()
-    psgp.make_all_uniformity_plots()
-    psgp.make_all_convergence_plots()
+    for pol in (Cube3DPolytope(), Cube4DPolytope(), IcosahedronPolytope()):
+        pol.divide_edges()
+        pp = PolytopePlot(pol)
+        pp.create_all_plots()
