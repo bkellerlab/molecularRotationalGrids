@@ -57,8 +57,8 @@ class PtIOManager:
         self.pt = Pseudotrajectory(self.rotating_molecule, self.full_grid)
         # if the user doesn't select a name, use names of the two molecules as the default
         if output_name is None:
-            name_c_molecule = self.central_parser.get_file_name()
-            name_r_molecule = self.rotating_parser.get_file_name()
+            name_c_molecule = self.central_parser.get_topology_file_name()
+            name_r_molecule = self.rotating_parser.get_topology_file_name()
             output_name = f"{name_c_molecule}_{name_r_molecule}"
         self.output_name = output_name
 
@@ -72,8 +72,8 @@ class PtIOManager:
         Returns:
             PT name, eg H2O_CL_o_ico_15_b_cube3D_45_t_123456
         """
-        name_c_molecule = self.central_parser.get_file_name()
-        name_r_molecule = self.rotating_parser.get_file_name()
+        name_c_molecule = self.central_parser.get_topology_file_name()
+        name_r_molecule = self.rotating_parser.get_topology_file_name()
         name_full_grid = self.full_grid.get_full_grid_name()
         return f"{name_c_molecule}_{name_r_molecule}_{name_full_grid}"
 

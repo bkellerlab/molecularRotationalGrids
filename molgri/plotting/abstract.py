@@ -183,7 +183,7 @@ class RepresentationCollection(ABC):
             z_max_limit = limits[5]
             self.ax.set_zlim(z_min_limit, z_max_limit)
 
-    def _animate_figure_view(self, fig, ax) -> FuncAnimation:
+    def _animate_figure_view(self, fig, ax, ani_name="rotated") -> FuncAnimation:
         """
         Call after you have created some 3D figure.
         Rotate the 3D figure for 360 degrees around itself and save the animation.
@@ -195,7 +195,7 @@ class RepresentationCollection(ABC):
             return fig
 
         anim = FuncAnimation(fig, animate, frames=180, interval=50)
-        self._save_animation_type(anim, "rotated", fps=10, dpi=400)
+        self._save_animation_type(anim, ani_name, fps=10, dpi=400)
         return anim
 
 

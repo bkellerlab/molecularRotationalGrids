@@ -22,7 +22,7 @@ from MDAnalysis.core import AtomGroup
 
 from molgri.constants import EXTENSIONS, NM2ANGSTROM, GRID_ALGORITHMS, DEFAULT_ALGORITHM_O, ZERO_ALGORITHM, \
     DEFAULT_ALGORITHM_B
-from molgri.paths import PATH_OUTPUT_TRANSGRIDS
+from molgri.paths import PATH_OUTPUT_TRANSGRIDS, PATH_INPUT_ENERGIES
 from molgri.space.rotations import two_vectors2rot
 
 
@@ -264,7 +264,8 @@ class ParsedMolecule:
 
 class FileParser:
 
-    def __init__(self, path_topology: str, path_trajectory: str = None):
+    def __init__(self, path_topology: str, path_trajectory: str = None, path_energy: str = None,
+                 path_full_grid: str = None):
         """
         This module serves to load topology or trajectory information and output it in a standard format of
         a ParsedMolecule or a generator of ParsedMolecules (one per frame). No properties should be accessed directly,
@@ -276,11 +277,27 @@ class FileParser:
         """
         self.path_topology = path_topology
         self.path_trajectory = path_trajectory
+        self.path_energy = self._try_find_energy_file(path_energy)
+        self.xvg_parser: XVGParser = None if not self.path_energy else XVGParser(self.path_energy)
         self.path_topology, self.path_trajectory = self._try_to_add_extension()
         if path_trajectory is not None:
             self.universe = mda.Universe(path_topology, path_trajectory)
         else:
             self.universe = mda.Universe(self.path_topology)
+
+    def _try_find_energy_file(self, path_energy):
+        # file exists and is provided
+        if path_energy is not None and os.path.isfile(path_energy):
+            return path_energy
+        else:
+            # try based on other names
+            name_getters = [self.get_topology_file_name(), self.get_trajectory_file_name()]
+            for proposed_name in name_getters:
+                if proposed_name is not None:
+                    proposed_path = f"{PATH_INPUT_ENERGIES}{proposed_name}.xvg"
+                    if os.path.isfile(proposed_path):
+                        return proposed_path
+        return None
 
     def _try_to_add_extension(self) -> List[str]:
         """
@@ -319,8 +336,15 @@ class FileParser:
     def get_file_path_topology(self):
         return self.path_topology
 
-    def get_file_name(self):
+    def get_topology_file_name(self):
+        if self.path_topology is None:
+            return None
         return Path(self.path_topology).stem
+
+    def get_trajectory_file_name(self):
+        if self.path_trajectory is None:
+            return None
+        return Path(self.path_trajectory).stem
 
     def as_parsed_molecule(self) -> ParsedMolecule:
         """
@@ -331,15 +355,30 @@ class FileParser:
         """
         return ParsedMolecule(self.universe.atoms, box=self.universe.dimensions)
 
-    def generate_frame_as_molecule(self) -> Generator[ParsedMolecule, None, None]:
+    def generate_frame_as_molecule(self, atom_selection = None) -> Generator[ParsedMolecule, None, None]:
         """
         Method to use if you want to parse an entire trajectory and generate a ParsedMolecule for each frame.
 
         Returns:
             a generator yielding each frame individually
         """
+        if atom_selection is None:
+            atom_selection = "all"
         for _ in self.universe.trajectory:
-            yield ParsedMolecule(self.universe.atoms, box=self.universe.dimensions)
+            yield ParsedMolecule(self.universe.select_atoms(atom_selection, sorted=False), box=self.universe.dimensions)
+
+    def get_all_energies(self, column_name):
+        if self.xvg_parser is None:
+            return None
+        name, index = self.xvg_parser.get_column_index_by_name(column_name)
+        return self.xvg_parser.get_all_columns()[:, index]
+
+    def get_all_COM(self, atom_selection=None) -> NDArray:
+        all_com = []
+        for mol in self.generate_frame_as_molecule(atom_selection):
+            all_com.append(mol.get_center_of_mass())
+        all_com = np.array(all_com)
+        return all_com
 
 
 class PtParser(FileParser):
@@ -355,12 +394,12 @@ class PtParser(FileParser):
             path_topology: full path to the topology of the combined system
             path_trajectory: full path to the trajectory of the combined system
         """
-        super().__init__(path_topology, path_trajectory)
+        super().__init__(path_topology=path_topology, path_trajectory=path_trajectory)
         self.c_num = FileParser(m1_path).as_parsed_molecule().num_atoms
         self.r_num = FileParser(m2_path).as_parsed_molecule().num_atoms
         assert self.c_num + self.r_num == self.as_parsed_molecule().num_atoms
 
-    def generate_frame_as_molecule(self) -> Generator[Tuple[ParsedMolecule, ParsedMolecule], None, None]:
+    def generate_frame_as_double_molecule(self) -> Generator[Tuple[ParsedMolecule, ParsedMolecule], None, None]:
         """
         Differently to FileParser, this generator always yields a pair of molecules: central, rotating (for each frame).
 
@@ -373,6 +412,24 @@ class PtParser(FileParser):
             r_molecule = ParsedMolecule(self.universe.atoms[self.c_num:], box=self.universe.dimensions)
             yield c_molecule, r_molecule
 
+    def get_atom_selection_r(self):
+        return f"id {self.c_num + 1}:{self.c_num + self.r_num}"
+
+    def get_atom_selection_c(self):
+        return f"id 1:{self.c_num}"
+
+    def generate_r_molecule(self) -> Generator[ParsedMolecule, None, None]:
+        return self.generate_frame_as_molecule(atom_selection=self.get_atom_selection_r())
+
+    def generate_c_molecule(self) -> Generator[ParsedMolecule, None, None]:
+        return self.generate_frame_as_molecule(atom_selection=self.get_atom_selection_c())
+
+    def get_all_COM_r_molecule(self, atom_selection="r_molecule") -> NDArray:
+        all_com = []
+        for mol in self.generate_frame_as_double_molecule(atom_selection):
+            all_com.append(mol.get_center_of_mass())
+        all_com = np.array(all_com)
+        return all_com
 
 class TranslationParser(object):
 

@@ -109,7 +109,7 @@ def test_pt_translations():
                            f"{PATH_INPUT_BASEGRO}{m_path}",
                            f"{PATH_OUTPUT_PT}{file_name}.gro",
                            f"{PATH_OUTPUT_PT}{file_name}.xtc")
-    for frame_i, frame_molecules in enumerate(traj_parser.generate_frame_as_molecule()):
+    for frame_i, frame_molecules in enumerate(traj_parser.generate_frame_as_double_molecule()):
         # distance of COM of second molecule to origin
         molecule1, molecule2 = frame_molecules
         # molecule 2 should be translated along the z coordinate
@@ -140,7 +140,7 @@ def test_pt_rotations_origin():
                            f"{PATH_OUTPUT_PT}{file_name}.gro",
                            f"{PATH_OUTPUT_PT}{file_name}.xtc")
     # initial angles
-    m1, m2 = next(traj_parser.generate_frame_as_molecule())
+    m1, m2 = next(traj_parser.generate_frame_as_double_molecule())
     vec_com_0 = m2.get_center_of_mass()
     vec_atom1_0 = m2.atoms[0].position - vec_com_0
     vec_atom2_0 = m2.atoms[1].position - vec_com_0
@@ -149,7 +149,7 @@ def test_pt_rotations_origin():
     angle_start_2 = angle_between_vectors(vec_com_0, vec_atom2_0)
     angle_start_3 = angle_between_vectors(vec_com_0, vec_atom3_0)
     # should stay the same during a trajectory
-    for frame_i, frame_molecules in enumerate(traj_parser.generate_frame_as_molecule()):
+    for frame_i, frame_molecules in enumerate(traj_parser.generate_frame_as_double_molecule()):
         # distance of COM of second molecule to origin
         m1, m2 = frame_molecules
         dist = np.linalg.norm(m2.get_center_of_mass())
@@ -189,7 +189,7 @@ def test_pt_rotations_body():
                            f"{PATH_INPUT_BASEGRO}{m2_path}",
                            f"{PATH_OUTPUT_PT}{file_name}.gro",
                            f"{PATH_OUTPUT_PT}{file_name}.xtc")
-    for frame_i, frame_molecules in enumerate(traj_parser.generate_frame_as_molecule()):
+    for frame_i, frame_molecules in enumerate(traj_parser.generate_frame_as_double_molecule()):
         m1, m2 = frame_molecules
         dist = np.linalg.norm(m2.get_center_of_mass())
         if frame_i % 3 == 0:
@@ -228,7 +228,7 @@ def test_order_of_operations():
                            f"{PATH_OUTPUT_PT}{file_name}.gro",
                            f"{PATH_OUTPUT_PT}{file_name}.xtc")
     m2s = []
-    for frame_i, frame_molecules in enumerate(traj_parser.generate_frame_as_molecule()):
+    for frame_i, frame_molecules in enumerate(traj_parser.generate_frame_as_double_molecule()):
         m1, m2 = frame_molecules
         m2s.append(m2)
     # each batch of n_b*n_t elements should have the same space orientation

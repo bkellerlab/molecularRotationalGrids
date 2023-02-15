@@ -99,7 +99,7 @@ class TrajectoryEnergyPlot(Plot3D):
         path_trajectory = f"{PATH_OUTPUT_PT}{self.data_name}.xtc"
         my_parser = PtParser(path_m1, path_m2, path_topology, path_trajectory)
         my_data = []
-        for i, molecules in enumerate(my_parser.generate_frame_as_molecule()):
+        for i, molecules in enumerate(my_parser.generate_frame_as_double_molecule()):
             mol1, mol2 = molecules
             com = mol2.get_center_of_mass()
             try:
