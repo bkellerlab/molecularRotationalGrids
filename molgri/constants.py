@@ -40,10 +40,12 @@ NAME2PRETTY_NAME = {n: pn for n, pn in zip(GRID_ALGORITHMS, FULL_GRID_ALG_NAMES)
 NAME2SHORT_NAME = {n: pn for n, pn in zip(GRID_ALGORITHMS, SHORT_GRID_ALG_NAMES)}
 ENERGY_TYPES = ("LJ Energy [kJ/mol]", "Dis.corr. [kJ/mol]", "Coulomb [kJ/mol]",
                 "Potential [kJ/mol]")
+ENERGY_NO_UNIT = ("LJ (SR)", "Dis.corr.", "Coulomb (SR)", "Potential")
 ENERGY_SHORT_TYPES = ("LJ", "Dis", "Coulumb", "pot")
 assert len(ENERGY_TYPES) == len(ENERGY_SHORT_TYPES)
 ENERGY_SHORT2FULL = {n: pn for n, pn in zip(ENERGY_SHORT_TYPES, ENERGY_TYPES)}
 ENERGY_FULL2SHORT = {n: pn for n, pn in zip(ENERGY_TYPES, ENERGY_SHORT_TYPES)}
+ENERGY2SHORT = {n: pn for n, pn in zip(ENERGY_NO_UNIT, ENERGY_SHORT_TYPES)}
 
 SMALL_NS = (8,   10,   12,   15,   18,   23, 30,   34,   41,   50,   62,   75,   100, 112,  137,  167,  204,
             249,  300)

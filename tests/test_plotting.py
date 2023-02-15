@@ -1,10 +1,14 @@
+import os
+
 import numpy as np
 import pandas as pd
 
+from molgri.molecules.parsers import PtParser
+from molgri.plotting.molecule_plots import TrajectoryPlot
 from molgri.plotting.space_plots import SphereGridPlot, PolytopePlot, PanelSphereGridPlots
 from molgri.space.cells import save_voranoi_data_for_alg
 from molgri.space.fullgrid import FullGrid
-from molgri.constants import SMALL_NS, GRID_ALGORITHMS
+from molgri.constants import SMALL_NS, GRID_ALGORITHMS, PATH_EXAMPLES
 # from molgri.plotting.grid_plots import PositionGridPlot, create_hammer_multiplot, create_trajectory_energy_multiplot, groupby_min_body_energy
 # from molgri.plotting.analysis_plots import VoranoiConvergencePlot
 from molgri.space.polytopes import Cube3DPolytope, Cube4DPolytope, IcosahedronPolytope
@@ -57,7 +61,20 @@ def test_space_multi_plots(N=25):
         psgp.make_all_convergence_plots()
 
 
+def test_trajectory_plots():
+    # test with a pseudo-trajectory
+    topology_path = os.path.join(PATH_EXAMPLES, "H2O_H2O_o_ico_500_b_ico_5_t_3830884671.gro")
+    trajectory_path = os.path.join(PATH_EXAMPLES, "H2O_H2O_o_ico_500_b_ico_5_t_3830884671.xtc")
+    water_path = os.path.join(PATH_EXAMPLES, "H2O.gro")
+    energy_path = os.path.join(PATH_EXAMPLES, "H2O_H2O_o_ico_500_b_ico_5_t_3830884671.xvg")
+    parser_pt = PtParser(m1_path=water_path, m2_path=water_path, path_topology=topology_path,
+                         path_trajectory=trajectory_path, path_energy=energy_path)
+    TrajectoryPlot(parser_pt).create_all_plots(and_animations=False)
+    # TODO: test with a simulated trajectory
+
+
 if __name__ == "__main__":
-    #test_polytope_plots()
+    test_polytope_plots()
+    test_trajectory_plots()
     test_space_multi_plots(N=200)
     test_space_plots(N=100)

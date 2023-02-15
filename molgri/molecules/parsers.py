@@ -9,12 +9,14 @@ import hashlib
 import numbers
 import os
 from pathlib import Path
-from typing import Generator, Tuple, List
+from typing import Generator, Tuple, List, Callable
 
 import numpy as np
 from ast import literal_eval
 
+import pandas as pd
 from MDAnalysis.auxiliary.XVG import XVGReader
+from numpy._typing import NDArray
 from numpy.typing import NDArray, ArrayLike
 from scipy.spatial.transform import Rotation
 import MDAnalysis as mda
@@ -262,6 +264,7 @@ class ParsedMolecule:
         self.atoms.translate(rescaled_vector)
 
 
+
 class FileParser:
 
     def __init__(self, path_topology: str, path_trajectory: str = None, path_energy: str = None,
@@ -278,7 +281,6 @@ class FileParser:
         self.path_topology = path_topology
         self.path_trajectory = path_trajectory
         self.path_energy = self._try_find_energy_file(path_energy)
-        self.xvg_parser: XVGParser = None if not self.path_energy else XVGParser(self.path_energy)
         self.path_topology, self.path_trajectory = self._try_to_add_extension()
         if path_trajectory is not None:
             self.universe = mda.Universe(path_topology, path_trajectory)
@@ -346,6 +348,18 @@ class FileParser:
             return None
         return Path(self.path_trajectory).stem
 
+    def get_parsed_trajectory(self):
+        if not self.path_energy:
+            parsed_energies = None
+        else:
+            xvg_parser = XVGParser(self.path_energy)
+            parsed_energies = xvg_parser.get_parsed_energy()
+
+        name = self.get_topology_file_name()
+        molecule_generator = self.generate_frame_as_molecule
+        return ParsedTrajectory(name, molecule_generator, parsed_energies, is_pt=isinstance(self, PtParser))
+
+
     def as_parsed_molecule(self) -> ParsedMolecule:
         """
         Method to use if you want to parse only a single molecule, eg. if only a topology file was provided.
@@ -367,23 +381,13 @@ class FileParser:
         for _ in self.universe.trajectory:
             yield ParsedMolecule(self.universe.select_atoms(atom_selection, sorted=False), box=self.universe.dimensions)
 
-    def get_all_energies(self, column_name):
-        if self.xvg_parser is None:
-            return None
-        name, index = self.xvg_parser.get_column_index_by_name(column_name)
-        return self.xvg_parser.get_all_columns()[:, index]
 
-    def get_all_COM(self, atom_selection=None) -> NDArray:
-        all_com = []
-        for mol in self.generate_frame_as_molecule(atom_selection):
-            all_com.append(mol.get_center_of_mass())
-        all_com = np.array(all_com)
-        return all_com
 
 
 class PtParser(FileParser):
 
-    def __init__(self, m1_path: str, m2_path: str, path_topology: str, path_trajectory: str = None):
+    def __init__(self, m1_path: str, m2_path: str, path_topology: str, path_trajectory: str = None,
+                 path_energy: str = None):
         """
         A parser specifically for Pseudotrajectories written with the molgri.writers module. Useful to test the
         behaviour of writers or to analyse the resulting pseudo-trajectories.
@@ -394,7 +398,7 @@ class PtParser(FileParser):
             path_topology: full path to the topology of the combined system
             path_trajectory: full path to the trajectory of the combined system
         """
-        super().__init__(path_topology=path_topology, path_trajectory=path_trajectory)
+        super().__init__(path_topology=path_topology, path_trajectory=path_trajectory, path_energy=path_energy)
         self.c_num = FileParser(m1_path).as_parsed_molecule().num_atoms
         self.r_num = FileParser(m2_path).as_parsed_molecule().num_atoms
         assert self.c_num + self.r_num == self.as_parsed_molecule().num_atoms
@@ -423,13 +427,6 @@ class PtParser(FileParser):
 
     def generate_c_molecule(self) -> Generator[ParsedMolecule, None, None]:
         return self.generate_frame_as_molecule(atom_selection=self.get_atom_selection_c())
-
-    def get_all_COM_r_molecule(self, atom_selection="r_molecule") -> NDArray:
-        all_com = []
-        for mol in self.generate_frame_as_double_molecule(atom_selection):
-            all_com.append(mol.get_center_of_mass())
-        all_com = np.array(all_com)
-        return all_com
 
 class TranslationParser(object):
 
@@ -505,6 +502,20 @@ class TranslationParser(object):
         return str_in_brackets
 
 
+class ParsedEnergy:
+
+    def __init__(self, energies, labels, unit):
+        self.energies = energies
+        self.labels = labels
+        self.unit = unit
+
+    def get_energies(self, energy_type: str):
+        if energy_type not in self.labels:
+            raise ValueError("This energy type not available")
+        i = self.labels.index(energy_type)
+        return self.energies[:, i]
+
+
 class XVGParser(object):
 
     def __init__(self, path_xvg: str):
@@ -517,8 +528,25 @@ class XVGParser(object):
         self.all_values = reader._auxdata_values
         reader.close()
 
+    def get_parsed_energy(self):
+        return ParsedEnergy(self.get_all_columns(), self.get_all_labels(), self.get_y_unit())
+
     def get_all_columns(self) -> NDArray:
         return self.all_values
+
+    def get_all_labels(self) -> tuple:
+        result = []
+        with open(self.path_name, 'r') as f:
+            for line in f:
+                # parse column number
+                for i in range(0, 10):
+                    if line.startswith(f"@ s{i} legend"):
+                        split_line = line.split(" ")
+                        correct_column = int(split_line[1][1:]) + 1
+                        result.append(split_line[correct_column])
+                if not line.startswith("@") and not line.startswith("#"):
+                    break
+        return tuple(result)
 
     def get_y_unit(self) -> str:
         y_unit = None
@@ -550,3 +578,48 @@ class XVGParser(object):
             column_label = "XVG column 1"
             correct_column = 1
         return column_label, correct_column
+
+
+class ParsedTrajectory:
+
+    def __init__(self, name: str, molecule_generator: Callable, energies: ParsedEnergy, is_pt=False):
+        self.name = name
+        self.is_pt = is_pt
+        self.molecule_generator = molecule_generator
+        self.energies = energies
+        self.allowed_indices = None  # todo: apply filters here
+
+    def get_all_energies(self, energy_type: str):
+        return self.energies.get_energies(energy_type)
+
+    def get_all_COM(self, atom_selection=None) -> NDArray:
+        all_com = []
+        for mol in self.molecule_generator(atom_selection):
+            all_com.append(mol.get_center_of_mass())
+        all_com = np.array(all_com)
+        return all_com
+
+    def get_name(self):
+        return self.name
+
+
+def get_unique_com(coms: NDArray, energies: NDArray = None):
+    """
+    Get only the subset of COMs that have unique positions. Among those, select the ones with lowest energy (if
+    energy info is provided)
+    """
+    round_to = 3  # number of decimal places
+    if energies is None:
+        _, indices = np.unique(coms.round(round_to), axis=0, return_index=True)
+        unique_coms = np.take(coms, indices, axis=0)
+        return unique_coms, energies
+
+    # if there are energies, among same COMs, select the one with lowest energy
+    coms_tuples = [tuple(row.round(round_to)) for row in coms]
+    df = pd.DataFrame()
+    df["coms_tuples"] = coms_tuples
+    df["energy"] = energies
+    new_df = df.loc[df.groupby(df["coms_tuples"])["energy"].idxmin()]
+    unique_coms = np.take(coms, new_df.index, axis=0)
+    unique_energies = np.take(energies, new_df.index, axis=0)
+    return unique_coms, unique_energies
