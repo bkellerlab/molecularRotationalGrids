@@ -3,11 +3,11 @@ import ast
 
 import numpy as np
 
-from molgri.paths import PATH_INPUT_ENERGIES
+from molgri.paths import PATH_INPUT_ENERGIES, PATH_OUTPUT_PT
 from molgri.scripts.set_up_io import freshly_create_all_folders
-from molgri.plotting.analysis_plots import EnergyConvergencePlot
-from molgri.plotting.grid_plots import create_trajectory_energy_multiplot, create_hammer_multiplot, \
-    HammerProjectionTrajectory, TrajectoryEnergyPlot
+
+from molgri.plotting.molecule_plots import TrajectoryPlot, ConvergenceMultiCollection
+from molgri.molecules.parsers import FileParser
 
 parser = argparse.ArgumentParser(description="""NOTE: This script is under development and likely to undergo changes in
 the future. It is recommended to verify the plausibility of the visualisations. Feedback and feature requests are welcome.
@@ -26,6 +26,8 @@ Visualisation types:
 requiredNamed = parser.add_argument_group('required named arguments')
 requiredNamed.add_argument('-xvg', type=str, nargs='?', required=True,
                            help=f'name of the .xvg file in the {PATH_INPUT_ENERGIES} folder, extension not necessary')
+parser.add_argument("--structure", default=None, type=str, help=f"name of the structure file if different from xvg name")
+parser.add_argument("--trajectory", default=None, type=str, help=f"name of the trajectory file if different from xvg name")
 parser.add_argument('--Ns_o', type=str, default=None,
                     help='a list of Ns <= number of orientational rotations')
 parser.add_argument('--p1d', action='store_true', default=False,
@@ -57,25 +59,34 @@ def run_generate_energy():
         data_name = my_args.xvg[:-4]
     else:
         data_name = my_args.xvg
-    if my_args.p1d:
-        if my_args.convergence:
-            EnergyConvergencePlot(data_name, test_Ns=Ns, property_name=my_args.label).create_and_save()
-        else:
-            EnergyConvergencePlot(data_name, no_convergence=True, property_name=my_args.label).create_and_save()
-    if my_args.p2d:
-        if my_args.convergence:
-            create_hammer_multiplot(data_name, Ns=Ns)
-        else:
-            hpt = HammerProjectionTrajectory(data_name)
-            hpt.add_energy_information(f"{PATH_INPUT_ENERGIES}{data_name}")
-            hpt.create_and_save()
-    if my_args.p3d:
-        if my_args.convergence:
-            create_trajectory_energy_multiplot(data_name, Ns=Ns, animate_rot=my_args.animate)
-        else:
-            tep = TrajectoryEnergyPlot(data_name, plot_points=False, plot_surfaces=True)
-            tep.add_energy_information(f"{PATH_INPUT_ENERGIES}{data_name}")
-            tep.create_and_save(animate_rot=my_args.animate)
+
+    # create parsed trajectory
+    if my_args.structure is None:
+        my_args.structure = data_name
+    if my_args.trajectory is None:
+        my_args.trajectory = data_name
+    fp = FileParser(path_topology=f"{PATH_OUTPUT_PT}{my_args.structure}",
+                    path_trajectory=f"{PATH_OUTPUT_PT}{my_args.trajectory}",
+                    path_energy=f"{PATH_INPUT_ENERGIES}{data_name}")
+    traj = fp.get_parsed_trajectory()
+
+    if my_args.convergence:
+        plotting_collection = ConvergenceMultiCollection(traj, N_set=Ns)
+        if my_args.p1d:
+            plotting_collection.make_all_energy_plots(dim=1, energy_type=my_args.label)
+        if my_args.p2d:
+            plotting_collection.make_all_energy_plots(dim=2, energy_type=my_args.label)
+        if my_args.p3d:
+            plotting_collection.make_all_energy_plots(dim=3, energy_type=my_args.label, animate_rot=my_args.animate)
+    else:
+        plotting_obj = TrajectoryPlot(traj)
+        if my_args.p1d:
+            plotting_obj.make_energy_violin_plot(energy_type=my_args.label)
+        if my_args.p2d:
+            plotting_obj.make_energy_COM_plot(energy_type=my_args.label, projection="hammer")
+        if my_args.p3d:
+            plotting_obj.make_energy_COM_plot(energy_type=my_args.label, projection="3d", animate_rot=my_args.animate)
+
     if my_args.animate and not my_args.p3d:
         print("Warning! No animation possible since no 3D plot is constructed. Use --p3d --animate if you "
               "want an animation of 3D energy distribution.")

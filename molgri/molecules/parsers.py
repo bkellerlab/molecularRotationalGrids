@@ -22,8 +22,8 @@ from scipy.spatial.transform import Rotation
 import MDAnalysis as mda
 from MDAnalysis.core import AtomGroup
 
-from molgri.constants import EXTENSIONS, NM2ANGSTROM, GRID_ALGORITHMS, DEFAULT_ALGORITHM_O, ZERO_ALGORITHM, \
-    DEFAULT_ALGORITHM_B
+from molgri.constants import EXTENSIONS_STR, NM2ANGSTROM, GRID_ALGORITHMS, DEFAULT_ALGORITHM_O, ZERO_ALGORITHM, \
+    DEFAULT_ALGORITHM_B, EXTENSIONS_TRJ
 from molgri.paths import PATH_OUTPUT_TRANSGRIDS, PATH_INPUT_ENERGIES
 from molgri.space.rotations import two_vectors2rot
 
@@ -282,8 +282,8 @@ class FileParser:
         self.path_trajectory = path_trajectory
         self.path_energy = self._try_find_energy_file(path_energy)
         self.path_topology, self.path_trajectory = self._try_to_add_extension()
-        if path_trajectory is not None:
-            self.universe = mda.Universe(path_topology, path_trajectory)
+        if self.path_trajectory is not None:
+            self.universe = mda.Universe(self.path_topology, self.path_trajectory)
         else:
             self.universe = mda.Universe(self.path_topology)
 
@@ -306,7 +306,9 @@ class FileParser:
         If no extension is added, the program will try to add standard extensions. If no or multiple files with
         standard extensions are added, it will raise an error. It is always possible to explicitly state an extension.
         """
-        possible_exts = EXTENSIONS
+        possible_exts_structure = EXTENSIONS_STR
+        possible_exts_traj = EXTENSIONS_TRJ
+        possible_exts = (possible_exts_structure, possible_exts_traj)
         to_return = [self.path_topology, self.path_trajectory]
         for i, path in enumerate(to_return):
             if path is None:
@@ -314,7 +316,7 @@ class FileParser:
             root, ext = os.path.splitext(path)
             if not ext:
                 options = []
-                for possible_ext in possible_exts:
+                for possible_ext in possible_exts[i]:
                     test_file = f"{path}.{possible_ext.lower()}"
                     if os.path.isfile(test_file):
                         options.append(test_file)
@@ -416,17 +418,18 @@ class PtParser(FileParser):
             r_molecule = ParsedMolecule(self.universe.atoms[self.c_num:], box=self.universe.dimensions)
             yield c_molecule, r_molecule
 
-    def get_atom_selection_r(self):
-        return f"id {self.c_num + 1}:{self.c_num + self.r_num}"
+    def get_parsed_trajectory(self):
+        pt = super().get_parsed_trajectory()
+        pt.set_c_r(c_num=self.c_num, r_num=self.r_num)
+        return pt
 
-    def get_atom_selection_c(self):
-        return f"id 1:{self.c_num}"
 
     def generate_r_molecule(self) -> Generator[ParsedMolecule, None, None]:
         return self.generate_frame_as_molecule(atom_selection=self.get_atom_selection_r())
 
     def generate_c_molecule(self) -> Generator[ParsedMolecule, None, None]:
         return self.generate_frame_as_molecule(atom_selection=self.get_atom_selection_c())
+
 
 class TranslationParser(object):
 
@@ -511,7 +514,7 @@ class ParsedEnergy:
 
     def get_energies(self, energy_type: str):
         if energy_type not in self.labels:
-            raise ValueError("This energy type not available")
+            raise ValueError(f"Energy type {energy_type} not available, choose from: {self.labels}")
         i = self.labels.index(energy_type)
         return self.energies[:, i]
 
@@ -536,21 +539,20 @@ class XVGParser(object):
 
     def get_all_labels(self) -> tuple:
         result = []
-        with open(self.path_name, 'r') as f:
+        with open(self.path_name, "r") as f:
             for line in f:
                 # parse column number
                 for i in range(0, 10):
                     if line.startswith(f"@ s{i} legend"):
-                        split_line = line.split(" ")
-                        correct_column = int(split_line[1][1:]) + 1
-                        result.append(split_line[correct_column])
+                        split_line = line.split('"')
+                        result.append(split_line[-2])
                 if not line.startswith("@") and not line.startswith("#"):
                     break
         return tuple(result)
 
     def get_y_unit(self) -> str:
         y_unit = None
-        with open(self.path_name, 'r') as f:
+        with open(self.path_name, "r") as f:
             for line in f:
                 # parse property unit
                 if line.startswith("@    yaxis  label"):
@@ -564,7 +566,7 @@ class XVGParser(object):
 
     def get_column_index_by_name(self, column_label) -> Tuple[str, int]:
         correct_column = None
-        with open(self.path_name, 'r') as f:
+        with open(self.path_name, "r") as f:
             for line in f:
                 # parse column number
                 if f'"{column_label}"' in line:
@@ -582,12 +584,21 @@ class XVGParser(object):
 
 class ParsedTrajectory:
 
-    def __init__(self, name: str, molecule_generator: Callable, energies: ParsedEnergy, is_pt=False):
+    def __init__(self, name: str, molecule_generator: Callable, energies: ParsedEnergy, is_pt=False, N=None):
         self.name = name
         self.is_pt = is_pt
         self.molecule_generator = molecule_generator
         self.energies = energies
         self.allowed_indices = None  # todo: apply filters here
+        self.c_num = None
+        self.r_num = None
+
+    def get_num_unique_com(self, energy_type="Potential", atom_selection=None):
+        return len(self.get_unique_com(energy_type=energy_type, atom_selection=atom_selection)[0])
+
+    def set_c_r(self, c_num: int, r_num: int):
+        self.c_num = c_num
+        self.r_num = r_num
 
     def get_all_energies(self, energy_type: str):
         return self.energies.get_energies(energy_type)
@@ -602,24 +613,40 @@ class ParsedTrajectory:
     def get_name(self):
         return self.name
 
+    def get_atom_selection_r(self):
+        if self.c_num is None or self.r_num is None:
+            return None
+        return f"id {self.c_num + 1}:{self.c_num + self.r_num}"
 
-def get_unique_com(coms: NDArray, energies: NDArray = None):
-    """
-    Get only the subset of COMs that have unique positions. Among those, select the ones with lowest energy (if
-    energy info is provided)
-    """
-    round_to = 3  # number of decimal places
-    if energies is None:
-        _, indices = np.unique(coms.round(round_to), axis=0, return_index=True)
-        unique_coms = np.take(coms, indices, axis=0)
-        return unique_coms, energies
+    def get_atom_selection_c(self):
+        if self.c_num is None or self.r_num is None:
+            return None
+        return f"id 1:{self.c_num}"
 
-    # if there are energies, among same COMs, select the one with lowest energy
-    coms_tuples = [tuple(row.round(round_to)) for row in coms]
-    df = pd.DataFrame()
-    df["coms_tuples"] = coms_tuples
-    df["energy"] = energies
-    new_df = df.loc[df.groupby(df["coms_tuples"])["energy"].idxmin()]
-    unique_coms = np.take(coms, new_df.index, axis=0)
-    unique_energies = np.take(energies, new_df.index, axis=0)
-    return unique_coms, unique_energies
+    def get_unique_com(self, energy_type: str = "Potential", atom_selection=None):
+        """
+        Get only the subset of COMs that have unique positions. Among those, select the ones with lowest energy (if
+        energy info is provided)
+        """
+        round_to = 3  # number of decimal places
+        my_energies = self.energies.get_energies(energy_type)
+        my_coms = self.get_all_COM(atom_selection)
+
+        if my_energies is None:
+            _, indices = np.unique(my_coms.round(round_to), axis=0, return_index=True)
+            unique_coms = np.take(my_coms, indices, axis=0)
+            return unique_coms, my_energies
+
+        # if there are energies, among same COMs, select the one with lowest energy
+        coms_tuples = [tuple(row.round(round_to)) for row in my_coms]
+        df = pd.DataFrame()
+        df["coms_tuples"] = coms_tuples
+        df["energy"] = my_energies
+        new_df = df.loc[df.groupby(df["coms_tuples"], sort=False)["energy"].idxmin()]
+        unique_coms = np.take(my_coms, new_df.index, axis=0)
+        unique_energies = np.take(my_energies, new_df.index, axis=0)
+        return unique_coms, unique_energies
+
+    def get_unique_com_till_N(self, N: int, energy_type: str = "Potential", atom_selection=None):
+        coms, ens = self.get_unique_com(energy_type=energy_type, atom_selection=atom_selection)
+        return coms[:N], ens[:N]

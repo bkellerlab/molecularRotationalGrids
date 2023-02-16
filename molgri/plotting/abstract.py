@@ -222,25 +222,29 @@ class MultiRepresentationCollection(ABC):
     ##################################################################################################################
 
     def _make_plot_for_all(self, plotting_method: str, all_ax: NDArray = None, plotting_kwargs: dict = None,
-                           remove_midlabels: bool = True, projection: str = None):
+                           remove_midlabels: bool = True, projection: str = None, creation_kwargs: dict = None):
         """This method should be run in all sub-modules to set-up the axes"""
         if plotting_kwargs is None:
             plotting_kwargs = dict()
+        if creation_kwargs is None:
+            plotting_kwargs = dict()
         _set_style_and_context(context=self.list_plots[0].context, color_style=self.list_plots[0].color_style)
-        self.__create_fig_ax(all_ax=all_ax, projection=projection)
+        self.__create_fig_ax(all_ax=all_ax, projection=projection, **creation_kwargs)
         for ax, subplot in zip(self.all_ax.ravel(), self.list_plots):
             plot_func = getattr(subplot, plotting_method)
             plot_func(fig=self.fig, ax=ax, save=False, **plotting_kwargs)
         if remove_midlabels:
             self.__remove_midlabels()
 
-    def __create_fig_ax(self, all_ax=None, sharex="all", sharey="all", projection=None):
+    def __create_fig_ax(self, all_ax=None, sharex="all", sharey="all", projection=None, figsize=None):
+        if figsize is None:
+            figsize = self.figsize
         if all_ax:
-            self.fig = plt.figure(figsize=self.figsize)
+            self.fig = plt.figure(figsize=figsize)
             self.all_ax = all_ax
         else:
             self.fig, self.all_ax = plt.subplots(self.n_rows, self.n_columns, subplot_kw={'projection': projection},
-                                                 sharex=sharex, sharey=sharey, figsize=self.figsize)
+                                                 sharex=sharex, sharey=sharey, figsize=figsize)
 
     def __remove_midlabels(self):
         if not isinstance(self.all_ax[0], Axes3D):
@@ -310,7 +314,7 @@ class MultiRepresentationCollection(ABC):
                 y_lim[1] = subaxis.get_ylim()[1]
             if isinstance(subaxis, Axes3D) and subaxis.get_zlim()[0] < z_lim[0]:
                 z_lim[0] = subaxis.get_zlim()[0]
-            if isinstance(subaxis, Axes3D) and subaxis.z_lim[1] > z_lim[1]:
+            if isinstance(subaxis, Axes3D) and subaxis.get_zlim()[1] > z_lim[1]:
                 z_lim[1] = subaxis.get_zlim()[1]
         # change them all
         for i, subaxis in enumerate(self.all_ax.ravel()):
@@ -339,32 +343,35 @@ class MultiRepresentationCollection(ABC):
         anim.save(f"{ani_path}{self.data_name}_{plot_type}.gif", writer=writergif, dpi=400)
         return anim
 
-    # def add_colorbar(self, cbar_kwargs):
-    #     #orientation = cbar_kwargs.pop("orientation", "horizontal")
-    #     #cbar_label = cbar_kwargs.pop("cbar_label", None)
-    #     # for plot in self.list_plots:
-    #     #     cmap = plot.cmap
-    #     # print(images)
-    #     # cbar = self.fig.colorbar()
-    #     # norm = matplotlib.colors.Normalize(vmin=0, vmax=2)
-    #     # sm = plt.cm.ScalarMappable(cmap=cmap, norm=norm)
-    #     # sm.set_array([])
-    #     # self.fig.colorbar(sm, ticks=np.linspace(0, 2, 10),
-    #     #              boundaries=np.arange(-0.05, 2.1, .1), ax=self.all_ax.ravel().tolist())
-    #     # if orientation == "horizontal":
-    #     #     pos = self.all_ax.ravel()[-1].get_position()
-    #     #     cax = self.fig.add_axes([pos.x0 -0.05, pos.y0 -0.1, 0.3, 0.03])
-    #     #
-    #     # else:
-    #     #     pos = self.all_ax.ravel()[-1].get_position()
-    #     #     cax = self.fig.add_axes([pos.x1 - 1, pos.y0 + 0.0, 0.03, 0.4])
-    #     # cbar = self.fig.colorbar(p, orientation=orientation, pad=0.4, cax=cax)
-    #     # if orientation == "vertical":
-    #     #
-    #     #     cax.yaxis.set_label_position('left')
-    #     # if cbar_label:
-    #     #     cbar.set_label(cbar_label)
+    def add_colorbar(self, **cbar_kwargs):
+        orientation = cbar_kwargs.pop("orientation", "horizontal")
+        cbar_label = cbar_kwargs.pop("cbar_label", None)
+        for ax in self.all_ax.ravel():
+            fc = ax.collections[0].get_fc()
+            print(fc)
+            cmap = ax.collections[0].get_cmap()
+            print(cmap.name)
 
+        plt.set_cmap(cmap.name)
+        # print(images)
+        cbar = self.fig.colorbar()
+        # norm = matplotlib.colors.Normalize(vmin=0, vmax=2)
+        # sm = plt.cm.ScalarMappable(cmap=cmap, norm=norm)
+        # sm.set_array([])
+        # self.fig.colorbar(sm, ticks=np.linspace(0, 2, 10),
+        #              boundaries=np.arange(-0.05, 2.1, .1), ax=self.all_ax.ravel().tolist())
+        # if orientation == "horizontal":
+        #     pos = self.all_ax.ravel()[-1].get_position()
+        #     cax = self.fig.add_axes([pos.x0 -0.05, pos.y0 -0.1, 0.3, 0.03])
+        #
+        # else:
+        #     pos = self.all_ax.ravel()[-1].get_position()
+        #     cax = self.fig.add_axes([pos.x1 - 1, pos.y0 + 0.0, 0.03, 0.4])
+        # cbar = self.fig.colorbar(p, orientation=orientation, pad=0.4, cax=cax)
+        # if orientation == "vertical":
+        #     cax.yaxis.set_label_position('left')
+        # if cbar_label:
+        #     cbar.set_label(cbar_label)
 
 
 

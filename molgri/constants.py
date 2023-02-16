@@ -40,7 +40,7 @@ NAME2PRETTY_NAME = {n: pn for n, pn in zip(GRID_ALGORITHMS, FULL_GRID_ALG_NAMES)
 NAME2SHORT_NAME = {n: pn for n, pn in zip(GRID_ALGORITHMS, SHORT_GRID_ALG_NAMES)}
 ENERGY_TYPES = ("LJ Energy [kJ/mol]", "Dis.corr. [kJ/mol]", "Coulomb [kJ/mol]",
                 "Potential [kJ/mol]")
-ENERGY_NO_UNIT = ("LJ (SR)", "Dis.corr.", "Coulomb (SR)", "Potential")
+ENERGY_NO_UNIT = ("LJ (SR)", "Disper. corr.", "Coulomb (SR)", "Potential")
 ENERGY_SHORT_TYPES = ("LJ", "Dis", "Coulumb", "pot")
 assert len(ENERGY_TYPES) == len(ENERGY_SHORT_TYPES)
 ENERGY_SHORT2FULL = {n: pn for n, pn in zip(ENERGY_SHORT_TYPES, ENERGY_TYPES)}
@@ -65,10 +65,12 @@ TEXT_ALPHAS_3D = [r'$\frac{\pi}{12}$', r'$\frac{\pi}{6}$', r'$\frac{3\pi}{12}$',
 DEFAULT_ALPHAS_4D = DEFAULT_ALPHAS_3D
 TEXT_ALPHAS_4D = TEXT_ALPHAS_3D
 
-EXTENSIONS = ('PSF', 'TOP', 'PRMTOP', 'PARM7', 'PDB', 'ENT', 'XPDB', 'PQR', 'GRO', 'CRD', 'PDBQT', 'DMS',
+EXTENSIONS_STR = ('PSF', 'TOP', 'PRMTOP', 'PARM7', 'PDB', 'ENT', 'XPDB', 'PQR', 'GRO', 'CRD', 'PDBQT', 'DMS',
               'TPR', 'MOL2', 'DATA', 'LAMMPSDUMP', 'XYZ', 'TXYZ', 'ARC', 'GMS', 'CONFIG', 'HISTORY', 'XML',
               'MMTF', 'GSD', 'MINIMAL', 'ITP', 'IN', 'FHIAIMS', 'PARMED', 'RDKIT', 'OPENMMTOPOLOGY',
               'OPENMMAPP')
+EXTENSIONS_TRJ = ("XTC", "TRR", "CHEMFILES", "DCD", "DATA", "TNG", "XYZ", "TXYZ", "ARC", "GSD", "GMS", "PDB", "ENT",
+                  "PDBQT")
 
 # you may add at the end but don't change the order
 CELLS_DF_COLUMNS = ["N points", "Radius [A]", "Voranoi area [A^2]", "Ideal area [A^2]",
