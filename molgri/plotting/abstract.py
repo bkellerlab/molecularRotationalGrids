@@ -1,6 +1,7 @@
 from abc import ABC
 from typing import Union, List, Tuple, Callable
 
+import matplotlib
 import numpy as np
 import seaborn as sns
 from matplotlib import pyplot as plt
@@ -346,15 +347,23 @@ class MultiRepresentationCollection(ABC):
     def add_colorbar(self, **cbar_kwargs):
         orientation = cbar_kwargs.pop("orientation", "horizontal")
         cbar_label = cbar_kwargs.pop("cbar_label", None)
+        all_collections = []
         for ax in self.all_ax.ravel():
-            fc = ax.collections[0].get_fc()
-            print(fc)
+            # this doesn't overwrite, but adds points to the collection!
+            all_collections = ax.collections[0]
+            #print()
+            #print(fc)
             cmap = ax.collections[0].get_cmap()
-            print(cmap.name)
 
-        plt.set_cmap(cmap.name)
-        # print(images)
-        cbar = self.fig.colorbar()
+
+        for ax in self.all_ax.ravel():
+            previous = ax.collections[0].get_fc()[0]
+            # change colors to new cmap
+
+            #print(print("a", ax.collections[0].get_fc()[0]))
+
+        cbar = self.fig.colorbar(all_collections, ax=self.all_ax[-1])
+        #cbar = self.fig.colorbar(all_collections[1], ax=self.all_ax[1])
         # norm = matplotlib.colors.Normalize(vmin=0, vmax=2)
         # sm = plt.cm.ScalarMappable(cmap=cmap, norm=norm)
         # sm.set_array([])

@@ -72,28 +72,7 @@ class TrajectoryPlot(RepresentationCollection):
         if animate_rot and projection == "3d":
             self._animate_figure_view(self.fig, self.ax, f"{save_name}_rotated")
 
-    def make_voranoi_cells_plot(self, ax=None, fig=None, save=True):
-        points = self.parsed_trajectory.get_all_COM(atom_selection=None)
-        svs = voranoi_surfaces_on_stacked_spheres(points)
-        for i, sv in enumerate(svs):
-            sv.sort_vertices_of_regions()
-            t_vals = np.linspace(0, 1, 2000)
-            # plot Voronoi vertices
-            self.ax.scatter(sv.vertices[:, 0], sv.vertices[:, 1], sv.vertices[:, 2], c='g')
-            # indicate Voronoi regions (as Euclidean polygons)
-            for region in sv.regions:
-                n = len(region)
-                for j in range(n):
-                    start = sv.vertices[region][j]
-                    end = sv.vertices[region][(j + 1) % n]
-                    norm = np.linalg.norm(start)
-                    result = geometric_slerp(normalise_vectors(start), normalise_vectors(end), t_vals)
-                    self.ax.plot(norm * result[..., 0], norm * result[..., 1], norm * result[..., 2], c='k')
-
     def make_molecule_plot(self):
-        pass
-
-    def make_convergence_plot(self, method_name, **method_args):
         pass
 
     # kwargs are strictly necessary!
@@ -185,9 +164,9 @@ class ConvergenceMultiCollection(MultiRepresentationCollection):
 
         if dim == 3:
             self.unify_axis_limits()
-            #self.add_colorbar()
-        #if dim == 2:
-        #    self.add_colorbar()
+            self.add_colorbar()
+        if dim == 2:
+            self.add_colorbar()
         if dim == 1:
             self.unify_axis_limits(x_ax=False, y_ax=True)
 

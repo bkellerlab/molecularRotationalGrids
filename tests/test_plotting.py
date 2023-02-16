@@ -19,18 +19,6 @@ from molgri.space.rotobj import SphereGridFactory
 #     expected_df = pd.DataFrame(expected_array, columns=["x", "y", "E"])
 #     assert np.allclose(end_df, expected_df)
 
-
-# def test_everything_runs():
-#     # create the needed file
-#     FullGrid(o_grid_name="cube3D_9", b_grid_name="zero", t_grid_name='range(1, 5, 2)')
-#     PositionGridPlot("position_grid_o_cube3D_9_b_zero_1_t_3203903466", cell_lines=True).create_and_save(
-#         animate_rot=True, animate_seq=True)
-#     # create the needed file
-#     save_voranoi_data_for_alg(alg_name="randomE", N_set=SMALL_NS, radius=1)
-#     VoranoiConvergencePlot("randomE_1_8_300").create_and_save()
-#     create_trajectory_energy_multiplot("H2O_H2O_o_ico_500_b_ico_5_t_3830884671", animate_rot=False)
-#     create_hammer_multiplot("H2O_H2O_o_ico_500_b_ico_5_t_3830884671")
-
 def get_example_pt():
     topology_path = os.path.join(PATH_EXAMPLES, "H2O_H2O_o_ico_500_b_ico_5_t_3830884671.gro")
     trajectory_path = os.path.join(PATH_EXAMPLES, "H2O_H2O_o_ico_500_b_ico_5_t_3830884671.xtc")
@@ -39,6 +27,7 @@ def get_example_pt():
     parser_pt = PtParser(m1_path=water_path, m2_path=water_path, path_topology=topology_path,
                          path_trajectory=trajectory_path, path_energy=energy_path).get_parsed_trajectory()
     return parser_pt
+
 
 def test_polytope_plots():
     for pol in (Cube3DPolytope(), Cube4DPolytope(), IcosahedronPolytope()):
@@ -69,6 +58,7 @@ def test_trajectory_plots():
     pt = get_example_pt()
     TrajectoryPlot(pt).create_all_plots(and_animations=False)
     # TODO: test with a simulated trajectory
+
 
 def test_trajectory_convergence_plots():
     # test with a pseudo-trajectory

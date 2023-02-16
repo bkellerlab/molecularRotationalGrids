@@ -4,6 +4,7 @@ from matplotlib.pyplot import Figure, Axes
 from mpl_toolkits.mplot3d.axes3d import Axes3D
 from matplotlib.animation import FuncAnimation
 from numpy.typing import NDArray
+from scipy.spatial import geometric_slerp
 from seaborn import color_palette
 import networkx as nx
 
@@ -12,9 +13,28 @@ from molgri.constants import DEFAULT_ALPHAS_3D, TEXT_ALPHAS_3D, DEFAULT_ALPHAS_4
 from molgri.plotting.abstract import RepresentationCollection, MultiRepresentationCollection, \
     PanelRepresentationCollection
 from molgri.space.analysis import vector_within_alpha
+from molgri.space.fullgrid import FullGrid
 from molgri.space.polytopes import Polytope, IcosahedronPolytope, Cube3DPolytope, second_neighbours, third_neighbours, \
     PolyhedronFromG, Cube4DPolytope
 from molgri.space.rotobj import SphereGridNDim, SphereGridFactory
+from molgri.space.utils import normalise_vectors
+
+
+def plot_voranoi_cells(sv, ax):
+    sv.sort_vertices_of_regions()
+    t_vals = np.linspace(0, 1, 2000)
+    # plot Voronoi vertices
+    ax.scatter(sv.vertices[:, 0], sv.vertices[:, 1], sv.vertices[:, 2], c='g')
+    # indicate Voronoi regions (as Euclidean polygons)
+    for region in sv.regions:
+        n = len(region)
+        for j in range(n):
+            start = sv.vertices[region][j]
+            end = sv.vertices[region][(j + 1) % n]
+            norm = np.linalg.norm(start)
+            result = geometric_slerp(normalise_vectors(start), normalise_vectors(end), t_vals)
+            ax.plot(norm * result[..., 0], norm * result[..., 1], norm * result[..., 2], c='k')
+
 
 
 class SphereGridPlot(RepresentationCollection):
@@ -51,7 +71,6 @@ class SphereGridPlot(RepresentationCollection):
 
         if save:
             self._save_plot_type("grid")
-        return self.fig, self.ax
 
     def make_grid_colored_with_alpha(self, ax=None, fig=None, central_vector: NDArray = None, save=True):
         if self.sphere_grid.dimensions != 3:
@@ -121,11 +140,28 @@ class SphereGridPlot(RepresentationCollection):
             self.ax.set_xscale("log")
             self.ax.set_yscale("log")
             self._save_plot_type("convergence")
-        return self.fig, self.ax
+
+    def make_spherical_voranoi_plot(self, ax=None, fig=None, save=True, animate_rot=False):
+
+        self._create_fig_ax(fig=fig, ax=ax, projection="3d")
+
+        sv = self.sphere_grid.get_spherical_voranoi_cells()
+        plot_voranoi_cells(sv, self.ax)
+
+        self.ax.view_init(elev=10, azim=30)
+        self._set_axis_limits()
+        self._equalize_axes()
+
+        if save:
+            self._save_plot_type("sph_voranoi")
+        if animate_rot:
+            self._animate_figure_view(self.fig, self.ax, f"sph_voranoi_rotated")
+
+
 
     def make_rot_animation(self):
-        fig, ax = self.make_grid_plot(save=False)
-        self._animate_figure_view(fig, ax)
+        self.make_grid_plot(save=False)
+        self._animate_figure_view(self.fig, self.ax)
 
     def make_ordering_animation(self):
         self.make_grid_plot(save=True)
@@ -407,8 +443,61 @@ class PanelSphereGridPlots(PanelRepresentationCollection):
         self._save_multiplot("uniformity")
 
 
+class FullGridPlot(RepresentationCollection):
+
+    def __init__(self, full_grid: FullGrid):
+        self.full_grid = full_grid
+        data_name = self.full_grid.get_full_grid_name()
+        super().__init__(data_name)
+
+    def make_position_plot(self, ax=None, fig=None, save=True, animate_rot=False):
+        self._create_fig_ax(fig=fig, ax=ax, projection="3d")
+
+        points = self.full_grid.get_position_grid()
+        self.ax.scatter(*points.T, color="black", s=30)
+
+        self.ax.view_init(elev=10, azim=30)
+        self._set_axis_limits()
+        self._equalize_axes()
+
+        if save:
+            self._save_plot_type("position")
+        if animate_rot:
+            self._animate_figure_view(self.fig, self.ax, f"position_rotated")
+
+    def make_full_voranoi_plot(self, ax=None, fig=None, save=True, animate_rot=False):
+        self._create_fig_ax(fig=fig, ax=ax, projection="3d")
+
+        origin = np.zeros((3,))
+
+        voranoi_disc = self.full_grid.get_voranoi_discretisation()
+
+        for i, sv in enumerate(voranoi_disc):
+            plot_voranoi_cells(sv, self.ax)
+            # plot rays from origin to highest level
+            if i == len(voranoi_disc)-1:
+                for vertex in sv.vertices:
+                    ray_line = np.concatenate((origin[:, np.newaxis], vertex[:, np.newaxis]), axis=1)
+                    self.ax.plot(*ray_line, color="black")
+
+        self.ax.view_init(elev=10, azim=30)
+        self._set_axis_limits()
+        self._equalize_axes()
+
+        if save:
+            self._save_plot_type("full_voranoi")
+        if animate_rot:
+            self._animate_figure_view(self.fig, self.ax, f"full_voranoi_rotated")
+
+
 if __name__ == "__main__":
-    for pol in (Cube3DPolytope(), Cube4DPolytope(), IcosahedronPolytope()):
-        pol.divide_edges()
-        pp = PolytopePlot(pol)
-        pp.create_all_plots()
+    # sgf = SphereGridFactory.create("ico", 45, dimensions=3)
+    # sgp = SphereGridPlot(sgf)
+    # sgp.make_grid_plot(save=False)
+    # sgp.make_spherical_voranoi_plot(ax=sgp.ax, fig=sgp.fig, animate_rot=True)
+
+    fg = FullGrid(o_grid_name="ico_12", b_grid_name="cube4D_7", t_grid_name="[1, 3]")
+    fg.get_division_area(0, 1)
+    fgp = FullGridPlot(fg)
+    fgp.make_position_plot(save=False)
+    fgp.make_full_voranoi_plot(ax=fgp.ax, fig=fgp.fig, animate_rot=True)

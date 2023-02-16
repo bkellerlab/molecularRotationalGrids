@@ -5,6 +5,7 @@ import numpy as np
 import pandas as pd
 from numpy.typing import NDArray
 from scipy.constants import pi
+from scipy.spatial import SphericalVoronoi
 from scipy.spatial.transform import Rotation
 
 from molgri.space.analysis import prepare_statistics, write_statistics
@@ -29,6 +30,7 @@ class SphereGridNDim(ABC):
         self.time_generation = time_generation
         self.print_messages = print_messages
         self.grid: NDArray = None
+        self.spherical_voranoi: SphericalVoronoi = None
 
     def __len__(self):
         return self.N
@@ -118,6 +120,12 @@ class SphereGridNDim(ABC):
 
     def get_statistics_path(self, extension) -> str:
         return f"{PATH_OUTPUT_STAT}{self.get_standard_name(with_dim=True)}.{extension}"
+
+    def get_spherical_voranoi_cells(self):
+        assert self.dimensions == 3, "Spherical voranoi cells only available for N=3"
+        if self.spherical_voranoi is None:
+            self.spherical_voranoi = SphericalVoronoi(self.grid, radius=1, threshold=10**-UNIQUE_TOL)
+        return self.spherical_voranoi
 
     ##################################################################################################################
     #                      useful methods
