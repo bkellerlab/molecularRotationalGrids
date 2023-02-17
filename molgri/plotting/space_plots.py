@@ -447,14 +447,19 @@ class FullGridPlot(RepresentationCollection):
 
     def __init__(self, full_grid: FullGrid):
         self.full_grid = full_grid
+        self.full_voranoi_grid = full_grid.get_full_voranoi_grid()
         data_name = self.full_grid.get_full_grid_name()
         super().__init__(data_name)
 
-    def make_position_plot(self, ax=None, fig=None, save=True, animate_rot=False):
+    def make_position_plot(self, ax=None, fig=None, save=True, animate_rot=False, numbered: bool = False):
         self._create_fig_ax(fig=fig, ax=ax, projection="3d")
 
-        points = self.full_grid.get_position_grid()
+        points = self.full_grid.get_flat_position_grid()
         self.ax.scatter(*points.T, color="black", s=30)
+
+        if numbered:
+            for i, point in enumerate(points):
+                self.ax.text(*point, s=f"{i}")
 
         self.ax.view_init(elev=10, azim=30)
         self._set_axis_limits()
@@ -470,7 +475,7 @@ class FullGridPlot(RepresentationCollection):
 
         origin = np.zeros((3,))
 
-        voranoi_disc = self.full_grid.get_voranoi_discretisation()
+        voranoi_disc = self.full_voranoi_grid.get_voranoi_discretisation()
 
         for i, sv in enumerate(voranoi_disc):
             plot_voranoi_cells(sv, self.ax)
@@ -497,7 +502,10 @@ if __name__ == "__main__":
     # sgp.make_spherical_voranoi_plot(ax=sgp.ax, fig=sgp.fig, animate_rot=True)
 
     fg = FullGrid(o_grid_name="ico_12", b_grid_name="cube4D_7", t_grid_name="[1, 3]")
-    fg.get_division_area(0, 1)
+    vertices = fg.get_full_voranoi_grid().find_voranoi_vertices_of_point(5)
+    #fg.get_division_area(0, 1)
     fgp = FullGridPlot(fg)
-    fgp.make_position_plot(save=False)
-    fgp.make_full_voranoi_plot(ax=fgp.ax, fig=fgp.fig, animate_rot=True)
+    fgp.make_full_voranoi_plot(save=False)
+    print(vertices)
+    fgp.ax.scatter(*vertices.T, color="red")
+    fgp.make_position_plot(save=True, numbered=True, ax=fgp.ax, fig=fgp.fig, animate_rot=True)

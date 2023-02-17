@@ -10,7 +10,6 @@ from molgri.molecules.parsers import TranslationParser, GridNameParser
 from molgri.paths import PATH_OUTPUT_FULL_GRIDS
 from molgri.space.utils import norm_per_axis, normalise_vectors, angle_between_vectors
 
-
 class FullGrid:
 
     def __init__(self, b_grid_name: str, o_grid_name: str, t_grid_name: str, use_saved: bool = True):
@@ -71,53 +70,146 @@ class FullGrid:
         return result
 
     def get_flat_position_grid(self):
-        return self.get_position_grid().reshape((-1, 3))
+        pos_grid = self.get_position_grid()
+        pos_grid = np.swapaxes(pos_grid, 0, 1)
+        return pos_grid.reshape((-1, 3))
 
     def save_full_grid(self):
         np.save(f"{PATH_OUTPUT_FULL_GRIDS}position_grid_{self.get_full_grid_name()}", self.get_position_grid())
 
+    def get_full_voranoi_grid(self):
+        return FullVoranoiGrid(self)
+
+
+
+
+
+
+class FullVoranoiGrid:
+
+    def __init__(self, full_grid: FullGrid):
+        self.full_grid = full_grid
+        self.flat_positions = self.full_grid.get_flat_position_grid()
+        self.all_sv = None
+        self.get_voranoi_discretisation()
+
+    def _change_voranoi_radius(self, sv: SphericalVoronoi, new_radius):
+        sv.radius = new_radius
+        sv.vertices = normalise_vectors(sv.vertices, length=new_radius)
+        sv.points = normalise_vectors(sv.points, length=new_radius)
+        # important that it's a copy!
+        return copy(sv)
+
     def get_voranoi_discretisation(self):
+        if self.all_sv is None:
+            unit_sph_voranoi = self.full_grid.o_rotations.get_spherical_voranoi_cells()
+            between_radii = self.full_grid.get_between_radii()
+            self.all_sv = [self._change_voranoi_radius(unit_sph_voranoi, r) for r in between_radii]
+        return self.all_sv
 
-        def change_voranoi_radius(sv: SphericalVoronoi, new_radius):
-            sv.radius = new_radius
-            sv.vertices = normalise_vectors(sv.vertices, length=new_radius)
-            sv.points = normalise_vectors(sv.points, length=new_radius)
-            # important that it's a copy!
-            return copy(sv)
+    def find_voranoi_vertices_of_point(self, point_index: int):
+        my_point = Point(point_index, self)
 
-        unit_sph_voranoi = self.o_rotations.get_spherical_voranoi_cells()
-        between_radii = self.get_between_radii()
-        radius_sph_voranoi = [change_voranoi_radius(unit_sph_voranoi, r) for r in between_radii]
-        return radius_sph_voranoi
+        vertices = my_point.get_vertices()
+        print(vertices)
+        return vertices
 
     def get_division_area(self, index_1: int, index_2: int):
-        positions = self.get_flat_position_grid()
-        all_sv = self.get_voranoi_discretisation()
+        vertices_1 = self.find_voranoi_vertices_of_point(index_1)
+        vertices_2 = self.find_voranoi_vertices_of_point(index_2)
 
-        point_1 = positions[index_1]
-        point_2 = positions[index_2]
-        radius_1 = np.linalg.norm(point_1)
-        radius_2 = np.linalg.norm(point_2)
-        # TODO: determine if neighbours
-        # if at same radius, you need the sideways area
-        if np.allclose(radius_1, radius_2):
-            selected_sv = None
-            for i, sv in enumerate(all_sv):
-                if sv.radius > radius_1:
-                    selected_sv = i
-                    break
-            # if you don't finish with a break, you failed to find sv with sufficient radius
-            else:
-                raise OverflowError("At least one of the points has radius larger than largest SphericalVoranoi")
-            # if this sv is not the smallest, calculate area as the difference of two circle cut-outs
-            theta = angle_between_vectors(all_sv[i].#TODO: find vertices)
-            r_larger = all_sv[i].radius
-            if i != 0:
-                r_smaller = all_sv[i-1].radius
-            else:
-                r_smaller = 0
-            return theta / 2 * (r_larger**2 - r_smaller**2)
-        elif radius_1 > radius_2:
-            # find bottom area of point 1
+        # if they are sideways neighbours
+    #     positions = self.get_flat_position_grid()
+    #     all_sv = self.get_voranoi_discretisation()
+    #
+    #     point_1 = positions[index_1]
+    #     point_2 = positions[index_2]
+    #     radius_1 = np.linalg.norm(point_1)
+    #     radius_2 = np.linalg.norm(point_2)
+    #     # TODO: determine if neighbours
+    #     # determine which sv level is above them
+    #     sv_index_above_1 = None
+    #     sv_index_above_2 = None
+    #
+    #
+    #     # if at same radius, you need the sideways area
+    #     if np.allclose(radius_1, radius_2):
+    #         selected_sv = None
+    #         for i, sv in enumerate(all_sv):
+    #             if sv.radius > radius_1:
+    #                 selected_sv = i
+    #                 break
+    #         # if you don't finish with a break, you failed to find sv with sufficient radius
+    #         else:
+    #             raise OverflowError("At least one of the points has radius larger than largest SphericalVoranoi")
+    #         # calculate area as the difference of two circle cut-outs
+    #         region_point_1 = all_sv[selected_sv].regions[index_1]
+    #         print(region_point_1)
+    #         theta = angle_between_vectors(all_sv[i].#TODO: find vertices)
+    #         r_larger = all_sv[i].radius
+    #         if i != 0:
+    #             r_smaller = all_sv[i-1].radius
+    #         else:
+    #             r_smaller = 0
+    #         return theta / 2 * (r_larger**2 - r_smaller**2)
+    #     elif radius_1 > radius_2:
+    #         # find bottom area of point 1
+    #     else:
+    #         # find bottom area of point 2
+
+
+class Point:
+
+    def __init__(self, index_position_grid, full_sv: FullVoranoiGrid):
+        self.full_sv = full_sv
+        self.index_position_grid = index_position_grid
+        self.point = self.full_sv.flat_positions[index_position_grid]
+        self.d_to_origin = np.linalg.norm(self.point)
+        self.index_radial = self._find_index_radial()
+        self.index_within_sphere = self._find_index_within_sphere()
+
+    def _find_index_radial(self):
+        point_radii = self.full_sv.full_grid.get_radii()
+        for i, dist in enumerate(point_radii):
+            if np.isclose(dist, self.d_to_origin):
+                return i
         else:
-            # find bottom area of point 2
+            raise ValueError("The norm of the point not close to any of the radii.")
+
+    def _find_index_within_sphere(self):
+        radial_index = self.index_radial
+        num_o_rot = self.full_sv.full_grid.o_rotations.N
+        return self.index_position_grid - num_o_rot * radial_index
+
+    def _find_index_sv_above(self):
+        for i, sv in enumerate(self.full_sv.all_sv):
+            if sv.radius > self.d_to_origin:
+                return i
+        else:
+            # the point is outside the largest voranoi sphere
+            return None
+
+    def get_sv_above(self):
+        return self.full_sv.all_sv[self._find_index_sv_above()]
+
+    def get_sv_below(self):
+        index_above = self._find_index_sv_above()
+        if index_above != 0:
+            return self.full_sv.all_sv[index_above-1]
+        else:
+            return None
+
+    def get_vertices(self):
+        sv_above = self.get_sv_above()
+        sv_below = self.get_sv_below()
+
+        regions= sv_above.regions[self.index_within_sphere]
+
+        vertices_above = sv_above.vertices[regions]
+
+        if sv_below is None:
+            vertices_below = np.zeros((1, 3))
+        else:
+            vertices_below = sv_below.vertices[regions]
+
+        return np.concatenate((vertices_above, vertices_below))
