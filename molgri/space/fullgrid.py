@@ -41,8 +41,10 @@ class FullGrid:
 
     def get_between_radii(self):
         radii = self.get_radii()
+        # previous_radii = radii-radii[0]
+        # between_radii = np.cbrt(2*radii**3-previous_radii**3) # equal volume
         increases = self.t_grid.get_increments() / 2
-        return radii+increases
+        return radii + increases
 
     def get_body_rotations(self) -> Rotation:
         return Rotation.from_quat(self.b_rotations.get_grid_as_array())
@@ -80,11 +82,6 @@ class FullGrid:
     def get_full_voranoi_grid(self):
         return FullVoranoiGrid(self)
 
-
-
-
-
-
 class FullVoranoiGrid:
 
     def __init__(self, full_grid: FullGrid):
@@ -111,51 +108,40 @@ class FullVoranoiGrid:
         my_point = Point(point_index, self)
 
         vertices = my_point.get_vertices()
-        print(vertices)
         return vertices
 
     def get_division_area(self, index_1: int, index_2: int):
-        vertices_1 = self.find_voranoi_vertices_of_point(index_1)
-        vertices_2 = self.find_voranoi_vertices_of_point(index_2)
+        point_1 = Point(index_1, self)
+        point_2 = Point(index_2, self)
 
         # if they are sideways neighbours
-    #     positions = self.get_flat_position_grid()
-    #     all_sv = self.get_voranoi_discretisation()
-    #
-    #     point_1 = positions[index_1]
-    #     point_2 = positions[index_2]
-    #     radius_1 = np.linalg.norm(point_1)
-    #     radius_2 = np.linalg.norm(point_2)
-    #     # TODO: determine if neighbours
-    #     # determine which sv level is above them
-    #     sv_index_above_1 = None
-    #     sv_index_above_2 = None
-    #
-    #
-    #     # if at same radius, you need the sideways area
-    #     if np.allclose(radius_1, radius_2):
-    #         selected_sv = None
-    #         for i, sv in enumerate(all_sv):
-    #             if sv.radius > radius_1:
-    #                 selected_sv = i
-    #                 break
-    #         # if you don't finish with a break, you failed to find sv with sufficient radius
-    #         else:
-    #             raise OverflowError("At least one of the points has radius larger than largest SphericalVoranoi")
-    #         # calculate area as the difference of two circle cut-outs
-    #         region_point_1 = all_sv[selected_sv].regions[index_1]
-    #         print(region_point_1)
-    #         theta = angle_between_vectors(all_sv[i].#TODO: find vertices)
-    #         r_larger = all_sv[i].radius
-    #         if i != 0:
-    #             r_smaller = all_sv[i-1].radius
-    #         else:
-    #             r_smaller = 0
-    #         return theta / 2 * (r_larger**2 - r_smaller**2)
-    #     elif radius_1 > radius_2:
-    #         # find bottom area of point 1
-    #     else:
-    #         # find bottom area of point 2
+        if np.isclose(point_1.d_to_origin, point_2.d_to_origin):
+            # vertices_above
+            vertices_1a = point_1.get_vertices_above()
+            vertices_2a = point_2.get_vertices_above()
+            r_larger = np.linalg.norm(vertices_1a[0])
+            set_vertices_1a = set([tuple(v) for v in vertices_1a])
+            set_vertices_2a = set([tuple(v) for v in vertices_2a])
+            intersection_a = set_vertices_1a.intersection(set_vertices_2a)
+            # vertices below
+            vertices_1b = point_1.get_vertices_below()
+            r_smaller = np.linalg.norm(vertices_1b[0])
+            if len(intersection_a) != 2:
+                print(f"Points {index_1} and {index_2} are not neighbours.")
+                return
+            else:
+                intersection_list = list(intersection_a)
+                theta = angle_between_vectors(np.array(intersection_list[0]), np.array(intersection_list[1]))
+                return theta / 2 * (r_larger ** 2 - r_smaller ** 2)
+        # if point_1 right above point_2
+        # both points on the same ray
+        if np.allclose(point_1.get_normalised_point(), point_2.get_normalised_point()):
+            if point_1.index_radial == point_2.index_radial + 1:
+                return point_2.get_area_above()
+            elif point_2.index_radial == point_1.index_radial + 1:
+                return point_1.get_area_above()
+        print(f"Points {index_1} and {index_2} are not neighbours.")
+        return
 
 
 class Point:
@@ -167,6 +153,9 @@ class Point:
         self.d_to_origin = np.linalg.norm(self.point)
         self.index_radial = self._find_index_radial()
         self.index_within_sphere = self._find_index_within_sphere()
+
+    def get_normalised_point(self):
+        return normalise_vectors(self.point, length=1)
 
     def _find_index_radial(self):
         point_radii = self.full_sv.full_grid.get_radii()
@@ -199,17 +188,30 @@ class Point:
         else:
             return None
 
-    def get_vertices(self):
+    def get_area_above(self):
         sv_above = self.get_sv_above()
-        sv_below = self.get_sv_below()
+        areas = sv_above.calculate_areas()
+        return areas[self.index_within_sphere]
 
-        regions= sv_above.regions[self.index_within_sphere]
-
+    def get_vertices_above(self):
+        sv_above = self.get_sv_above()
+        regions = sv_above.regions[self.index_within_sphere]
         vertices_above = sv_above.vertices[regions]
+        return vertices_above
+
+    def get_vertices_below(self):
+        sv_below = self.get_sv_below()
 
         if sv_below is None:
             vertices_below = np.zeros((1, 3))
         else:
+            regions = sv_below.regions[self.index_within_sphere]
             vertices_below = sv_below.vertices[regions]
+
+        return vertices_below
+
+    def get_vertices(self):
+        vertices_above = self.get_vertices_above()
+        vertices_below = self.get_vertices_below()
 
         return np.concatenate((vertices_above, vertices_below))

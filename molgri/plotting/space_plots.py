@@ -20,11 +20,12 @@ from molgri.space.rotobj import SphereGridNDim, SphereGridFactory
 from molgri.space.utils import normalise_vectors
 
 
-def plot_voranoi_cells(sv, ax):
+def plot_voranoi_cells(sv, ax, plot_vertex_points=True):
     sv.sort_vertices_of_regions()
     t_vals = np.linspace(0, 1, 2000)
     # plot Voronoi vertices
-    ax.scatter(sv.vertices[:, 0], sv.vertices[:, 1], sv.vertices[:, 2], c='g')
+    if plot_vertex_points:
+        ax.scatter(sv.vertices[:, 0], sv.vertices[:, 1], sv.vertices[:, 2], c='g')
     # indicate Voronoi regions (as Euclidean polygons)
     for region in sv.regions:
         n = len(region)
@@ -470,7 +471,7 @@ class FullGridPlot(RepresentationCollection):
         if animate_rot:
             self._animate_figure_view(self.fig, self.ax, f"position_rotated")
 
-    def make_full_voranoi_plot(self, ax=None, fig=None, save=True, animate_rot=False):
+    def make_full_voranoi_plot(self, ax=None, fig=None, save=True, animate_rot=False, plot_vertex_points=True):
         self._create_fig_ax(fig=fig, ax=ax, projection="3d")
 
         origin = np.zeros((3,))
@@ -478,7 +479,7 @@ class FullGridPlot(RepresentationCollection):
         voranoi_disc = self.full_voranoi_grid.get_voranoi_discretisation()
 
         for i, sv in enumerate(voranoi_disc):
-            plot_voranoi_cells(sv, self.ax)
+            plot_voranoi_cells(sv, self.ax, plot_vertex_points=plot_vertex_points)
             # plot rays from origin to highest level
             if i == len(voranoi_disc)-1:
                 for vertex in sv.vertices:
@@ -494,6 +495,19 @@ class FullGridPlot(RepresentationCollection):
         if animate_rot:
             self._animate_figure_view(self.fig, self.ax, f"full_voranoi_rotated")
 
+    def make_point_vertices_plot(self, point_index: int, ax=None, fig=None, save=True, animate_rot=False):
+        self.make_full_voranoi_plot(ax=ax, fig=fig, save=False, plot_vertex_points=False)
+        fgp.make_position_plot(save=False, numbered=True, ax=self.ax, fig=self.fig)
+
+        vertices = self.full_voranoi_grid.find_voranoi_vertices_of_point(point_index)
+        self.ax.scatter(*vertices.T, color="red")
+
+        save_name = f"vertices_of_{point_index}"
+        if save:
+            self._save_plot_type(save_name)
+        if animate_rot:
+            self._animate_figure_view(self.fig, self.ax, save_name)
+
 
 if __name__ == "__main__":
     # sgf = SphereGridFactory.create("ico", 45, dimensions=3)
@@ -502,10 +516,17 @@ if __name__ == "__main__":
     # sgp.make_spherical_voranoi_plot(ax=sgp.ax, fig=sgp.fig, animate_rot=True)
 
     fg = FullGrid(o_grid_name="ico_12", b_grid_name="cube4D_7", t_grid_name="[1, 3]")
-    vertices = fg.get_full_voranoi_grid().find_voranoi_vertices_of_point(5)
+
     #fg.get_division_area(0, 1)
     fgp = FullGridPlot(fg)
-    fgp.make_full_voranoi_plot(save=False)
-    print(vertices)
-    fgp.ax.scatter(*vertices.T, color="red")
-    fgp.make_position_plot(save=True, numbered=True, ax=fgp.ax, fig=fgp.fig, animate_rot=True)
+    print(fg.get_full_voranoi_grid().get_division_area(0, 1))
+    print(fg.get_full_voranoi_grid().get_division_area(0, 6))
+    print(fg.get_full_voranoi_grid().get_division_area(13, 23))
+    print(fg.get_full_voranoi_grid().get_division_area(13, 19))
+    print(fg.get_full_voranoi_grid().get_division_area(14, 2))
+    print(fg.get_full_voranoi_grid().get_division_area(14, 1))
+    fgp.make_point_vertices_plot(21, animate_rot=True)
+    #fgp.make_full_voranoi_plot(save=False)
+    #print(vertices)
+    #fgp.ax.scatter(*vertices.T, color="red")
+    #fgp.make_position_plot(save=True, numbered=True, ax=fgp.ax, fig=fgp.fig, animate_rot=True)
