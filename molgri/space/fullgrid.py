@@ -10,6 +10,7 @@ from molgri.molecules.parsers import TranslationParser, GridNameParser
 from molgri.paths import PATH_OUTPUT_FULL_GRIDS
 from molgri.space.utils import norm_per_axis, normalise_vectors, angle_between_vectors
 
+
 class FullGrid:
 
     def __init__(self, b_grid_name: str, o_grid_name: str, t_grid_name: str, use_saved: bool = True):
@@ -81,6 +82,7 @@ class FullGrid:
 
     def get_full_voranoi_grid(self):
         return FullVoranoiGrid(self)
+
 
 class FullVoranoiGrid:
 

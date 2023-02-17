@@ -12,7 +12,7 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 import pandas as pd
 
-from molgri.space.fullgrid import FullGrid
+#from molgri.space.fullgrid import FullGrid
 from molgri.space.utils import norm_per_axis, normalise_vectors
 from molgri.constants import CELLS_DF_COLUMNS, EXTENSION_FIGURES, NAME2PRETTY_NAME, DEFAULT_DPI, \
     GRID_ALGORITHMS, COLORS, SMALL_NS, UNIQUE_TOL
@@ -87,66 +87,66 @@ def voranoi_surfaces_on_stacked_spheres(points: NDArray) -> list:
     return result
 
 
-def plot_voranoi_convergence(N_min, N_max, r, algs=GRID_ALGORITHMS[:-1]):
-    sns.set_context("talk")
-    colors = COLORS
-    fig, ax = plt.subplots(2, 3, sharex="all", figsize=(20, 16))
-    for plot_num in range(len(algs)):
-        N_points = CELLS_DF_COLUMNS[0]
-        voranoi_areas = CELLS_DF_COLUMNS[2]
-        ideal_areas = CELLS_DF_COLUMNS[3]
-        current_ax = ax.ravel()[plot_num]
-        voranoi_df = pd.read_csv(f"{PATH_OUTPUT_CELLS}{algs[plot_num]}_{r}_{N_min}_{N_max}.csv")
-        sns.lineplot(data=voranoi_df, x=N_points, y=voranoi_areas, errorbar="sd", color=colors[plot_num], ax=current_ax)
-        sns.scatterplot(data=voranoi_df, x=N_points, y=voranoi_areas, alpha=0.8, color="black", ax=current_ax, s=1)
-        sns.scatterplot(data=voranoi_df, x=N_points, y=ideal_areas, color="black", marker="x", ax=current_ax)
-        # ax[plot_num].set_yscale('log')
-        current_ax.set_xscale('log')
-        current_ax.set_ylim(0.01, 2)
-        current_ax.set_title(f"{NAME2PRETTY_NAME[algs[plot_num]]}")
-    plt.savefig(f"{PATH_OUTPUT_PLOTS}areas_{r}_{N_min}_{N_max}.{EXTENSION_FIGURES}", dpi=DEFAULT_DPI)
-    plt.close()
-
-
-def save_voranoi_data_for_alg(alg_name: str, N_set: tuple = SMALL_NS, radius: float = 1):
-    """
-
-    Args:
-        alg_name: name of the used algorithm
-        N_set: sorted list of points used foor calculating Voranoi areas
-        radius: radius of the sphere on which the tesselation takes place
-
-    Returns:
-
-    """
-    assert alg_name in GRID_ALGORITHMS, f"Name of the algorithm: {alg_name} is unknown."
-    assert radius > 0, f"Radius must be a positive float, unrecognised argument: {radius}."
-    all_voranoi_areas = np.zeros((np.sum(N_set), len(CELLS_DF_COLUMNS)))
-    current_index = 0
-
-    for i, N in enumerate(N_set):
-        t1_grid = time()
-        pg = FullGrid(b_grid_name="none", o_grid_name=f"{alg_name}_{N}",
-                      t_grid_name=f"[{radius / 10}]").get_position_grid()
-        pg = np.swapaxes(pg, 0, 1)[0]
-        t2_grid = time()
-        grid_time = t2_grid - t1_grid
-        try:
-            t1 = time()
-            r, voranoi_areas = surface_per_cell_voranoi(pg)
-            t2 = time()
-            tesselation_time = t2 - t1
-        # miss a point but still save the rest of the data
-        # TODO: deal with duplicate generators issue
-        except ValueError:
-            r, voranoi_areas = np.NaN, np.full(N, np.NaN)
-            tesselation_time = np.NaN
-        all_voranoi_areas[current_index:current_index + N, 0] = N
-        all_voranoi_areas[current_index:current_index + N, 1] = radius
-        all_voranoi_areas[current_index:current_index + N, 2] = voranoi_areas
-        all_voranoi_areas[current_index:current_index + N, 3] = surface_per_cell_ideal(N, radius)
-        all_voranoi_areas[current_index:current_index + N, 4] = grid_time
-        all_voranoi_areas[current_index:current_index + N, 5] = tesselation_time
-        current_index += N
-    voranoi_df = pd.DataFrame(data=all_voranoi_areas, columns=CELLS_DF_COLUMNS)
-    voranoi_df.to_csv(f"{PATH_OUTPUT_CELLS}{alg_name}_{int(radius)}_{N_set[0]}_{N_set[-1]}.csv", encoding="utf-8")
+# def plot_voranoi_convergence(N_min, N_max, r, algs=GRID_ALGORITHMS[:-1]):
+#     sns.set_context("talk")
+#     colors = COLORS
+#     fig, ax = plt.subplots(2, 3, sharex="all", figsize=(20, 16))
+#     for plot_num in range(len(algs)):
+#         N_points = CELLS_DF_COLUMNS[0]
+#         voranoi_areas = CELLS_DF_COLUMNS[2]
+#         ideal_areas = CELLS_DF_COLUMNS[3]
+#         current_ax = ax.ravel()[plot_num]
+#         voranoi_df = pd.read_csv(f"{PATH_OUTPUT_CELLS}{algs[plot_num]}_{r}_{N_min}_{N_max}.csv")
+#         sns.lineplot(data=voranoi_df, x=N_points, y=voranoi_areas, errorbar="sd", color=colors[plot_num], ax=current_ax)
+#         sns.scatterplot(data=voranoi_df, x=N_points, y=voranoi_areas, alpha=0.8, color="black", ax=current_ax, s=1)
+#         sns.scatterplot(data=voranoi_df, x=N_points, y=ideal_areas, color="black", marker="x", ax=current_ax)
+#         # ax[plot_num].set_yscale('log')
+#         current_ax.set_xscale('log')
+#         current_ax.set_ylim(0.01, 2)
+#         current_ax.set_title(f"{NAME2PRETTY_NAME[algs[plot_num]]}")
+#     plt.savefig(f"{PATH_OUTPUT_PLOTS}areas_{r}_{N_min}_{N_max}.{EXTENSION_FIGURES}", dpi=DEFAULT_DPI)
+#     plt.close()
+#
+#
+# def save_voranoi_data_for_alg(alg_name: str, N_set: tuple = SMALL_NS, radius: float = 1):
+#     """
+#
+#     Args:
+#         alg_name: name of the used algorithm
+#         N_set: sorted list of points used foor calculating Voranoi areas
+#         radius: radius of the sphere on which the tesselation takes place
+#
+#     Returns:
+#
+#     """
+#     assert alg_name in GRID_ALGORITHMS, f"Name of the algorithm: {alg_name} is unknown."
+#     assert radius > 0, f"Radius must be a positive float, unrecognised argument: {radius}."
+#     all_voranoi_areas = np.zeros((np.sum(N_set), len(CELLS_DF_COLUMNS)))
+#     current_index = 0
+#
+#     for i, N in enumerate(N_set):
+#         t1_grid = time()
+#         pg = FullGrid(b_grid_name="none", o_grid_name=f"{alg_name}_{N}",
+#                       t_grid_name=f"[{radius / 10}]").get_position_grid()
+#         pg = np.swapaxes(pg, 0, 1)[0]
+#         t2_grid = time()
+#         grid_time = t2_grid - t1_grid
+#         try:
+#             t1 = time()
+#             r, voranoi_areas = surface_per_cell_voranoi(pg)
+#             t2 = time()
+#             tesselation_time = t2 - t1
+#         # miss a point but still save the rest of the data
+#         # TODO: deal with duplicate generators issue
+#         except ValueError:
+#             r, voranoi_areas = np.NaN, np.full(N, np.NaN)
+#             tesselation_time = np.NaN
+#         all_voranoi_areas[current_index:current_index + N, 0] = N
+#         all_voranoi_areas[current_index:current_index + N, 1] = radius
+#         all_voranoi_areas[current_index:current_index + N, 2] = voranoi_areas
+#         all_voranoi_areas[current_index:current_index + N, 3] = surface_per_cell_ideal(N, radius)
+#         all_voranoi_areas[current_index:current_index + N, 4] = grid_time
+#         all_voranoi_areas[current_index:current_index + N, 5] = tesselation_time
+#         current_index += N
+#     voranoi_df = pd.DataFrame(data=all_voranoi_areas, columns=CELLS_DF_COLUMNS)
+#     voranoi_df.to_csv(f"{PATH_OUTPUT_CELLS}{alg_name}_{int(radius)}_{N_set[0]}_{N_set[-1]}.csv", encoding="utf-8")

@@ -9,8 +9,9 @@ from scipy.spatial import SphericalVoronoi
 from scipy.spatial.transform import Rotation
 
 from molgri.space.analysis import prepare_statistics, write_statistics
+from molgri.space.cells import surface_per_cell_ideal
 from molgri.space.utils import random_quaternions, standardise_quaternion_set
-from molgri.constants import UNIQUE_TOL, EXTENSION_GRID_FILES, NAME2PRETTY_NAME
+from molgri.constants import UNIQUE_TOL, EXTENSION_GRID_FILES, NAME2PRETTY_NAME, SMALL_NS
 from molgri.paths import PATH_OUTPUT_ROTGRIDS, PATH_OUTPUT_STAT
 from molgri.space.polytopes import Cube4DPolytope, IcosahedronPolytope, Cube3DPolytope, Polytope
 from molgri.space.rotations import grid2rotation, rotation2grid4vector
@@ -126,6 +127,10 @@ class SphereGridNDim(ABC):
         if self.spherical_voranoi is None:
             self.spherical_voranoi = SphericalVoronoi(self.grid, radius=1, threshold=10**-UNIQUE_TOL)
         return self.spherical_voranoi
+
+    def get_voranoi_areas(self):
+        sv = self.get_spherical_voranoi_cells()
+        return sv.calculate_areas()
 
     ##################################################################################################################
     #                      useful methods
@@ -343,3 +348,37 @@ class SphereGridFactory:
             raise ValueError(f"The algorithm {alg_name} not familiar to QuaternionGridFactory.")
         selected_sub_obj.gen_grid()
         return selected_sub_obj
+
+
+class ConvergenceSphereGridFactory:
+
+    def __init__(self, alg_name: str, dimensions: int, N_set = None, **kwargs):
+        if N_set is None:
+            N_set = SMALL_NS
+        self.N_set = N_set
+        self.alg_name = alg_name
+        self.dimensions = dimensions
+        self.list_sphere_grids = self.create(alg_name, dimensions, self.N_set, **kwargs)
+
+    def get_name(self):
+        return f"convergence_{self.alg_name}_{self.dimensions}d"
+
+    @classmethod
+    def create(cls, alg_name, dimensions, N_set, **kwargs) -> list:
+        list_sphere_grids = []
+        for N in N_set:
+            sg = SphereGridFactory.create(alg_name, N, dimensions, **kwargs)
+            list_sphere_grids.append(sg)
+        return list_sphere_grids
+
+    def get_spherical_voranoi_areas(self):
+        data = []
+        for N, sg in zip(self.N_set, self.list_sphere_grids):
+            ideal_area = surface_per_cell_ideal(N, r=1)
+            real_areas = sg.get_voranoi_areas()
+            for area in real_areas:
+                data.append([N, ideal_area, area])
+        df = pd.DataFrame(data, columns=["N", "ideal area", "sph. Voronoi cell area"])
+        return df
+
+
