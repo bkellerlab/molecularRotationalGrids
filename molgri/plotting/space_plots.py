@@ -447,7 +447,7 @@ class ConvergenceSphereGridPlot(RepresentationCollection):
         self.convergence_sph_grid = convergence_sph_grid
         super().__init__(self.convergence_sph_grid.get_name())
 
-    def make_voranoi_area_conv_plot(self, ax=None, fig=None, save=True):
+    def make_voronoi_area_conv_plot(self, ax=None, fig=None, save=True):
 
         self._create_fig_ax(fig=fig, ax=ax)
 
@@ -455,7 +455,6 @@ class ConvergenceSphereGridPlot(RepresentationCollection):
         sns.lineplot(data=voranoi_df, x="N", y="sph. Voronoi cell area", errorbar="sd", ax=self.ax)
         sns.scatterplot(data=voranoi_df, x="N", y="sph. Voronoi cell area", alpha=0.8, color="black", ax=self.ax, s=1)
         sns.scatterplot(data=voranoi_df, x="N", y="ideal area", color="black", marker="x", ax=self.ax)
-
 
         if save:
             self.ax.set_xscale("log")
@@ -473,12 +472,13 @@ class PanelConvergenceSphereGridPlots(PanelRepresentationCollection):
         data_name = f"all_convergence_{dim}d"
         super().__init__(data_name, list_plots, **kwargs)
 
-    def make_all_voranoi_area_plots(self):
-        self._make_plot_for_all("make_voronoi_area_conv_plo")
+    def make_all_voronoi_area_plots(self, save=True):
+        self._make_plot_for_all("make_voronoi_area_conv_plot")
         self.add_titles(list_titles=[subplot.get_possible_title() for subplot in self.list_plots])
         self.set_log_scale(x_axis=True, y_axis=False)
         self.unify_axis_limits()
-        self._save_multiplot("voronoi_area")
+        if save:
+            self._save_multiplot("voronoi_area")
 
 
 class FullGridPlot(RepresentationCollection):
@@ -508,7 +508,7 @@ class FullGridPlot(RepresentationCollection):
         if animate_rot:
             self._animate_figure_view(self.fig, self.ax, f"position_rotated")
 
-    def make_full_voranoi_plot(self, ax=None, fig=None, save=True, animate_rot=False, plot_vertex_points=True):
+    def make_full_voronoi_plot(self, ax=None, fig=None, save=True, animate_rot=False, plot_vertex_points=True):
         self._create_fig_ax(fig=fig, ax=ax, projection="3d")
 
         origin = np.zeros((3,))
@@ -533,7 +533,7 @@ class FullGridPlot(RepresentationCollection):
             self._animate_figure_view(self.fig, self.ax, f"full_voronoi_rotated")
 
     def make_point_vertices_plot(self, point_index: int, ax=None, fig=None, save=True, animate_rot=False):
-        self.make_full_voranoi_plot(ax=ax, fig=fig, save=False, plot_vertex_points=False)
+        self.make_full_voronoi_plot(ax=ax, fig=fig, save=False, plot_vertex_points=False)
         self.make_position_plot(save=False, numbered=True, ax=self.ax, fig=self.fig)
 
         vertices = self.full_voranoi_grid.find_voranoi_vertices_of_point(point_index)
@@ -556,7 +556,7 @@ if __name__ == "__main__":
 
     #fg.get_division_area(0, 1)
     #fgp = FullGridPlot(fg)
-    #fgp.make_full_voranoi_plot(save=False)
+    #fgp.make_full_voronoi_plot(save=False)
     #print(vertices)
     #fgp.ax.scatter(*vertices.T, color="red")
     #fgp.make_position_plot(save=True, numbered=True, ax=fgp.ax, fig=fgp.fig, animate_rot=True)
@@ -564,4 +564,4 @@ if __name__ == "__main__":
     # csgf = ConvergenceSphereGridFactory("ico", 3)
     # ConvergenceSphereGridPlot(csgf).make_voranoi_area_conv_plot()
 
-    PanelConvergenceSphereGridPlots().make_all_voranoi_area_plots()
+    PanelConvergenceSphereGridPlots().make_all_voronoi_area_plots()

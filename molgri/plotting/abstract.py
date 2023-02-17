@@ -228,7 +228,7 @@ class MultiRepresentationCollection(ABC):
         if plotting_kwargs is None:
             plotting_kwargs = dict()
         if creation_kwargs is None:
-            plotting_kwargs = dict()
+            creation_kwargs = dict()
         _set_style_and_context(context=self.list_plots[0].context, color_style=self.list_plots[0].color_style)
         self.__create_fig_ax(all_ax=all_ax, projection=projection, **creation_kwargs)
         for ax, subplot in zip(self.all_ax.ravel(), self.list_plots):

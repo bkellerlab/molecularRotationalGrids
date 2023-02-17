@@ -5,69 +5,8 @@ from numpy.typing import ArrayLike
 
 from molgri.constants import CELLS_DF_COLUMNS
 from molgri.molecules.parsers import XVGParser
-from molgri.paths import PATH_OUTPUT_CELLS, PATH_INPUT_ENERGIES
+from molgri.paths import PATH_INPUT_ENERGIES
 from molgri.plotting.abstract import RepresentationCollection
-
-
-class VoranoiConvergencePlot(RepresentationCollection):
-
-    def __init__(self, data_name: str, style_type=None, plot_type="areas"):
-        super().__init__(data_name, dimensions=2, style_type=style_type, plot_type=plot_type)
-
-    def _prepare_data(self) -> object:
-        return pd.read_csv(f"{PATH_OUTPUT_CELLS}{self.data_name}.csv")
-
-    def _plot_data(self, color=None, **kwargs):
-        N_points = CELLS_DF_COLUMNS[0]
-        voranoi_areas = CELLS_DF_COLUMNS[2]
-        ideal_areas = CELLS_DF_COLUMNS[3]
-        time = CELLS_DF_COLUMNS[4]
-        voranoi_df = self._prepare_data()
-        sns.lineplot(data=voranoi_df, x=N_points, y=voranoi_areas, errorbar="sd", color=color, ax=self.ax)
-        sns.scatterplot(data=voranoi_df, x=N_points, y=voranoi_areas, alpha=0.8, color="black", ax=self.ax, s=1)
-        sns.scatterplot(data=voranoi_df, x=N_points, y=ideal_areas, color="black", marker="x", ax=self.ax)
-        ax2 = self.ax.twinx()
-        ax2.set_yscale('log')
-        ax2.set_ylim(10**-3, 10**3)
-        sns.lineplot(data=voranoi_df, x=N_points, y=time, color="black", ax=ax2)
-
-    def create(self, *args, **kwargs):
-        super().create(*args, **kwargs)
-        self.ax.set_xscale('log')
-
-
-class EnergyConvergencePlot(RepresentationCollection):
-
-    def __init__(self, data_name: str, test_Ns=None, property_name="Potential", no_convergence=False,
-                 plot_type="energy_convergence", **kwargs):
-        self.test_Ns = test_Ns
-        self.property_name = property_name
-        self.unit = None
-        self.no_convergence = no_convergence
-        super().__init__(data_name, plot_type=plot_type, **kwargs)
-
-    def _prepare_data(self) -> pd.DataFrame:
-        file_name = f"{PATH_INPUT_ENERGIES}{self.data_name}"
-        file_parsed = XVGParser(file_name)
-        self.property_name, correct_column = file_parsed.get_column_index_by_name(self.property_name)
-        self.unit = file_parsed.get_y_unit()
-        df = pd.DataFrame(file_parsed.all_values[:, correct_column], columns=[self.property_name])
-        # select points that fall within each entry in test_Ns
-        self.test_Ns = test_or_create_Ns(len(df), self.test_Ns)
-        if self.no_convergence:
-            self.test_Ns = [self.test_Ns[-1]]
-        points_up_to_Ns(df, self.test_Ns, target_column=self.property_name)
-        return df
-
-    def _plot_data(self, **kwargs):
-        df = self._prepare_data()
-        new_column_names = [f"{i}" for i in self.test_Ns]
-        sns.violinplot(df[new_column_names], ax=self.ax, scale="count", inner="stick", cut=0)
-        self.ax.set_xlabel("N")
-        if self.unit:
-            self.ax.set_ylabel(f"{self.property_name} [{self.unit}]")
-        else:
-            self.ax.set_ylabel(self.property_name)
 
 
 def points_up_to_Ns(df: pd.DataFrame, Ns: ArrayLike, target_column: str):
