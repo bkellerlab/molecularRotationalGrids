@@ -35,7 +35,7 @@ def surface_per_cell_ideal(N: int, r: float):
     return sphere_surface/N
 
 
-def surface_per_cell_voranoi(points: NDArray):
+def surface_per_cell_voronoi(points: NDArray):
     """
     This function requires all points to be on a single sphere with a consistent radius.
 
@@ -45,13 +45,13 @@ def surface_per_cell_voranoi(points: NDArray):
 
     Returns:
         """
-    sv = voranoi_surfaces_on_sphere(points)
+    sv = voronoi_surfaces_on_sphere(points)
     radius = sv.radius
     areas = sv.calculate_areas()
     return radius, areas
 
 
-def voranoi_surfaces_on_sphere(points: NDArray) -> SphericalVoronoi:
+def voronoi_surfaces_on_sphere(points: NDArray) -> SphericalVoronoi:
     """
     This function requires all points to be on a single sphere with a consistent radius.
 
@@ -71,7 +71,7 @@ def voranoi_surfaces_on_sphere(points: NDArray) -> SphericalVoronoi:
     return SphericalVoronoi(points, radius=radius, threshold=10**-UNIQUE_TOL)
 
 
-def voranoi_surfaces_on_stacked_spheres(points: NDArray) -> list:
+def voronoi_surfaces_on_stacked_spheres(points: NDArray) -> list:
     """
     This function deals with all points in position grid
 
@@ -83,23 +83,23 @@ def voranoi_surfaces_on_stacked_spheres(points: NDArray) -> list:
     """
     result = []
     for subarray in points:
-        result.append(voranoi_surfaces_on_sphere(subarray))
+        result.append(voronoi_surfaces_on_sphere(subarray))
     return result
 
 
-# def plot_voranoi_convergence(N_min, N_max, r, algs=GRID_ALGORITHMS[:-1]):
+# def plot_voronoi_convergence(N_min, N_max, r, algs=GRID_ALGORITHMS[:-1]):
 #     sns.set_context("talk")
 #     colors = COLORS
 #     fig, ax = plt.subplots(2, 3, sharex="all", figsize=(20, 16))
 #     for plot_num in range(len(algs)):
 #         N_points = CELLS_DF_COLUMNS[0]
-#         voranoi_areas = CELLS_DF_COLUMNS[2]
+#         voronoi_areas = CELLS_DF_COLUMNS[2]
 #         ideal_areas = CELLS_DF_COLUMNS[3]
 #         current_ax = ax.ravel()[plot_num]
-#         voranoi_df = pd.read_csv(f"{PATH_OUTPUT_CELLS}{algs[plot_num]}_{r}_{N_min}_{N_max}.csv")
-#         sns.lineplot(data=voranoi_df, x=N_points, y=voranoi_areas, errorbar="sd", color=colors[plot_num], ax=current_ax)
-#         sns.scatterplot(data=voranoi_df, x=N_points, y=voranoi_areas, alpha=0.8, color="black", ax=current_ax, s=1)
-#         sns.scatterplot(data=voranoi_df, x=N_points, y=ideal_areas, color="black", marker="x", ax=current_ax)
+#         voronoi_df = pd.read_csv(f"{PATH_OUTPUT_CELLS}{algs[plot_num]}_{r}_{N_min}_{N_max}.csv")
+#         sns.lineplot(data=voronoi_df, x=N_points, y=voronoi_areas, errorbar="sd", color=colors[plot_num], ax=current_ax)
+#         sns.scatterplot(data=voronoi_df, x=N_points, y=voronoi_areas, alpha=0.8, color="black", ax=current_ax, s=1)
+#         sns.scatterplot(data=voronoi_df, x=N_points, y=ideal_areas, color="black", marker="x", ax=current_ax)
 #         # ax[plot_num].set_yscale('log')
 #         current_ax.set_xscale('log')
 #         current_ax.set_ylim(0.01, 2)
@@ -108,12 +108,12 @@ def voranoi_surfaces_on_stacked_spheres(points: NDArray) -> list:
 #     plt.close()
 #
 #
-# def save_voranoi_data_for_alg(alg_name: str, N_set: tuple = SMALL_NS, radius: float = 1):
+# def save_voronoi_data_for_alg(alg_name: str, N_set: tuple = SMALL_NS, radius: float = 1):
 #     """
 #
 #     Args:
 #         alg_name: name of the used algorithm
-#         N_set: sorted list of points used foor calculating Voranoi areas
+#         N_set: sorted list of points used foor calculating voronoi areas
 #         radius: radius of the sphere on which the tesselation takes place
 #
 #     Returns:
@@ -121,7 +121,7 @@ def voranoi_surfaces_on_stacked_spheres(points: NDArray) -> list:
 #     """
 #     assert alg_name in GRID_ALGORITHMS, f"Name of the algorithm: {alg_name} is unknown."
 #     assert radius > 0, f"Radius must be a positive float, unrecognised argument: {radius}."
-#     all_voranoi_areas = np.zeros((np.sum(N_set), len(CELLS_DF_COLUMNS)))
+#     all_voronoi_areas = np.zeros((np.sum(N_set), len(CELLS_DF_COLUMNS)))
 #     current_index = 0
 #
 #     for i, N in enumerate(N_set):
@@ -133,20 +133,20 @@ def voranoi_surfaces_on_stacked_spheres(points: NDArray) -> list:
 #         grid_time = t2_grid - t1_grid
 #         try:
 #             t1 = time()
-#             r, voranoi_areas = surface_per_cell_voranoi(pg)
+#             r, voronoi_areas = surface_per_cell_voronoi(pg)
 #             t2 = time()
 #             tesselation_time = t2 - t1
 #         # miss a point but still save the rest of the data
 #         # TODO: deal with duplicate generators issue
 #         except ValueError:
-#             r, voranoi_areas = np.NaN, np.full(N, np.NaN)
+#             r, voronoi_areas = np.NaN, np.full(N, np.NaN)
 #             tesselation_time = np.NaN
-#         all_voranoi_areas[current_index:current_index + N, 0] = N
-#         all_voranoi_areas[current_index:current_index + N, 1] = radius
-#         all_voranoi_areas[current_index:current_index + N, 2] = voranoi_areas
-#         all_voranoi_areas[current_index:current_index + N, 3] = surface_per_cell_ideal(N, radius)
-#         all_voranoi_areas[current_index:current_index + N, 4] = grid_time
-#         all_voranoi_areas[current_index:current_index + N, 5] = tesselation_time
+#         all_voronoi_areas[current_index:current_index + N, 0] = N
+#         all_voronoi_areas[current_index:current_index + N, 1] = radius
+#         all_voronoi_areas[current_index:current_index + N, 2] = voronoi_areas
+#         all_voronoi_areas[current_index:current_index + N, 3] = surface_per_cell_ideal(N, radius)
+#         all_voronoi_areas[current_index:current_index + N, 4] = grid_time
+#         all_voronoi_areas[current_index:current_index + N, 5] = tesselation_time
 #         current_index += N
-#     voranoi_df = pd.DataFrame(data=all_voranoi_areas, columns=CELLS_DF_COLUMNS)
-#     voranoi_df.to_csv(f"{PATH_OUTPUT_CELLS}{alg_name}_{int(radius)}_{N_set[0]}_{N_set[-1]}.csv", encoding="utf-8")
+#     voronoi_df = pd.DataFrame(data=all_voronoi_areas, columns=CELLS_DF_COLUMNS)
+#     voronoi_df.to_csv(f"{PATH_OUTPUT_CELLS}{alg_name}_{int(radius)}_{N_set[0]}_{N_set[-1]}.csv", encoding="utf-8")

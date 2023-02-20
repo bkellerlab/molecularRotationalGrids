@@ -9,7 +9,8 @@ from matplotlib.animation import FuncAnimation, PillowWriter, Animation
 from matplotlib.pyplot import Figure
 from matplotlib.axes import Axes
 from mpl_toolkits.mplot3d.axes3d import Axes3D
-from numpy._typing import NDArray
+from numpy.typing import NDArray
+from IPython import display
 
 from molgri.constants import DIM_SQUARE, DEFAULT_DPI, EXTENSION_FIGURES, DEFAULT_DPI_MULTI
 from molgri.paths import PATH_OUTPUT_PLOTS, PATH_OUTPUT_ANIS
@@ -394,3 +395,11 @@ class PanelRepresentationCollection(MultiRepresentationCollection):
             n_rows = 3
             n_columns = 2
         super().__init__(data_name, list_plots, n_columns=n_columns, n_rows=n_rows, figsize=figsize)
+
+
+def show_anim_in_jupyter(anim):
+    video = anim.to_html5_video()
+    html = display.HTML(video)
+    display.display(html)
+    # necessary to not create an extra empty window
+    plt.close()

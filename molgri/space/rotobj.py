@@ -31,7 +31,7 @@ class SphereGridNDim(ABC):
         self.time_generation = time_generation
         self.print_messages = print_messages
         self.grid: NDArray = None
-        self.spherical_voranoi: SphericalVoronoi = None
+        self.spherical_voronoi: SphericalVoronoi = None
 
     def __len__(self):
         return self.N
@@ -122,14 +122,14 @@ class SphereGridNDim(ABC):
     def get_statistics_path(self, extension) -> str:
         return f"{PATH_OUTPUT_STAT}{self.get_standard_name(with_dim=True)}.{extension}"
 
-    def get_spherical_voranoi_cells(self):
-        assert self.dimensions == 3, "Spherical voranoi cells only available for N=3"
-        if self.spherical_voranoi is None:
-            self.spherical_voranoi = SphericalVoronoi(self.grid, radius=1, threshold=10**-UNIQUE_TOL)
-        return self.spherical_voranoi
+    def get_spherical_voronoi_cells(self):
+        assert self.dimensions == 3, "Spherical voronoi cells only available for N=3"
+        if self.spherical_voronoi is None:
+            self.spherical_voronoi = SphericalVoronoi(self.grid, radius=1, threshold=10**-UNIQUE_TOL)
+        return self.spherical_voronoi
 
-    def get_voranoi_areas(self):
-        sv = self.get_spherical_voranoi_cells()
+    def get_voronoi_areas(self):
+        sv = self.get_spherical_voronoi_cells()
         return sv.calculate_areas()
 
     ##################################################################################################################
@@ -371,11 +371,11 @@ class ConvergenceSphereGridFactory:
             list_sphere_grids.append(sg)
         return list_sphere_grids
 
-    def get_spherical_voranoi_areas(self):
+    def get_spherical_voronoi_areas(self):
         data = []
         for N, sg in zip(self.N_set, self.list_sphere_grids):
             ideal_area = surface_per_cell_ideal(N, r=1)
-            real_areas = sg.get_voranoi_areas()
+            real_areas = sg.get_voronoi_areas()
             for area in real_areas:
                 data.append([N, ideal_area, area])
         df = pd.DataFrame(data, columns=["N", "ideal area", "sph. Voronoi cell area"])

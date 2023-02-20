@@ -80,39 +80,39 @@ class FullGrid:
     def save_full_grid(self):
         np.save(f"{PATH_OUTPUT_FULL_GRIDS}position_grid_{self.get_full_grid_name()}", self.get_position_grid())
 
-    def get_full_voranoi_grid(self):
-        return FullVoranoiGrid(self)
+    def get_full_voronoi_grid(self):
+        return FullVoronoiGrid(self)
 
 
-class FullVoranoiGrid:
+class FullVoronoiGrid:
 
     def __init__(self, full_grid: FullGrid):
         self.full_grid = full_grid
         self.flat_positions = self.full_grid.get_flat_position_grid()
         self.all_sv = None
-        self.get_voranoi_discretisation()
+        self.get_voronoi_discretisation()
 
-    def _change_voranoi_radius(self, sv: SphericalVoronoi, new_radius):
+    def _change_voronoi_radius(self, sv: SphericalVoronoi, new_radius):
         sv.radius = new_radius
         sv.vertices = normalise_vectors(sv.vertices, length=new_radius)
         sv.points = normalise_vectors(sv.points, length=new_radius)
         # important that it's a copy!
         return copy(sv)
 
-    def get_voranoi_discretisation(self):
+    def get_voronoi_discretisation(self):
         if self.all_sv is None:
-            unit_sph_voranoi = self.full_grid.o_rotations.get_spherical_voranoi_cells()
+            unit_sph_voronoi = self.full_grid.o_rotations.get_spherical_voronoi_cells()
             between_radii = self.full_grid.get_between_radii()
-            self.all_sv = [self._change_voranoi_radius(unit_sph_voranoi, r) for r in between_radii]
+            self.all_sv = [self._change_voronoi_radius(unit_sph_voronoi, r) for r in between_radii]
         return self.all_sv
 
-    def find_voranoi_vertices_of_point(self, point_index: int):
+    def find_voronoi_vertices_of_point(self, point_index: int):
         my_point = Point(point_index, self)
 
         vertices = my_point.get_vertices()
         return vertices
 
-    def get_division_area(self, index_1: int, index_2: int):
+    def get_division_area(self, index_1: int, index_2: int, print_message=True):
         point_1 = Point(index_1, self)
         point_2 = Point(index_2, self)
 
@@ -129,7 +129,8 @@ class FullVoranoiGrid:
             vertices_1b = point_1.get_vertices_below()
             r_smaller = np.linalg.norm(vertices_1b[0])
             if len(intersection_a) != 2:
-                print(f"Points {index_1} and {index_2} are not neighbours.")
+                if print_message:
+                    print(f"Points {index_1} and {index_2} are not neighbours.")
                 return
             else:
                 intersection_list = list(intersection_a)
@@ -142,13 +143,14 @@ class FullVoranoiGrid:
                 return point_2.get_area_above()
             elif point_2.index_radial == point_1.index_radial + 1:
                 return point_1.get_area_above()
-        print(f"Points {index_1} and {index_2} are not neighbours.")
+        if print_message:
+            print(f"Points {index_1} and {index_2} are not neighbours.")
         return
 
 
 class Point:
 
-    def __init__(self, index_position_grid, full_sv: FullVoranoiGrid):
+    def __init__(self, index_position_grid, full_sv: FullVoronoiGrid):
         self.full_sv = full_sv
         self.index_position_grid = index_position_grid
         self.point = self.full_sv.flat_positions[index_position_grid]
@@ -177,7 +179,7 @@ class Point:
             if sv.radius > self.d_to_origin:
                 return i
         else:
-            # the point is outside the largest voranoi sphere
+            # the point is outside the largest voronoi sphere
             return None
 
     def get_sv_above(self):

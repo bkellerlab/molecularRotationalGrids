@@ -148,3 +148,4 @@ dmypy.json
 *.sh
 
 sandbox.py
+jupyter/*
