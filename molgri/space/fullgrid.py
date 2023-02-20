@@ -42,10 +42,16 @@ class FullGrid:
 
     def get_between_radii(self):
         radii = self.get_radii()
-        # previous_radii = radii-radii[0]
-        # between_radii = np.cbrt(2*radii**3-previous_radii**3) # equal volume
-        increases = self.t_grid.get_increments() / 2
-        return radii + increases
+        increments = self.t_grid.get_increments()
+        delta_radii = list(increments[1:])
+        delta_radii.append(delta_radii[-1])
+        delta_radii = np.array(delta_radii)
+        #previous_radii = radii-radii[0]
+        #between_radii = np.cbrt(2*radii**3-previous_radii**3) # equal volume
+        between_radii = radii + np.cbrt(2) * delta_radii    # equal volume
+        #increases = self.t_grid.get_increments() / 2
+        #between_radii = radii + increases
+        return between_radii
 
     def get_body_rotations(self) -> Rotation:
         return Rotation.from_quat(self.b_rotations.get_grid_as_array())
@@ -147,6 +153,10 @@ class FullVoronoiGrid:
             print(f"Points {index_1} and {index_2} are not neighbours.")
         return
 
+    def get_volume(self, index):
+        point = Point(index, self)
+        return point.get_cell_volume()
+
 
 class Point:
 
@@ -185,6 +195,17 @@ class Point:
     def get_sv_above(self):
         return self.full_sv.all_sv[self._find_index_sv_above()]
 
+    def get_radius_above(self):
+        sv_above = self.get_sv_above()
+        return sv_above.radius
+
+    def get_radius_below(self):
+        sv_below = self.get_sv_below()
+        if sv_below is None:
+            return 0.0
+        else:
+            return sv_below.radius
+
     def get_sv_below(self):
         index_above = self._find_index_sv_above()
         if index_above != 0:
@@ -196,6 +217,14 @@ class Point:
         sv_above = self.get_sv_above()
         areas = sv_above.calculate_areas()
         return areas[self.index_within_sphere]
+
+    def get_area_below(self):
+        sv_below = self.get_sv_below()
+        if sv_below is None:
+            return 0.0
+        else:
+            areas = sv_below.calculate_areas()
+            return areas[self.index_within_sphere]
 
     def get_vertices_above(self):
         sv_above = self.get_sv_above()
@@ -219,3 +248,11 @@ class Point:
         vertices_below = self.get_vertices_below()
 
         return np.concatenate((vertices_above, vertices_below))
+
+    def get_cell_volume(self):
+        radius_above = self.get_radius_above()
+        radius_below = self.get_radius_below()
+        area_above = self.get_area_above()
+        area_below = self.get_area_below()
+        volume = 1/3 * (radius_above * area_above - radius_below * area_below)
+        return volume

@@ -553,8 +553,15 @@ if __name__ == "__main__":
     # sgp = SphereGridPlot(sgf)
     # sgp.make_grid_plot(save=False)
     # sgp.make_spherical_voronoi_plot(ax=sgp.ax, fig=sgp.fig, animate_rot=True)
+    from scipy.constants import pi
 
-    fg = FullGrid(o_grid_name="ico_12", b_grid_name="cube4D_7", t_grid_name="[1, 3]")
+    fg = FullGrid(o_grid_name="ico_55", b_grid_name="cube4D_7", t_grid_name="[0.1, 0.3]")
+    fvg = fg.get_full_voronoi_grid()
+    N = fg.o_rotations.N
+    first_vor_radius = fg.get_between_radii()[0]
+    print("exp volume", 4/3 * pi * first_vor_radius**3 / N)
+    for cell_index in range(0, 2*N):
+        print(fvg.get_volume(cell_index))
 
     #fg.get_division_area(0, 1)
     #fgp = FullGridPlot(fg)
