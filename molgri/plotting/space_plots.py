@@ -13,7 +13,7 @@ from molgri.constants import DEFAULT_ALPHAS_3D, TEXT_ALPHAS_3D, DEFAULT_ALPHAS_4
 from molgri.plotting.abstract import RepresentationCollection, MultiRepresentationCollection, \
     PanelRepresentationCollection
 from molgri.space.analysis import vector_within_alpha
-from molgri.space.fullgrid import FullGrid
+from molgri.space.fullgrid import FullGrid, ConvergenceFullGridO
 from molgri.space.polytopes import Polytope, IcosahedronPolytope, Cube3DPolytope, second_neighbours, third_neighbours, \
     PolyhedronFromG, Cube4DPolytope
 from molgri.space.rotobj import SphereGridNDim, SphereGridFactory, ConvergenceSphereGridFactory
@@ -548,20 +548,35 @@ class FullGridPlot(RepresentationCollection):
             return self._animate_figure_view(self.fig, self.ax, save_name)
 
 
+class ConvergenceFullGridPlot(RepresentationCollection):
+
+    def __init__(self, convergence_full_grid: ConvergenceFullGridO):
+        self.convergence_full_grid = convergence_full_grid
+        super().__init__(self.convergence_full_grid.get_name())
+
+    def make_voronoi_volume_conv_plot(self, ax=None, fig=None, save=True):
+
+        self._create_fig_ax(fig=fig, ax=ax)
+
+        voronoi_df = self.convergence_full_grid.get_voronoi_volumes()
+
+        all_layers = set(voronoi_df["layer"])
+
+        for layer in all_layers:
+            filtered_df = voronoi_df.loc[voronoi_df['layer'] == layer]
+            sns.lineplot(data=filtered_df, x="N", y="Voronoi cell volume", errorbar="sd", ax=self.ax)
+            sns.scatterplot(data=filtered_df, x="N", y="Voronoi cell volume", alpha=0.8, color="black", ax=self.ax, s=1)
+            sns.scatterplot(data=filtered_df, x="N", y="ideal volume", color="black", marker="x", ax=self.ax)
+        if save:
+            self.ax.set_xscale("log")
+            self._save_plot_type("voronoi_volume_conv")
+
+
 if __name__ == "__main__":
     # sgf = SphereGridFactory.create("ico", 45, dimensions=3)
     # sgp = SphereGridPlot(sgf)
     # sgp.make_grid_plot(save=False)
     # sgp.make_spherical_voronoi_plot(ax=sgp.ax, fig=sgp.fig, animate_rot=True)
-    from scipy.constants import pi
-
-    fg = FullGrid(o_grid_name="ico_55", b_grid_name="cube4D_7", t_grid_name="[0.1, 0.3]")
-    fvg = fg.get_full_voronoi_grid()
-    N = fg.o_rotations.N
-    first_vor_radius = fg.get_between_radii()[0]
-    print("exp volume", 4/3 * pi * first_vor_radius**3 / N)
-    for cell_index in range(0, 2*N):
-        print(fvg.get_volume(cell_index))
 
     #fg.get_division_area(0, 1)
     #fgp = FullGridPlot(fg)
@@ -573,4 +588,7 @@ if __name__ == "__main__":
     # csgf = ConvergenceSphereGridFactory("ico", 3)
     # ConvergenceSphereGridPlot(csgf).make_voronoi_area_conv_plot()
 
-    PanelConvergenceSphereGridPlots().make_all_voronoi_area_plots()
+    cfgo = ConvergenceFullGridO(b_grid_name="cube4D_7", t_grid_name="[0.1, 0.2, 0.3]", o_alg_name="ico")
+    ConvergenceFullGridPlot(cfgo).make_voronoi_volume_conv_plot()
+
+    #PanelConvergenceSphereGridPlots().make_all_voronoi_area_plots()

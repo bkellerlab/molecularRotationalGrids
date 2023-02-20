@@ -4,7 +4,10 @@ import numpy as np
 from numpy.typing import NDArray
 from scipy.spatial.transform import Rotation
 from scipy.spatial import SphericalVoronoi
+from scipy.constants import pi
+import pandas as pd
 
+from molgri.constants import SMALL_NS
 from molgri.space.rotobj import SphereGridFactory
 from molgri.molecules.parsers import TranslationParser, GridNameParser
 from molgri.paths import PATH_OUTPUT_FULL_GRIDS
@@ -48,9 +51,15 @@ class FullGrid:
         delta_radii = np.array(delta_radii)
         #previous_radii = radii-radii[0]
         #between_radii = np.cbrt(2*radii**3-previous_radii**3) # equal volume
-        between_radii = radii + np.cbrt(2) * delta_radii    # equal volume
-        #increases = self.t_grid.get_increments() / 2
-        #between_radii = radii + increases
+        #between_radii = radii + np.cbrt(2) * delta_radii    # equal volume
+
+        increases = self.t_grid.get_increments() / 2
+        between_radii = radii + increases
+
+        # constant_delta = delta_radii[-1]
+        # f = 1/constant_delta *(-radii[0] + 2**(2/3)*constant_delta +2**(1/3)*constant_delta+constant_delta)
+        # print("f=", f)
+        # between_radii  = radii + f*constant_delta
         return between_radii
 
     def get_body_rotations(self) -> Rotation:
@@ -157,6 +166,13 @@ class FullVoronoiGrid:
         point = Point(index, self)
         return point.get_cell_volume()
 
+    def get_all_voronoi_volumes(self):
+        N = len(self.flat_positions)
+        volumes = np.zeros((N,))
+        for i in range(0, N):
+            volumes[i] = self.get_volume(i)
+        return volumes
+
 
 class Point:
 
@@ -256,3 +272,43 @@ class Point:
         area_below = self.get_area_below()
         volume = 1/3 * (radius_above * area_above - radius_below * area_below)
         return volume
+
+
+class ConvergenceFullGridO:
+
+    def __init__(self, b_grid_name: str, t_grid_name: str,  o_alg_name: str, N_set = None, **kwargs):
+        if N_set is None:
+            N_set = SMALL_NS
+        self.N_set = N_set
+        self.alg_name = o_alg_name
+        self.list_full_grids = self.create(b_grid_name=b_grid_name, t_grid_name=t_grid_name,  o_alg_name=o_alg_name,
+                                           N_set=self.N_set, **kwargs)
+
+    def get_name(self):
+        b_name = self.list_full_grids[0].b_rotations.get_standard_name(with_dim=False)
+        t_name = self.list_full_grids[0].t_grid.grid_hash
+        return f"convergence_o_{self.alg_name}_b_{b_name}_t_{t_name}"
+
+    @classmethod
+    def create(cls,  b_grid_name: str, t_grid_name: str,  o_alg_name: str, N_set, **kwargs) -> list:
+        list_full_grids = []
+        for N in N_set:
+            fg = FullGrid(b_grid_name=b_grid_name, o_grid_name=f"{o_alg_name}_{N}", t_grid_name=t_grid_name, **kwargs)
+            list_full_grids.append(fg)
+        return list_full_grids
+
+    def get_voronoi_volumes(self):
+        data = []
+        for N, fg in zip(self.N_set, self.list_full_grids):
+            vor_radius = list(fg.get_between_radii())
+            vor_radius.insert(0, 0)
+            vor_radius = np.array(vor_radius)
+            fvg = fg.get_full_voronoi_grid()
+            ideal_volumes = 4/3 * pi * (vor_radius[1:]**3 - vor_radius[:-1]**3) / N
+            real_volumes = fvg.get_all_voronoi_volumes()
+            for i, volume in enumerate(real_volumes):
+                layer = i//N
+                data.append([N, layer, ideal_volumes[i//N], volume])
+        df = pd.DataFrame(data, columns=["N", "layer", "ideal volume", "Voronoi cell volume"])
+        print(df)
+        return df
