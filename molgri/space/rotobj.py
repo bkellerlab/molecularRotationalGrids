@@ -15,7 +15,7 @@ from molgri.constants import UNIQUE_TOL, EXTENSION_GRID_FILES, NAME2PRETTY_NAME,
 from molgri.paths import PATH_OUTPUT_ROTGRIDS, PATH_OUTPUT_STAT
 from molgri.space.polytopes import Cube4DPolytope, IcosahedronPolytope, Cube3DPolytope, Polytope
 from molgri.space.rotations import grid2rotation, rotation2grid4vector
-from molgri.wrappers import time_method
+from molgri.wrappers import time_method, save_or_use_saved
 
 
 class SphereGridNDim(ABC):
@@ -99,13 +99,22 @@ class SphereGridNDim(ABC):
         unique_grid = provide_unique(self.grid, as_quat=as_quat)
         if len(self.grid) != len(unique_grid):
             print(f"Warning! {len(self.grid) - len(unique_grid)} grid points of "
-                  f"{self.get_standard_name(with_dim=True)} non-unique (distance < 10^-{UNIQUE_TOL}).")
+                  f"{self.get_name(with_dim=True)} non-unique (distance < 10^-{UNIQUE_TOL}).")
 
     ##################################################################################################################
     #                      name and path getters
     ##################################################################################################################
 
-    def get_standard_name(self, with_dim=False) -> str:
+    def get_name(self, with_dim=False) -> str:
+        """
+        This is a standard name that can be used for saving files, but not pretty enough for titles etc.
+
+        Args:
+            with_dim: if True, include _3d or _4d to include dimensionality of the grid
+
+        Returns:
+            a string usually of the form 'ico_17'
+        """
         output = f"{self.gen_algorithm}"
         if self.N is not None:
             output += f"_{self.N}"
@@ -117,20 +126,10 @@ class SphereGridNDim(ABC):
         return f"{NAME2PRETTY_NAME[self.gen_algorithm]} algorithm, {self.N} points"
 
     def get_grid_path(self, extension=EXTENSION_GRID_FILES) -> str:
-        return f"{PATH_OUTPUT_ROTGRIDS}{self.get_standard_name(with_dim=True)}.{extension}"
+        return f"{PATH_OUTPUT_ROTGRIDS}{self.get_name(with_dim=True)}.{extension}"
 
     def get_statistics_path(self, extension) -> str:
-        return f"{PATH_OUTPUT_STAT}{self.get_standard_name(with_dim=True)}.{extension}"
-
-    def get_spherical_voronoi_cells(self):
-        assert self.dimensions == 3, "Spherical voronoi cells only available for N=3"
-        if self.spherical_voronoi is None:
-            self.spherical_voronoi = SphericalVoronoi(self.grid, radius=1, threshold=10**-UNIQUE_TOL)
-        return self.spherical_voronoi
-
-    def get_voronoi_areas(self):
-        sv = self.get_spherical_voronoi_cells()
-        return sv.calculate_areas()
+        return f"{PATH_OUTPUT_STAT}{self.get_name(with_dim=True)}.{extension}"
 
     ##################################################################################################################
     #                      useful methods
@@ -156,9 +155,10 @@ class SphereGridNDim(ABC):
         stat_data, full_data = prepare_statistics(self.get_grid_as_array(), alphas, d=self.dimensions,
                                                   num_rand_points=num_random)
         write_statistics(stat_data, full_data, short_statistics_path, statistics_path,
-                         num_random, name=self.get_standard_name(), dimensions=self.dimensions,
+                         num_random, name=self.get_name(), dimensions=self.dimensions,
                          print_message=self.print_messages)
 
+    @save_or_use_saved
     def get_uniformity_df(self, alphas):
         # recalculate if: 1) self.use_saved_data = False OR 2) no saved data exists
         if not self.use_saved or not os.path.exists(self.get_statistics_path("csv")):
@@ -171,6 +171,7 @@ class SphereGridNDim(ABC):
             ratios_df = pd.read_csv(self.get_statistics_path("csv"), dtype=float)
         return ratios_df
 
+    @save_or_use_saved
     def get_convergence_df(self, alphas: tuple, N_list: tuple = None):
         if N_list is None:
             # create equally spaced convergence set
@@ -187,6 +188,23 @@ class SphereGridNDim(ABC):
             full_df.append(df)
         full_df = pd.concat(full_df, axis=0, ignore_index=True)
         return full_df
+
+    @save_or_use_saved
+    def get_spherical_voronoi_cells(self):
+        assert self.dimensions == 3, "Spherical voronoi cells only available for N=3"
+        if self.spherical_voronoi is None:
+            try:
+                self.spherical_voronoi = SphericalVoronoi(self.grid, radius=1, threshold=10**-UNIQUE_TOL)
+            except ValueError:
+                if self.print_messages:
+                    print(f"Spherical voronoi not created for {self.get_name()} due to duplicate generators")
+                self.spherical_voronoi = []
+        return self.spherical_voronoi
+
+    @save_or_use_saved
+    def get_voronoi_areas(self):
+        sv = self.get_spherical_voronoi_cells()
+        return sv.calculate_areas()
 
 
 def _select_unique_rotations(rotations):
@@ -241,7 +259,7 @@ class SystemERotations(SphereGridNDim):
             euler_meshgrid = euler_meshgrid.reshape((3, -1)).T
             rotations = Rotation.from_euler("ZYX", euler_meshgrid)
             # remove non-unique rotational matrices
-            _select_unique_rotations(rotations)
+            rotations = _select_unique_rotations(rotations)
             rot_matrices = rotations.as_matrix()
             num_points += 1
         # maybe just shuffle rather than order
@@ -363,8 +381,7 @@ class ConvergenceSphereGridFactory:
     def get_name(self):
         return f"convergence_{self.alg_name}_{self.dimensions}d"
 
-    @classmethod
-    def create(cls, alg_name, dimensions, N_set, **kwargs) -> list:
+    def create(self, alg_name, dimensions, N_set, **kwargs) -> list:
         list_sphere_grids = []
         for N in N_set:
             sg = SphereGridFactory.create(alg_name, N, dimensions, **kwargs)
@@ -375,7 +392,10 @@ class ConvergenceSphereGridFactory:
         data = []
         for N, sg in zip(self.N_set, self.list_sphere_grids):
             ideal_area = surface_per_cell_ideal(N, r=1)
-            real_areas = sg.get_voronoi_areas()
+            try:
+                real_areas = sg.get_voronoi_areas()
+            except ValueError:
+                real_areas = [np.NaN] * sg.N
             for area in real_areas:
                 data.append([N, ideal_area, area])
         df = pd.DataFrame(data, columns=["N", "ideal area", "sph. Voronoi cell area"])

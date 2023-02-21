@@ -74,7 +74,7 @@ class PtIOManager:
         """
         name_c_molecule = self.central_parser.get_topology_file_name()
         name_r_molecule = self.rotating_parser.get_topology_file_name()
-        name_full_grid = self.full_grid.get_full_grid_name()
+        name_full_grid = self.full_grid.get_name()
         return f"{name_c_molecule}_{name_r_molecule}_{name_full_grid}"
 
     def _get_all_output_paths(self, extension_trajectory: str = EXTENSION_TRAJECTORY,

@@ -47,7 +47,9 @@ ENERGY_SHORT2FULL = {n: pn for n, pn in zip(ENERGY_SHORT_TYPES, ENERGY_TYPES)}
 ENERGY_FULL2SHORT = {n: pn for n, pn in zip(ENERGY_TYPES, ENERGY_SHORT_TYPES)}
 ENERGY2SHORT = {n: pn for n, pn in zip(ENERGY_NO_UNIT, ENERGY_SHORT_TYPES)}
 
-SMALL_NS = (8,   10,   12,   15,   18,   23, 30,   34,   41,   50,   62,   75,   100, 112,  137,  167,  204,
+MINI_NS = (20, 50, 80)
+
+SMALL_NS = (10,   12,   15,   18,   23, 30,   34,   41,   50,   62,   75,   100, 112,  137,  167,  204,
             249,  300)
 
 DEFAULT_NS = (3,    4,    5,    6,    8,   10,   12,   15,   18,   23,

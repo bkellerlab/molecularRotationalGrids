@@ -1,46 +1,25 @@
+import matplotlib.pyplot as plt
 import numpy as np
 import seaborn as sns
 from matplotlib.pyplot import Figure, Axes
 from mpl_toolkits.mplot3d.axes3d import Axes3D
 from matplotlib.animation import FuncAnimation
 from numpy.typing import NDArray
-from scipy.spatial import geometric_slerp
 from seaborn import color_palette
 import networkx as nx
 
 from molgri.constants import DEFAULT_ALPHAS_3D, TEXT_ALPHAS_3D, DEFAULT_ALPHAS_4D, TEXT_ALPHAS_4D, COLORS, \
-    GRID_ALGORITHMS, NAME2SHORT_NAME, SMALL_NS
-from molgri.plotting.abstract import RepresentationCollection, MultiRepresentationCollection, \
-    PanelRepresentationCollection
+    GRID_ALGORITHMS, NAME2SHORT_NAME
+from molgri.plotting.abstract import RepresentationCollection, PanelRepresentationCollection, plot_voronoi_cells
 from molgri.space.analysis import vector_within_alpha
-from molgri.space.fullgrid import FullGrid, ConvergenceFullGridO
-from molgri.space.polytopes import Polytope, IcosahedronPolytope, Cube3DPolytope, second_neighbours, third_neighbours, \
-    PolyhedronFromG, Cube4DPolytope
+from molgri.space.polytopes import Polytope, second_neighbours, third_neighbours, PolyhedronFromG
 from molgri.space.rotobj import SphereGridNDim, SphereGridFactory, ConvergenceSphereGridFactory
-from molgri.space.utils import normalise_vectors
-
-
-def plot_voronoi_cells(sv, ax, plot_vertex_points=True):
-    sv.sort_vertices_of_regions()
-    t_vals = np.linspace(0, 1, 2000)
-    # plot Voronoi vertices
-    if plot_vertex_points:
-        ax.scatter(sv.vertices[:, 0], sv.vertices[:, 1], sv.vertices[:, 2], c='g')
-    # indicate Voronoi regions (as Euclidean polygons)
-    for region in sv.regions:
-        n = len(region)
-        for j in range(n):
-            start = sv.vertices[region][j]
-            end = sv.vertices[region][(j + 1) % n]
-            norm = np.linalg.norm(start)
-            result = geometric_slerp(normalise_vectors(start), normalise_vectors(end), t_vals)
-            ax.plot(norm * result[..., 0], norm * result[..., 1], norm * result[..., 2], c='k')
 
 
 class SphereGridPlot(RepresentationCollection):
 
     def __init__(self, sphere_grid: SphereGridNDim, **kwargs):
-        data_name = sphere_grid.get_standard_name(with_dim=True)
+        data_name = sphere_grid.get_name(with_dim=True)
         super().__init__(data_name, default_axes_limits=(-1, 1, -1, 1, -1, 1), **kwargs)
         self.sphere_grid = sphere_grid
         if self.sphere_grid.dimensions == 3:
@@ -129,7 +108,6 @@ class SphereGridPlot(RepresentationCollection):
         """
         self._create_fig_ax(fig=fig, ax=ax)
         df = self.sphere_grid.get_convergence_df(alphas=self.alphas)
-
         sns.lineplot(x=df["N"], y=df["coverages"], ax=self.ax, hue=df["alphas"],
                      palette=color_palette("hls", len(self.alphas_text)), linewidth=1)
         sns.lineplot(x=df["N"], y=df["ideal coverage"], style=df["alphas"], ax=self.ax, color="black")
@@ -143,10 +121,17 @@ class SphereGridPlot(RepresentationCollection):
 
     def make_spherical_voronoi_plot(self, ax=None, fig=None, save=True, animate_rot=False):
 
+        if self.sphere_grid.dimensions != 3:
+            print("make_spherical_voronoi_plot only implemented for 3D grids")
+            return
+
         self._create_fig_ax(fig=fig, ax=ax, projection="3d")
 
-        sv = self.sphere_grid.get_spherical_voronoi_cells()
-        plot_voronoi_cells(sv, self.ax)
+        try:
+            sv = self.sphere_grid.get_spherical_voronoi_cells()
+            plot_voronoi_cells(sv, self.ax)
+        except AttributeError:
+            pass
 
         self.ax.view_init(elev=10, azim=30)
         self._set_axis_limits()
@@ -180,7 +165,7 @@ class SphereGridPlot(RepresentationCollection):
         self._save_animation_type(ani, "order", fps=len(facecolors_before) // 20)
         return ani
 
-    def make_trans_animation(self, fig = None, ax=None):
+    def make_trans_animation(self, fig: plt.Figure = None, ax=None):
         points = self.sphere_grid.get_grid_as_array()
         # create the axis with the right num of dimensions
 
@@ -232,6 +217,7 @@ class SphereGridPlot(RepresentationCollection):
         self.make_grid_colored_with_alpha()
         self.make_uniformity_plot()
         self.make_convergence_plot()
+        self.make_spherical_voronoi_plot(animate_rot=and_animations)
         if and_animations:
             self.make_rot_animation()
             self.make_ordering_animation()
@@ -297,10 +283,13 @@ class PolytopePlot(RepresentationCollection):
         are to be plotted for clarity.
 
         Args:
+            fig: figure
             ax: axis
+            save: whether to save fig
             select_faces: a set of face numbers that can range from 0 to number of faces of the polyhedron, e.g. {0, 5}.
                           If None, all faces are shown.
             projection: True if you want to plot the projected points, not the ones on surfaces of polytope
+            plot_edges: select True if you want to see connections between nodes
             color_by: "level" or "index"
         """
         if self.polytope.d > 3:
@@ -367,7 +356,9 @@ class PolytopePlot(RepresentationCollection):
         Since you cannot visualise a 4D object directly, here's an option to visualise the 3D sub-cells of a 4D object.
 
         Args:
+            fig: figure
             ax: axis
+            save: whether to save fig
             cell_index: index of the sub-cell to plot (in cube4D that can be 0-7)
             draw_edges: use True if you want to also draw edges, False if only points
         """
@@ -408,8 +399,8 @@ class PolytopePlot(RepresentationCollection):
 
 class PanelSphereGridPlots(PanelRepresentationCollection):
 
-    def __init__(self, N_points: int, grid_dim: int, default_context = None, default_complexity_level = None,
-                 default_color_style=None, **kwargs):
+    def __init__(self, N_points: int, grid_dim: int, default_context: str = None, default_complexity_level: str = None,
+                 default_color_style: str = None, **kwargs):
         list_plots = []
         for alg in GRID_ALGORITHMS[:-1]:
             sphere_grid = SphereGridFactory.create(alg_name=alg, N=N_points, dimensions=grid_dim, print_messages=False,
@@ -442,6 +433,11 @@ class PanelSphereGridPlots(PanelRepresentationCollection):
         self.unify_axis_limits()
         self._save_multiplot("uniformity")
 
+    def create_all_plots(self, and_animations=False):
+        self.make_all_grid_plots(animate_rot=and_animations)
+        self.make_all_convergence_plots()
+        self.make_all_uniformity_plots()
+
 
 class ConvergenceSphereGridPlot(RepresentationCollection):
 
@@ -450,13 +446,20 @@ class ConvergenceSphereGridPlot(RepresentationCollection):
         super().__init__(self.convergence_sph_grid.get_name())
 
     def make_voronoi_area_conv_plot(self, ax=None, fig=None, save=True):
+        if self.convergence_sph_grid.dimensions != 3:
+            print(f"make_voronoi_area_conv_plot available only for 3D systems")
+            return
 
         self._create_fig_ax(fig=fig, ax=ax)
 
-        voronoi_df = self.convergence_sph_grid.get_spherical_voronoi_areas()
-        sns.lineplot(data=voronoi_df, x="N", y="sph. Voronoi cell area", errorbar="sd", ax=self.ax)
-        sns.scatterplot(data=voronoi_df, x="N", y="sph. Voronoi cell area", alpha=0.8, color="black", ax=self.ax, s=1)
-        sns.scatterplot(data=voronoi_df, x="N", y="ideal area", color="black", marker="x", ax=self.ax)
+        try:
+            voronoi_df = self.convergence_sph_grid.get_spherical_voronoi_areas()
+            sns.lineplot(data=voronoi_df, x="N", y="sph. Voronoi cell area", errorbar="sd", ax=self.ax)
+            sns.scatterplot(data=voronoi_df, x="N", y="sph. Voronoi cell area", alpha=0.8, color="black", ax=self.ax,
+                            s=1)
+            sns.scatterplot(data=voronoi_df, x="N", y="ideal area", color="black", marker="x", ax=self.ax)
+        except AttributeError:
+            pass
 
         if save:
             self.ax.set_xscale("log")
@@ -468,11 +471,11 @@ class PanelConvergenceSphereGridPlots(PanelRepresentationCollection):
     def __init__(self, dim=3, N_set: list = None, **kwargs):
         list_plots = []
         for alg in GRID_ALGORITHMS[:-1]:
-            conv_sphere_grid = ConvergenceSphereGridFactory(alg_name=alg, N_set=N_set, dimensions=dim)
+            conv_sphere_grid = ConvergenceSphereGridFactory(alg_name=alg, N_set=N_set, dimensions=dim, **kwargs)
             sphere_plot = ConvergenceSphereGridPlot(conv_sphere_grid)
             list_plots.append(sphere_plot)
         data_name = f"all_convergence_{dim}d"
-        super().__init__(data_name, list_plots, **kwargs)
+        super().__init__(data_name, list_plots)
 
     def make_all_voronoi_area_plots(self, save=True):
         self._make_plot_for_all("make_voronoi_area_conv_plot")
@@ -481,114 +484,3 @@ class PanelConvergenceSphereGridPlots(PanelRepresentationCollection):
         self.unify_axis_limits()
         if save:
             self._save_multiplot("voronoi_area")
-
-
-class FullGridPlot(RepresentationCollection):
-
-    def __init__(self, full_grid: FullGrid):
-        self.full_grid = full_grid
-        self.full_voronoi_grid = full_grid.get_full_voronoi_grid()
-        data_name = self.full_grid.get_full_grid_name()
-        super().__init__(data_name)
-
-    def make_position_plot(self, ax=None, fig=None, save=True, animate_rot=False, numbered: bool = False):
-        self._create_fig_ax(fig=fig, ax=ax, projection="3d")
-
-        points = self.full_grid.get_flat_position_grid()
-        self.ax.scatter(*points.T, color="black", s=30)
-
-        if numbered:
-            for i, point in enumerate(points):
-                self.ax.text(*point, s=f"{i}")
-
-        self.ax.view_init(elev=10, azim=30)
-        self._set_axis_limits()
-        self._equalize_axes()
-
-        if save:
-            self._save_plot_type("position")
-        if animate_rot:
-            return self._animate_figure_view(self.fig, self.ax, f"position_rotated")
-
-    def make_full_voronoi_plot(self, ax=None, fig=None, save=True, animate_rot=False, plot_vertex_points=True):
-        self._create_fig_ax(fig=fig, ax=ax, projection="3d")
-
-        origin = np.zeros((3,))
-
-        voronoi_disc = self.full_voronoi_grid.get_voronoi_discretisation()
-
-        for i, sv in enumerate(voronoi_disc):
-            plot_voronoi_cells(sv, self.ax, plot_vertex_points=plot_vertex_points)
-            # plot rays from origin to highest level
-            if i == len(voronoi_disc)-1:
-                for vertex in sv.vertices:
-                    ray_line = np.concatenate((origin[:, np.newaxis], vertex[:, np.newaxis]), axis=1)
-                    self.ax.plot(*ray_line, color="black")
-
-        self.ax.view_init(elev=10, azim=30)
-        self._set_axis_limits()
-        self._equalize_axes()
-
-        if save:
-            self._save_plot_type("full_voronoi")
-        if animate_rot:
-            return self._animate_figure_view(self.fig, self.ax, f"full_voronoi_rotated")
-
-    def make_point_vertices_plot(self, point_index: int, ax=None, fig=None, save=True, animate_rot=False):
-        self.make_full_voronoi_plot(ax=ax, fig=fig, save=False, plot_vertex_points=False)
-        self.make_position_plot(save=False, numbered=True, ax=self.ax, fig=self.fig)
-
-        vertices = self.full_voronoi_grid.find_voronoi_vertices_of_point(point_index)
-        self.ax.scatter(*vertices.T, color="red")
-
-        save_name = f"vertices_of_{point_index}"
-        if save:
-            self._save_plot_type(save_name)
-        if animate_rot:
-            return self._animate_figure_view(self.fig, self.ax, save_name)
-
-
-class ConvergenceFullGridPlot(RepresentationCollection):
-
-    def __init__(self, convergence_full_grid: ConvergenceFullGridO):
-        self.convergence_full_grid = convergence_full_grid
-        super().__init__(self.convergence_full_grid.get_name())
-
-    def make_voronoi_volume_conv_plot(self, ax=None, fig=None, save=True):
-
-        self._create_fig_ax(fig=fig, ax=ax)
-
-        voronoi_df = self.convergence_full_grid.get_voronoi_volumes()
-
-        all_layers = set(voronoi_df["layer"])
-
-        for layer in all_layers:
-            filtered_df = voronoi_df.loc[voronoi_df['layer'] == layer]
-            sns.lineplot(data=filtered_df, x="N", y="Voronoi cell volume", errorbar="sd", ax=self.ax)
-            sns.scatterplot(data=filtered_df, x="N", y="Voronoi cell volume", alpha=0.8, color="black", ax=self.ax, s=1)
-            sns.scatterplot(data=filtered_df, x="N", y="ideal volume", color="black", marker="x", ax=self.ax)
-        if save:
-            self.ax.set_xscale("log")
-            self._save_plot_type("voronoi_volume_conv")
-
-
-if __name__ == "__main__":
-    # sgf = SphereGridFactory.create("ico", 45, dimensions=3)
-    # sgp = SphereGridPlot(sgf)
-    # sgp.make_grid_plot(save=False)
-    # sgp.make_spherical_voronoi_plot(ax=sgp.ax, fig=sgp.fig, animate_rot=True)
-
-    #fg.get_division_area(0, 1)
-    #fgp = FullGridPlot(fg)
-    #fgp.make_full_voronoi_plot(save=False)
-    #print(vertices)
-    #fgp.ax.scatter(*vertices.T, color="red")
-    #fgp.make_position_plot(save=True, numbered=True, ax=fgp.ax, fig=fgp.fig, animate_rot=True)
-
-    # csgf = ConvergenceSphereGridFactory("ico", 3)
-    # ConvergenceSphereGridPlot(csgf).make_voronoi_area_conv_plot()
-
-    cfgo = ConvergenceFullGridO(b_grid_name="cube4D_7", t_grid_name="[0.1, 0.2, 0.3]", o_alg_name="ico")
-    ConvergenceFullGridPlot(cfgo).make_voronoi_volume_conv_plot()
-
-    #PanelConvergenceSphereGridPlots().make_all_voronoi_area_plots()

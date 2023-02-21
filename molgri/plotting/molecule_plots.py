@@ -3,8 +3,8 @@ import matplotlib.cm as cm
 from matplotlib.colors import Normalize
 import seaborn as sns
 
-from molgri.constants import ENERGY2SHORT, ENERGY_NO_UNIT, DIM_LANDSCAPE
-from molgri.molecules.parsers import ParsedTrajectory, PtParser
+from molgri.constants import ENERGY2SHORT
+from molgri.molecules.parsers import ParsedTrajectory
 from molgri.plotting.abstract import RepresentationCollection, MultiRepresentationCollection
 
 
@@ -182,24 +182,3 @@ class ConvergenceMultiCollection(MultiRepresentationCollection):
         for energy_type in energy_types:
             for dim in (1, 2, 3):
                 self.make_all_energy_plots(dim, energy_type=energy_type)
-
-
-if __name__ == "__main__":
-    import os
-    from molgri.constants import PATH_EXAMPLES
-
-    topology_path = os.path.join(PATH_EXAMPLES, "H2O_H2O_o_ico_500_b_ico_5_t_3830884671.gro")
-    trajectory_path = os.path.join(PATH_EXAMPLES, "H2O_H2O_o_ico_500_b_ico_5_t_3830884671.xtc")
-    water_path = os.path.join(PATH_EXAMPLES, "H2O.gro")
-    energy_path = os.path.join(PATH_EXAMPLES, "H2O_H2O_o_ico_500_b_ico_5_t_3830884671.xvg")
-
-    parser_pt = PtParser(m1_path=water_path, m2_path=water_path, path_topology=topology_path, path_trajectory=trajectory_path).get_parsed_trajectory()
-    # tp = TrajectoryPlot(parser_pt)
-    # tp.make_COM_plot(projection="hammer")
-    # tp.make_COM_plot(projection="3d")
-
-    cmc = ConvergenceMultiCollection(parser_pt)
-    #cmc.make_all_COM_hammer_plots()
-    #cmc.make_all_COM_3d_plots()
-    for d in (3, ):
-        cmc.make_all_energy_plots(d)

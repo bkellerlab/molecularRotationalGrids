@@ -12,6 +12,7 @@ from molgri.space.rotobj import SphereGridFactory
 from molgri.molecules.parsers import TranslationParser, GridNameParser
 from molgri.paths import PATH_OUTPUT_FULL_GRIDS
 from molgri.space.utils import norm_per_axis, normalise_vectors, angle_between_vectors
+from molgri.wrappers import save_or_use_saved
 
 
 class FullGrid:
@@ -33,11 +34,12 @@ class FullGrid:
                                                     dimensions=3, use_saved=use_saved)
         self.o_positions = self.o_rotations.get_grid_as_array()
         self.t_grid = TranslationParser(t_grid_name)
+        self.use_saved = use_saved
         self.save_full_grid()
 
-    def get_full_grid_name(self):
-        o_name = self.o_rotations.get_standard_name(with_dim=False)
-        b_name = self.b_rotations.get_standard_name(with_dim=False)
+    def get_name(self):
+        o_name = self.o_rotations.get_name(with_dim=False)
+        b_name = self.b_rotations.get_name(with_dim=False)
         return f"o_{o_name}_b_{b_name}_t_{self.t_grid.grid_hash}"
 
     def get_radii(self):
@@ -87,25 +89,33 @@ class FullGrid:
         result = np.swapaxes(result, 0, 1)
         return result
 
+    @save_or_use_saved
     def get_flat_position_grid(self):
         pos_grid = self.get_position_grid()
         pos_grid = np.swapaxes(pos_grid, 0, 1)
         return pos_grid.reshape((-1, 3))
 
     def save_full_grid(self):
-        np.save(f"{PATH_OUTPUT_FULL_GRIDS}position_grid_{self.get_full_grid_name()}", self.get_position_grid())
+        np.save(f"{PATH_OUTPUT_FULL_GRIDS}position_grid_{self.get_name()}", self.get_position_grid())
 
     def get_full_voronoi_grid(self):
-        return FullVoronoiGrid(self)
+        try:
+            return FullVoronoiGrid(self)
+        except AttributeError:
+            return None
 
 
 class FullVoronoiGrid:
 
     def __init__(self, full_grid: FullGrid):
         self.full_grid = full_grid
+        self.use_saved = self.full_grid.use_saved
         self.flat_positions = self.full_grid.get_flat_position_grid()
         self.all_sv = None
         self.get_voronoi_discretisation()
+
+    def get_name(self):
+        return f"voronoi_{self.full_grid.get_name()}"
 
     def _change_voronoi_radius(self, sv: SphericalVoronoi, new_radius):
         sv.radius = new_radius
@@ -114,6 +124,7 @@ class FullVoronoiGrid:
         # important that it's a copy!
         return copy(sv)
 
+    @save_or_use_saved
     def get_voronoi_discretisation(self):
         if self.all_sv is None:
             unit_sph_voronoi = self.full_grid.o_rotations.get_spherical_voronoi_cells()
@@ -121,6 +132,7 @@ class FullVoronoiGrid:
             self.all_sv = [self._change_voronoi_radius(unit_sph_voronoi, r) for r in between_radii]
         return self.all_sv
 
+    @save_or_use_saved
     def find_voronoi_vertices_of_point(self, point_index: int):
         my_point = Point(point_index, self)
 
@@ -276,16 +288,17 @@ class Point:
 
 class ConvergenceFullGridO:
 
-    def __init__(self, b_grid_name: str, t_grid_name: str,  o_alg_name: str, N_set = None, **kwargs):
+    def __init__(self, b_grid_name: str, t_grid_name: str,  o_alg_name: str, N_set = None, use_saved=False, **kwargs):
         if N_set is None:
             N_set = SMALL_NS
         self.N_set = N_set
         self.alg_name = o_alg_name
+        self.use_saved = use_saved
         self.list_full_grids = self.create(b_grid_name=b_grid_name, t_grid_name=t_grid_name,  o_alg_name=o_alg_name,
-                                           N_set=self.N_set, **kwargs)
+                                           N_set=self.N_set, use_saved=use_saved, **kwargs)
 
     def get_name(self):
-        b_name = self.list_full_grids[0].b_rotations.get_standard_name(with_dim=False)
+        b_name = self.list_full_grids[0].b_rotations.get_name(with_dim=False)
         t_name = self.list_full_grids[0].t_grid.grid_hash
         return f"convergence_o_{self.alg_name}_b_{b_name}_t_{t_name}"
 
@@ -297,6 +310,7 @@ class ConvergenceFullGridO:
             list_full_grids.append(fg)
         return list_full_grids
 
+    @save_or_use_saved
     def get_voronoi_volumes(self):
         data = []
         for N, fg in zip(self.N_set, self.list_full_grids):
@@ -310,5 +324,4 @@ class ConvergenceFullGridO:
                 layer = i//N
                 data.append([N, layer, ideal_volumes[i//N], volume])
         df = pd.DataFrame(data, columns=["N", "layer", "ideal volume", "Voronoi cell volume"])
-        print(df)
         return df

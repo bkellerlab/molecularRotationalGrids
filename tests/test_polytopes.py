@@ -106,19 +106,8 @@ def test_everything_runs():
     # test all
     for polytope_type in ALL_POLYTOPE_TYPES:
         pol = polytope_type()
-        #pol.plot_graph()
         pol.divide_edges()
-        #pol.plot_graph(with_labels=False)
         all_row_norms_similar(pol.get_projection_coordinates())
-    # test only 3D
-    for polytope_type in ALL_POLYHEDRON_TYPES:
-        pol = polytope_type()
-        pol.divide_edges()
-        pol.divide_edges()
-        fig, ax = plt.subplots(1, 1, subplot_kw={"projection": "3d"})
-        pol.plot_points(ax, select_faces={3, 4}, projection=True)
-        pol.plot_points(ax, select_faces=None, projection=False)
-        pol.plot_edges(ax, select_faces={8})
 
 
 def test_level0():

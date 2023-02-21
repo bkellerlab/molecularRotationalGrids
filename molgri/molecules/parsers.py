@@ -26,6 +26,7 @@ from molgri.constants import EXTENSIONS_STR, NM2ANGSTROM, GRID_ALGORITHMS, DEFAU
     DEFAULT_ALGORITHM_B, EXTENSIONS_TRJ
 from molgri.paths import PATH_OUTPUT_TRANSGRIDS, PATH_INPUT_ENERGIES
 from molgri.space.rotations import two_vectors2rot
+from molgri.wrappers import save_or_use_saved
 
 
 class NameParser:
@@ -262,7 +263,6 @@ class ParsedMolecule:
         len_initial = np.linalg.norm(initial_vector)
         rescaled_vector = distance_change*initial_vector/len_initial
         self.atoms.translate(rescaled_vector)
-
 
 
 class FileParser:
@@ -584,7 +584,7 @@ class XVGParser(object):
 
 class ParsedTrajectory:
 
-    def __init__(self, name: str, molecule_generator: Callable, energies: ParsedEnergy, is_pt=False, N=None):
+    def __init__(self, name: str, molecule_generator: Callable, energies: ParsedEnergy, is_pt=False):
         self.name = name
         self.is_pt = is_pt
         self.molecule_generator = molecule_generator

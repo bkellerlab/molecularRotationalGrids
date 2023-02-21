@@ -16,13 +16,14 @@ parser.add_argument('--examples', action='store_true',
 # if you introduce new IO folders, add them to next three lines, keep the order the same!
 IO_FOLDER_PURPUSES = ["rotational grids", "pseudotrajectory files", "base gro files", "plots", "animations",
                       "grid statistics", "translational grids", "full grids", "cells", "energies", "timing",
-                      "logging"]
+                      "logging", "plotting data"]
 IO_FOLDER_DEFAULTS = ["output/rot_grids/", "output/pt_files/", "input/", "output/figures/",
                       "output/animations/", "output/statistics_files/", "output/trans_grids/", "output/full_grids/",
-                      "output/cells/", "input/", "output/timing/", "output/logging/"]
+                      "output/cells/", "input/", "output/timing/", "output/logging/", "output/plotting/"]
 IO_VARIABLE_NAMES = ["PATH_OUTPUT_ROTGRIDS", "PATH_OUTPUT_PT", "PATH_INPUT_BASEGRO", "PATH_OUTPUT_PLOTS",
                      "PATH_OUTPUT_ANIS", "PATH_OUTPUT_STAT", "PATH_OUTPUT_TRANSGRIDS", "PATH_OUTPUT_FULL_GRIDS",
-                     "PATH_OUTPUT_CELLS", "PATH_INPUT_ENERGIES", "PATH_OUTPUT_TIMING", "PATH_OUTPUT_LOGGING"]
+                     "PATH_OUTPUT_CELLS", "PATH_INPUT_ENERGIES", "PATH_OUTPUT_TIMING", "PATH_OUTPUT_LOGGING",
+                     "OUTPUT_PLOTTING_DATA"]
 
 assert len(IO_VARIABLE_NAMES) == len(IO_FOLDER_DEFAULTS) == len(IO_FOLDER_PURPUSES)
 

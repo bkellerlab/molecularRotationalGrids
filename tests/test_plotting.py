@@ -2,22 +2,15 @@ import os
 
 from molgri.molecules.parsers import PtParser
 from molgri.plotting.molecule_plots import TrajectoryPlot, ConvergenceMultiCollection
-from molgri.plotting.space_plots import SphereGridPlot, PolytopePlot, PanelSphereGridPlots
-#from molgri.space.cells import save_voranoi_data_for_alg
-#from molgri.space.fullgrid import FullGrid
-from molgri.constants import SMALL_NS, GRID_ALGORITHMS, PATH_EXAMPLES
+from molgri.plotting.spheregrid_plots import SphereGridPlot, PolytopePlot, PanelSphereGridPlots, \
+    ConvergenceSphereGridPlot, PanelConvergenceSphereGridPlots
+from molgri.plotting.fullgrid_plots import FullGridPlot, ConvergenceFullGridPlot, PanelConvergenceFullGridPlots
+
+from molgri.constants import GRID_ALGORITHMS, PATH_EXAMPLES, MINI_NS
+from molgri.space.fullgrid import FullGrid, ConvergenceFullGridO
 from molgri.space.polytopes import Cube3DPolytope, Cube4DPolytope, IcosahedronPolytope
-from molgri.space.rotobj import SphereGridFactory
+from molgri.space.rotobj import SphereGridFactory, ConvergenceSphereGridFactory
 
-
-# def test_groupby_min_body_energy():
-#     # translations already filtered out, n_b = 2, n_o = 3
-#     test_arr = np.array([[1, 3, -2], [7, 8, 5], [1, -1, -8], [2, 1, 3], [-1.7, -0.3, -0.3], [8, 8, 5]])
-#     start_df = pd.DataFrame(test_arr, columns=["x", "y", "E"])
-#     end_df = groupby_min_body_energy(start_df, "E", 3)
-#     expected_array = np.array([[1, -1, -8], [-1.7, -0.3, -0.3]])
-#     expected_df = pd.DataFrame(expected_array, columns=["x", "y", "E"])
-#     assert np.allclose(end_df, expected_df)
 
 def get_example_pt():
     topology_path = os.path.join(PATH_EXAMPLES, "H2O_H2O_o_ico_500_b_ico_5_t_3830884671.gro")
@@ -36,33 +29,43 @@ def test_polytope_plots():
         pp.create_all_plots()
 
 
-def test_space_plots(N=12):
+def test_spheregrid_plots(N=12, and_animations=False, Ns=MINI_NS):
+    # single plots
     for alg in GRID_ALGORITHMS[:-1]:
         for dim in (3, 4):
+            # grid plotting
             sgf = SphereGridFactory.create(alg_name=alg, N=N, dimensions=dim,
                                            print_messages=False, time_generation=False,
                                            use_saved=False)
-            SphereGridPlot(sgf).create_all_plots(and_animations=False)
-
-
-def test_space_multi_plots(N=25):
+            SphereGridPlot(sgf).create_all_plots(and_animations=and_animations)
+            # convergence plotting
+            csg = ConvergenceSphereGridFactory(alg, dim, N_set=Ns)
+            ConvergenceSphereGridPlot(csg).make_voronoi_area_conv_plot()
+    # panel plots
     for dim in (3, 4):
         psgp = PanelSphereGridPlots(N, grid_dim=dim, default_context="talk")
-        psgp.make_all_grid_plots(animate_rot=True)
-        psgp.make_all_uniformity_plots()
-        psgp.make_all_convergence_plots()
+        psgp.create_all_plots(and_animations=and_animations)
+        pcsgp = PanelConvergenceSphereGridPlots(dim, N_set=Ns)
+        pcsgp.make_all_voronoi_area_plots()
+
+
+def test_fullgrid_plots(N=12, and_animations=False, N_set=MINI_NS):
+    t_grid_name = "[1, 3]"
+    for alg in GRID_ALGORITHMS[:-1]:
+        b_grid_name = f"{alg}_{N}"
+        o_grid_name = f"{alg}_{2*N}"
+        fg = FullGrid(b_grid_name=b_grid_name, o_grid_name=o_grid_name, t_grid_name=t_grid_name, use_saved=False)
+        FullGridPlot(fg).create_all_plots(and_animations=and_animations)
+        cfgo = ConvergenceFullGridO(b_grid_name=b_grid_name, t_grid_name=t_grid_name, o_alg_name=alg, N_set=N_set)
+        ConvergenceFullGridPlot(cfgo).make_voronoi_volume_conv_plot()
+    # panel plot
+    PanelConvergenceFullGridPlots(t_grid_name=t_grid_name, N_set=N_set, use_saved=False).make_all_voronoi_volume_plots()
 
 
 def test_trajectory_plots():
     # test with a pseudo-trajectory
     pt = get_example_pt()
     TrajectoryPlot(pt).create_all_plots(and_animations=False)
-    # TODO: test with a simulated trajectory
-
-
-def test_trajectory_convergence_plots():
-    # test with a pseudo-trajectory
-    pt = get_example_pt()
     # default Ns
     ConvergenceMultiCollection(pt).create_all_plots(and_animations=False)
     # user-defined Ns
@@ -70,7 +73,5 @@ def test_trajectory_convergence_plots():
 
 
 if __name__ == "__main__":
-    #test_polytope_plots()
+    test_spheregrid_plots()
     test_trajectory_plots()
-    #test_space_multi_plots(N=200)
-    #test_space_plots(N=100)

@@ -1,7 +1,6 @@
 from abc import ABC
-from typing import Union, List, Tuple, Callable
+from typing import Union, List
 
-import matplotlib
 import numpy as np
 import seaborn as sns
 from matplotlib import pyplot as plt
@@ -11,9 +10,11 @@ from matplotlib.axes import Axes
 from mpl_toolkits.mplot3d.axes3d import Axes3D
 from numpy.typing import NDArray
 from IPython import display
+from scipy.spatial import geometric_slerp
 
 from molgri.constants import DIM_SQUARE, DEFAULT_DPI, EXTENSION_FIGURES, DEFAULT_DPI_MULTI
 from molgri.paths import PATH_OUTPUT_PLOTS, PATH_OUTPUT_ANIS
+from molgri.space.utils import normalise_vectors
 
 
 def _set_style_and_context(context: str = None, color_style: str = None):
@@ -403,3 +404,20 @@ def show_anim_in_jupyter(anim):
     display.display(html)
     # necessary to not create an extra empty window
     plt.close()
+
+
+def plot_voronoi_cells(sv, ax, plot_vertex_points=True):
+    sv.sort_vertices_of_regions()
+    t_vals = np.linspace(0, 1, 2000)
+    # plot Voronoi vertices
+    if plot_vertex_points:
+        ax.scatter(sv.vertices[:, 0], sv.vertices[:, 1], sv.vertices[:, 2], c='g')
+    # indicate Voronoi regions (as Euclidean polygons)
+    for region in sv.regions:
+        n = len(region)
+        for j in range(n):
+            start = sv.vertices[region][j]
+            end = sv.vertices[region][(j + 1) % n]
+            norm = np.linalg.norm(start)
+            result = geometric_slerp(normalise_vectors(start), normalise_vectors(end), t_vals)
+            ax.plot(norm * result[..., 0], norm * result[..., 1], norm * result[..., 2], c='k')
