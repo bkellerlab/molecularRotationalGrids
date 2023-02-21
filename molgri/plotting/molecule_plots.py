@@ -1,3 +1,5 @@
+import warnings
+
 import numpy as np
 import matplotlib.cm as cm
 from matplotlib.colors import Normalize

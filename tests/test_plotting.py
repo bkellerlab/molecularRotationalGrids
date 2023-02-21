@@ -70,8 +70,3 @@ def test_trajectory_plots():
     ConvergenceMultiCollection(pt).create_all_plots(and_animations=False)
     # user-defined Ns
     ConvergenceMultiCollection(pt, N_set=(10, 20, 50)).create_all_plots(and_animations=False)
-
-
-if __name__ == "__main__":
-    test_spheregrid_plots()
-    test_trajectory_plots()

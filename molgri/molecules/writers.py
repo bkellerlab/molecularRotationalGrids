@@ -60,10 +60,18 @@ class PtIOManager:
             name_c_molecule = self.central_parser.get_topology_file_name()
             name_r_molecule = self.rotating_parser.get_topology_file_name()
             output_name = f"{name_c_molecule}_{name_r_molecule}"
+        self.output_paths = None
         self.output_name = output_name
+
 
     def get_decorator_name(self) -> str:
         return f"Pt {self.determine_pt_name()}"
+
+    def get_name(self):
+        output_paths = self._get_all_output_paths()
+        head, tail = os.path.split(output_paths[0])
+        name, ext = os.path.splitext(tail)
+        return name
 
     def determine_pt_name(self) -> str:
         """
@@ -82,12 +90,13 @@ class PtIOManager:
         """
         Return paths to (trajectory_file, structure_file, log_file) with unique number ID.
         """
-
-        # determine the first free file name
-        paths = [PATH_OUTPUT_PT, PATH_OUTPUT_PT, PATH_OUTPUT_LOGGING]
-        names = [self.output_name]*3
-        endings = [extension_trajectory, extension_structure, EXTENSION_LOGGING]
-        return paths_free_4_all(list_paths=paths, list_names=names, list_endings=endings)
+        if self.output_paths is None:
+            # determine the first free file name
+            paths = [PATH_OUTPUT_PT, PATH_OUTPUT_PT, PATH_OUTPUT_LOGGING]
+            names = [self.output_name]*3
+            endings = [extension_trajectory, extension_structure, EXTENSION_LOGGING]
+            self.output_paths = paths_free_4_all(list_paths=paths, list_names=names, list_endings=endings)
+        return self.output_paths
 
     def construct_pt(self, extension_trajectory: str = EXTENSION_TRAJECTORY,
                      extension_structure: str = EXTENSION_TOPOLOGY,
@@ -182,9 +191,8 @@ class PtWriter:
 
         Args:
             pt: a Pseudotrajectory object with method .get_molecule() that returns current ParsedMolecule
-            extension_structure: determines type of file to which topology should be saved
+            path_structure: where topology should be saved
         """
-        #structure_path = f"{PATH_OUTPUT_PT}{self.file_name}.{extension_structure}"
         if not np.all(self.box == pt.get_molecule().get_box()):
             print(f"Warning! Simulation boxes of both molecules are different. Selecting the box of "
                   f"central molecule with dimensions {self.box}")
@@ -197,10 +205,9 @@ class PtWriter:
 
         Args:
             pt: a Pseudotrajectory object with method .generate_pseudotrajectory() that generates ParsedMolecule objects
-            extension_trajectory: determines type of file to which trajectory should be saved
-            extension_structure: determines type of file to which topology should be saved
+            path_trajectory: where trajectory should be saved
+            path_structure: where topology should be saved
         """
-        #output_path = f"{PATH_OUTPUT_PT}{self.file_name}.{extension_trajectory}"
         trajectory_writer = mda.Writer(path_trajectory, multiframe=True)
         last_i = 0
         for i, _ in pt.generate_pseudotrajectory():
@@ -220,8 +227,8 @@ class PtWriter:
         first step.
 
             pt: a Pseudotrajectory object with method .generate_pseudotrajectory() that generates ParsedMolecule objects
-            extension_trajectory: determines type of file to which trajectory should be saved
-            extension_structure: determines type of file to which topology should be saved
+            path_trajectory: where trajectory should be saved
+            path_structure: where topology should be saved
         """
         directory_name, extension_trajectory = os.path.splitext(path_trajectory)
         _create_dir_or_empty_it(directory_name)
@@ -231,77 +238,3 @@ class PtWriter:
             f = f"{directory_name}/{i}.{extension_trajectory}"
             with mda.Writer(f) as structure_writer:
                 self._merge_and_write(structure_writer, pt)
-
-
-def converter_gro_dir_gro_file_names(pt_file_path: str = None, pt_directory_path: str = None,
-                                     extension: str = None) -> tuple:
-    """
-    Converter that helps separate a PT path into base path, directory/file name and extension. Provide one of
-    the arguments, pt_file_path or pt_directory_path+extension; if you provide both, only pt_file_path will be used.
-
-    Args:
-        pt_file_path: full path with extension pointing to the PT file
-        pt_directory_path: full path with extension pointing to the PT directory
-        extension: extension of PT
-
-    Returns:
-        (base file path, name without extension, full file path with extension, full directory path)
-    """
-    if pt_file_path:
-        without_ext, file_extension = os.path.splitext(pt_file_path)
-        file_path, file_name = os.path.split(without_ext)
-        pt_directory_path = os.path.join(file_path, file_name+"/")
-    elif pt_directory_path and extension:
-        file_path, file_name = os.path.split(pt_directory_path)
-        file_with_ext = file_name + f".{extension}"
-        pt_file_path = os.path.join(file_path, file_with_ext)
-    else:
-        raise ValueError("pt_file_path nor pt_directory_path + extension provided.")
-    return file_path + "/", file_name, pt_file_path, pt_directory_path
-
-
-def directory2full_pt(directory_path: str, trajectory_endings: str = "xtc"):
-    """
-    Convert a directory full of single-frame PTs in a single long PT.
-
-    Args:
-        directory_path: full path with extension pointing to the PT directory
-        trajectory_endings: extension of PT files in the directory
-    """
-    path_to_dir, dir_name = os.path.split(directory_path)
-    filelist = [f for f in os.listdir(directory_path) if f.endswith(f".{trajectory_endings}")]
-    filelist.sort(key=lambda x: int(x.split(".")[0]))
-    with open(f"{path_to_dir}/{dir_name}.{trajectory_endings}", 'wb') as wfd:
-        for f in filelist:
-            with open(f"{directory_path}/{f}", 'rb') as fd:
-                shutil.copyfileobj(fd, wfd)
-
-
-def full_pt2directory(full_pt_path: str, structure_path: str):
-    """
-    Convert a long PT into a directory of single-frame PTs.
-
-    Args:
-        full_pt_path: full path with extension pointing to the PT file
-        structure_path: full path with extension pointing to the structure/topology file
-
-    Returns:
-
-    """
-    with open(structure_path, "r") as f_read:
-        lines = f_read.readlines()
-    num_atoms = int(lines[1].strip("\n").strip())
-    num_frame_lines = num_atoms + 3
-    directory = full_pt_path.split(".")[0]
-    with open(full_pt_path, "rb") as f_read:
-        lines = f_read.readlines()
-    try:
-        os.mkdir(directory)
-    except FileExistsError:
-        # delete contents if folder already exist
-        filelist = [f for f in os.listdir(directory) if f.endswith(".gro")]
-        for f in filelist:
-            os.remove(os.path.join(directory, f))
-    for i in range(len(lines) // num_frame_lines):
-        with open(f"{directory}/{i}.gro", "wb") as f_write:
-            f_write.writelines(lines[num_frame_lines*i:num_frame_lines*(i+1)])

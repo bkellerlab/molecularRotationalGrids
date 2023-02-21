@@ -9,7 +9,6 @@ from scipy.spatial import SphericalVoronoi
 from scipy.spatial.transform import Rotation
 
 from molgri.space.analysis import prepare_statistics, write_statistics
-from molgri.space.cells import surface_per_cell_ideal
 from molgri.space.utils import random_quaternions, standardise_quaternion_set
 from molgri.constants import UNIQUE_TOL, EXTENSION_GRID_FILES, NAME2PRETTY_NAME, SMALL_NS
 from molgri.paths import PATH_OUTPUT_ROTGRIDS, PATH_OUTPUT_STAT
@@ -391,7 +390,7 @@ class ConvergenceSphereGridFactory:
     def get_spherical_voronoi_areas(self):
         data = []
         for N, sg in zip(self.N_set, self.list_sphere_grids):
-            ideal_area = surface_per_cell_ideal(N, r=1)
+            ideal_area = 4*pi/N
             try:
                 real_areas = sg.get_voronoi_areas()
             except ValueError:

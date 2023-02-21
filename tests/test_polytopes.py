@@ -308,3 +308,6 @@ def test_edge_attributes():
                    np.isclose(data["p_dist"], np.sqrt(3)*side_len/2) or np.isclose(data["p_dist"], side_len/2)
         cube4D.divide_edges()
         side_len = side_len / 2
+
+if __name__ == "__main__":
+    test_sorting()

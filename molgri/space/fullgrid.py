@@ -47,10 +47,10 @@ class FullGrid:
 
     def get_between_radii(self):
         radii = self.get_radii()
-        increments = self.t_grid.get_increments()
-        delta_radii = list(increments[1:])
-        delta_radii.append(delta_radii[-1])
-        delta_radii = np.array(delta_radii)
+        # increments = self.t_grid.get_increments()
+        # delta_radii = list(increments[1:])
+        # delta_radii.append(delta_radii[-1])
+        # delta_radii = np.array(delta_radii)
         #previous_radii = radii-radii[0]
         #between_radii = np.cbrt(2*radii**3-previous_radii**3) # equal volume
         #between_radii = radii + np.cbrt(2) * delta_radii    # equal volume

@@ -1,9 +1,7 @@
-import os
 import numpy as np
 
-from molgri.molecules.writers import PtIOManager, directory2full_pt, converter_gro_dir_gro_file_names, full_pt2directory
+from molgri.molecules.writers import PtIOManager
 from molgri.molecules.parsers import PtParser, ParsedMolecule
-from molgri.scripts.set_up_io import freshly_create_all_folders, copy_examples
 from molgri.space.utils import angle_between_vectors, normalise_vectors
 from molgri.paths import PATH_OUTPUT_PT, PATH_INPUT_BASEGRO
 
@@ -246,74 +244,3 @@ def test_order_of_operations():
                 mol2_ts_j = m2s[j]
                 same_body_orientation(mol2_ts_i, mol2_ts_j)
 
-
-def test_frames_in_directory():
-    n_b = 4
-    n_o = 2
-    n_t = 3
-    manager = PtIOManager("H2O", "NH3", f"ico_{n_o}", f"cube3D_{n_b}", "[1, 2, 3]")
-    manager.construct_pt(as_dir=True)
-    file_name = manager.determine_pt_name()
-    base_p, fn, fp, dp = converter_gro_dir_gro_file_names(pt_directory_path=f"{PATH_OUTPUT_PT}{file_name}",
-                                                          extension="xtc")
-    print(file_name, base_p, fn, fp, dp)
-    directory2full_pt(dp)
-    new_name = base_p + "joined_" + fn + ".xtc"
-    os.rename(fp, new_name)
-    filelist = [f for f in os.listdir(f"{dp}") if f.endswith(".xtc")]
-    assert len(filelist) == n_b*n_o*n_t, "Not correct number of .xtc files in a directory."
-    # compare contents of individual files mit the single all-frame PT
-    manager = PtIOManager("H2O", "NH3", f"ico_{n_o}", f"cube3D_{n_b}", "[1, 2, 3]")
-    manager.construct_pt(as_dir=False)
-    # check that a directory joined version is the same as the normal one
-    with open(new_name, "rb") as f1:
-        with open(fp, "rb") as f2:
-            l1 = f1.readlines()
-            l2 = f2.readlines()
-        assert np.all(l1 == l2)
-
-
-def test_directory_combined_to_pt():
-    # check that a full directory can be split
-    n_b = 17
-    n_o = 1
-    manager = PtIOManager("H2O", "NH3", f"cube3D_{n_o}", f"cube4D_{n_b}", "[1, 2, 3]")
-    manager.construct_pt(as_dir=False)
-    file_name = manager.determine_pt_name()
-    base_p, fn, fp, dp = converter_gro_dir_gro_file_names(pt_file_path=f"{PATH_OUTPUT_PT}{file_name}.xtc")
-    full_pt2directory(fp, structure_path=f"{base_p}{fn}.gro")
-    new_dir_name = base_p + "split_" + fn + "/"
-    if os.path.exists(new_dir_name):
-        # delete contents if folder already exist
-        filelist = [f for f in os.listdir(new_dir_name)]
-        for f in filelist:
-            os.remove(os.path.join(new_dir_name, f))
-        os.rmdir(new_dir_name)
-    os.rename(dp, new_dir_name)
-    # the non-split version / created during PT creation
-    manager2 = PtIOManager("H2O", "NH3", f"cube3D_{n_o}", f"cube4D_{n_b}", "[1, 2, 3]")
-    manager2.construct_pt(as_dir=True)
-    filelist1 = [f for f in os.listdir(f"{new_dir_name}") if f.endswith(".xtc")]
-    filelist2 = [f for f in os.listdir(f"{dp}") if f.endswith(".xtc")]
-    filelist1.sort(key=lambda x: int(x.split(".")[0]))
-    filelist2.sort(key=lambda x: int(x.split(".")[0]))
-    for file_name1, file_name2 in zip(filelist1, filelist2):
-        path1 = new_dir_name + file_name1
-        path2 = dp + file_name2
-        with open(path1, "r") as f1:
-            lines1 = f1.readlines()
-        with open(path2, "r") as f2:
-            lines2 = f2.readlines()
-        assert np.all(lines1 == lines2)
-
-
-if __name__ == '__main__':
-    freshly_create_all_folders()
-    copy_examples()
-    # test_pt_len()
-    # test_pt_translations()
-    test_pt_rotations_origin()
-    # test_pt_rotations_body()
-    # test_order_of_operations()
-    # test_frames_in_directory()
-    # test_directory_combined_to_pt()
