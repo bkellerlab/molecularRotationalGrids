@@ -1,6 +1,7 @@
 import numpy as np
 
 from molgri.molecules.writers import PtIOManager
+from molgri.scripts.set_up_io import copy_examples, freshly_create_all_folders
 from molgri.molecules.parsers import PtParser, ParsedMolecule
 from molgri.space.utils import angle_between_vectors, normalise_vectors
 from molgri.paths import PATH_OUTPUT_PT, PATH_INPUT_BASEGRO
@@ -244,3 +245,7 @@ def test_order_of_operations():
                 mol2_ts_j = m2s[j]
                 same_body_orientation(mol2_ts_i, mol2_ts_j)
 
+
+if __name__ == "__main__":
+    freshly_create_all_folders()
+    copy_examples()

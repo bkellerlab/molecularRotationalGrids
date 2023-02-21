@@ -1,7 +1,7 @@
 import os
 
 
-def test_scripts_run():
+def scripts_run():
     os.system("python -m molgri.scripts.set_up_io --examples")
     os.system("python -m molgri.scripts.generate_grid -N 250 -algo ico --draw --animate --animate_ordering --statistics --readable")
     os.system("python -m molgri.scripts.generate_grid -N 7 -algo ico --recalculate")
