@@ -52,9 +52,8 @@ def test_pt_len():
     end_index = manager.pt.current_frame
     num_translations = manager.full_grid.t_grid.get_N_trans()
     assert end_index == num_translations * num_rotations * num_rotations
-    parser = PtParser(f"{PATH_INPUT_BASEGRO}{m_path}", f"{PATH_INPUT_BASEGRO}{m_path}",
-                      f"{PATH_OUTPUT_PT}{manager.determine_pt_name()}.gro",
-                      f"{PATH_OUTPUT_PT}{manager.determine_pt_name()}.xtc")
+    parser = PtParser(f"{PATH_INPUT_BASEGRO}{m_path}", f"{PATH_INPUT_BASEGRO}{m_path}", manager.output_paths[1],
+                      manager.output_paths[0])
     assert len(parser.universe.trajectory) == end_index
     assert parser.c_num == parser.r_num == 3
     # 2nd example
@@ -68,8 +67,8 @@ def test_pt_len():
     num_translations = manager.full_grid.t_grid.get_N_trans()
     assert end_index == num_translations * num_body * num_origin
     parser = PtParser(f"{PATH_INPUT_BASEGRO}{m1_path}", f"{PATH_INPUT_BASEGRO}{m2_path}",
-                      f"{PATH_OUTPUT_PT}{manager.determine_pt_name()}.gro",
-                      f"{PATH_OUTPUT_PT}{manager.determine_pt_name()}.xtc")
+                      manager.output_paths[1],
+                      manager.output_paths[0])
     assert len(parser.universe.trajectory) == end_index
     assert parser.r_num == 4
     assert parser.c_num == 3
@@ -85,8 +84,8 @@ def test_pt_len():
     assert end_index == num_translations * num_body * num_origin
     parser = PtParser(f"{PATH_INPUT_BASEGRO}{m1_path}",
                       f"{PATH_INPUT_BASEGRO}{m2_path}",
-                      f"{PATH_OUTPUT_PT}{manager.determine_pt_name()}.gro",
-                      f"{PATH_OUTPUT_PT}{manager.determine_pt_name()}.xtc")
+                      manager.output_paths[1],
+                      manager.output_paths[0])
     assert len(parser.universe.trajectory) == end_index
     assert parser.r_num == 4
     assert parser.c_num == 3
@@ -106,8 +105,8 @@ def test_pt_translations():
 
     traj_parser = PtParser(f"{PATH_INPUT_BASEGRO}{m_path}",
                            f"{PATH_INPUT_BASEGRO}{m_path}",
-                           f"{PATH_OUTPUT_PT}{file_name}.gro",
-                           f"{PATH_OUTPUT_PT}{file_name}.xtc")
+                           manager.output_paths[1],
+                           manager.output_paths[0])
     for frame_i, frame_molecules in enumerate(traj_parser.generate_frame_as_double_molecule()):
         # distance of COM of second molecule to origin
         molecule1, molecule2 = frame_molecules
@@ -136,8 +135,8 @@ def test_pt_rotations_origin():
     # assert every uneven structure has distance 1 and every even one distance 2
     traj_parser = PtParser(f"{PATH_INPUT_BASEGRO}{m_path}",
                            f"{PATH_INPUT_BASEGRO}{m_path}",
-                           f"{PATH_OUTPUT_PT}{file_name}.gro",
-                           f"{PATH_OUTPUT_PT}{file_name}.xtc")
+                           manager.output_paths[1],
+                           manager.output_paths[0])
     # initial angles
     m1, m2 = next(traj_parser.generate_frame_as_double_molecule())
     vec_com_0 = m2.get_center_of_mass()
@@ -186,8 +185,8 @@ def test_pt_rotations_body():
     # assert every uneven structure has distance 1 and every even one distance 2
     traj_parser = PtParser(f"{PATH_INPUT_BASEGRO}{m1_path}",
                            f"{PATH_INPUT_BASEGRO}{m2_path}",
-                           f"{PATH_OUTPUT_PT}{file_name}.gro",
-                           f"{PATH_OUTPUT_PT}{file_name}.xtc")
+                           manager.output_paths[1],
+                           manager.output_paths[0])
     for frame_i, frame_molecules in enumerate(traj_parser.generate_frame_as_double_molecule()):
         m1, m2 = frame_molecules
         dist = np.linalg.norm(m2.get_center_of_mass())
@@ -224,8 +223,8 @@ def test_order_of_operations():
     # assert every uneven structure has distance 1 and every even one distance 2
     traj_parser = PtParser(f"{PATH_INPUT_BASEGRO}{m1_path}",
                            f"{PATH_INPUT_BASEGRO}{m2_path}",
-                           f"{PATH_OUTPUT_PT}{file_name}.gro",
-                           f"{PATH_OUTPUT_PT}{file_name}.xtc")
+                           manager.output_paths[1],
+                           manager.output_paths[0])
     m2s = []
     for frame_i, frame_molecules in enumerate(traj_parser.generate_frame_as_double_molecule()):
         m1, m2 = frame_molecules

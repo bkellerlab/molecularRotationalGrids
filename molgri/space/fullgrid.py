@@ -104,6 +104,15 @@ class FullGrid:
         except AttributeError:
             return None
 
+    def point2cell_position_grid(self, points_vector: NDArray):
+        # determine radii of cells
+        layers = np.zeros((len(points_vector),))
+        vor_radii = list(self.get_between_radii())
+        vor_radii.append(np.infty)
+        for vor_rad in vor_radii:
+            for i, point in enumerate(points_vector):
+                pass
+
 
 class FullVoronoiGrid:
 
