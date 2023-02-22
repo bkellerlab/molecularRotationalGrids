@@ -6,6 +6,7 @@ from scipy.spatial.transform import Rotation
 from scipy.spatial import SphericalVoronoi
 from scipy.constants import pi
 import pandas as pd
+import matplotlib.path as mplPath
 
 from molgri.constants import SMALL_NS
 from molgri.space.rotobj import SphereGridFactory
@@ -105,13 +106,33 @@ class FullGrid:
             return None
 
     def point2cell_position_grid(self, points_vector: NDArray):
+        # determine index within a layer - the layer grid point to which the point vectors are closest
+        rot_points = self.o_rotations.get_grid_as_array()
+        # this automatically select the one of angles that is < pi
+        angles = angle_between_vectors(points_vector, rot_points)
+        indices_within_layer = np.argmin(angles, axis=1)
+
         # determine radii of cells
+        norms = norm_per_axis(points_vector)
         layers = np.zeros((len(points_vector),))
-        vor_radii = list(self.get_between_radii())
-        vor_radii.append(np.infty)
-        for vor_rad in vor_radii:
-            for i, point in enumerate(points_vector):
-                pass
+        vor_radii = self.get_between_radii()
+        #vor_radii.append(np.infty)
+
+        # find the index of the layer to which each point belongs
+        for i, norm in enumerate(norms):
+            for j, vor_rad in enumerate(vor_radii):
+                # because norm keeps the shape of the original array
+                if norm[0] < vor_rad:
+                    layers[i] = j
+                    break
+            else:
+                layers[i] = np.NaN
+
+        layer_len = len(rot_points)
+        indices = layers * layer_len + indices_within_layer
+        return indices
+
+
 
 
 class FullVoronoiGrid:
@@ -334,3 +355,10 @@ class ConvergenceFullGridO:
                 data.append([N, layer, ideal_volumes[i//N], volume])
         df = pd.DataFrame(data, columns=["N", "layer", "ideal volume", "Voronoi cell volume"])
         return df
+
+if __name__ == "__main__":
+    full_grid = FullGrid(b_grid_name="cube3D_16", o_grid_name="ico_15", t_grid_name="[1, 2, 3]")
+    # fvg = full_grid.get_full_voronoi_grid()
+    # print(fvg)
+    points = np.array([[-1, 3, 2], [-0.5, -0.5, 1], [22, 8, 4], [1, 1, 222]])
+    print(full_grid.point2cell_position_grid(points))
