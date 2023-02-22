@@ -25,11 +25,11 @@ def get_example_pt():
 def test_polytope_plots():
     for pol in (Cube3DPolytope(), Cube4DPolytope(), IcosahedronPolytope()):
         pol.divide_edges()
-        pp = PolytopePlot(pol)
+        pp = PolytopePlot(pol, default_color_style="dark", default_complexity_level="empty")
         pp.create_all_plots()
 
 
-def test_spheregrid_plots(N=12, and_animations=False, Ns=MINI_NS):
+def test_spheregrid_plots(N=12, and_animations=True, Ns=MINI_NS):
     # single plots
     for alg in GRID_ALGORITHMS[:-1]:
         for dim in (3, 4):
