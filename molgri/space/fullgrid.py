@@ -1,6 +1,7 @@
 from copy import copy
 
 import numpy as np
+import scipy
 from numpy.typing import NDArray
 from scipy.spatial.transform import Rotation
 from scipy.spatial import SphericalVoronoi
@@ -116,7 +117,6 @@ class FullGrid:
         norms = norm_per_axis(points_vector)
         layers = np.zeros((len(points_vector),))
         vor_radii = self.get_between_radii()
-        #vor_radii.append(np.infty)
 
         # find the index of the layer to which each point belongs
         for i, norm in enumerate(norms):
@@ -132,6 +132,9 @@ class FullGrid:
         indices = layers * layer_len + indices_within_layer
         return indices
 
+    def points2cell_scipy(self, points_vector: NDArray):
+        cdist = scipy.spatial.distance.cdist(points_vector, self.get_flat_position_grid())
+        return np.argmin(cdist, axis=1)
 
 
 
@@ -355,6 +358,9 @@ class ConvergenceFullGridO:
                 data.append([N, layer, ideal_volumes[i//N], volume])
         df = pd.DataFrame(data, columns=["N", "layer", "ideal volume", "Voronoi cell volume"])
         return df
+
+
+
 
 if __name__ == "__main__":
     full_grid = FullGrid(b_grid_name="cube3D_16", o_grid_name="ico_15", t_grid_name="[1, 2, 3]")
