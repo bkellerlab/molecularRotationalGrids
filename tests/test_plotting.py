@@ -29,7 +29,7 @@ def test_polytope_plots():
         pp.create_all_plots()
 
 
-def test_spheregrid_plots(N=32, and_animations=True, Ns=MINI_NS):
+def test_spheregrid_plots(N=32, and_animations=False, Ns=MINI_NS):
     # single plots
     for alg in GRID_ALGORITHMS[:-1]:
         for dim in (3, 4):

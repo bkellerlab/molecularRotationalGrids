@@ -1,4 +1,5 @@
 import numpy as np
+from scipy.constants import pi
 
 from molgri.space.fullgrid import FullGrid
 from molgri.space.rotobj import SphereGridFactory
@@ -19,6 +20,18 @@ def test_fullgrid_voronoi_radii():
     voronoi = fg.get_full_voronoi_grid()
     voronoi_radii = [sv.radius for sv in voronoi.get_voronoi_discretisation()]
     assert np.allclose(voronoi_radii, [6.5, 15, 23.5, 28.5, 31.5])
+
+    # example with only one layer
+    fg = FullGrid(b_grid_name="ico_7", o_grid_name=f"cube3D_15", t_grid_name="[0.3]")
+    # point radii as expected
+    assert np.allclose(fg.get_radii(), [3])
+    # between radii as expected; last one is same as previous distance
+    assert np.allclose(fg.get_between_radii(), [6])
+    # assert that those are also the radii of voronoi cells
+    voronoi = fg.get_full_voronoi_grid()
+    voronoi_radii = [sv.radius for sv in voronoi.get_voronoi_discretisation()]
+    assert np.allclose(voronoi_radii, [6])
+
 
 
 def test_cell_assignment():
@@ -56,7 +69,59 @@ def test_cell_assignment():
 
 
 def test_division_area():
-    pass
+    # simplest possible example: voronoi cells need at least 4 points to be created
+    # with 4 points we expect tetrahedron angles
+    fg = FullGrid(b_grid_name="zero", o_grid_name=f"cube3D_4", t_grid_name="[3]")
+    fvg = fg.get_full_voronoi_grid()
+
+    # to visualise, uncomment
+    # from molgri.plotting.fullgrid_plots import FullGridPlot
+    # import matplotlib.pyplot as plt
+    # fgp = FullGridPlot(fg)
+    # fgp.make_position_plot(numbered=True, save=False)
+    # fgp.make_full_voronoi_plot(ax=fgp.ax, fig=fgp.fig, save=False, plot_vertex_points=True)
+    # plt.show()
+
+    # what we expect:
+    # 1) all points are neighbours (in the same layer)
+    # 2) all points share a division surface that approx equals R^2*alpha/2
+    # where R is the voronoi radius and alpha the Vertex-Center-Vertex tetrahedron angle
+    R = fg.get_between_radii()[0]
+    alpha = np.arccos(-1/3)
+    expected_surface = R**2 * alpha / 2
+    all_div_areas = []
+    for i in range(4):
+        for j in range(i+1, 4):
+            all_div_areas.append(fvg.get_division_area(i, j))
+    # because all should be neighbours
+    assert None not in all_div_areas
+    # allowing for 5% error
+    assert np.all(all_div_areas < 1.05 * expected_surface)
+    assert np.all(all_div_areas > 0.95 * expected_surface)
+
+    # the next example is with 12 points in form of an icosahedron and two layers
+    fg = FullGrid(b_grid_name="zero", o_grid_name=f"ico_12", t_grid_name="[2, 4]")
+    fvg = fg.get_full_voronoi_grid()
+
+    # to visualise, uncomment
+    from molgri.plotting.fullgrid_plots import FullGridPlot
+    import matplotlib.pyplot as plt
+    fgp = FullGridPlot(fg)
+    fgp.make_position_plot(numbered=True, save=False)
+    fgp.make_full_voronoi_plot(ax=fgp.ax, fig=fgp.fig, save=False, plot_vertex_points=True)
+    plt.show()
+
+    R_s = fg.get_between_radii()
+    alpha = np.arccos(-np.sqrt(5)/3)
+    areas_sideways = R_s ** 2 * alpha / 2
+    areas_above = 4 * pi * R_s ** 2 / 12
+
+    # points 0 and 12, 1 and 13 ... right above each other
+    real_areas_above = []
+    for i in range(0, 12):
+        print(fvg.get_division_area(i, i+12), areas_above[0])
+
+
 
 
 def test_default_full_grids():
@@ -125,5 +190,6 @@ def test_position_grid():
 
 
 if __name__ == "__main__":
-    test_fullgrid_voronoi_radii()
-    test_cell_assignment()
+    #test_fullgrid_voronoi_radii()
+    #test_cell_assignment()
+    test_division_area()

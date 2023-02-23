@@ -485,3 +485,11 @@ class PanelConvergenceSphereGridPlots(PanelRepresentationCollection):
         self.unify_axis_limits()
         if save:
             self._save_multiplot("voronoi_area")
+
+if __name__ == "__main__":
+    from molgri.constants import DEFAULT_NS
+    conv_obj = ConvergenceSphereGridFactory("cube3D", dimensions=3, use_saved=True, N_set=DEFAULT_NS)
+    conv_plot = ConvergenceSphereGridPlot(conv_obj)
+    conv_plot.make_voronoi_area_conv_plot(save=False)
+    conv_plot.ax.set_xscale("log")
+    plt.show()

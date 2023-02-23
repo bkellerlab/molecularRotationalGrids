@@ -62,11 +62,15 @@ class FullGrid:
         # get increments to each radius, remove first one and add an extra one at the end with same distance as
         # second-to-last one
         increments = list(self.t_grid.get_increments())
-        increments.pop(0)
-        increments.append(increments[-1])
-        increments = np.array(increments)
+        if len(increments) > 1:
+            increments.pop(0)
+            increments.append(increments[-1])
+            increments = np.array(increments)
+            increments = increments / 2
+        else:
+            increments = np.array(increments)
 
-        between_radii = radii + increments / 2
+        between_radii = radii + increments
         return between_radii
 
     def get_body_rotations(self) -> Rotation:
