@@ -152,19 +152,15 @@ class PanelConvergenceFullGridPlots(PanelRepresentationCollection):
 
 if __name__ == "__main__":
     import matplotlib.pyplot as plt
-    full_grid = FullGrid(b_grid_name="cube3D_16", o_grid_name="ico_7", t_grid_name="[1, 3]")
+    full_grid = FullGrid(b_grid_name="zero", o_grid_name="cube3D_25", t_grid_name="[1.5, 3]", use_saved=False)
     fgp = FullGridPlot(full_grid)
-    fgp.make_full_voronoi_plot(save=False)
+    fgp.make_full_voronoi_plot(save=False, plot_vertex_points=False)
     fgp.make_position_plot(numbered=True, ax=fgp.ax, fig=fgp.fig, save=False)
-    # fvg = full_grid.get_full_voronoi_grid()
-    # print(fvg)
-    #points = np.array([[-1, 3, 2], [-0.5, -0.5, 1], [22, 8, 4], [1, 1, 222]])
+
     points = full_grid.get_flat_position_grid()
     random_noise = 5*(np.random.random(points.shape) - 0.5)
     points = points + random_noise
     for point in points:
         fgp.ax.scatter(*point, color="blue")
-    print(full_grid.point2cell_position_grid(points))
 
-    print(full_grid.points2cell_scipy(points))
     plt.show()

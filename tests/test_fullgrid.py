@@ -119,7 +119,25 @@ def test_division_area():
     # points 0 and 12, 1 and 13 ... right above each other
     real_areas_above = []
     for i in range(0, 12):
-        print(fvg.get_division_area(i, i+12), areas_above[0])
+        real_areas_above.append(fvg.get_division_area(i, i+12))
+    real_areas_above = np.array(real_areas_above)
+    # on average, the areas are perfect
+    assert np.allclose(np.average(real_areas_above), areas_above[0])
+    # on their own, they are less impressive - see the relative errors
+    rel_errors = np.abs(real_areas_above - areas_above[0])/areas_above[0] * 100
+    print(f"Relative errors in icosahedron surfaces above first layer: {rel_errors}")
+
+    real_areas_first_level = []
+    # now let's see some sideways areas
+    for i in range(12):
+        for j in range(12):
+            area = fvg.get_division_area(i, j)
+            if area is not None:
+                real_areas_first_level.append(area)
+    real_areas_first_level = np.array(real_areas_first_level)
+    print(real_areas_first_level)
+    rel_errors = np.abs(real_areas_first_level - areas_sideways[0]) / areas_sideways[0] * 100
+    print(f"Relative errors in icosahedron surfaces sideways in the first layer: {rel_errors}")
 
 
 
