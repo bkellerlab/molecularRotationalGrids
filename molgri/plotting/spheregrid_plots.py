@@ -230,7 +230,8 @@ class PolytopePlot(RepresentationCollection):
         self.polytope = polytope
         split_name = str(polytope).split()
         data_name = f"{split_name[0]}_{split_name[-1]}"
-        super().__init__(data_name, default_complexity_level="half_empty", **kwargs)
+        default_complexity_level = kwargs.pop("default_complexity_level", "half_empty")
+        super().__init__(data_name, default_complexity_level=default_complexity_level, **kwargs)
 
     def make_graph(self, ax=None, fig=None, with_labels=True, save=True):
         """

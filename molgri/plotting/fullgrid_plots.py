@@ -1,7 +1,7 @@
 import numpy as np
 import seaborn as sns
 
-from molgri.constants import GRID_ALGORITHMS
+from molgri.constants import GRID_ALGORITHMS, NAME2SHORT_NAME
 from molgri.plotting.abstract import RepresentationCollection, PanelRepresentationCollection, plot_voronoi_cells
 from molgri.space.fullgrid import FullGrid, ConvergenceFullGridO
 
@@ -13,6 +13,22 @@ class FullGridPlot(RepresentationCollection):
         self.full_voronoi_grid = full_grid.get_full_voronoi_grid()
         data_name = self.full_grid.get_name()
         super().__init__(data_name)
+
+    def get_possible_title(self, algs = True, N_points = False):
+        name = ""
+        if algs:
+            o_name = NAME2SHORT_NAME[self.full_grid.o_rotations.algorithm_name]
+            b_name = NAME2SHORT_NAME[self.full_grid.b_rotations.algorithm_name]
+            name += f"o = {o_name}, b = {b_name}"
+        if N_points:
+            N_o = self.full_grid.o_rotations.N
+            N_b = self.full_grid.b_rotations.N
+            N_t = self.full_grid.t_grid.get_N_trans()
+            N_name = f"N_o = {N_o}, N_b = {N_b}, N_t = {N_t}"
+            if len(name) > 0:
+                N_name = f"; {N_name}"
+            name += N_name
+        return name
 
     def make_position_plot(self, ax=None, fig=None, save=True, animate_rot=False, numbered: bool = False):
         self._create_fig_ax(fig=fig, ax=ax, projection="3d")

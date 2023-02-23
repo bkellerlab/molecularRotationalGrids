@@ -44,26 +44,29 @@ class FullGrid:
         b_name = self.b_rotations.get_name(with_dim=False)
         return f"o_{o_name}_b_{b_name}_t_{self.t_grid.grid_hash}"
 
-    def get_radii(self):
+    def get_radii(self) -> NDArray:
         return self.t_grid.get_trans_grid()
 
-    def get_between_radii(self):
+    def get_between_radii(self) -> NDArray:
+        """
+        Get the radii at which Voronoi cells of the position grid should be positioned. This should be right in-between
+        two orientation point layers (except the first layer that is fully encapsulated by the first voronoi layer
+        and the last one that is simply in-between two voronoi layers).
+
+        Returns:
+            an array of distances, same length as the self.get_radii array but with all distances larger than the
+            corresponding point radii
+        """
         radii = self.get_radii()
-        # increments = self.t_grid.get_increments()
-        # delta_radii = list(increments[1:])
-        # delta_radii.append(delta_radii[-1])
-        # delta_radii = np.array(delta_radii)
-        #previous_radii = radii-radii[0]
-        #between_radii = np.cbrt(2*radii**3-previous_radii**3) # equal volume
-        #between_radii = radii + np.cbrt(2) * delta_radii    # equal volume
 
-        increases = self.t_grid.get_increments() / 2
-        between_radii = radii + increases
+        # get increments to each radius, remove first one and add an extra one at the end with same distance as
+        # second-to-last one
+        increments = list(self.t_grid.get_increments())
+        increments.pop(0)
+        increments.append(increments[-1])
+        increments = np.array(increments)
 
-        # constant_delta = delta_radii[-1]
-        # f = 1/constant_delta *(-radii[0] + 2**(2/3)*constant_delta +2**(1/3)*constant_delta+constant_delta)
-        # print("f=", f)
-        # between_radii  = radii + f*constant_delta
+        between_radii = radii + increments / 2
         return between_radii
 
     def get_body_rotations(self) -> Rotation:
@@ -135,7 +138,6 @@ class FullGrid:
     def points2cell_scipy(self, points_vector: NDArray):
         cdist = scipy.spatial.distance.cdist(points_vector, self.get_flat_position_grid())
         return np.argmin(cdist, axis=1)
-
 
 
 class FullVoronoiGrid:
@@ -358,8 +360,6 @@ class ConvergenceFullGridO:
                 data.append([N, layer, ideal_volumes[i//N], volume])
         df = pd.DataFrame(data, columns=["N", "layer", "ideal volume", "Voronoi cell volume"])
         return df
-
-
 
 
 if __name__ == "__main__":
