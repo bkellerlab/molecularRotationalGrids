@@ -98,7 +98,7 @@ def get_icosahedron_grid(visualise=False):
 
 def test_fullgrid_voronoi_radii():
     # we expect voronoi radii to be right in-between layers of points
-    fg = FullGrid(b_grid_name="ico_7", o_grid_name=f"cube3D_15", t_grid_name="[0.3, 1, 2, 2.7, 3]")
+    fg = FullGrid(b_grid_name="ico_7", o_grid_name=f"cube3D_15", t_grid_name="[0.3, 1, 2, 2.7, 3]", use_saved=False)
     # point radii as expected
     assert np.allclose(fg.get_radii(), [3, 10, 20, 27, 30])
     # between radii as expected; last one is same as previous distance
@@ -181,9 +181,9 @@ def test_division_area():
 
     # the next example is with 12 points in form of an icosahedron and two layers
 
-    fg, fvg = get_icosahedron_grid()
+    fug2, fvg2 = get_icosahedron_grid()
 
-    R_s = fg.get_between_radii()
+    R_s = fug2.get_between_radii()
     ii = IdealIcosahedron(R_s)
     areas_sideways = ii.get_ideal_sideways_area()
     areas_above = ii.get_ideal_sphere_area()
@@ -191,7 +191,7 @@ def test_division_area():
     # points 0 and 12, 1 and 13 ... right above each other
     real_areas_above = []
     for i in range(0, 12):
-        real_areas_above.append(fvg.get_division_area(i, i+12))
+        real_areas_above.append(fvg2.get_division_area(i, i+12))
     real_areas_above = np.array(real_areas_above)
     assert np.allclose(real_areas_above, areas_above[0])
 
@@ -199,7 +199,7 @@ def test_division_area():
     # now let's see some sideways areas
     for i in range(12):
         for j in range(12):
-            area = fvg.get_division_area(i, j, print_message=False)
+            area = fvg2.get_division_area(i, j, print_message=False)
             if area is not None:
                 real_areas_first_level.append(area)
     real_areas_first_level = np.array(real_areas_first_level)
@@ -209,11 +209,10 @@ def test_division_area():
     # now let's see some sideways areas - this time second level of points
     for i in range(12, 24):
         for j in range(12, 24):
-            area = fvg.get_division_area(i, j, print_message=False)
+            area = fvg2.get_division_area(i, j, print_message=False)
             if area is not None:
                 real_areas_sec_level.append(area)
     real_areas_sec_level = np.array(real_areas_sec_level)
-    #area_2_ideal = areas_sideways[1] - areas_sideways[0]
     assert np.allclose(real_areas_sec_level, areas_sideways[1])
 
 
@@ -305,5 +304,6 @@ def test_position_grid():
 
 if __name__ == "__main__":
     #test_fullgrid_voronoi_radii()
-    #test_cell_assignment()
+    test_cell_assignment()
     test_division_area()
+    test_volumes()

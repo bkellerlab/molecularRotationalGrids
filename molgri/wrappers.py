@@ -62,21 +62,22 @@ def save_or_use_saved(my_method):
                 data_name = f"{name_without_ext}.{test_extension}"
                 if os.path.isfile(data_name):
                     if test_extension == "npy":
-                        return np.load(data_name)
+                        loaded_data = np.load(data_name)
                     elif test_extension == "csv":
-                        return pd.read_csv(data_name, index_col=0)
-                    elif test_extension == "txt":
-                        return np.loadtxt(data_name)
+                        loaded_data = pd.read_csv(data_name, index_col=0)
                     else:
                         with open(name_without_ext, 'rb') as f:
-                            return pickle.load(f)
+                            loaded_data = pickle.load(f)
+                    return loaded_data
         # don't use else - the rest should be run if 1) not self.use_saved OR 2) file doesn't exist
         method_output = my_method(self, *args, **kwargs)
         if isinstance(method_output, pd.DataFrame):
             method_output.to_csv(f"{name_without_ext}.csv", index=True)
         elif isinstance(method_output, np.ndarray):
+            print("saving")
             np.save(f"{name_without_ext}.npy", method_output)
         else:
+            print("pickling", name_without_ext)
             with open(name_without_ext, 'wb') as f:
                 pickle.dump(method_output, f)
         return method_output
