@@ -172,10 +172,27 @@ class FullVoronoiGrid:
         return self.all_sv
 
     @save_or_use_saved
-    def find_voronoi_vertices_of_point(self, point_index: int):
+    def find_voronoi_vertices_of_point(self, point_index: int, which="all"):
+        """
+
+        Args:
+            point_index:
+            which: all, upper or lower
+
+        Returns:
+
+        """
         my_point = Point(point_index, self)
 
-        vertices = my_point.get_vertices()
+        if which == "all":
+            vertices = my_point.get_vertices()
+        elif which == "upper":
+            vertices = my_point.get_vertices_above()
+        elif which == "lower":
+            vertices = my_point.get_vertices_below()
+        else:
+            raise ValueError("The value of which not recognised, select 'all', 'upper', 'lower'.")
+
         return vertices
 
     def get_division_area(self, index_1: int, index_2: int, print_message=True):
@@ -190,8 +207,9 @@ class FullVoronoiGrid:
             r_larger = np.linalg.norm(vertices_1a[0])
             set_vertices_1a = set([tuple(v) for v in vertices_1a])
             set_vertices_2a = set([tuple(v) for v in vertices_2a])
+            # vertices that are above point 1 and point 2
             intersection_a = set_vertices_1a.intersection(set_vertices_2a)
-            # vertices below
+            # vertices below - only important to determine radius
             vertices_1b = point_1.get_vertices_below()
             r_smaller = np.linalg.norm(vertices_1b[0])
             if len(intersection_a) != 2:
@@ -199,6 +217,7 @@ class FullVoronoiGrid:
                     print(f"Points {index_1} and {index_2} are not neighbours.")
                 return
             else:
+                # angle will be determined by the vector from origin to both points above
                 intersection_list = list(intersection_a)
                 theta = angle_between_vectors(np.array(intersection_list[0]), np.array(intersection_list[1]))
                 return theta / 2 * (r_larger ** 2 - r_smaller ** 2)
@@ -301,7 +320,6 @@ class Point:
 
     def get_vertices_below(self):
         sv_below = self.get_sv_below()
-
         if sv_below is None:
             vertices_below = np.zeros((1, 3))
         else:

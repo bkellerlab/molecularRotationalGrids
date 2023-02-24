@@ -76,12 +76,13 @@ class FullGridPlot(RepresentationCollection):
         if animate_rot:
             return self._animate_figure_view(self.fig, self.ax, f"full_voronoi_rotated")
 
-    def make_point_vertices_plot(self, point_index: int, ax=None, fig=None, save=True, animate_rot=False):
+    def make_point_vertices_plot(self, point_index: int, ax=None, fig=None, save=True, animate_rot=False,
+                                 which="all"):
         self.make_full_voronoi_plot(ax=ax, fig=fig, save=False, plot_vertex_points=False)
         self.make_position_plot(save=False, numbered=True, ax=self.ax, fig=self.fig)
 
         try:
-            vertices = self.full_voronoi_grid.find_voronoi_vertices_of_point(point_index)
+            vertices = self.full_voronoi_grid.find_voronoi_vertices_of_point(point_index, which=which)
             self.ax.scatter(*vertices.T, color="red")
         except AttributeError:
             pass

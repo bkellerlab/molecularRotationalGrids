@@ -1,5 +1,7 @@
 import numpy as np
+from numpy.typing import NDArray
 from scipy.constants import pi
+from abc import ABC, abstractmethod
 
 from molgri.space.fullgrid import FullGrid
 from molgri.space.rotobj import SphereGridFactory
@@ -7,6 +9,91 @@ from molgri.space.utils import normalise_vectors
 
 # tests should always be performed on fresh data
 USE_SAVED = False
+
+
+class IdealPolyhedron(ABC):
+
+    def __init__(self, Rs: NDArray, N_vertices):
+        self.Rs = Rs
+        self.N_vertices = N_vertices
+
+    def get_ideal_sphere_area(self):
+        """For each radius get ideal area of curved surfaces"""
+        return 4 * pi * self.Rs ** 2 / self.N_vertices
+
+    def get_ideal_sideways_area(self):
+        """Get ideal areas separating points in the same level"""
+        alpha = self.get_central_angle()
+        circles = self.Rs**2 * alpha / 2
+        areas = [circles[0]]
+        for circ in circles[1:]:
+            areas.append(circ - areas[-1])
+        areas = np.array(areas)
+        return areas
+
+    @abstractmethod
+    def get_central_angle(self):
+        pass
+
+    def get_ideal_volume(self):
+        full_volumes = 4 / 3 * pi * self.Rs**3 / self.N_vertices
+        volumes = [full_volumes[0]]
+        for vol in full_volumes[1:]:
+            volumes.append(vol - volumes[-1])
+        volumes = np.array(volumes)
+        return volumes
+
+
+class IdealTetrahedron(IdealPolyhedron):
+
+    def __init__(self, Rs):
+        super().__init__(Rs, N_vertices=4)
+
+    def get_central_angle(self):
+        # tetrahedron is a dual of itself, so we here use the central angle of tetrahedron
+        return np.arccos(-1/3)
+
+
+class IdealIcosahedron(IdealPolyhedron):
+
+    def __init__(self, Rs):
+        super().__init__(Rs, N_vertices=12)
+
+    def get_central_angle(self):
+        # this is the central angle of a regular dodecahedron (vertex-origin-vertex). Why does that make sense?
+        # The icosahedron and the dodecahedron are duals, so connecting the centers of the faces of an icosahedron
+        # gives a dodecahedron and vice-versa. The shape of Voronoi cells on the sphere based on an icosahedron
+        # partition is like a curved dodecahedron - has the same angles
+        return np.arccos(np.sqrt(5)/3)
+
+
+def _visualise_fg(fg: FullGrid):
+    from molgri.plotting.fullgrid_plots import FullGridPlot
+    import matplotlib.pyplot as plt
+    fgp = FullGridPlot(fg)
+    fgp.make_position_plot(numbered=True, save=False)
+    fgp.make_full_voronoi_plot(ax=fgp.ax, fig=fgp.fig, save=False, plot_vertex_points=True)
+    plt.show()
+
+
+def get_tetrahedron_grid(visualise=False):
+    # simplest possible example: voronoi cells need at least 4 points to be created
+    # with 4 points we expect tetrahedron angles
+    fg = FullGrid(b_grid_name="zero", o_grid_name=f"cube3D_4", t_grid_name="[0.3]", use_saved=False)
+    fvg = fg.get_full_voronoi_grid()
+
+    if visualise:
+        _visualise_fg(fg)
+    return fg, fvg
+
+
+def get_icosahedron_grid(visualise=False):
+    fg = FullGrid(b_grid_name="zero", o_grid_name=f"ico_12", t_grid_name="[0.2, 0.4]", use_saved=False)
+    fvg = fg.get_full_voronoi_grid()
+
+    if visualise:
+        _visualise_fg(fg)
+    return fg, fvg
 
 
 def test_fullgrid_voronoi_radii():
@@ -31,7 +118,6 @@ def test_fullgrid_voronoi_radii():
     voronoi = fg.get_full_voronoi_grid()
     voronoi_radii = [sv.radius for sv in voronoi.get_voronoi_discretisation()]
     assert np.allclose(voronoi_radii, [6])
-
 
 
 def test_cell_assignment():
@@ -69,77 +155,87 @@ def test_cell_assignment():
 
 
 def test_division_area():
-    # simplest possible example: voronoi cells need at least 4 points to be created
-    # with 4 points we expect tetrahedron angles
-    fg = FullGrid(b_grid_name="zero", o_grid_name=f"cube3D_4", t_grid_name="[3]")
-    fvg = fg.get_full_voronoi_grid()
-
-    # to visualise, uncomment
-    # from molgri.plotting.fullgrid_plots import FullGridPlot
-    # import matplotlib.pyplot as plt
-    # fgp = FullGridPlot(fg)
-    # fgp.make_position_plot(numbered=True, save=False)
-    # fgp.make_full_voronoi_plot(ax=fgp.ax, fig=fgp.fig, save=False, plot_vertex_points=True)
-    # plt.show()
+    fg, fvg = get_tetrahedron_grid(visualise=False)
 
     # what we expect:
     # 1) all points are neighbours (in the same layer)
     # 2) all points share a division surface that approx equals R^2*alpha/2
     # where R is the voronoi radius and alpha the Vertex-Center-Vertex tetrahedron angle
-    R = fg.get_between_radii()[0]
-    alpha = np.arccos(-1/3)
-    expected_surface = R**2 * alpha / 2
+    R = fg.get_between_radii()
+    expected_surface = IdealTetrahedron(R).get_ideal_sideways_area()[0]
+
     all_div_areas = []
     for i in range(4):
         for j in range(i+1, 4):
             all_div_areas.append(fvg.get_division_area(i, j))
     # because all should be neighbours
     assert None not in all_div_areas
-    # allowing for 5% error
+    all_div_areas = np.array(all_div_areas)
+    # on average should be right area
+    assert np.allclose(np.average(all_div_areas), expected_surface, rtol=0.01, atol=0.1)
+    # for each individual, allowing for 5% error
     assert np.all(all_div_areas < 1.05 * expected_surface)
     assert np.all(all_div_areas > 0.95 * expected_surface)
+    rel_errors = np.abs(all_div_areas - expected_surface) / expected_surface * 100
+    print(f"Relative errors in tetrahedron surfaces: {np.round(rel_errors, 2)}")
 
     # the next example is with 12 points in form of an icosahedron and two layers
-    fg = FullGrid(b_grid_name="zero", o_grid_name=f"ico_12", t_grid_name="[2, 4]")
-    fvg = fg.get_full_voronoi_grid()
 
-    # to visualise, uncomment
-    from molgri.plotting.fullgrid_plots import FullGridPlot
-    import matplotlib.pyplot as plt
-    fgp = FullGridPlot(fg)
-    fgp.make_position_plot(numbered=True, save=False)
-    fgp.make_full_voronoi_plot(ax=fgp.ax, fig=fgp.fig, save=False, plot_vertex_points=True)
-    plt.show()
+    fg, fvg = get_icosahedron_grid()
 
     R_s = fg.get_between_radii()
-    alpha = np.arccos(-np.sqrt(5)/3)
-    areas_sideways = R_s ** 2 * alpha / 2
-    areas_above = 4 * pi * R_s ** 2 / 12
+    ii = IdealIcosahedron(R_s)
+    areas_sideways = ii.get_ideal_sideways_area()
+    areas_above = ii.get_ideal_sphere_area()
 
     # points 0 and 12, 1 and 13 ... right above each other
     real_areas_above = []
     for i in range(0, 12):
         real_areas_above.append(fvg.get_division_area(i, i+12))
     real_areas_above = np.array(real_areas_above)
-    # on average, the areas are perfect
-    assert np.allclose(np.average(real_areas_above), areas_above[0])
-    # on their own, they are less impressive - see the relative errors
-    rel_errors = np.abs(real_areas_above - areas_above[0])/areas_above[0] * 100
-    print(f"Relative errors in icosahedron surfaces above first layer: {rel_errors}")
+    assert np.allclose(real_areas_above, areas_above[0])
 
     real_areas_first_level = []
     # now let's see some sideways areas
     for i in range(12):
         for j in range(12):
-            area = fvg.get_division_area(i, j)
+            area = fvg.get_division_area(i, j, print_message=False)
             if area is not None:
                 real_areas_first_level.append(area)
     real_areas_first_level = np.array(real_areas_first_level)
-    print(real_areas_first_level)
-    rel_errors = np.abs(real_areas_first_level - areas_sideways[0]) / areas_sideways[0] * 100
-    print(f"Relative errors in icosahedron surfaces sideways in the first layer: {rel_errors}")
+    assert np.allclose(real_areas_first_level, areas_sideways[0])
+
+    real_areas_sec_level = []
+    # now let's see some sideways areas - this time second level of points
+    for i in range(12, 24):
+        for j in range(12, 24):
+            area = fvg.get_division_area(i, j, print_message=False)
+            if area is not None:
+                real_areas_sec_level.append(area)
+    real_areas_sec_level = np.array(real_areas_sec_level)
+    #area_2_ideal = areas_sideways[1] - areas_sideways[0]
+    assert np.allclose(real_areas_sec_level, areas_sideways[1])
 
 
+def test_volumes():
+    # tetrahedron example
+    fg, fvg = get_tetrahedron_grid()
+    real_vol = fvg.get_all_voronoi_volumes()
+    R_s = fg.get_between_radii()
+
+    it = IdealTetrahedron(R_s)
+    ideal_vol = it.get_ideal_volume()
+    assert np.isclose(np.average(real_vol), ideal_vol)
+
+    # icosahedron example
+    fg, fvg = get_icosahedron_grid()
+    real_vol = fvg.get_all_voronoi_volumes()
+    R_s = fg.get_between_radii()
+
+    ii = IdealIcosahedron(R_s)
+    ideal_vol = ii.get_ideal_volume()
+    assert np.allclose(real_vol[:12], ideal_vol[0])
+    assert np.allclose(real_vol[12:], ideal_vol[1])
 
 
 def test_default_full_grids():
