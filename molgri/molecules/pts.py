@@ -32,9 +32,13 @@ class Pseudotrajectory:
             full_grid: an object combining all relevant grids
         """
         self.molecule = molecule
+        self.full_grid = full_grid
         self.position_grid = full_grid.get_position_grid()
         self.rot_grid_body = full_grid.get_body_rotations()
         self.current_frame = 0
+
+    def get_full_grid(self):
+        return self.full_grid
 
     def get_molecule(self):
         return self.molecule

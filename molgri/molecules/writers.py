@@ -111,8 +111,15 @@ class PtIOManager:
         """
         path_t, path_s, path_l = self._get_all_output_paths(extension_trajectory=extension_trajectory,
                                                             extension_structure=extension_structure)
-        logger = PtLogger(path_l)
-        logger.log_set_up(self)
+        pt_logger = PtLogger(path_l)
+        pt_logger.log_set_up(self)
+        logger = pt_logger.logger
+        logger.info(f"central molecule: {self.central_parser.get_topology_file_name()}")
+        logger.info(f"rotating molecule: {self.rotating_parser.get_topology_file_name()}")
+        logger.info(f"full grid name: {self.pt.get_full_grid().get_name()}")
+        logger.info(f"translation grid [A]: {self.pt.get_full_grid().t_grid.get_trans_grid()}")
+        logger.info(f"quaternions for rot around the body: {self.pt.get_full_grid().get_body_rotations().as_quat()}")
+        logger.info(f"positions on a sphere for origin rot: {self.pt.get_full_grid().o_positions}")
         # log set-up before calculating PT in case any errors occur in-between
         if print_messages:
             print(f"Saved the log file to {path_l}")
