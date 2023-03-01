@@ -5,169 +5,23 @@ The result of file parsing is immediately transformed into a ParsedMolecule or a
 objects, which is a wrapper that other modules should access.
 """
 
-import hashlib
-import numbers
 import os
 from pathlib import Path
 from typing import Generator, Tuple, List, Callable
 
 import numpy as np
-from ast import literal_eval
 
 import pandas as pd
 from MDAnalysis.auxiliary.XVG import XVGReader
-from numpy._typing import NDArray
-from numpy.typing import NDArray, ArrayLike
+from numpy.typing import NDArray
 from scipy.spatial.transform import Rotation
 import MDAnalysis as mda
 from MDAnalysis.core import AtomGroup
 
-from molgri.constants import EXTENSIONS_STR, NM2ANGSTROM, GRID_ALGORITHMS, DEFAULT_ALGORITHM_O, ZERO_ALGORITHM, \
-    DEFAULT_ALGORITHM_B, EXTENSIONS_TRJ
-from molgri.paths import PATH_OUTPUT_TRANSGRIDS, PATH_INPUT_ENERGIES
+from molgri.constants import EXTENSIONS_STR, EXTENSIONS_TRJ
+from molgri.paths import PATH_INPUT_ENERGIES
 from molgri.space.rotations import two_vectors2rot
-from molgri.wrappers import save_or_use_saved
-
-
-class NameParser:
-
-    def __init__(self, name_string: str):
-        self.name_string = name_string
-        self.N = self._find_a_number()
-        self.algo = self._find_algorithm()
-        self.dim = self._find_dimensions()
-
-    def _find_a_number(self) -> int or None:
-        """
-        Try to find an integer representing number of grid points anywhere in the name.
-
-        Returns:
-            the number of points as an integer, if it can be found, else None
-
-        Raises:
-            ValueError if more than one integer present in the string (e.g. 'ico_12_17')
-        """
-        split_string = self.name_string.split("_")
-        candidates = []
-        for fragment in split_string:
-            if fragment.isnumeric():
-                candidates.append(int(fragment))
-        # >= 2 numbers found in the string
-        if len(candidates) > 1:
-            raise ValueError(f"Found two or more numbers in grid name {self.name_string},"
-                             f" can't determine num of points.")
-        # exactly one number in the string -> return it
-        elif len(candidates) == 1:
-            return candidates[0]
-        # no number in the string -> return None
-        else:
-            return None
-
-    def _find_algorithm(self) -> str or None:
-        split_string = self.name_string.split("_")
-        candidates = []
-        for fragment in split_string:
-            if fragment in GRID_ALGORITHMS:
-                candidates.append(fragment)
-            elif fragment.lower() == "none":
-                candidates.append(ZERO_ALGORITHM)
-        # >= 2 algorithms found in the string
-        if len(candidates) > 1:
-            raise ValueError(f"Found two or more algorithm names in grid name {self.name_string}, can't decide.")
-        # exactly one algorithm in the string -> return it
-        elif len(candidates) == 1:
-            return candidates[0]
-        # no algorithm given -> None
-        else:
-            return None
-
-    def _find_dimensions(self) -> str or None:
-        split_string = self.name_string.split("_")
-        candidates = []
-        for fragment in split_string:
-            if len(fragment) == 2 and fragment[-1] == "d" and fragment[0].isnumeric():
-                candidates.append(int(fragment))
-        if len(candidates) > 1:
-            raise ValueError(f"Found two or more dimension names in grid name {self.name_string}, can't decide.")
-        # exactly one algorithm in the string -> return it
-        elif len(candidates) == 1:
-            return candidates[0]
-        # no algorithm given -> None
-        else:
-            return None
-
-
-class FullGridNameParser:
-
-    def __init__(self, name_string: str):
-        split_name = name_string.split("_")
-        self.b_grid_name = None
-        self.o_grid_name = None
-        self.t_grid_name = None
-        for i, split_part in enumerate(split_name):
-            if split_part == "b":
-                try:
-                    self.b_grid_name = GridNameParser(
-                        f"{split_name[i + 1]}_{split_name[i + 2]}", "b").get_standard_grid_name()
-                except IndexError:
-                    self.b_grid_name = GridNameParser(f"{split_name[i + 1]}", "o").get_standard_grid_name()
-            elif split_part == "o":
-                try:
-                    self.o_grid_name = GridNameParser(
-                        f"{split_name[i + 1]}_{split_name[i + 2]}").get_standard_grid_name()
-                except IndexError:
-                    self.o_grid_name = GridNameParser(f"{split_name[i + 1]}").get_standard_grid_name()
-            elif split_part == "t":
-                self.t_grid_name = f"{split_name[i + 1]}"
-
-    def get_standard_full_grid_name(self):
-        return f"o_{self.o_grid_name}_b_{self.b_grid_name}_t_{self.t_grid_name}"
-
-    def get_num_b_rot(self):
-        return int(self.b_grid_name.split("_")[1])
-
-    def get_num_o_rot(self):
-        return int(self.o_grid_name.split("_")[1])
-
-
-class GridNameParser(NameParser):
-    """
-    Differently than pure NameParser, GridNameParser raises errors if the name doesn't correspond to a standard grid
-    name.
-    """
-    # TODO: don't simply pass if incorrectly written alg name!
-    def __init__(self, name_string: str, o_or_b="o"):
-        super().__init__(name_string)
-        # num of points 0 or 1 -> always zero algorithm; selected zero algorithm -> always num of points is 1
-        if (self.N in (1, 0)) or (self.N is None and self.algo == ZERO_ALGORITHM):
-            self.algo = ZERO_ALGORITHM
-            self.N = 1
-        # ERROR - zero algorithm but a larger number of points provided
-        elif self.algo == ZERO_ALGORITHM and self.N > 1:
-            raise ValueError(f"Zero algorithm selected but number of points {self.N}>1 in {self.name_string}.")
-        # ERROR - no points but also not zero algorithm
-        elif self.N is None and (self.algo != ZERO_ALGORITHM and self.algo is not None):
-            raise ValueError(f"An algorithm provided ({self.algo}) but not number of points in {self.name_string}")
-        # algorithm not provided but > 1 points -> default algorithm
-        elif self.algo is None and self.N > 1 and o_or_b == "o":
-            self.algo = DEFAULT_ALGORITHM_O
-        elif self.algo is None and self.N > 1 and o_or_b == "b":
-            self.algo = DEFAULT_ALGORITHM_B
-        # ERROR - absolutely nothing provided
-        elif self.algo is None and self.N is None:
-            raise ValueError(f"Algorithm name and number of grid points not recognised in name {self.name_string}.")
-
-    def get_standard_grid_name(self) -> str:
-        return f"{self.algo}_{self.N}"
-
-    def get_alg(self):
-        return self.algo
-
-    def get_N(self):
-        return self.N
-
-    def get_dim(self):
-        return self.dim
+from molgri.space.fullgrid import FullGrid
 
 
 class ParsedMolecule:
@@ -431,80 +285,6 @@ class PtParser(FileParser):
         return self.generate_frame_as_molecule(atom_selection=self.get_atom_selection_c())
 
 
-class TranslationParser(object):
-
-    def __init__(self, user_input: str):
-        """
-        User input is expected in nanometers (nm)!
-
-        Parse all ways in which the user may provide a linear translation grid. Currently supported formats:
-            - a list of numbers, eg '[1, 2, 3]'
-            - a linearly spaced list with optionally provided number of elements eg. 'linspace(1, 5, 50)'
-            - a range with optionally provided step, eg 'range(0.5, 3, 0.4)'
-
-        Args:
-            user_input: a string in one of allowed formats
-        """
-        self.user_input = user_input
-        if "linspace" in self.user_input:
-            bracket_input = self._read_within_brackets()
-            self.trans_grid = np.linspace(*bracket_input, dtype=float)
-        elif "range" in self.user_input:
-            bracket_input = self._read_within_brackets()
-            self.trans_grid = np.arange(*bracket_input, dtype=float)
-        else:
-            self.trans_grid = literal_eval(self.user_input)
-            self.trans_grid = np.array(self.trans_grid, dtype=float)
-            self.trans_grid = np.sort(self.trans_grid, axis=None)
-        # convert to angstrom
-        self.trans_grid = self.trans_grid * NM2ANGSTROM
-        # we use a (shortened) hash value to uniquely identify the grid used, no matter how it's generated
-        self.grid_hash = int(hashlib.md5(self.trans_grid).hexdigest()[:8], 16)
-        # save the grid (for record purposes)
-        path = f"{PATH_OUTPUT_TRANSGRIDS}trans_{self.grid_hash}.txt"
-        # noinspection PyTypeChecker
-        np.savetxt(path, self.trans_grid)
-
-    def get_trans_grid(self) -> NDArray:
-        return self.trans_grid
-
-    def get_N_trans(self) -> int:
-        return len(self.trans_grid)
-
-    def sum_increments_from_first_radius(self) -> ArrayLike:
-        """
-        Get final distance - first non-zero distance == sum(increments except the first one).
-
-        Useful because often the first radius is large and then only small increments are made.
-        """
-        return np.sum(self.get_increments()[1:])
-
-    def get_increments(self) -> NDArray:
-        """
-        Get an array where each element represents an increment needed to get to the next radius.
-
-        Example:
-            self.trans_grid = np.array([10, 10.5, 11.2])
-            self.get_increments() -> np.array([10, 0.5, 0.7])
-        """
-        increment_grid = [self.trans_grid[0]]
-        for start, stop in zip(self.trans_grid, self.trans_grid[1:]):
-            increment_grid.append(stop-start)
-        increment_grid = np.array(increment_grid)
-        assert np.all(increment_grid > 0), "Negative or zero increments in translation grid make no sense!"
-        return increment_grid
-
-    def _read_within_brackets(self) -> tuple:
-        """
-        Helper function to aid reading linspace(start, stop, num) and arange(start, stop, step) formats.
-        """
-        str_in_brackets = self.user_input.split('(', 1)[1].split(')')[0]
-        str_in_brackets = literal_eval(str_in_brackets)
-        if isinstance(str_in_brackets, numbers.Number):
-            str_in_brackets = tuple((str_in_brackets,))
-        return str_in_brackets
-
-
 class ParsedEnergy:
 
     def __init__(self, energies, labels, unit):
@@ -595,6 +375,9 @@ class ParsedTrajectory:
 
     def get_num_unique_com(self, energy_type="Potential", atom_selection=None):
         return len(self.get_unique_com(energy_type=energy_type, atom_selection=atom_selection)[0])
+
+    def assign_coms_2_grid_points(self, full_grid: FullGrid):
+        pass
 
     def set_c_r(self, c_num: int, r_num: int):
         self.c_num = c_num

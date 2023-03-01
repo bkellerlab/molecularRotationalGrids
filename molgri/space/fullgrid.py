@@ -7,11 +7,11 @@ from scipy.spatial.transform import Rotation
 from scipy.spatial import SphericalVoronoi
 from scipy.constants import pi
 import pandas as pd
-import matplotlib.path as mplPath
 
 from molgri.constants import SMALL_NS
 from molgri.space.rotobj import SphereGridFactory
-from molgri.molecules.parsers import TranslationParser, GridNameParser
+from molgri.space.translations import TranslationParser
+from molgri.naming import GridNameParser
 from molgri.paths import PATH_OUTPUT_FULL_GRIDS
 from molgri.space.utils import norm_per_axis, normalise_vectors, angle_between_vectors
 from molgri.wrappers import save_or_use_saved
