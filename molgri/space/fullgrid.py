@@ -98,7 +98,7 @@ class FullGrid:
         result = np.swapaxes(result, 0, 1)
         return result
 
-    #@save_or_use_saved
+    @save_or_use_saved
     def get_flat_position_grid(self):
         pos_grid = self.get_position_grid()
         pos_grid = np.swapaxes(pos_grid, 0, 1)
@@ -163,7 +163,7 @@ class FullVoronoiGrid:
         # important that it's a copy!
         return copy(sv)
 
-    #@save_or_use_saved
+    @save_or_use_saved
     def get_voronoi_discretisation(self):
         if self.all_sv is None:
             unit_sph_voronoi = self.full_grid.o_rotations.get_spherical_voronoi_cells()
@@ -366,7 +366,7 @@ class ConvergenceFullGridO:
             list_full_grids.append(fg)
         return list_full_grids
 
-    #@save_or_use_saved
+    @save_or_use_saved
     def get_voronoi_volumes(self):
         data = []
         for N, fg in zip(self.N_set, self.list_full_grids):

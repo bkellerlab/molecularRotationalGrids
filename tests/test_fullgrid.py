@@ -89,7 +89,6 @@ def get_tetrahedron_grid(visualise=False, **kwargs):
 
 def get_icosahedron_grid(visualise=False, **kwargs):
     my_fg = FullGrid(b_grid_name="zero", o_grid_name=f"ico_12", t_grid_name="[0.2, 0.4]", **kwargs)
-    print(my_fg.get_name())
     my_fvg = my_fg.get_full_voronoi_grid()
 
     if visualise:
