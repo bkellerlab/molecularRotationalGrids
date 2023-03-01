@@ -6,6 +6,8 @@ from abc import ABC, abstractmethod
 from molgri.space.fullgrid import FullGrid
 from molgri.space.rotobj import SphereGridFactory
 from molgri.space.utils import normalise_vectors
+from molgri.plotting.fullgrid_plots import FullGridPlot
+import matplotlib.pyplot as plt
 
 # tests should always be performed on fresh data
 USE_SAVED = False
@@ -67,19 +69,17 @@ class IdealIcosahedron(IdealPolyhedron):
         return np.arccos(np.sqrt(5)/3)
 
 
-def _visualise_fg(fg: FullGrid):
-    from molgri.plotting.fullgrid_plots import FullGridPlot
-    import matplotlib.pyplot as plt
-    fgp = FullGridPlot(fg)
-    fgp.make_position_plot(numbered=True, save=False)
-    fgp.make_full_voronoi_plot(ax=fgp.ax, fig=fgp.fig, save=False, plot_vertex_points=True)
+def _visualise_fg(fg7: FullGrid):
+    fgp7 = FullGridPlot(fg7)
+    fgp7.make_position_plot(numbered=True, save=False)
+    fgp7.make_full_voronoi_plot(ax=fgp7.ax, fig=fgp7.fig, save=False, plot_vertex_points=True)
     plt.show()
 
 
-def get_tetrahedron_grid(visualise=False):
+def get_tetrahedron_grid(visualise=False, **kwargs):
     # simplest possible example: voronoi cells need at least 4 points to be created
     # with 4 points we expect tetrahedron angles
-    fg = FullGrid(b_grid_name="zero", o_grid_name=f"cube3D_4", t_grid_name="[0.3]", use_saved=False)
+    fg = FullGrid(b_grid_name="zero", o_grid_name=f"cube3D_4", t_grid_name="[0.3]", **kwargs)
     fvg = fg.get_full_voronoi_grid()
 
     if visualise:
@@ -87,13 +87,14 @@ def get_tetrahedron_grid(visualise=False):
     return fg, fvg
 
 
-def get_icosahedron_grid(visualise=False):
-    fg = FullGrid(b_grid_name="zero", o_grid_name=f"ico_12", t_grid_name="[0.2, 0.4]", use_saved=False)
-    fvg = fg.get_full_voronoi_grid()
+def get_icosahedron_grid(visualise=False, **kwargs):
+    my_fg = FullGrid(b_grid_name="zero", o_grid_name=f"ico_12", t_grid_name="[0.2, 0.4]", **kwargs)
+    print(my_fg.get_name())
+    my_fvg = my_fg.get_full_voronoi_grid()
 
     if visualise:
-        _visualise_fg(fg)
-    return fg, fvg
+        _visualise_fg(my_fg)
+    return my_fg, my_fvg
 
 
 def test_fullgrid_voronoi_radii():
@@ -122,40 +123,40 @@ def test_fullgrid_voronoi_radii():
 
 def test_cell_assignment():
     # 1st test: the position grid points must correspond to themselves
-    N_rot = 35
-    fg = FullGrid(b_grid_name="ico_7", o_grid_name=f"ico_{N_rot}", t_grid_name="[1, 2, 3]")
-    points = fg.get_flat_position_grid()
-    num_points = len(points)
-    assert np.all(fg.point2cell_position_grid(points) == np.arange(0, num_points))
+    N_rot = 18
+    fullgrid = FullGrid(b_grid_name="ico_7", o_grid_name=f"ico_{N_rot}", t_grid_name="[1, 2, 3]", use_saved=False)
+    points_local = fullgrid.get_flat_position_grid()
+    num_points = len(points_local)
+    assert np.all(fullgrid.point2cell_position_grid(points_local) == np.arange(0, num_points))
     # 1st test:even if a bit of noise is added
-    random_noise = 2 * (np.random.random(points.shape) - 0.5)
-    points = points + random_noise
-    assert np.all(fg.point2cell_position_grid(points) == np.arange(0, num_points))
+    random_noise = 2 * (np.random.random(points_local.shape) - 0.5)
+    points_local = points_local + random_noise
+    assert np.all(fullgrid.point2cell_position_grid(points_local) == np.arange(0, num_points))
     # if you take a subset of points, you get the same result
-    points = np.array([points[17], points[3], points[8], points[33]])
-    assert np.all(fg.point2cell_position_grid(points) == [17, 3, 8, 33])
+    points_local = np.array([points_local[17], points_local[3], points_local[8], points_local[33]])
+    assert np.all(fullgrid.point2cell_position_grid(points_local) == [17, 3, 8, 33])
     # points that are far out should return NaN
-    points = np.array([[200, -12, 3], [576, -986, 38]])
-    assert np.all(np.isnan(fg.point2cell_position_grid(points)))
-    between_radii = fg.get_between_radii()
+    points_local = np.array([[200, -12, 3], [576, -986, 38]])
+    assert np.all(np.isnan(fullgrid.point2cell_position_grid(points_local)))
+    between_radii = fullgrid.get_between_radii()
     # point with a radius < first voronoi radius must get an index < 35
-    points = np.random.random((15, 3)) - 0.5
-    points = normalise_vectors(points, length=between_radii[0]-1)
-    assert np.all(fg.point2cell_position_grid(points) < N_rot)
+    points_local = np.random.random((15, 3)) - 0.5
+    points_local = normalise_vectors(points_local, length=between_radii[0]-1)
+    assert np.all(fullgrid.point2cell_position_grid(points_local) < N_rot)
     # similarly for a second layer of radii
-    points = np.random.random((15, 3)) - 0.5
-    points = normalise_vectors(points, length=between_radii[0]+0.5)
-    assert np.all(fg.point2cell_position_grid(points) >= N_rot)
-    assert np.all(fg.point2cell_position_grid(points) < 2*N_rot)
+    points_local = np.random.random((15, 3)) - 0.5
+    points_local = normalise_vectors(points_local, length=between_radii[0]+0.5)
+    assert np.all(fullgrid.point2cell_position_grid(points_local) >= N_rot)
+    assert np.all(fullgrid.point2cell_position_grid(points_local) < 2*N_rot)
     # and for third
-    points = np.random.random((15, 3)) - 0.5
-    points = normalise_vectors(points, length=between_radii[2] - 0.5)
-    assert np.all(fg.point2cell_position_grid(points) >= 2 * N_rot)
-    assert np.all(fg.point2cell_position_grid(points) < 3 * N_rot)
+    points_local = np.random.random((15, 3)) - 0.5
+    points_local = normalise_vectors(points_local, length=between_radii[2] - 0.5)
+    assert np.all(fullgrid.point2cell_position_grid(points_local) >= 2 * N_rot)
+    assert np.all(fullgrid.point2cell_position_grid(points_local) < 3 * N_rot)
 
 
 def test_division_area():
-    fg, fvg = get_tetrahedron_grid(visualise=False)
+    fg, fvg = get_tetrahedron_grid(visualise=False, use_saved=False)
 
     # what we expect:
     # 1) all points are neighbours (in the same layer)
@@ -181,7 +182,7 @@ def test_division_area():
 
     # the next example is with 12 points in form of an icosahedron and two layers
 
-    fug2, fvg2 = get_icosahedron_grid()
+    fug2, fvg2 = get_icosahedron_grid(visualise=False, use_saved=False)
 
     R_s = fug2.get_between_radii()
     ii = IdealIcosahedron(R_s)
@@ -218,7 +219,7 @@ def test_division_area():
 
 def test_volumes():
     # tetrahedron example
-    fg, fvg = get_tetrahedron_grid()
+    fg, fvg = get_tetrahedron_grid(use_saved=False)
     real_vol = fvg.get_all_voronoi_volumes()
     R_s = fg.get_between_radii()
 
@@ -227,7 +228,7 @@ def test_volumes():
     assert np.isclose(np.average(real_vol), ideal_vol)
 
     # icosahedron example
-    fg, fvg = get_icosahedron_grid()
+    fg, fvg = get_icosahedron_grid(use_saved=False)
     real_vol = fvg.get_all_voronoi_volumes()
     R_s = fg.get_between_radii()
 

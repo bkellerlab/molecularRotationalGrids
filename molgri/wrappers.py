@@ -54,30 +54,30 @@ def save_or_use_saved(my_method):
     @wraps(my_method)
     def decorated(self, *args, **kwargs):
         method_name = my_method.__name__
-        DATA_EXTENSIONS = ["npy", "csv", ""]
         name_without_ext = f"{OUTPUT_PLOTTING_DATA}{method_name}_{self.get_name()}"
         # try to find a suitable saved file
         if self.use_saved:
-            for test_extension in DATA_EXTENSIONS:
-                data_name = f"{name_without_ext}.{test_extension}"
-                if os.path.isfile(data_name):
-                    if test_extension == "npy":
-                        loaded_data = np.load(data_name)
-                    elif test_extension == "csv":
-                        loaded_data = pd.read_csv(data_name, index_col=0)
-                    else:
-                        with open(name_without_ext, 'rb') as f:
-                            loaded_data = pickle.load(f)
-                    return loaded_data
+            if os.path.isfile(f"{name_without_ext}.npy"):
+                #print("using saved npy")
+                return np.load(f"{name_without_ext}.npy")
+            elif os.path.isfile(f"{name_without_ext}.csv"):
+                #print("using saved csv")
+                return pd.read_csv(f"{name_without_ext}.csv", index_col=0)
+            elif os.path.isfile(name_without_ext):
+                with open(name_without_ext, 'rb') as f:
+                    #print("using saved pickle")
+                    loaded_data = pickle.load(f)
+                return loaded_data
+            # else will simply continue
         # don't use else - the rest should be run if 1) not self.use_saved OR 2) file doesn't exist
         method_output = my_method(self, *args, **kwargs)
         if isinstance(method_output, pd.DataFrame):
             method_output.to_csv(f"{name_without_ext}.csv", index=True)
         elif isinstance(method_output, np.ndarray):
-            print("saving")
+            #print("saving")
             np.save(f"{name_without_ext}.npy", method_output)
         else:
-            print("pickling", name_without_ext)
+            #print("pickling", name_without_ext)
             with open(name_without_ext, 'wb') as f:
                 pickle.dump(method_output, f)
         return method_output

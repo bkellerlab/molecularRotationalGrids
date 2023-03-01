@@ -157,7 +157,7 @@ class SphereGridNDim(ABC):
                          num_random, name=self.get_name(), dimensions=self.dimensions,
                          print_message=self.print_messages)
 
-    @save_or_use_saved
+    #@save_or_use_saved
     def get_uniformity_df(self, alphas):
         # recalculate if: 1) self.use_saved_data = False OR 2) no saved data exists
         if not self.use_saved or not os.path.exists(self.get_statistics_path("csv")):
@@ -170,7 +170,7 @@ class SphereGridNDim(ABC):
             ratios_df = pd.read_csv(self.get_statistics_path("csv"), dtype=float)
         return ratios_df
 
-    @save_or_use_saved
+    #@save_or_use_saved
     def get_convergence_df(self, alphas: tuple, N_list: tuple = None):
         if N_list is None:
             # create equally spaced convergence set
@@ -188,7 +188,7 @@ class SphereGridNDim(ABC):
         full_df = pd.concat(full_df, axis=0, ignore_index=True)
         return full_df
 
-    @save_or_use_saved
+    #@save_or_use_saved
     def get_spherical_voronoi_cells(self):
         assert self.dimensions == 3, "Spherical voronoi cells only available for N=3"
         if self.spherical_voronoi is None:
@@ -200,7 +200,7 @@ class SphereGridNDim(ABC):
                 self.spherical_voronoi = []
         return self.spherical_voronoi
 
-    @save_or_use_saved
+    #@save_or_use_saved
     def get_voronoi_areas(self):
         sv = self.get_spherical_voronoi_cells()
         return sv.calculate_areas()
@@ -293,7 +293,10 @@ class ZeroRotations(SphereGridNDim):
 class Cube4DRotations(SphereGridNDim):
 
     algorithm_name = "cube4D"
-    polytope = Cube4DPolytope()
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.polytope = Cube4DPolytope()
 
     def _gen_grid_4D(self):
         while len(self.polytope.get_node_coordinates()) < self.N:
@@ -304,7 +307,10 @@ class Cube4DRotations(SphereGridNDim):
 class IcoAndCube3DRotations(SphereGridNDim):
 
     algorithm_name: str = None
-    polytope: Polytope = None
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.polytope: Polytope = None
 
     def get_z_projection_grid(self):
         "In this case, directly construct the 3D object"
@@ -312,7 +318,8 @@ class IcoAndCube3DRotations(SphereGridNDim):
     def _gen_grid_3D(self):
         while len(self.polytope.get_node_coordinates()) < self.N:
             self.polytope.divide_edges()
-        return self.polytope.get_N_ordered_points(self.N)
+        ordered_points = self.polytope.get_N_ordered_points(self.N)
+        return ordered_points
 
     def _gen_grid_4D(self):
         grid_z_arr = self._gen_grid_3D()
@@ -334,13 +341,19 @@ class IcoAndCube3DRotations(SphereGridNDim):
 class IcoRotations(IcoAndCube3DRotations):
 
     algorithm_name = "ico"
-    polytope = IcosahedronPolytope()
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.polytope = IcosahedronPolytope()
 
 
 class Cube3DRotations(IcoAndCube3DRotations):
 
     algorithm_name = "cube3D"
-    polytope = Cube3DPolytope()
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.polytope = Cube3DPolytope()
 
 
 class SphereGridFactory:

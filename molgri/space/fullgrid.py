@@ -98,7 +98,7 @@ class FullGrid:
         result = np.swapaxes(result, 0, 1)
         return result
 
-    @save_or_use_saved
+    #@save_or_use_saved
     def get_flat_position_grid(self):
         pos_grid = self.get_position_grid()
         pos_grid = np.swapaxes(pos_grid, 0, 1)
@@ -163,7 +163,7 @@ class FullVoronoiGrid:
         # important that it's a copy!
         return copy(sv)
 
-    @save_or_use_saved
+    #@save_or_use_saved
     def get_voronoi_discretisation(self):
         if self.all_sv is None:
             unit_sph_voronoi = self.full_grid.o_rotations.get_spherical_voronoi_cells()
@@ -171,7 +171,6 @@ class FullVoronoiGrid:
             self.all_sv = [self._change_voronoi_radius(unit_sph_voronoi, r) for r in between_radii]
         return self.all_sv
 
-    @save_or_use_saved
     def find_voronoi_vertices_of_point(self, point_index: int, which="all"):
         """
 
@@ -271,7 +270,7 @@ class Point:
         return self.index_position_grid - num_o_rot * radial_index
 
     def _find_index_sv_above(self):
-        for i, sv in enumerate(self.full_sv.all_sv):
+        for i, sv in enumerate(self.full_sv.get_voronoi_discretisation()):
             if sv.radius > self.d_to_origin:
                 return i
         else:
@@ -279,7 +278,7 @@ class Point:
             return None
 
     def get_sv_above(self):
-        return self.full_sv.all_sv[self._find_index_sv_above()]
+        return self.full_sv.get_voronoi_discretisation()[self._find_index_sv_above()]
 
     def get_radius_above(self):
         sv_above = self.get_sv_above()
@@ -295,7 +294,7 @@ class Point:
     def get_sv_below(self):
         index_above = self._find_index_sv_above()
         if index_above != 0:
-            return self.full_sv.all_sv[index_above-1]
+            return self.full_sv.get_voronoi_discretisation()[index_above-1]
         else:
             return None
 
@@ -367,7 +366,7 @@ class ConvergenceFullGridO:
             list_full_grids.append(fg)
         return list_full_grids
 
-    @save_or_use_saved
+    #@save_or_use_saved
     def get_voronoi_volumes(self):
         data = []
         for N, fg in zip(self.N_set, self.list_full_grids):
