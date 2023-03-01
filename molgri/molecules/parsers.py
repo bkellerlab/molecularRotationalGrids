@@ -215,7 +215,6 @@ class FileParser:
         molecule_generator = self.generate_frame_as_molecule
         return ParsedTrajectory(name, molecule_generator, parsed_energies, is_pt=isinstance(self, PtParser))
 
-
     def as_parsed_molecule(self) -> ParsedMolecule:
         """
         Method to use if you want to parse only a single molecule, eg. if only a topology file was provided.
@@ -236,8 +235,6 @@ class FileParser:
             atom_selection = "all"
         for _ in self.universe.trajectory:
             yield ParsedMolecule(self.universe.select_atoms(atom_selection, sorted=False), box=self.universe.dimensions)
-
-
 
 
 class PtParser(FileParser):
@@ -276,7 +273,6 @@ class PtParser(FileParser):
         pt = super().get_parsed_trajectory()
         pt.set_c_r(c_num=self.c_num, r_num=self.r_num)
         return pt
-
 
     def generate_r_molecule(self) -> Generator[ParsedMolecule, None, None]:
         return self.generate_frame_as_molecule(atom_selection=self.get_atom_selection_r())
@@ -369,15 +365,30 @@ class ParsedTrajectory:
         self.is_pt = is_pt
         self.molecule_generator = molecule_generator
         self.energies = energies
-        self.allowed_indices = None  # todo: apply filters here
         self.c_num = None
         self.r_num = None
 
     def get_num_unique_com(self, energy_type="Potential", atom_selection=None):
         return len(self.get_unique_com(energy_type=energy_type, atom_selection=atom_selection)[0])
 
-    def assign_coms_2_grid_points(self, full_grid: FullGrid):
-        pass
+    def assign_coms_2_grid_points(self, full_grid: FullGrid, atom_selection=None):
+        """
+        Given a simulation, select centres of mass of a subset of atoms (eg. one of the molecules and assign them
+        to the Voronoi cells of a selected position grid. This is useful to see what part of position space a
+        classical simulation has covered or to see which molecules moved out of their original grid point area
+        after a short optimisation.
+
+        Args:
+            full_grid: to which full grid the COMs should be fitted
+            atom_selection: used to select the atom belonging to the wished group
+
+        Returns:
+            an array of numbers, length the same as the length of the parsed trajectory, each number represents the
+            index of the point in the flattened position grid of the full_grid that is closest to this COM.
+        """
+        # TODO: fit rotations and translations to the first frame
+        coms = self.get_all_COM(atom_selection=atom_selection)
+        return full_grid.point2cell_position_grid(coms)
 
     def set_c_r(self, c_num: int, r_num: int):
         self.c_num = c_num

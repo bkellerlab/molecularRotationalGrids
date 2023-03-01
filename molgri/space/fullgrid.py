@@ -194,12 +194,71 @@ class FullVoronoiGrid:
 
         return vertices
 
+    def _at_same_radius(self, point1, point2):
+        return np.isclose(point1.d_to_origin, point2.d_to_origin)
+
+    def _are_neighbours(self, point1, point2):
+        index1 = point1.index_position_grid
+        index2 = point2.index_position_grid
+        return self.get_division_area(index1, index2, print_message=False) is not None
+
+    def _are_sideways_neighbours(self, point1, point2):
+        return self._at_same_radius(point1, point2) and self._are_neighbours(point1, point2)
+
+    def _are_on_same_ray(self, point1, point2):
+        normalised1 = point1.get_normalised_point()
+        normalised2 = point2.get_normalised_point()
+        return np.allclose(normalised1, normalised2)
+
+    def _point1_right_above_point2(self, point1, point2):
+        # on the same ray + radius one bigger
+        radial_index1 = point1.index_radial
+        radial_index2 = point2.index_radial
+        return self._are_on_same_ray(point1, point2) and radial_index1 == radial_index2 +1
+
+    def _point2_right_above_point1(self, point1, point2):
+        # on the same ray + radius one bigger
+        radial_index1 = point1.index_radial
+        radial_index2 = point2.index_radial
+        return self._are_on_same_ray(point1, point2) and radial_index1 + 1 == radial_index2
+
+
+    def get_distance_between_centers(self, index_1: int, index_2: int, print_message=True):
+        """
+        There are three options:
+            - point1 is right above point2 or vide versa -> the distance is measured in a straight line from the center
+            - point1 and point2 are sideways neighbours -> the distance is measured on the circumference of their radius
+            - point1 and point2 are not neighbours -> return None
+
+        Args:
+            index_1:
+            index_2:
+            print_message:
+
+        Returns:
+
+        """
+        point_1 = Point(index_1, self)
+        point_2 = Point(index_2, self)
+
+        if self._point1_right_above_point2(point_1, point_2) or self._point2_right_above_point1(point_1, point_2):
+            return np.abs(point_1.d_to_origin - point_2.d_to_origin)
+        elif self._are_sideways_neighbours(point_1, point_2):
+            radius = point_1.d_to_origin
+            theta = angle_between_vectors(point_1.point, point_2.point)
+            # length of arc
+            return theta * radius
+        else:
+            if print_message:
+                print(f"Points {index_1} and {index_2} are not neighbours.")
+            return None
+
     def get_division_area(self, index_1: int, index_2: int, print_message=True):
         point_1 = Point(index_1, self)
         point_2 = Point(index_2, self)
 
         # if they are sideways neighbours
-        if np.isclose(point_1.d_to_origin, point_2.d_to_origin):
+        if self._at_same_radius(point_1, point_2):
             # vertices_above
             vertices_1a = point_1.get_vertices_above()
             vertices_2a = point_2.get_vertices_above()
@@ -214,22 +273,21 @@ class FullVoronoiGrid:
             if len(intersection_a) != 2:
                 if print_message:
                     print(f"Points {index_1} and {index_2} are not neighbours.")
-                return
+                return None
             else:
                 # angle will be determined by the vector from origin to both points above
                 intersection_list = list(intersection_a)
                 theta = angle_between_vectors(np.array(intersection_list[0]), np.array(intersection_list[1]))
                 return theta / 2 * (r_larger ** 2 - r_smaller ** 2)
         # if point_1 right above point_2
-        # both points on the same ray
-        if np.allclose(point_1.get_normalised_point(), point_2.get_normalised_point()):
-            if point_1.index_radial == point_2.index_radial + 1:
-                return point_2.get_area_above()
-            elif point_2.index_radial == point_1.index_radial + 1:
-                return point_1.get_area_above()
+        if self._point1_right_above_point2(point_1, point_2):
+            return point_2.get_area_above()
+        if self._point2_right_above_point1(point_1, point_2):
+            return point_1.get_area_above()
+        # if no exit point so far
         if print_message:
             print(f"Points {index_1} and {index_2} are not neighbours.")
-        return
+        return None
 
     def get_volume(self, index):
         point = Point(index, self)
