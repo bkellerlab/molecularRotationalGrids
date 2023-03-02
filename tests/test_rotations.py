@@ -1,6 +1,5 @@
-from molgri.assertions import assert_two_sets_of_eulers_equal, \
-    two_sets_of_quaternions_equal
-from molgri.space.rotations import Rotation2D, grid2euler, euler2grid, quaternion2grid, \
+from molgri.assertions import two_sets_of_quaternions_equal
+from molgri.space.rotations import Rotation2D, quaternion2grid, \
     grid2quaternion, grid2rotation, rotation2grid, two_vectors2rot
 from molgri.space.utils import normalise_vectors, random_quaternions
 from scipy.spatial.transform import Rotation
@@ -80,43 +79,6 @@ def test_quat2grid():
     assert two_sets_of_quaternions_equal(initial_quaternions, after_quaternions)
 
 
-def test_euler2grid():
-    N = 5000
-
-    # not truly random, but not important, just want some test examples
-    # for Euler angles between -pi/2 and pi/2 conversion works directly
-    initial_euler = pi * np.random.random((N, 3)) - pi / 2
-    x_rot_e, y_rot_e, z_rot_e = euler2grid(initial_euler)
-
-    # re-create the rotation only by using rotated vectors
-    final_rotation_e = grid2euler(x_rot_e, y_rot_e, z_rot_e)
-    assert np.allclose(initial_euler, final_rotation_e)
-    assert_two_sets_of_eulers_equal(initial_euler, final_rotation_e)
-
-    # but what if you want to use angles between 0 and 2pi?
-    initial_euler = 2 * pi * np.random.random((N, 3))
-    x_rot_e, y_rot_e, z_rot_e = euler2grid(initial_euler)
-
-    # re-create the rotation only by using rotated vectors
-    final_rotation_e = grid2euler(x_rot_e, y_rot_e, z_rot_e)
-
-    # the matrices before-after are the same
-    assert_two_sets_of_eulers_equal(initial_euler, final_rotation_e)
-    # but the euler angles themselves may not be
-    print("Euler angles [0, 2pi] before and after: ", initial_euler[0], final_rotation_e[0])
-
-    # and what about values < 0 or > 2pi?
-    initial_euler = 13 * pi * np.random.random((N, 3)) - 6
-    x_rot_e, y_rot_e, z_rot_e = euler2grid(initial_euler)
-
-    # re-create the rotation only by using rotated vectors
-    final_rotation_e = grid2euler(x_rot_e, y_rot_e, z_rot_e)
-
-    # the matrices before-after are the same
-    assert_two_sets_of_eulers_equal(initial_euler, final_rotation_e)
-    # but the euler angles themselves may not be
-    print("Euler angles [wide range] before and after: ", initial_euler[0], final_rotation_e[0])
-
 
 def test_grid2rot():
     N = 500
@@ -167,30 +129,6 @@ def test_grid2quat():
 
     assert two_sets_of_quaternions_equal(quaternions, quaternions2)
 
-
-def test_grid2euler():
-    N = 500
-    initial_grid_x, initial_grid_y, initial_grid_z = create_random_grids(N)
-
-    eulers = grid2euler(initial_grid_x, initial_grid_y, initial_grid_z)
-
-    new_grid_x, new_grid_y, new_grid_z = euler2grid(eulers)
-
-    assert np.allclose(initial_grid_x, new_grid_x)
-    assert np.allclose(initial_grid_y, new_grid_y)
-    assert np.allclose(initial_grid_z, new_grid_z)
-
-    # one more cycle of conversion just to be sure
-
-    eulers2 = grid2euler(new_grid_x, new_grid_y, new_grid_z)
-
-    new_grid_x2, new_grid_y2, new_grid_z2 = euler2grid(eulers2)
-
-    assert np.allclose(new_grid_x, new_grid_x2)
-    assert np.allclose(new_grid_y, new_grid_y2)
-    assert np.allclose(new_grid_z, new_grid_z2)
-
-    assert_two_sets_of_eulers_equal(eulers, eulers2)
 
 
 # ############################ HELPER FUNCTIONS ###################################

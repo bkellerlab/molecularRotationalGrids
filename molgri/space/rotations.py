@@ -48,15 +48,6 @@ def quaternion2grid(quaternions: NDArray) -> Tuple[NDArray, ...]:
     return rotation2grid(rotations)
 
 
-def euler2grid(euler_angles: NDArray) -> Tuple[NDArray, ...]:
-    """
-    See rotation2grid function. This is only a helper function that parsers euler angles as inputs.
-    """
-    assert euler_angles.shape[1] == 3, "Euler angles must have the shape (N, 3)"
-    rotations = Rotation.from_euler("ZYX", euler_angles)
-    return rotation2grid(rotations)
-
-
 def grid2rotation(grid_x: NDArray, grid_y: NDArray, grid_z: NDArray) -> Rotation:
     """
     Re-create a rotational object by using the (saved) grid_x, grid_y and grid_z projections. We are looking for an
@@ -104,17 +95,6 @@ def grid2quaternion(grid_x: NDArray, grid_y: NDArray, grid_z: NDArray) -> NDArra
     quaternions = rot_objects.as_quat()
     assert quaternions.shape[1] == 4, "quaternions must have 4 dimensions"
     return quaternions
-
-
-def grid2euler(grid_x: NDArray, grid_y: NDArray, grid_z: NDArray) -> NDArray:
-    """
-    See grid2rotation; this function only reformats the output as a (N, 3) array of Euler angles
-    """
-    print("Warning! Euler angles are not uniquely reconstructed from saved grids (but rotational matrices are).")
-    rot_objects = grid2rotation(grid_x, grid_y, grid_z)
-    eulers = rot_objects.as_euler("ZYX")
-    np.nan_to_num(eulers, copy=False)
-    return eulers
 
 
 # ########################## HELPER FUNCTIONS ################################
