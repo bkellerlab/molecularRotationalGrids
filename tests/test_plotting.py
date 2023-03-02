@@ -40,13 +40,27 @@ def test_spheregrid_plots(N=32, and_animations=False, Ns=MINI_NS):
             SphereGridPlot(sgf).create_all_plots(and_animations=and_animations)
             # convergence plotting
             csg = ConvergenceSphereGridFactory(alg, dim, N_set=Ns)
-            ConvergenceSphereGridPlot(csg).make_voronoi_area_conv_plot()
+            csgp = ConvergenceSphereGridPlot(csg)
+            csgp.make_voronoi_area_conv_plot()
+            csgp.make_spheregrid_time_plot()
     # panel plots
     for dim in (3, 4):
         psgp = PanelSphereGridPlots(N, grid_dim=dim, default_context="talk")
         psgp.create_all_plots(and_animations=and_animations)
         pcsgp = PanelConvergenceSphereGridPlots(dim, N_set=Ns)
         pcsgp.make_all_voronoi_area_plots()
+        pcsgp.make_all_spheregrid_time_plots()
+
+
+def test_animation():
+    # only test one to not overwhelm the system
+    sgf = SphereGridFactory.create(alg_name="randomE", N=15, dimensions=3,
+                                   print_messages=False, time_generation=False,
+                                   use_saved=False)
+    sgp = SphereGridPlot(sgf)
+    sgp.make_rot_animation()
+    sgp.make_trans_animation()
+    sgp.make_ordering_animation()
 
 
 def test_fullgrid_plots(N=12, and_animations=False, N_set=MINI_NS):
