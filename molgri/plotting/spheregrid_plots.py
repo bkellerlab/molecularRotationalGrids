@@ -162,7 +162,8 @@ class SphereGridPlot(RepresentationCollection):
 
         self.ax.view_init(elev=10, azim=30)
         ani = FuncAnimation(self.fig, func=update, frames=len(facecolors_before), interval=100, repeat=False)
-        self._save_animation_type(ani, "order", fps=len(facecolors_before) // 20)
+        fps_factor = np.min([len(facecolors_before), 20])
+        self._save_animation_type(ani, "order", fps=len(facecolors_before) // fps_factor)
         return ani
 
     def make_trans_animation(self, fig: plt.Figure = None, ax=None):
@@ -510,9 +511,4 @@ class PanelConvergenceSphereGridPlots(PanelRepresentationCollection):
 
 if __name__ == "__main__":
     from molgri.constants import DEFAULT_NS, SMALL_NS, MINI_NS
-    # conv_obj = ConvergenceSphereGridFactory("cube3D", dimensions=3, use_saved=True, N_set=DEFAULT_NS)
-    # conv_plot = ConvergenceSphereGridPlot(conv_obj)
-    # conv_plot.make_spheregrid_time_plot(save=False)
-    # plt.show()
-
     PanelConvergenceSphereGridPlots(dim=3, N_set=SMALL_NS, use_saved=True).make_all_spheregrid_time_plots()
