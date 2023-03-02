@@ -58,14 +58,11 @@ def save_or_use_saved(my_method):
         # try to find a suitable saved file
         if self.use_saved:
             if os.path.isfile(f"{name_without_ext}.npy"):
-                #print("using saved npy")
                 return np.load(f"{name_without_ext}.npy")
             elif os.path.isfile(f"{name_without_ext}.csv"):
-                #print("using saved csv")
                 return pd.read_csv(f"{name_without_ext}.csv", index_col=0)
             elif os.path.isfile(name_without_ext):
                 with open(name_without_ext, 'rb') as f:
-                    #print("using saved pickle")
                     loaded_data = pickle.load(f)
                 return loaded_data
             # else will simply continue
@@ -74,10 +71,8 @@ def save_or_use_saved(my_method):
         if isinstance(method_output, pd.DataFrame):
             method_output.to_csv(f"{name_without_ext}.csv", index=True)
         elif isinstance(method_output, np.ndarray):
-            #print("saving")
             np.save(f"{name_without_ext}.npy", method_output)
         else:
-            #print("pickling", name_without_ext)
             with open(name_without_ext, 'wb') as f:
                 pickle.dump(method_output, f)
         return method_output

@@ -68,7 +68,7 @@ def test_form_square():
 def test_form_cube():
     # a normal 3D cube
     cube3D = np.array([[0, 0, 0], [2, 0, 0], [0, 2, 0], [0, 0, 2], [2, 2, 0], [2, 0, 2], [0, 2, 2], [2, 2, 2]])
-    assert form_cube(cube3D)
+    assert form_cube(cube3D, test_angles=True)
 
     # same but an extra dimension kept constant
     cube4D = np.array([[5, 0, 0, 0], [5, 2, 0, 0], [5, 0, 2, 0], [5, 0, 0, 2],
@@ -89,3 +89,13 @@ def test_form_cube():
     cube4D_wrong = np.array([[5, 0, 0, 0], [3, 2, 0, 0], [5, 0, 2, 0], [3, 0, 0, 2],
                        [5, 2, 2, 0], [3, 2, 0, 2], [5, 0, 2, 2], [3, 2, 2, 2]])
     assert not form_cube(cube4D_wrong)
+
+    ex_array = np.array([[-0.57735027, -0.57735027, -0.57735027],
+                         [0.57735027, 0.57735027, 0.57735027],
+                         [-0.57735027, -0.57735027, 0.57735027],
+                         [0.57735027, 0.57735027, -0.57735027],
+                         [-0.57735027, 0.57735027, -0.57735027],
+                         [0.57735027, -0.57735027, 0.57735027],
+                         [0.57735027, -0.57735027, -0.57735027],
+                         [-0.57735027, 0.57735027, 0.57735027]])
+    assert form_cube(ex_array, test_angles=True)

@@ -11,12 +11,11 @@ from MDAnalysis import Merge
 import numpy as np
 
 from molgri.constants import EXTENSION_TRAJECTORY, EXTENSION_TOPOLOGY, EXTENSION_LOGGING
-from molgri.logfiles import PtLogger
+from molgri.logfiles import PtLogger, paths_free_4_all, find_first_free_index, format_name
 from molgri.space.fullgrid import FullGrid
 from molgri.molecules.parsers import FileParser, ParsedMolecule
 from molgri.paths import PATH_INPUT_BASEGRO, PATH_OUTPUT_PT, PATH_OUTPUT_LOGGING
 from molgri.molecules.pts import Pseudotrajectory
-from molgri.space.utils import find_first_free_index, format_name, paths_free_4_all
 from molgri.wrappers import time_method
 
 

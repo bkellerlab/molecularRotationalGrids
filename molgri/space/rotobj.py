@@ -1,5 +1,6 @@
 import os
 from abc import ABC, abstractmethod
+from time import time
 
 import numpy as np
 import pandas as pd
@@ -382,27 +383,39 @@ class SphereGridFactory:
 
 class ConvergenceSphereGridFactory:
 
-    def __init__(self, alg_name: str, dimensions: int, N_set = None, **kwargs):
+    def __init__(self, alg_name: str, dimensions: int, N_set = None, use_saved=True, **kwargs):
         if N_set is None:
             N_set = SMALL_NS
         self.N_set = N_set
         self.alg_name = alg_name
         self.dimensions = dimensions
-        self.list_sphere_grids = self.create(alg_name, dimensions, self.N_set, **kwargs)
+        self.use_saved = use_saved
+        self.kwargs = kwargs
+        self.list_sphere_grids = []
 
     def get_name(self):
-        return f"convergence_{self.alg_name}_{self.dimensions}d"
+        N_min = self.N_set[0]
+        N_max = self.N_set[-1]
+        N_len = len(self.N_set)
+        return f"convergence_{self.alg_name}_{self.dimensions}d_{N_min}_{N_max}_{N_len}"
 
-    def create(self, alg_name, dimensions, N_set, **kwargs) -> list:
+    @save_or_use_saved
+    def get_list_sphere_grids(self):
+        if not self.list_sphere_grids:
+            self.list_sphere_grids = self.create()
+        return self.list_sphere_grids
+
+    def create(self) -> list:
         list_sphere_grids = []
-        for N in N_set:
-            sg = SphereGridFactory.create(alg_name, N, dimensions, **kwargs)
+        for N in self.N_set:
+            sg = SphereGridFactory.create(self.alg_name, N, self.dimensions, use_saved=self.use_saved, **self.kwargs)
             list_sphere_grids.append(sg)
         return list_sphere_grids
 
+    @save_or_use_saved
     def get_spherical_voronoi_areas(self):
         data = []
-        for N, sg in zip(self.N_set, self.list_sphere_grids):
+        for N, sg in zip(self.N_set, self.get_list_sphere_grids()):
             ideal_area = 4*pi/N
             try:
                 real_areas = sg.get_voronoi_areas()
@@ -412,5 +425,20 @@ class ConvergenceSphereGridFactory:
                 data.append([N, ideal_area, area])
         df = pd.DataFrame(data, columns=["N", "ideal area", "sph. Voronoi cell area"])
         return df
+
+    @save_or_use_saved
+    def get_generation_times(self, repeats=5):
+        data = []
+        for N in self.N_set:
+            for _ in range(repeats):
+                t1 = time()
+                # cannot use saved if you are timing!
+                sg = SphereGridFactory.create(self.alg_name, N, self.dimensions, use_saved=False)
+                t2 = time()
+                data.append([N, t2 - t1])
+        df = pd.DataFrame(data, columns=["N", "Time [s]"])
+        return df
+
+
 
 

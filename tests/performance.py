@@ -13,7 +13,7 @@ import seaborn as sns
 
 from molgri.paths import PATH_OUTPUT_TIMING, PATH_OUTPUT_LOGGING
 from molgri.molecules.writers import PtIOManager
-from molgri.space.utils import find_first_free_index, format_name
+from molgri.logfiles import find_first_free_index, format_name
 
 
 class PerformanceManager:

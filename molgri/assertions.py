@@ -1,15 +1,19 @@
 """
-This module implements helper functions that can be used by different test functions. Should all assert
-if sth is true and do not need to return anything.
+This module implements helper functions that can be used by different test/other functions. The determining
+characteristics of all functions in this module is that they operate with booleans (either return a boolean
+answer or assert that a condition is true.
+
+Example functions that belong to this module:
+ - check if two quaternion sets represent the same rotation
+ - check if all norms of vectors in the array are similar
+ - check if given points form a square/a cube ...
 """
 
 import numpy as np
-from numpy._typing import NDArray
 from numpy.typing import NDArray
 from scipy.constants import pi
 from scipy.spatial import distance_matrix
 from scipy.spatial.distance import cdist
-import networkx as nx
 from scipy.spatial.transform import Rotation
 
 from molgri.space.utils import norm_per_axis
@@ -22,7 +26,8 @@ from molgri.constants import UNIQUE_TOL
 
 def check_equality(arr1: NDArray, arr2: NDArray, atol: float = None, rtol: float = None) -> bool:
     """
-    Use the numpy function np.allclose to compare two arrays and return if they are all equal.
+    Use the numpy function np.allclose to compare two arrays and return True if they are all equal. This function
+    is a wrapper where I can set my preferred absolute and relative tolerance
     """
     if atol is None:
         atol = 1e-8
@@ -31,9 +36,9 @@ def check_equality(arr1: NDArray, arr2: NDArray, atol: float = None, rtol: float
     return np.allclose(arr1, arr2, atol=atol, rtol=rtol)
 
 
-def all_row_norms_similar(my_array: NDArray, atol: float = None, rtol: float = None):
+def all_row_norms_similar(my_array: NDArray, atol: float = None, rtol: float = None) -> NDArray:
     """
-    Assert that in an 2D array each row has the same norm are similar up to the tolerance.
+    Assert that in an 2D array each row has the same norm (up to the floating point tolerance).
 
     Returns:
         the array of norms in the same shape as my_array
@@ -46,12 +51,13 @@ def all_row_norms_similar(my_array: NDArray, atol: float = None, rtol: float = N
     return all_norms
 
 
-def all_row_norms_equal_k(my_array: NDArray, k: float, atol: float = None, rtol: float = None):
+def all_row_norms_equal_k(my_array: NDArray, k: float, atol: float = None, rtol: float = None) -> NDArray:
     """
-    Same as all_row_norms_similar, but also test that the norm equalts k.
+    Same as all_row_norms_similar, but also test that the norm equals k.
     """
     my_norms = all_row_norms_similar(my_array=my_array, atol=atol, rtol=rtol)
     assert check_equality(my_norms, np.array(k), atol=atol, rtol=rtol), "The norms are not equal to k"
+    return my_norms
 
 
 def is_array_with_d_dim_r_rows_c_columns(my_array: NDArray, d: int = None, r: int = None, c: int = None):
@@ -78,28 +84,9 @@ def all_rows_unique(my_array: NDArray, tol: int = UNIQUE_TOL):
     assert len(my_array) == len(my_unique), f"{difference} elements of an array are not unique up to tolerance."
 
 
-# def form_square_graph(my_graph: nx.Graph, weight_property="p_dist") -> bool:
-#     points = np.array(my_graph.nodes)
-#     distances = np.zeros((4, 4))
-#     for node in my_graph.nodes:
-#         all_dist = [combi[2][weight_property] for combi in my_graph.edges(node, data=True)]
-#         if len(all_dist) != 3:
-#             return False
-#         else:
-#             distances[:, 1:] = np.array(all_dist)
-#     # distances = nx.all_pairs_dijkstra_path_length(my_graph, weight=weight_property)
-#     # distances = [list(dist[1].values()) for dist in distances]
-#     # distances = np.array(distances)
-#     old_m = cdist(points, points)
-#     if form_square_array(points):
-#         print("new", distances)
-#         print("old", old_m)
-#     return _form_square(points, distances)
-
-
 def form_square_array(my_array: NDArray, dec_places=7) -> bool:
     """
-    From an array of exactly 4 points, determine if they form a square.
+    From an array of exactly 4 points, determine if they form a square (can be in space and not on a 2D plane).
 
     Args:
         my_array: array of shape (4, d) where d is the number of dimensions.
@@ -112,7 +99,10 @@ def form_square_array(my_array: NDArray, dec_places=7) -> bool:
     return _form_square(my_array, distances, dec_places=dec_places)
 
 
-def _form_square(points, distances, dec_places=7):
+def _form_square(points, distances, dec_places=7) -> bool:
+    """
+    Given a set of points and already known distances between all pairs, determine if points form a square.
+    """
     is_array_with_d_dim_r_rows_c_columns(points, d=2, r=4)
     # in each row of distances, the values must be: 1x0, 2xa (side length), 1xnp.sqrt(2)*a (diagonal length)
     dists, counts = np.unique(np.round(distances[0], dec_places), return_counts=True)   # sorts smallest to largest
@@ -194,6 +184,10 @@ def quaternion_in_array(quat: NDArray, quat_array: NDArray) -> bool:
 
 
 def two_sets_of_quaternions_equal(quat1: NDArray, quat2: NDArray) -> bool:
+    """
+    This test is necessary because for quaternions, q and -q represent the same rotation. You therefore cannot simply
+    use np.allclose to check if two sets of rotations are the same.
+    """
     assert quat1.shape == quat2.shape
     assert quat1.shape[1] == 4
     # quaternions are the same if they are equal up to a +- sign
@@ -225,14 +219,3 @@ def assert_two_sets_of_eulers_equal(euler1: NDArray, euler2: NDArray):
         # first and last angle must match up to pi
         assert np.isclose(e1[0] % pi, e2[0] % pi)
         assert np.isclose(e1[-1] % pi, e2[-1] % pi)
-
-if __name__ == "__main__":
-    ex_array = np.array([[-0.57735027, -0.57735027, -0.57735027],
- [ 0.57735027,  0.57735027,  0.57735027],
- [-0.57735027, -0.57735027,  0.57735027],
- [ 0.57735027,  0.57735027, -0.57735027],
- [-0.57735027,  0.57735027, -0.57735027],
- [ 0.57735027, -0.57735027,  0.57735027],
- [ 0.57735027, -0.57735027, -0.57735027],
- [-0.57735027,  0.57735027,  0.57735027]])
-    form_cube(ex_array, test_angles=True)
