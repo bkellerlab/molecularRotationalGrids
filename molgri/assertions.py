@@ -176,17 +176,21 @@ def form_cube(my_array: NDArray, test_angles=False) -> bool:
 
 
 def quaternion_in_array(quat: NDArray, quat_array: NDArray) -> bool:
+    """
+    Check if a quaternion q or its equivalent complement -q is present in the quaternion array quat_array.
+    """
     quat1 = quat[np.newaxis, :]
     for quat2 in quat_array:
         if two_sets_of_quaternions_equal(quat1, quat2[np.newaxis, :]):
-            return False
-    return True
+            return True
+    return False
 
 
 def two_sets_of_quaternions_equal(quat1: NDArray, quat2: NDArray) -> bool:
     """
     This test is necessary because for quaternions, q and -q represent the same rotation. You therefore cannot simply
-    use np.allclose to check if two sets of rotations are the same.
+    use np.allclose to check if two sets of rotations represented with quaternions are the same. This function checks
+    if all rows of two arrays are the same up to a flipped sign.
     """
     assert quat1.shape == quat2.shape
     assert quat1.shape[1] == 4
