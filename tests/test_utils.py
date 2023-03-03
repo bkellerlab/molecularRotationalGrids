@@ -2,7 +2,8 @@ import os
 import numpy as np
 
 from molgri.space.utils import normalise_vectors, standardise_quaternion_set, random_quaternions, \
-    randomise_quaternion_set_signs, find_first_free_index
+    randomise_quaternion_set_signs
+from molgri.logfiles import find_first_free_index
 from molgri.assertions import two_sets_of_quaternions_equal
 
 

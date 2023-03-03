@@ -4,7 +4,7 @@ from scipy.spatial.transform import Rotation
 
 from molgri.space.utils import normalise_vectors
 from molgri.assertions import all_row_norms_similar, is_array_with_d_dim_r_rows_c_columns, all_row_norms_equal_k, \
-    form_square_array, form_cube
+    form_square_array, form_cube, quaternion_in_array, two_sets_of_quaternions_equal
 
 
 def test_all_row_norms_similar():
@@ -68,7 +68,7 @@ def test_form_square():
 def test_form_cube():
     # a normal 3D cube
     cube3D = np.array([[0, 0, 0], [2, 0, 0], [0, 2, 0], [0, 0, 2], [2, 2, 0], [2, 0, 2], [0, 2, 2], [2, 2, 2]])
-    assert form_cube(cube3D)
+    assert form_cube(cube3D, test_angles=True)
 
     # same but an extra dimension kept constant
     cube4D = np.array([[5, 0, 0, 0], [5, 2, 0, 0], [5, 0, 2, 0], [5, 0, 0, 2],
@@ -89,3 +89,42 @@ def test_form_cube():
     cube4D_wrong = np.array([[5, 0, 0, 0], [3, 2, 0, 0], [5, 0, 2, 0], [3, 0, 0, 2],
                        [5, 2, 2, 0], [3, 2, 0, 2], [5, 0, 2, 2], [3, 2, 2, 2]])
     assert not form_cube(cube4D_wrong)
+
+    ex_array = np.array([[-0.57735027, -0.57735027, -0.57735027],
+                         [0.57735027, 0.57735027, 0.57735027],
+                         [-0.57735027, -0.57735027, 0.57735027],
+                         [0.57735027, 0.57735027, -0.57735027],
+                         [-0.57735027, 0.57735027, -0.57735027],
+                         [0.57735027, -0.57735027, 0.57735027],
+                         [0.57735027, -0.57735027, -0.57735027],
+                         [-0.57735027, 0.57735027, 0.57735027]])
+    assert form_cube(ex_array, test_angles=True)
+
+
+def test_quat_in_array():
+    q1 = np.array([5, 7, -3, -1])
+    q_array = np.array([[12, -1, -0.3, -0.2], [5, 7, -3, -1], [-0.1, 0.1, 2, 3], [-12, 1, 0.3, 0.2]])
+    # test q is in array
+    assert quaternion_in_array(q1, q_array)
+    # test -q is in array
+    q2 = np.array([0.1, -0.1, -2, -3])
+    assert quaternion_in_array(q2, q_array)
+    # test multiple occurences
+    q3 = np.array([-12, 1, 0.3, 0.2])
+    assert quaternion_in_array(q3, q_array)
+    # test not in array
+    q4 = np.array([-12, -1, -0.3, -0.2])
+    assert not quaternion_in_array(q4, q_array)
+
+
+def test_quaternion_sets_equal():
+    # true positive
+    quat_set_1 = np.random.random((15, 4))
+    quat_set_2 = np.copy(quat_set_1)
+    quat_set_2[5] = -quat_set_1[5]
+    quat_set_2[12] = -quat_set_1[12]
+    assert two_sets_of_quaternions_equal(quat_set_1, quat_set_2)
+    # true negative
+    quat_set_3 = np.copy(quat_set_1)
+    quat_set_3[8][0] = -quat_set_1[8][0]
+    assert not two_sets_of_quaternions_equal(quat_set_1, quat_set_3)

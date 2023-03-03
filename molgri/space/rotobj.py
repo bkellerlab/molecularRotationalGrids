@@ -1,5 +1,17 @@
+"""
+This module is one of central building blocks of the molgri package. The central object here is the SphereGridNDim
+(And the corresponding Factory object that creates a sphere grid given the algorithm, dimension and number of points).
+A SphereGridNDim object implements a grid that consists of points on a N-dimensional unit sphere.
+
+Connected to:
+ - polytope module - some algorithms for creating sphere grids are based of subdivision of polytopes
+ - fullgrid module - combines a 3D SphereGridNDim, a 4D SphereGridNDim and a translation grid to sample the full
+                     approach space
+"""
+
 import os
 from abc import ABC, abstractmethod
+from time import time
 
 import numpy as np
 import pandas as pd
@@ -18,6 +30,12 @@ from molgri.wrappers import time_method, save_or_use_saved
 
 
 class SphereGridNDim(ABC):
+    """
+    This is a general and abstract implementation of a spherical grid in any number of dimensions (currently only
+    using 3 or 4 dimensions). Each subclass is a particular implementation that must implement the abstract method
+    _gen_grid_4D. If the implementation of _gen_grid_3D is not overridden, the 3D grid will be created from the 4D
+    one using 4D grid to act as rotational quaternions on the unit z vector.
+    """
 
     algorithm_name = "generic"
 
@@ -42,7 +60,7 @@ class SphereGridNDim(ABC):
     #                      generation/loading of grids
     ##################################################################################################################
 
-    def gen_grid(self):
+    def gen_grid(self) -> NDArray:
         """
         This method saves to self.grid if it has been None before (and checks the format) but returns nothing.
         This method only implements loading/timing/printing logic, the actual process of creation is outsourced to
@@ -52,20 +70,16 @@ class SphereGridNDim(ABC):
         """
         # condition that there is still something to generate
         if self.grid is None:
-            # if self.use_saved and the file exists, load it
-            if self.use_saved and os.path.isfile(self.get_grid_path()):
-                self.grid = np.load(self.get_grid_path())
-            # else use the right generation function
+            if self.time_generation:
+                self.grid = self.gen_and_time()
             else:
-                if self.time_generation:
-                    self.grid = self.gen_and_time()
-                else:
-                    self.grid = self._gen_grid()
+                self.grid = self._gen_grid()
             if self.print_messages:
                 self._check_uniformity()
         assert isinstance(self.grid, np.ndarray), "A grid must be a numpy array!"
         assert self.grid.shape == (self.N, self.dimensions), f"Grid not of correct shape!"
         assert np.allclose(np.linalg.norm(self.grid, axis=1), 1, atol=10 ** (-UNIQUE_TOL)), "A grid must have norm 1!"
+        return self.grid
 
     def _gen_grid(self) -> NDArray:
         if self.dimensions == 4:
@@ -104,7 +118,7 @@ class SphereGridNDim(ABC):
     #                      name and path getters
     ##################################################################################################################
 
-    def get_name(self, with_dim=False) -> str:
+    def get_name(self, with_dim=True) -> str:
         """
         This is a standard name that can be used for saving files, but not pretty enough for titles etc.
 
@@ -134,6 +148,7 @@ class SphereGridNDim(ABC):
     #                      useful methods
     ##################################################################################################################
 
+    @save_or_use_saved
     def get_grid_as_array(self) -> NDArray:
         """
         Get the sphere grid. If not yet created but N is set, will generate/load the grid automatically.
@@ -159,6 +174,9 @@ class SphereGridNDim(ABC):
 
     @save_or_use_saved
     def get_uniformity_df(self, alphas):
+        """
+        Get the dataframe necessary to draw violin plots showing how uniform different generation algorithms are.
+        """
         # recalculate if: 1) self.use_saved_data = False OR 2) no saved data exists
         if not self.use_saved or not os.path.exists(self.get_statistics_path("csv")):
             self.save_uniformity_statistics(alphas=alphas)
@@ -172,6 +190,9 @@ class SphereGridNDim(ABC):
 
     @save_or_use_saved
     def get_convergence_df(self, alphas: tuple, N_list: tuple = None):
+        """
+         Get the dataframe necessary to draw convergence plots for various values of N.
+         """
         if N_list is None:
             # create equally spaced convergence set
             assert self.N >= 3, f"N={self.N} not large enough to study convergence"
@@ -190,6 +211,12 @@ class SphereGridNDim(ABC):
 
     @save_or_use_saved
     def get_spherical_voronoi_cells(self):
+        """
+        A spherical grid (in 3D) can be used as a basis for a spherical Voronoi grid. In this case, each grid point is
+        used as a center of a Voronoi cell. The spherical Voronoi cells also have the radius 1.
+
+        The division into cells will fail in case points are not unique (too close to each other)
+        """
         assert self.dimensions == 3, "Spherical voronoi cells only available for N=3"
         if self.spherical_voronoi is None:
             try:
@@ -202,6 +229,10 @@ class SphereGridNDim(ABC):
 
     @save_or_use_saved
     def get_voronoi_areas(self):
+        """
+        From Voronoi cells you may also calculate areas on the sphere that are closest each grid point. The order of
+        areas is the same as the order of points in self.grid.
+        """
         sv = self.get_spherical_voronoi_cells()
         return sv.calculate_areas()
 
@@ -325,17 +356,6 @@ class IcoAndCube3DRotations(SphereGridNDim):
         grid_z_arr = self._gen_grid_3D()
         rotations = grid2rotation(grid_z_arr, grid_z_arr, grid_z_arr)
         return rotations.as_quat()
-        # grid_z = SphereGrid3D(grid_z_arr, N=self.N, gen_alg=self.gen_algorithm)
-        # z_vec = np.array([0, 0, 1])
-        # matrices = np.zeros((desired_N, 3, 3))
-        # for i in range(desired_N):
-        #     matrices[i] = two_vectors2rot(z_vec, grid_z.get_grid()[i])
-        # rot_z = Rotation.from_matrix(matrices)
-        # grid_x_arr = rot_z.apply(np.array([1, 0, 0]))
-        # grid_x = SphereGrid3D(grid_x_arr, N=desired_N, gen_alg=self.gen_algorithm)
-        # grid_y_arr = rot_z.apply(np.array([0, 1, 0]))
-        # grid_y = SphereGrid3D(grid_y_arr, N=desired_N, gen_alg=self.gen_algorithm)
-        # self.from_grids(grid_x, grid_y, grid_z)
 
 
 class IcoRotations(IcoAndCube3DRotations):
@@ -357,6 +377,11 @@ class Cube3DRotations(IcoAndCube3DRotations):
 
 
 class SphereGridFactory:
+
+    """
+    This should be the only access point to all SphereGridNDim objects. Simply provide the generation algorithm name,
+    the number of points and dimensions as well as optional arguments. The requested object will be returned.
+    """
 
     @classmethod
     def create(cls, alg_name: str, N: int, dimensions: int, **kwargs) -> SphereGridNDim:
@@ -382,27 +407,46 @@ class SphereGridFactory:
 
 class ConvergenceSphereGridFactory:
 
-    def __init__(self, alg_name: str, dimensions: int, N_set = None, **kwargs):
+    """
+    This is a central object for studying the convergence of SphereGridNDim objects with the number of dimensions.
+    """
+
+    def __init__(self, alg_name: str, dimensions: int, N_set = None, use_saved=True, **kwargs):
         if N_set is None:
             N_set = SMALL_NS
         self.N_set = N_set
         self.alg_name = alg_name
         self.dimensions = dimensions
-        self.list_sphere_grids = self.create(alg_name, dimensions, self.N_set, **kwargs)
+        self.use_saved = use_saved
+        self.kwargs = kwargs
+        self.list_sphere_grids = []
 
     def get_name(self):
-        return f"convergence_{self.alg_name}_{self.dimensions}d"
+        N_min = self.N_set[0]
+        N_max = self.N_set[-1]
+        N_len = len(self.N_set)
+        return f"convergence_{self.alg_name}_{self.dimensions}d_{N_min}_{N_max}_{N_len}"
 
-    def create(self, alg_name, dimensions, N_set, **kwargs) -> list:
+    def create(self) -> list:
         list_sphere_grids = []
-        for N in N_set:
-            sg = SphereGridFactory.create(alg_name, N, dimensions, **kwargs)
+        for N in self.N_set:
+            sg = SphereGridFactory.create(self.alg_name, N, self.dimensions, use_saved=self.use_saved, **self.kwargs)
             list_sphere_grids.append(sg)
         return list_sphere_grids
 
+    @save_or_use_saved
+    def get_list_sphere_grids(self):
+        if not self.list_sphere_grids:
+            self.list_sphere_grids = self.create()
+        return self.list_sphere_grids
+
+    @save_or_use_saved
     def get_spherical_voronoi_areas(self):
+        """
+        Get plotting-ready data on the size of Voronoi areas for different numbers of points.
+        """
         data = []
-        for N, sg in zip(self.N_set, self.list_sphere_grids):
+        for N, sg in zip(self.N_set, self.get_list_sphere_grids()):
             ideal_area = 4*pi/N
             try:
                 real_areas = sg.get_voronoi_areas()
@@ -412,5 +456,24 @@ class ConvergenceSphereGridFactory:
                 data.append([N, ideal_area, area])
         df = pd.DataFrame(data, columns=["N", "ideal area", "sph. Voronoi cell area"])
         return df
+
+    @save_or_use_saved
+    def get_generation_times(self, repeats=5):
+        """
+        Get plotting-ready data on time needed to generate spherical grids of different sizes. Each generation is
+        repeated several times to be able to estimate the error.
+        """
+        data = []
+        for N in self.N_set:
+            for _ in range(repeats):
+                t1 = time()
+                # cannot use saved if you are timing!
+                sg = SphereGridFactory.create(self.alg_name, N, self.dimensions, use_saved=False)
+                t2 = time()
+                data.append([N, t2 - t1])
+        df = pd.DataFrame(data, columns=["N", "Time [s]"])
+        return df
+
+
 
 

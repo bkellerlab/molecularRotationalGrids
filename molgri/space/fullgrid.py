@@ -5,6 +5,7 @@ import scipy
 from numpy.typing import NDArray
 from scipy.spatial.transform import Rotation
 from scipy.spatial import SphericalVoronoi
+from scipy.spatial.distance import cdist
 from scipy.constants import pi
 import pandas as pd
 
@@ -21,12 +22,12 @@ class FullGrid:
 
     def __init__(self, b_grid_name: str, o_grid_name: str, t_grid_name: str, use_saved: bool = True):
         """
-        A combination object that enables work with a set of grids. A parser that
+        A combination object that enables work a combination of three grids (provided by their names)
 
         Args:
-            b_grid_name: body rotation grid (should be made into a 4D sphere grid)
-            o_grid_name: origin rotation grid (should be made into a 3D sphere grid)
-            t_grid_name: translation grid
+            b_grid_name: body rotation grid (a 4D sphere grid of quaternions used to generate orientations)
+            o_grid_name: origin rotation grid (a 3D sphere grid used to create approach vectors)
+            t_grid_name: translation grid (a linear grid used to determine distances to origin)
         """
         b_grid_name = GridNameParser(b_grid_name, "b")
         self.b_rotations = SphereGridFactory.create(alg_name=b_grid_name.get_alg(), N=b_grid_name.get_N(),
@@ -37,14 +38,21 @@ class FullGrid:
         self.o_positions = self.o_rotations.get_grid_as_array()
         self.t_grid = TranslationParser(t_grid_name)
         self.use_saved = use_saved
-        self.save_full_grid()
+        #self.save_full_grid()
 
     def get_name(self):
         o_name = self.o_rotations.get_name(with_dim=False)
         b_name = self.b_rotations.get_name(with_dim=False)
         return f"o_{o_name}_b_{b_name}_t_{self.t_grid.grid_hash}"
 
+    @save_or_use_saved
+    def get_full_grid(self) -> tuple:
+        return self.b_rotations, self.o_rotations, self.t_grid
+
     def get_radii(self) -> NDArray:
+        """
+        Get the radii at which points are positioned. Result is in Angstroms.
+        """
         return self.t_grid.get_trans_grid()
 
     def get_between_radii(self) -> NDArray:
@@ -76,6 +84,7 @@ class FullGrid:
     def get_body_rotations(self) -> Rotation:
         return Rotation.from_quat(self.b_rotations.get_grid_as_array())
 
+    @save_or_use_saved
     def get_position_grid(self) -> NDArray:
         """
         Get a 'product' of o_grid and t_grid so you can visualise points in space at which COM of the second molecule
@@ -113,7 +122,13 @@ class FullGrid:
         except AttributeError:
             return None
 
-    def point2cell_position_grid(self, points_vector: NDArray):
+    def point2cell_position_grid(self, points_vector: NDArray) -> NDArray:
+        """
+        This method is used to back-map any points in 3D space to their corresponding Voronoi cell indices (of position
+        grid). This means that, given an array of shape (k, 3) as points_vector, the result
+        will be a vector of length k in which each item is an index of the flattened position grid. The point falls
+        into the Voronoi cell associated with this index.
+        """
         # determine index within a layer - the layer grid point to which the point vectors are closest
         rot_points = self.o_rotations.get_grid_as_array()
         # this automatically select the one of angles that is < pi
@@ -140,23 +155,39 @@ class FullGrid:
         return indices
 
     def points2cell_scipy(self, points_vector: NDArray):
-        cdist = scipy.spatial.distance.cdist(points_vector, self.get_flat_position_grid())
-        return np.argmin(cdist, axis=1)
+        """
+        For comparison to self.point2cell_position_grid(), here is a method that assigns belonging to a grid point
+        simply based on distance and not considering the spherical nature of the grid.
+        """
+        my_cdist = cdist(points_vector, self.get_flat_position_grid())
+        return np.argmin(my_cdist, axis=1)
 
 
 class FullVoronoiGrid:
 
     def __init__(self, full_grid: FullGrid):
+        """
+        This is a sister object to FullGrid, implements functionality that is specifically Voronoi-based.
+        """
         self.full_grid = full_grid
         self.use_saved = self.full_grid.use_saved
         self.flat_positions = self.full_grid.get_flat_position_grid()
         self.all_sv = None
         self.get_voronoi_discretisation()
 
+    ###################################################################################################################
+    #                           basic creation/getter functions
+    ###################################################################################################################
+
     def get_name(self):
         return f"voronoi_{self.full_grid.get_name()}"
 
     def _change_voronoi_radius(self, sv: SphericalVoronoi, new_radius):
+        """
+        This is a helper function. Since a FullGrid consists of several layers of spheres in which the points are at
+        exactly same places (just at different radii), it makes sense not to recalculate, but just to scale the radius,
+        vertices and points out of which the SphericalVoronoi consists to a new radius.
+        """
         sv.radius = new_radius
         sv.vertices = normalise_vectors(sv.vertices, length=new_radius)
         sv.points = normalise_vectors(sv.points, length=new_radius)
@@ -164,22 +195,79 @@ class FullVoronoiGrid:
         return copy(sv)
 
     @save_or_use_saved
-    def get_voronoi_discretisation(self):
+    def get_voronoi_discretisation(self) -> list:
+        """
+        Create a list of spherical voronois that are identical except at different radii. The radii are set in such a
+        way that there is always a Voronoi cell layer right in-between two layers of grid cells. (see FullGrid method
+        get_between_radii for details.
+        """
         if self.all_sv is None:
             unit_sph_voronoi = self.full_grid.o_rotations.get_spherical_voronoi_cells()
             between_radii = self.full_grid.get_between_radii()
             self.all_sv = [self._change_voronoi_radius(unit_sph_voronoi, r) for r in between_radii]
         return self.all_sv
 
-    def find_voronoi_vertices_of_point(self, point_index: int, which="all"):
+    ###################################################################################################################
+    #                           point helper functions
+    ###################################################################################################################
+
+    def _at_same_radius(self, point1, point2):
+        """Check that two points belong to the same layer"""
+        return np.isclose(point1.d_to_origin, point2.d_to_origin)
+
+    def _are_neighbours(self, point1, point2):
         """
+        Check whether points are neighbours in any way. We define neighbours as those sharing surface and NOT sharing
+        only vertex points or lines.
+        """
+        index1 = point1.index_position_grid
+        index2 = point2.index_position_grid
+        return self.get_division_area(index1, index2, print_message=False) is not None
+
+    def _are_sideways_neighbours(self, point1, point2):
+        """
+        Check whether points belong to the same radius and are neighbours.
+        """
+        return self._at_same_radius(point1, point2) and self._are_neighbours(point1, point2)
+
+    def _are_on_same_ray(self, point1, point2):
+        """
+        Two points are on the same ray if they are on the same vector from origin (may be at different distances)
+        """
+        normalised1 = point1.get_normalised_point()
+        normalised2 = point2.get_normalised_point()
+        return np.allclose(normalised1, normalised2)
+
+    def _point1_right_above_point2(self, point1, point2):
+        """
+        Right above should be interpreted spherically.
+
+        Conditions: on the same ray + radius of point1 one unit bigger
+        """
+        radial_index1 = point1.index_radial
+        radial_index2 = point2.index_radial
+        return self._are_on_same_ray(point1, point2) and radial_index1 == radial_index2 + 1
+
+    def _point2_right_above_point1(self, point1, point2):
+        """See _point1_right_above_point2."""
+        radial_index1 = point1.index_radial
+        radial_index2 = point2.index_radial
+        return self._are_on_same_ray(point1, point2) and radial_index1 + 1 == radial_index2
+
+    ###################################################################################################################
+    #                           useful properties
+    ###################################################################################################################
+
+    def find_voronoi_vertices_of_point(self, point_index: int, which: str = "all") -> NDArray:
+        """
+        Using an index (from flattened position grid), find which voronoi vertices belong to this point.
 
         Args:
-            point_index:
-            which: all, upper or lower
+            point_index: for which point in flattened position grid the vertices should be found
+            which: which vertices: all, upper or lower
 
         Returns:
-
+            an array of vertices, each row is a 3D point.
         """
         my_point = Point(point_index, self)
 
@@ -191,52 +279,20 @@ class FullVoronoiGrid:
             vertices = my_point.get_vertices_below()
         else:
             raise ValueError("The value of which not recognised, select 'all', 'upper', 'lower'.")
-
         return vertices
-
-    def _at_same_radius(self, point1, point2):
-        return np.isclose(point1.d_to_origin, point2.d_to_origin)
-
-    def _are_neighbours(self, point1, point2):
-        index1 = point1.index_position_grid
-        index2 = point2.index_position_grid
-        return self.get_division_area(index1, index2, print_message=False) is not None
-
-    def _are_sideways_neighbours(self, point1, point2):
-        return self._at_same_radius(point1, point2) and self._are_neighbours(point1, point2)
-
-    def _are_on_same_ray(self, point1, point2):
-        normalised1 = point1.get_normalised_point()
-        normalised2 = point2.get_normalised_point()
-        return np.allclose(normalised1, normalised2)
-
-    def _point1_right_above_point2(self, point1, point2):
-        # on the same ray + radius one bigger
-        radial_index1 = point1.index_radial
-        radial_index2 = point2.index_radial
-        return self._are_on_same_ray(point1, point2) and radial_index1 == radial_index2 +1
-
-    def _point2_right_above_point1(self, point1, point2):
-        # on the same ray + radius one bigger
-        radial_index1 = point1.index_radial
-        radial_index2 = point2.index_radial
-        return self._are_on_same_ray(point1, point2) and radial_index1 + 1 == radial_index2
-
 
     def get_distance_between_centers(self, index_1: int, index_2: int, print_message=True):
         """
+        Calculate the distance between two position grid points selected by their indices. Optionally print message
+        if they are not neighbours.
+
         There are three options:
             - point1 is right above point2 or vide versa -> the distance is measured in a straight line from the center
             - point1 and point2 are sideways neighbours -> the distance is measured on the circumference of their radius
             - point1 and point2 are not neighbours -> return None
 
-        Args:
-            index_1:
-            index_2:
-            print_message:
-
         Returns:
-
+            None if not neighbours, distance in angstrom else
         """
         point_1 = Point(index_1, self)
         point_2 = Point(index_2, self)
@@ -254,6 +310,11 @@ class FullVoronoiGrid:
             return None
 
     def get_division_area(self, index_1: int, index_2: int, print_message=True):
+        """
+        Calculate the area (in Angstrom squared) that is the border area between two Voronoi cells. This is either
+        a curved area (a part of a sphere) if the two cells are one above the other or a flat, part of circle or
+        circular ring if the cells are neighbours at the same level. If points are not neighbours, returns None.
+        """
         point_1 = Point(index_1, self)
         point_2 = Point(index_2, self)
 
@@ -290,6 +351,9 @@ class FullVoronoiGrid:
         return None
 
     def get_volume(self, index):
+        """
+        Get the volume of any
+        """
         point = Point(index, self)
         return point.get_cell_volume()
 

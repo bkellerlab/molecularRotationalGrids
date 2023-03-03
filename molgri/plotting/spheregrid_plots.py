@@ -162,7 +162,8 @@ class SphereGridPlot(RepresentationCollection):
 
         self.ax.view_init(elev=10, azim=30)
         ani = FuncAnimation(self.fig, func=update, frames=len(facecolors_before), interval=100, repeat=False)
-        self._save_animation_type(ani, "order", fps=len(facecolors_before) // 20)
+        fps_factor = np.min([len(facecolors_before), 20])
+        self._save_animation_type(ani, "order", fps=len(facecolors_before) // fps_factor)
         return ani
 
     def make_trans_animation(self, fig: plt.Figure = None, ax=None):
@@ -448,6 +449,11 @@ class ConvergenceSphereGridPlot(RepresentationCollection):
         self.convergence_sph_grid = convergence_sph_grid
         super().__init__(self.convergence_sph_grid.get_name())
 
+    def get_possible_title(self):
+        full_name = self.convergence_sph_grid.get_name()
+        split_name = full_name.split("_")
+        return NAME2SHORT_NAME[split_name[1]]
+
     def make_voronoi_area_conv_plot(self, ax=None, fig=None, save=True):
         if self.convergence_sph_grid.dimensions != 3:
             print(f"make_voronoi_area_conv_plot available only for 3D systems")
@@ -468,6 +474,15 @@ class ConvergenceSphereGridPlot(RepresentationCollection):
             self.ax.set_xscale("log")
             self._save_plot_type("voronoi_area_conv")
 
+    def make_spheregrid_time_plot(self, ax=None, fig=None, save=True):
+        self._create_fig_ax(fig=fig, ax=ax)
+        time_df = self.convergence_sph_grid.get_generation_times()
+
+        sns.lineplot(time_df, x="N", y="Time [s]", ax=self.ax)
+
+        if save:
+            self._save_plot_type("spheregrid_time")
+
 
 class PanelConvergenceSphereGridPlots(PanelRepresentationCollection):
 
@@ -487,6 +502,14 @@ class PanelConvergenceSphereGridPlots(PanelRepresentationCollection):
         self.unify_axis_limits()
         if save:
             self._save_multiplot("voronoi_area")
+
+    def make_all_spheregrid_time_plots(self, save=True):
+        self._make_plot_for_all("make_spheregrid_time_plot")
+        self.add_titles(list_titles=[subplot.get_possible_title() for subplot in self.list_plots])
+        self.unify_axis_limits()
+        if save:
+            self._save_multiplot("spheregrid_times")
+
 
 if __name__ == "__main__":
     from molgri.constants import DEFAULT_NS

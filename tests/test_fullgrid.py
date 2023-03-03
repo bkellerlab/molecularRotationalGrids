@@ -25,7 +25,7 @@ class IdealPolyhedron(ABC):
 
     def get_ideal_sideways_area(self):
         """Get ideal areas separating points in the same level"""
-        alpha = self.get_central_angle()
+        alpha = self.get_dual_central_angle()
         circles = self.Rs**2 * alpha / 2
         areas = [circles[0]]
         for circ in circles[1:]:
@@ -34,7 +34,8 @@ class IdealPolyhedron(ABC):
         return areas
 
     @abstractmethod
-    def get_central_angle(self):
+    def get_dual_central_angle(self):
+        #vertex-center-vertex angle
         pass
 
     def get_ideal_volume(self):
@@ -51,9 +52,12 @@ class IdealTetrahedron(IdealPolyhedron):
     def __init__(self, Rs):
         super().__init__(Rs, N_vertices=4)
 
-    def get_central_angle(self):
+    def get_dual_central_angle(self):
         # tetrahedron is a dual of itself, so we here use the central angle of tetrahedron
         return np.arccos(-1/3)
+
+    def get_vertex_center_vertex_angle(self):
+        return np.arccos(-1 / 3)
 
 
 class IdealIcosahedron(IdealPolyhedron):
@@ -61,12 +65,15 @@ class IdealIcosahedron(IdealPolyhedron):
     def __init__(self, Rs):
         super().__init__(Rs, N_vertices=12)
 
-    def get_central_angle(self):
+    def get_dual_central_angle(self):
         # this is the central angle of a regular dodecahedron (vertex-origin-vertex). Why does that make sense?
         # The icosahedron and the dodecahedron are duals, so connecting the centers of the faces of an icosahedron
         # gives a dodecahedron and vice-versa. The shape of Voronoi cells on the sphere based on an icosahedron
         # partition is like a curved dodecahedron - has the same angles
         return np.arccos(np.sqrt(5)/3)
+
+    def get_vertex_center_vertex_angle(self):
+        return 1.10714872
 
 
 def _visualise_fg(fg7: FullGrid):
@@ -152,6 +159,45 @@ def test_cell_assignment():
     points_local = normalise_vectors(points_local, length=between_radii[2] - 0.5)
     assert np.all(fullgrid.point2cell_position_grid(points_local) >= 2 * N_rot)
     assert np.all(fullgrid.point2cell_position_grid(points_local) < 3 * N_rot)
+
+
+def test_distances_voronoi_centers():
+    # tetrahedron
+    fg, fvg = get_tetrahedron_grid(visualise=False, use_saved=False)
+    rs = fg.get_radii()
+    ideal_angle = IdealTetrahedron(rs).get_vertex_center_vertex_angle()
+    ideal_dist = rs[0]*ideal_angle
+    rel_errors = []
+    for i in range(4):
+        for j in range(i+1, 4):
+            arch_dist = fvg.get_distance_between_centers(i, j, print_message=False)
+            rel_errors.append(np.abs(arch_dist-ideal_dist)/ideal_dist * 100)
+    print(f"Relative errors in tetrahedron distances {np.round(rel_errors, 2)}")
+
+    #icosahedron
+    fg, fvg = get_icosahedron_grid(visualise=False, use_saved=False)
+    rs = fg.get_radii()
+
+    # ray distances
+    ideal_ray_dist = rs[1]-rs[0]
+    for i in range(12):
+        assert np.isclose(fvg.get_distance_between_centers(i, i+12, print_message=False), ideal_ray_dist)
+
+    # first circle distance
+    ideal_first_arch = rs[0]*IdealIcosahedron(rs).get_vertex_center_vertex_angle()
+    for i in range(12):
+        for j in range(i+1, 12):
+            arch_dist = fvg.get_distance_between_centers(i, j, print_message=False)
+            if arch_dist is not None:
+                assert np.isclose(arch_dist, ideal_first_arch)
+
+    # second circle distance
+    ideal_second_arch = rs[1] * IdealIcosahedron(rs).get_vertex_center_vertex_angle()
+    for i in range(12, 24):
+        for j in range(i + 1, 24):
+            arch_dist = fvg.get_distance_between_centers(i, j, print_message=False)
+            if arch_dist is not None:
+                assert np.isclose(arch_dist, ideal_second_arch)
 
 
 def test_division_area():
@@ -307,3 +353,4 @@ if __name__ == "__main__":
     test_cell_assignment()
     test_division_area()
     test_volumes()
+    test_distances_voronoi_centers()

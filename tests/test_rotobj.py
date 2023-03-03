@@ -3,7 +3,7 @@ from tqdm import tqdm
 from scipy.constants import pi
 
 from molgri.space.rotobj import SphereGridFactory
-from molgri.constants import GRID_ALGORITHMS
+from molgri.constants import GRID_ALGORITHMS, DEFAULT_ALPHAS_3D
 
 import numpy as np
 
@@ -20,42 +20,13 @@ def test_saving_rotobj():
             for d in (3, 4):
                 rotobj_start = SphereGridFactory.create(N=N, alg_name=algo, dimensions=d, use_saved=False)
                 array_before = rotobj_start.get_grid_as_array()
-                rotobj_start.save_grid()
+                statistics_before = rotobj_start.get_uniformity_df(alphas=DEFAULT_ALPHAS_3D)
                 rotobj_new = SphereGridFactory.create(N=N, alg_name=algo, dimensions=d, use_saved=True)
                 array_after = rotobj_new.get_grid_as_array()
-                print(array_after)
+                statistics_after = rotobj_new.get_uniformity_df(alphas=DEFAULT_ALPHAS_3D)
+                assert rotobj_new.get_name(with_dim=True) == rotobj_start.get_name(with_dim=True)
+                assert statistics_before.equals(statistics_after)
                 assert np.allclose(array_before, array_after)
-
-
-# def test_grid2rotobj2grid():
-#     for algo in GRID_ALGORITHMS[:-1]:
-#         for N in (12, 23, 87, 217):
-#             rotations_start = build_rotations(N, algo, use_saved=USE_SAVED)
-#             grid_start_x = rotations_start.grid_x.get_grid()
-#             grid_start_y = rotations_start.grid_y.get_grid()
-#             grid_start_z = rotations_start.grid_z.get_grid()
-#             rotations1 = grid2rotation(grid_start_x, grid_start_y, grid_start_z)
-#             rotations2 = grid2rotation(grid_start_x, grid_start_y, grid_start_z)
-#             grid_end1, grid_end2, grid_end3 = rotation2grid(rotations2)
-#             rotations3 = grid2rotation(grid_end1, grid_end2, grid_end3)
-#             grid_final1, grid_final2, grid_final3 = rotation2grid(rotations3)
-#             # rotations remain the same the entire time
-#             assert np.allclose(rotations_start.rotations.as_matrix(), rotations1.as_matrix())
-#             assert np.allclose(rotations1.as_matrix(), rotations2.as_matrix())
-#             assert np.allclose(rotations1.as_matrix(), rotations3.as_matrix())
-#             # after rotation is once created, everything is deterministic
-#             assert np.allclose(grid_end1, grid_final1)
-#             assert np.allclose(grid_end2, grid_final2)
-#             assert np.allclose(grid_end3, grid_final3)
-#             # but before ...
-#             for row1, row2 in zip(grid_end2, grid_start_y):
-#                 try:
-#                     assert np.allclose(row1, row2)
-#                 except AssertionError:
-#                     print("y different", row1, row2)
-#             assert np.allclose(grid_end1, grid_start_x)
-#             assert np.allclose(grid_end2, grid_start_y)
-#             assert np.allclose(grid_end3, grid_start_z)
 
 
 def test_general_grid_properties():
