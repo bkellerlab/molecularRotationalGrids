@@ -404,11 +404,11 @@ class PolytopePlot(RepresentationCollection):
 class PanelSphereGridPlots(PanelRepresentationCollection):
 
     def __init__(self, N_points: int, grid_dim: int, default_context: str = None, default_complexity_level: str = None,
-                 default_color_style: str = None, **kwargs):
+                 default_color_style: str = None, use_saved=False, **kwargs):
         list_plots = []
         for alg in GRID_ALGORITHMS[:-1]:
             sphere_grid = SphereGridFactory.create(alg_name=alg, N=N_points, dimensions=grid_dim, print_messages=False,
-                                                   time_generation=False, use_saved=False)
+                                                   time_generation=False, use_saved=use_saved)
             sphere_plot = SphereGridPlot(sphere_grid, default_context=default_context,
                                          default_color_style=default_color_style,
                                          default_complexity_level=default_complexity_level)
@@ -512,13 +512,12 @@ class PanelConvergenceSphereGridPlots(PanelRepresentationCollection):
 
 
 if __name__ == "__main__":
-    from molgri.constants import DEFAULT_NS
-    from molgri.space.polytopes import Cube4DPolytope
-    cubic_poly = Cube4DPolytope()
-    cubic_poly.divide_edges()
-    pp = PolytopePlot(cubic_poly)
-    pp.make_cell_plot(animate_rot=True)
 
-    sg = SphereGridFactory.create("cube4D", 200, 4, use_saved=False)
-    sgp = SphereGridPlot(sg)
-    sgp.make_trans_animation()
+    psgp = PanelSphereGridPlots(1000, 4, use_saved=False)
+    psgp.make_all_uniformity_plots()
+
+    # for alg in GRID_ALGORITHMS[:-1]:
+    #     sg = SphereGridFactory.create(alg, 200, 4, use_saved=False)
+    #     sgp = SphereGridPlot(sg)
+    #     sgp.make_trans_animation()
+

@@ -68,11 +68,9 @@ def save_or_use_saved(my_method):
             # else will simply continue
         # don't use else - the rest should be run if 1) not self.use_saved OR 2) file doesn't exist
         method_output = my_method(self, *args, **kwargs)
-        print(type(method_output))
         if isinstance(method_output, pd.DataFrame):
             method_output.to_csv(f"{name_without_ext}.csv", index=True)
         elif isinstance(method_output, np.ndarray):
-            print("am saving")
             np.save(f"{name_without_ext}.npy", method_output)
         else:
             with open(name_without_ext, 'wb') as f:

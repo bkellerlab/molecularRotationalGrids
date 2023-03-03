@@ -347,6 +347,61 @@ class Cube4DPolytope(Polytope):
     def __str__(self):
         return f"Cube4D up to level {self.current_level}"
 
+    def _add_average_point(self, list_old_points: list):
+        """
+        A helper function to _add_square_diagonal_nodes, _add_cube_diagonal_nodes and _add_mid_edge_nodes.
+        Given a list in which every item is a set of nodes, add a new point that is the average of them and also add
+        new edges between the newly created points and all of the old ones.
+
+        It adds new edges and does not delete any existing ones.
+
+        Args:
+            list_old_points: each item is a list of already existing nodes - their average should be added as
+            a new point
+        """
+        for new_neighbours in list_old_points:
+            # new node is the midpoint of the old ones
+            new_node_arr = np.average(np.array(new_neighbours), axis=0)
+            new_node = tuple(new_node_arr)
+            # just in case repetition happens
+            if new_node not in self.G.nodes:
+                self.G.add_node(new_node, level=self.current_level, face=self._find_face(new_neighbours),
+                                projection=normalise_vectors(np.array(new_node)))
+
+    def _add_point_at_len(self, edge_len: float, wished_levels: list = None, only_seconds=True, only_face=True):
+        """
+        Sometimes, additional edges among already existing points need to be added in order to achieve equal
+        sub-division of all surfaces.
+
+        In order to shorten the time to search for appropriate points, it is advisable to make use of filters:
+         - only_seconds will only search for connections between points that are second neighbours of each other
+         - wished_levels defines at which division level the points between which the edge is created should be
+         - only_face: only connections between points on the same face will be created
+
+        Args:
+            edge_len: length of edge on the polyhedron surface that is condition for adding edges
+        """
+        if wished_levels is None:
+            wished_levels = [self.current_level, self.current_level]
+        else:
+            wished_levels.sort(reverse=True)
+        assert len(wished_levels) == 2
+        selected_level = [x for x, y in self.G.nodes(data=True) if y['level'] == wished_levels[0]]
+        for new_node in selected_level:
+            # searching only second neighbours of the node if this option has been selected
+            if only_seconds:
+                sec_neighbours = list(second_neighbours(self.G, new_node))
+                sec_neighbours = [x for x in sec_neighbours if self.G.nodes[x]["level"] == wished_levels[1]]
+            else:
+                sec_neighbours = [x for x in self.G.nodes if self.G.nodes[x]["level"] == wished_levels[1]]
+            for other_node in sec_neighbours:
+                node_dist = np.linalg.norm(np.array(new_node)-np.array(other_node))
+                # check face criterion
+                if not only_face or self._find_face([new_node, other_node]):
+                    # check distance criterion
+                    if np.isclose(node_dist, edge_len):
+                        self._add_average_point([[new_node, other_node]])
+
     def _create_level0(self):
         self.side_len = 2 * np.sqrt(1/self.d)
         # create vertices
@@ -367,19 +422,20 @@ class Cube4DPolytope(Polytope):
             # find the indices of the vertices that construct this square in the list of vertices
             for vertex in cell:
                 self.G.nodes[tuple(vertex)]["face"].add(i)
-        # create cube and square diagonal nodes
-        #self._add_cube_diagonal_nodes() #PREVIOUSLY
-        self._add_square_diagonal_nodes() # it functions better without
         self.side_len = self.side_len / 2
         self.current_level += 1
 
 
     def divide_edges(self):
-        self._add_edges_of_len(self.side_len, wished_levels=[self.current_level-1, self.current_level-1],
-                               only_seconds=True)  #PREVIOUSLY
-        # self._add_edges_of_len(self.side_len*np.sqrt(2), wished_levels=[self.current_level-1, self.current_level-1],
-        #                        only_seconds=True) #PREVIOUSLY
+        self._add_point_at_len(2*self.side_len*np.sqrt(2), wished_levels=[self.current_level-1, self.current_level-1],
+                               only_seconds=False)
+        self._add_point_at_len(2 * self.side_len * np.sqrt(3),
+                               wished_levels=[self.current_level - 1, self.current_level - 1],
+                               only_seconds=False)
         super().divide_edges()
+
+        self._add_edges_of_len(2*self.side_len, wished_levels=[self.current_level-1, self.current_level-1],
+                               only_seconds=False)
 
 
 class IcosahedronPolytope(Polytope):
