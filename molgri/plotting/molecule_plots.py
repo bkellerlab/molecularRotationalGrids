@@ -53,7 +53,7 @@ class TrajectoryPlot(RepresentationCollection):
             self._animate_figure_view(self.fig, self.ax, f"com_rotated")
 
     def make_energy_COM_plot(self, ax=None, fig=None, save=True, atom_selection=None, projection="3d",
-                             animate_rot=False, energy_type="Potential"):
+                             animate_rot=False, energy_type="Potential", vmin=None, vmax=None):
         self._create_fig_ax(ax=ax, fig=fig, projection=projection)
         atom_selection = self._default_atom_selection(atom_selection)
 
@@ -62,7 +62,11 @@ class TrajectoryPlot(RepresentationCollection):
 
         # convert energies to colors
         cmap = cm.coolwarm
-        norm = Normalize(vmin=np.min(energies), vmax=np.max(energies))
+        if vmin is None:
+            vmin = np.min(energies)
+        if vmax is None:
+            vmax = np.max(energies)
+        norm = Normalize(vmin=vmin, vmax=vmax)
 
         # plot data
         self._make_scatter_plot(projection, coms.T, cmap=cmap, c=energies, norm=norm)
@@ -114,6 +118,7 @@ class ConvergenceMultiCollection(MultiRepresentationCollection):
         super().__init__(data_name, list_plots, n_columns=len(self.N_set), n_rows=1)
 
     def make_all_COM_3d_plots(self, animate_rot=False, save=True):
+
         self._make_plot_for_all("make_COM_plot", projection="3d", remove_midlabels=False,
                                 creation_kwargs={"sharex": False, "sharey": False},
                                 plotting_kwargs={"projection": "3d"})
@@ -139,6 +144,10 @@ class ConvergenceMultiCollection(MultiRepresentationCollection):
             self._save_multiplot(f"COM_hammer")
 
     def make_all_energy_plots(self, dim, animate_rot=False, save=True, energy_type: str = "Potential"):
+        _, all_energies = self.list_plots[-1].parsed_trajectory.get_unique_com_till_N(N=np.max(self.N_set),
+                                                                                   energy_type=energy_type)
+        vmax = np.max(all_energies)
+        vmin = np.min(all_energies)
         if dim == 3:
             projection = "3d"
             method = "make_energy_COM_plot"
@@ -159,7 +168,8 @@ class ConvergenceMultiCollection(MultiRepresentationCollection):
 
         self._make_plot_for_all(method, projection=projection, remove_midlabels=False,
                                 creation_kwargs={"sharex": False, "sharey": sharey},
-                                plotting_kwargs={"projection": projection, "energy_type": energy_type})
+                                plotting_kwargs={"projection": projection, "energy_type": energy_type,
+                                                 "vmin": vmin, "vmax": vmax})
 
         titles = [subplot.get_possible_title() for subplot in self.list_plots]
         self.add_titles(list_titles=titles, pad=pad)

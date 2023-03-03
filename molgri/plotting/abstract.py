@@ -347,30 +347,20 @@ class MultiRepresentationCollection(ABC):
         return anim
 
     def add_colorbar(self, **cbar_kwargs):
-        orientation = cbar_kwargs.pop("orientation", "horizontal")
+        orientation = cbar_kwargs.pop("orientation", "vertical")
         cbar_label = cbar_kwargs.pop("cbar_label", None)
         all_collections = []
         for ax in self.all_ax.ravel():
             # this doesn't overwrite, but adds points to the collection!
             all_collections = ax.collections[0]
-            #print()
-            #print(fc)
             cmap = ax.collections[0].get_cmap()
 
-
-        for ax in self.all_ax.ravel():
-            previous = ax.collections[0].get_fc()[0]
+        for ax_i, ax in enumerate(self.all_ax.ravel()):
+            previous = ax.collections[0].get_fc()
+            #ax.scatter(*ax.collections[0]._offsets[:-1].T, c=previous, cmap=cmap, vmin=0, vmax=1) #
             # change colors to new cmap
 
-            #print(print("a", ax.collections[0].get_fc()[0]))
-
         cbar = self.fig.colorbar(all_collections, ax=self.all_ax[-1])
-        #cbar = self.fig.colorbar(all_collections[1], ax=self.all_ax[1])
-        # norm = matplotlib.colors.Normalize(vmin=0, vmax=2)
-        # sm = plt.cm.ScalarMappable(cmap=cmap, norm=norm)
-        # sm.set_array([])
-        # self.fig.colorbar(sm, ticks=np.linspace(0, 2, 10),
-        #              boundaries=np.arange(-0.05, 2.1, .1), ax=self.all_ax.ravel().tolist())
         # if orientation == "horizontal":
         #     pos = self.all_ax.ravel()[-1].get_position()
         #     cax = self.fig.add_axes([pos.x0 -0.05, pos.y0 -0.1, 0.3, 0.03])
@@ -378,7 +368,7 @@ class MultiRepresentationCollection(ABC):
         # else:
         #     pos = self.all_ax.ravel()[-1].get_position()
         #     cax = self.fig.add_axes([pos.x1 - 1, pos.y0 + 0.0, 0.03, 0.4])
-        # cbar = self.fig.colorbar(p, orientation=orientation, pad=0.4, cax=cax)
+        # cbar = self.fig.colorbar(all_collections, cax=cax, orientation=orientation)
         # if orientation == "vertical":
         #     cax.yaxis.set_label_position('left')
         # if cbar_label:
