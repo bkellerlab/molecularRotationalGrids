@@ -196,23 +196,23 @@ def test_cube3D_polytope():
 
 def test_cube4D_polytope():
     cub = Cube4DPolytope()
-    assert cub.G.number_of_nodes() == 24, "Hypercube 4D should have 48 nodes"
+    assert cub.G.number_of_nodes() == 16, "Hypercube 4D should have 16 nodes"
     # those points are unique
     all_rows_unique(cub.get_projection_coordinates())
-    assert cub.G.number_of_edges() == 96, "Hypercube should have 192 edges"
+    assert cub.G.number_of_edges() == 32, "Hypercube should have 32 edges"
     # after one division
     cub.divide_edges()
     # fig, ax = plt.subplots(1, 1, subplot_kw={"projection": "3d"})
     # cub.draw_one_cell(ax, draw_edges=True)
     # plt.show()
-    assert cub.G.number_of_nodes() == 120, "1st division: hypercube should have 384 nodes"
-    assert cub.G.number_of_edges() == 192, "1st division: hypercube should have 672 edges"
+    assert cub.G.number_of_nodes() == 80, "1st division: hypercube should have 80 nodes"
+    assert cub.G.number_of_edges() == 208, "1st division: hypercube should have 208 edges"
     cub.divide_edges()
     # fig, ax = plt.subplots(1, 1, subplot_kw={"projection": "3d"})
     # cub.draw_one_cell(ax, draw_edges=False)
     # plt.show()
-    assert cub.G.number_of_nodes() == 312, "2nd division: hypercube should have 2592 nodes"
-    assert cub.G.number_of_edges() == 384, "2nd division: hypercube should have 4416 edges"
+    assert cub.G.number_of_nodes() == 544, "2nd division: hypercube should have 544 nodes"
+    assert cub.G.number_of_edges() == 1568, "2nd division: hypercube should have 1568 edges"
 
 
 def test_sorting():

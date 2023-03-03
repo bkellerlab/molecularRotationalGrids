@@ -391,7 +391,7 @@ class Point:
 
     def _find_index_within_sphere(self):
         radial_index = self.index_radial
-        num_o_rot = self.full_sv.full_grid.o_rotations.N
+        num_o_rot = len(self.full_sv.full_grid.o_rotations.get_grid_as_array())
         return self.index_position_grid - num_o_rot * radial_index
 
     def _find_index_sv_above(self):
@@ -495,15 +495,16 @@ class ConvergenceFullGridO:
     def get_voronoi_volumes(self):
         data = []
         for N, fg in zip(self.N_set, self.list_full_grids):
+            N_real = fg.o_rotations.get_N()
             vor_radius = list(fg.get_between_radii())
             vor_radius.insert(0, 0)
             vor_radius = np.array(vor_radius)
             fvg = fg.get_full_voronoi_grid()
-            ideal_volumes = 4/3 * pi * (vor_radius[1:]**3 - vor_radius[:-1]**3) / N
+            ideal_volumes = 4/3 * pi * (vor_radius[1:]**3 - vor_radius[:-1]**3) / N_real
             real_volumes = fvg.get_all_voronoi_volumes()
             for i, volume in enumerate(real_volumes):
-                layer = i//N
-                data.append([N, layer, ideal_volumes[i//N], volume])
+                layer = i//N_real
+                data.append([N_real, layer, ideal_volumes[i//N_real], volume])
         df = pd.DataFrame(data, columns=["N", "layer", "ideal volume", "Voronoi cell volume"])
         return df
 

@@ -54,6 +54,10 @@ class SphereGridNDim(ABC):
     def __len__(self):
         return self.N
 
+    def get_N(self):
+        # important to use the getter for filter_non_unique option
+        return len(self.get_grid_as_array())
+
     def __str__(self):
         return f"Object {type(self).__name__} <{self.get_decorator_name()}>"
 

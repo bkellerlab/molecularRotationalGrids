@@ -157,7 +157,8 @@ class PanelConvergenceFullGridPlots(PanelRepresentationCollection):
 
 
 if __name__ == "__main__":
-    from molgri.constants import SMALL_NS, DEFAULT_NS
+    from molgri.constants import SMALL_NS, DEFAULT_NS, MINI_NS
 
-    PanelConvergenceFullGridPlots(t_grid_name="[1.5, 3]", use_saved=False,
-                                  N_set=SMALL_NS).make_all_voronoi_volume_plots()
+    # PanelConvergenceFullGridPlots(t_grid_name="[1.5, 3]", use_saved=False,
+    #                               N_set=SMALL_NS).make_all_voronoi_volume_plots()
+    PanelConvergenceFullGridPlots(t_grid_name="[1.5, 3]", N_set=DEFAULT_NS, use_saved=False).make_all_voronoi_volume_plots()

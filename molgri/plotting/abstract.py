@@ -353,12 +353,6 @@ class MultiRepresentationCollection(ABC):
         for ax in self.all_ax.ravel():
             # this doesn't overwrite, but adds points to the collection!
             all_collections = ax.collections[0]
-            cmap = ax.collections[0].get_cmap()
-
-        for ax_i, ax in enumerate(self.all_ax.ravel()):
-            previous = ax.collections[0].get_fc()
-            #ax.scatter(*ax.collections[0]._offsets[:-1].T, c=previous, cmap=cmap, vmin=0, vmax=1) #
-            # change colors to new cmap
 
         cbar = self.fig.colorbar(all_collections, ax=self.all_ax[-1])
         # if orientation == "horizontal":
@@ -373,7 +367,6 @@ class MultiRepresentationCollection(ABC):
         #     cax.yaxis.set_label_position('left')
         # if cbar_label:
         #     cbar.set_label(cbar_label)
-
 
 
 class PanelRepresentationCollection(MultiRepresentationCollection):
