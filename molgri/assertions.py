@@ -203,7 +203,6 @@ def two_sets_of_quaternions_equal(quat1: NDArray, quat2: NDArray) -> bool:
 
 
 def assert_two_sets_of_eulers_equal(euler1: NDArray, euler2: NDArray):
-    # TODO: can you check more than that?
     # see: https://en.wikipedia.org/wiki/Euler_angles#Signs,_ranges_and_conventions
     assert euler1.shape == euler2.shape
     assert euler1.shape[1] == 3
@@ -211,8 +210,6 @@ def assert_two_sets_of_eulers_equal(euler1: NDArray, euler2: NDArray):
     rot1 = Rotation.from_euler("ZYX", euler1)
     rot2 = Rotation.from_euler("ZYX", euler2)
     assert np.allclose(rot1.as_matrix(), rot2.as_matrix())
-
-    # TODO: check for gimbal locks
 
     # further checks
     for e1, e2 in zip(euler1, euler2):

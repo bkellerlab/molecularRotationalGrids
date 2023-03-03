@@ -107,6 +107,11 @@ class ConvergenceFullGridPlot(RepresentationCollection):
         self.convergence_full_grid = convergence_full_grid
         super().__init__(self.convergence_full_grid.get_name())
 
+    def get_possible_title(self):
+        full_name = self.convergence_full_grid.get_name()
+        split_name = full_name.split("_")
+        return NAME2SHORT_NAME[split_name[2]]
+
     def make_voronoi_volume_conv_plot(self, ax=None, fig=None, save=True):
 
         self._create_fig_ax(fig=fig, ax=ax)
@@ -136,7 +141,7 @@ class PanelConvergenceFullGridPlots(PanelRepresentationCollection):
         list_plots = []
         for alg in GRID_ALGORITHMS[:-1]:
             conv_sphere_grid = ConvergenceFullGridO(o_alg_name=alg, N_set=N_set, b_grid_name=b_grid_name,
-                                                    t_grid_name=t_grid_name, **kwargs)
+                                                    t_grid_name=t_grid_name, filter_non_unique=True, **kwargs)
             sphere_plot = ConvergenceFullGridPlot(conv_sphere_grid)
             list_plots.append(sphere_plot)
         data_name = f"all_convergence_{list_plots[0].convergence_full_grid.get_name()}"
@@ -152,16 +157,7 @@ class PanelConvergenceFullGridPlots(PanelRepresentationCollection):
 
 
 if __name__ == "__main__":
-    import matplotlib.pyplot as plt
-    full_grid = FullGrid(b_grid_name="zero", o_grid_name="cube3D_25", t_grid_name="[1.5, 3]", use_saved=False)
-    fgp = FullGridPlot(full_grid)
-    fgp.make_full_voronoi_plot(save=False, plot_vertex_points=False)
-    fgp.make_position_plot(numbered=True, ax=fgp.ax, fig=fgp.fig, save=False)
+    from molgri.constants import SMALL_NS, DEFAULT_NS
 
-    points = full_grid.get_flat_position_grid()
-    random_noise = 5*(np.random.random(points.shape) - 0.5)
-    points = points + random_noise
-    for point in points:
-        fgp.ax.scatter(*point, color="blue")
-
-    plt.show()
+    PanelConvergenceFullGridPlots(t_grid_name="[1.5, 3]", use_saved=False,
+                                  N_set=SMALL_NS).make_all_voronoi_volume_plots()

@@ -9,6 +9,9 @@ from molgri.scripts.set_up_io import freshly_create_all_folders
 from molgri.plotting.molecule_plots import TrajectoryPlot, ConvergenceMultiCollection
 from molgri.molecules.parsers import FileParser
 
+import warnings
+warnings.filterwarnings("ignore")
+
 parser = argparse.ArgumentParser(description="""NOTE: This script is under development and likely to undergo changes in
 the future. It is recommended to verify the plausibility of the visualisations. Feedback and feature requests are welcome.
 

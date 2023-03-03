@@ -408,7 +408,7 @@ class PanelSphereGridPlots(PanelRepresentationCollection):
         list_plots = []
         for alg in GRID_ALGORITHMS[:-1]:
             sphere_grid = SphereGridFactory.create(alg_name=alg, N=N_points, dimensions=grid_dim, print_messages=False,
-                                                   time_generation=False, use_saved=use_saved)
+                                                   time_generation=False, filter_non_unique=True, use_saved=use_saved)
             sphere_plot = SphereGridPlot(sphere_grid, default_context=default_context,
                                          default_color_style=default_color_style,
                                          default_complexity_level=default_complexity_level)
@@ -489,7 +489,8 @@ class PanelConvergenceSphereGridPlots(PanelRepresentationCollection):
     def __init__(self, dim=3, N_set: list = None, **kwargs):
         list_plots = []
         for alg in GRID_ALGORITHMS[:-1]:
-            conv_sphere_grid = ConvergenceSphereGridFactory(alg_name=alg, N_set=N_set, dimensions=dim, **kwargs)
+            conv_sphere_grid = ConvergenceSphereGridFactory(alg_name=alg, N_set=N_set, dimensions=dim,
+                                                            filter_non_unique=True, **kwargs)
             sphere_plot = ConvergenceSphereGridPlot(conv_sphere_grid)
             list_plots.append(sphere_plot)
         data_name = f"all_convergence_{dim}d"
@@ -512,12 +513,17 @@ class PanelConvergenceSphereGridPlots(PanelRepresentationCollection):
 
 
 if __name__ == "__main__":
+    from molgri.constants import SMALL_NS
 
-    psgp = PanelSphereGridPlots(1000, 4, use_saved=False)
-    psgp.make_all_uniformity_plots()
+    # psgp = PanelSphereGridPlots(1000, 4, use_saved=False)
+    # psgp.make_all_uniformity_plots()
+    #
+    pcsgp = PanelConvergenceSphereGridPlots(3, use_saved=False, N_set=SMALL_NS, filter_non_unique=True)
+    pcsgp.make_all_voronoi_area_plots()
 
     # for alg in GRID_ALGORITHMS[:-1]:
-    #     sg = SphereGridFactory.create(alg, 200, 4, use_saved=False)
-    #     sgp = SphereGridPlot(sg)
-    #     sgp.make_trans_animation()
+    # sg = SphereGridFactory.create("cube4D", 200, 3, use_saved=False, filter_non_unique=True)
+    # sgp = SphereGridPlot(sg)
+    # sgp.make_rot_animation()
+    # sgp.make_spherical_voronoi_plot(animate_rot=True)
 

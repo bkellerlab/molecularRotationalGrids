@@ -20,7 +20,8 @@ from molgri.wrappers import save_or_use_saved
 
 class FullGrid:
 
-    def __init__(self, b_grid_name: str, o_grid_name: str, t_grid_name: str, use_saved: bool = True):
+    def __init__(self, b_grid_name: str, o_grid_name: str, t_grid_name: str, use_saved: bool = True,
+                 filter_non_unique=False):
         """
         A combination object that enables work a combination of three grids (provided by their names)
 
@@ -31,10 +32,12 @@ class FullGrid:
         """
         b_grid_name = GridNameParser(b_grid_name, "b")
         self.b_rotations = SphereGridFactory.create(alg_name=b_grid_name.get_alg(), N=b_grid_name.get_N(),
-                                                    dimensions=4, use_saved=use_saved)
+                                                    dimensions=4, use_saved=use_saved,
+                                                    filter_non_unique=filter_non_unique)
         o_grid_name = GridNameParser(o_grid_name, "o")
         self.o_rotations = SphereGridFactory.create(alg_name=o_grid_name.get_alg(), N=o_grid_name.get_N(),
-                                                    dimensions=3, use_saved=use_saved)
+                                                    dimensions=3, use_saved=use_saved,
+                                                    filter_non_unique=filter_non_unique)
         self.o_positions = self.o_rotations.get_grid_as_array()
         self.t_grid = TranslationParser(t_grid_name)
         self.use_saved = use_saved

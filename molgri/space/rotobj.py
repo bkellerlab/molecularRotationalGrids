@@ -40,7 +40,7 @@ class SphereGridNDim(ABC):
     algorithm_name = "generic"
 
     def __init__(self, dimensions: int, N: int = None, use_saved: bool = True,
-                 print_messages: bool = False, time_generation: bool = False):
+                 print_messages: bool = False, time_generation: bool = False, filter_non_unique=False):
         self.dimensions = dimensions
         self.N = N
         self.gen_algorithm = self.algorithm_name
@@ -48,6 +48,7 @@ class SphereGridNDim(ABC):
         self.time_generation = time_generation
         self.print_messages = print_messages
         self.grid: NDArray = None
+        self.filter_non_unique = filter_non_unique
         self.spherical_voronoi: SphericalVoronoi = None
 
     def __len__(self):
@@ -77,7 +78,8 @@ class SphereGridNDim(ABC):
             if self.print_messages:
                 self._check_uniformity()
         assert isinstance(self.grid, np.ndarray), "A grid must be a numpy array!"
-        assert self.grid.shape == (self.N, self.dimensions), f"Grid not of correct shape!"
+        if not self.filter_non_unique:
+            assert self.grid.shape == (self.N, self.dimensions), f"Grid not of correct shape!"
         assert np.allclose(np.linalg.norm(self.grid, axis=1), 1, atol=10 ** (-UNIQUE_TOL)), "A grid must have norm 1!"
         return self.grid
 
@@ -95,7 +97,10 @@ class SphereGridNDim(ABC):
         """
         quaternions = self._gen_grid_4D()
         rotations = Rotation.from_quat(quaternions)
-        return rotation2grid4vector(rotations)
+        points = rotation2grid4vector(rotations)
+        if self.filter_non_unique:
+            points = provide_unique(points)
+        return points
 
     @abstractmethod
     def _gen_grid_4D(self) -> NDArray:
@@ -204,7 +209,7 @@ class SphereGridNDim(ABC):
                                                     print_messages=False, time_generation=False,
                                                     use_saved=self.use_saved)
             df = grid_factory.get_uniformity_df(alphas=alphas)
-            df["N"] = N
+            df["N"] = len(grid_factory.get_grid_as_array())
             full_df.append(df)
         full_df = pd.concat(full_df, axis=0, ignore_index=True)
         return full_df
@@ -447,13 +452,14 @@ class ConvergenceSphereGridFactory:
         """
         data = []
         for N, sg in zip(self.N_set, self.get_list_sphere_grids()):
-            ideal_area = 4*pi/N
+            real_N = len(sg.get_grid_as_array())
+            ideal_area = 4*pi/real_N
             try:
                 real_areas = sg.get_voronoi_areas()
             except ValueError:
-                real_areas = [np.NaN] * sg.N
+                real_areas = [np.NaN] * real_N
             for area in real_areas:
-                data.append([N, ideal_area, area])
+                data.append([real_N, ideal_area, area])
         df = pd.DataFrame(data, columns=["N", "ideal area", "sph. Voronoi cell area"])
         return df
 
@@ -468,12 +474,13 @@ class ConvergenceSphereGridFactory:
             for _ in range(repeats):
                 t1 = time()
                 # cannot use saved if you are timing!
-                sg = SphereGridFactory.create(self.alg_name, N, self.dimensions, use_saved=False)
+                sg = SphereGridFactory.create(self.alg_name, N, self.dimensions, use_saved=False, **self.kwargs)
                 t2 = time()
-                data.append([N, t2 - t1])
+                data.append([len(sg.get_grid_as_array()), t2 - t1])
         df = pd.DataFrame(data, columns=["N", "Time [s]"])
         return df
 
 
-
+if __name__ == "__main__":
+    SphereGridFactory.create("cube4D", 200, 3, use_saved=False, print_messages=True, filter_non_unique=True)
 

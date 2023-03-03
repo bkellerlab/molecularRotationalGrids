@@ -8,6 +8,9 @@ from molgri.space.rotobj import SphereGridFactory
 from molgri.plotting.spheregrid_plots import SphereGridPlot
 from ..scripts.set_up_io import freshly_create_all_folders
 
+import warnings
+warnings.filterwarnings("ignore")
+
 parser = argparse.ArgumentParser()
 requiredNamed = parser.add_argument_group('required named arguments')
 requiredNamed.add_argument('-N', metavar='N', type=int, nargs='?', required=True,
@@ -63,11 +66,10 @@ def run_generate_grid():
     my_rotations = prepare_grid(my_args)
 
     # any plotting is done with this object
-    if my_args.background:
-        style_type = ["talk"]
-    else:
-        style_type = ["talk", "empty"]
-    sgp = SphereGridPlot(my_rotations, style_type=style_type)
+    default_complexity_level = "full"
+    if not my_args.background:
+        default_complexity_level = "empty"
+    sgp = SphereGridPlot(my_rotations, default_context="talk", default_complexity_level=default_complexity_level)
 
     if my_args.animate or my_args.animate_ordering:
         my_args.draw = True
@@ -86,7 +88,7 @@ def run_generate_grid():
     if my_args.statistics:
         my_rotations.save_uniformity_statistics()
         print(f"A statistics file describing the grid {grid_name} was saved to {my_rotations.get_statistics_path('csv')}.")
-        sgp.make_alpha_plot()
+        sgp.make_uniformity_plot()
         print(f"A violin plot showing the uniformity of {grid_name} saved to {sgp.fig_path}.")
         sgp.make_convergence_plot()
         print(f"A convergence plot with number of points between 3 and {my_args.N} saved to {sgp.fig_path}.")
