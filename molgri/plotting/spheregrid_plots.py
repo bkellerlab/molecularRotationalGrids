@@ -352,7 +352,7 @@ class PolytopePlot(RepresentationCollection):
                     ax.text(*midpoint, s=f"{s:.3f}")
 
     def make_cell_plot(self, ax: Axes3D = None, fig: Figure = None, cell_index: int = 0, draw_edges: bool = True,
-                       save: bool = True):
+                       save: bool = True, animate_rot: bool = False):
         """
         Since you cannot visualise a 4D object directly, here's an option to visualise the 3D sub-cells of a 4D object.
 
@@ -388,6 +388,8 @@ class PolytopePlot(RepresentationCollection):
 
         if save:
             self._save_plot_type("cell")
+        if animate_rot:
+            return self._animate_figure_view(self.fig, self.ax, f"cell_rotated")
 
     def create_all_plots(self):
         self.make_graph(with_labels=True)
@@ -488,8 +490,12 @@ class PanelConvergenceSphereGridPlots(PanelRepresentationCollection):
 
 if __name__ == "__main__":
     from molgri.constants import DEFAULT_NS
-    conv_obj = ConvergenceSphereGridFactory("cube3D", dimensions=3, use_saved=True, N_set=DEFAULT_NS)
-    conv_plot = ConvergenceSphereGridPlot(conv_obj)
-    conv_plot.make_voronoi_area_conv_plot(save=False)
-    conv_plot.ax.set_xscale("log")
-    plt.show()
+    from molgri.space.polytopes import Cube4DPolytope
+    cubic_poly = Cube4DPolytope()
+    cubic_poly.divide_edges()
+    pp = PolytopePlot(cubic_poly)
+    pp.make_cell_plot(animate_rot=True)
+
+    sg = SphereGridFactory.create("cube4D", 200, 4, use_saved=False)
+    sgp = SphereGridPlot(sg)
+    sgp.make_trans_animation()

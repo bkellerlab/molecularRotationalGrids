@@ -368,17 +368,17 @@ class Cube4DPolytope(Polytope):
             for vertex in cell:
                 self.G.nodes[tuple(vertex)]["face"].add(i)
         # create cube and square diagonal nodes
-        self._add_cube_diagonal_nodes()
-        # self._add_square_diagonal_nodes() # it functions better without
+        #self._add_cube_diagonal_nodes() #PREVIOUSLY
+        self._add_square_diagonal_nodes() # it functions better without
         self.side_len = self.side_len / 2
         self.current_level += 1
 
 
     def divide_edges(self):
         self._add_edges_of_len(self.side_len, wished_levels=[self.current_level-1, self.current_level-1],
-                               only_seconds=True)
-        self._add_edges_of_len(self.side_len*np.sqrt(2), wished_levels=[self.current_level-1, self.current_level-1],
-                               only_seconds=True)
+                               only_seconds=True)  #PREVIOUSLY
+        # self._add_edges_of_len(self.side_len*np.sqrt(2), wished_levels=[self.current_level-1, self.current_level-1],
+        #                        only_seconds=True) #PREVIOUSLY
         super().divide_edges()
 
 
