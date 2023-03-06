@@ -1,4 +1,5 @@
 from copy import copy
+from typing import Callable
 
 import numpy as np
 from numpy.typing import NDArray
@@ -6,7 +7,7 @@ from scipy.spatial.transform import Rotation
 from scipy.spatial import SphericalVoronoi
 from scipy.spatial.distance import cdist
 from scipy.constants import pi
-from scipy.sparse import coo_array
+from scipy.sparse import coo_array, csc_array
 import pandas as pd
 
 from molgri.constants import SMALL_NS
@@ -360,6 +361,7 @@ class FullVoronoiGrid:
         point = Point(index, self)
         return point.get_cell_volume()
 
+    @save_or_use_saved
     def get_all_voronoi_volumes(self):
         N = len(self.flat_positions)
         volumes = np.zeros((N,))
@@ -367,11 +369,11 @@ class FullVoronoiGrid:
             volumes[i] = self.get_volume(i)
         return volumes
 
-    def get_all_voronoi_surfaces(self):
+    def _get_property_all_pairs(self, method: Callable) -> csc_array:
         """
-        If l is the length of the flattened position array, returns a lxl (sparse) array where the i-th row and j-th
-        column (as well as the j-th row and the i-th column) represent the size of the Voronoi surface between points
-        i and j in position grid. If the points do not share a division area, no value will be set.
+
+        Args:
+            method:
 
         Returns:
 
@@ -381,20 +383,52 @@ class FullVoronoiGrid:
         column_indices = []
         N_pos_array = len(self.flat_positions)
         for i in range(N_pos_array):
-            for j in range(i+1, N_pos_array):
-                area = self.get_division_area(i, j, print_message=False)
-                if area is not None:
+            for j in range(i + 1, N_pos_array):
+                my_property = method(i, j, print_message=False)
+                if my_property is not None:
                     # this value will be added to coordinates (i, j) and (j, i)
-                    data.extend([area, area])
+                    data.extend([my_property, my_property])
                     row_indices.extend([i, j])
                     column_indices.extend([j, i])
-        sparse_surfaces = coo_array((data, (row_indices, column_indices)), shape=(N_pos_array, N_pos_array))
-        return sparse_surfaces.tocsc()
+        sparse_property = coo_array((data, (row_indices, column_indices)), shape=(N_pos_array, N_pos_array))
+        return sparse_property.tocsc()
+
+    @save_or_use_saved
+    def get_all_voronoi_surfaces(self) -> csc_array:
+        """
+        If l is the length of the flattened position array, returns a lxl (sparse) array where the i-th row and j-th
+        column (as well as the j-th row and the i-th column) represent the size of the Voronoi surface between points
+        i and j in position grid. If the points do not share a division area, no value will be set.
+        """
+        return self._get_property_all_pairs(self.get_division_area)
+
+    @save_or_use_saved
+    def get_all_distances_between_centers(self) -> csc_array:
+        """
+        Get a sparse matrix where for all sets of neighbouring cells the distance between Voronoi centers is provided.
+        Therefore, the value at [i][j] equals the value at [j][i]. For more information, check
+        self.get_distance_between_centers.
+        """
+        return self._get_property_all_pairs(self.get_distance_between_centers)
+
+    def get_all_voronoi_surfaces_as_numpy(self) -> NDArray:
+        """See self.get_all_voronoi_surfaces, only transforms sparse array to normal array."""
+        return self.get_all_voronoi_surfaces().toarray(order='C')
+
+    def get_all_distances_between_centers_as_numpy(self) -> NDArray:
+        """See self.get_all_distances_between_centers, only transforms sparse array to normal array."""
+        return self.get_all_distances_between_centers().toarray(order='C')
 
 
 class Point:
 
-    def __init__(self, index_position_grid, full_sv: FullVoronoiGrid):
+    """
+    A Point represents a single cell in a particular FullVoronoiGrid. It holds all relevant information, eg. the
+    index of the cell within a single layer and in a full flattened position grid. It enables the identification
+    of Voronoi vertices and connected calculations (distances, areas, volumes).
+    """
+
+    def __init__(self, index_position_grid: int, full_sv: FullVoronoiGrid):
         self.full_sv = full_sv
         self.index_position_grid = index_position_grid
         self.point = self.full_sv.flat_positions[index_position_grid]
@@ -402,10 +436,12 @@ class Point:
         self.index_radial = self._find_index_radial()
         self.index_within_sphere = self._find_index_within_sphere()
 
-    def get_normalised_point(self):
+    def get_normalised_point(self) -> NDArray:
+        """Get the vector to the grid point (center of Voronoi cell) normalised to length 1."""
         return normalise_vectors(self.point, length=1)
 
-    def _find_index_radial(self):
+    def _find_index_radial(self) -> int:
+        """Find to which radial layer of points this point belongs."""
         point_radii = self.full_sv.full_grid.get_radii()
         for i, dist in enumerate(point_radii):
             if np.isclose(dist, self.d_to_origin):
@@ -413,7 +449,8 @@ class Point:
         else:
             raise ValueError("The norm of the point not close to any of the radii.")
 
-    def _find_index_within_sphere(self):
+    def _find_index_within_sphere(self) -> int:
+        """Find the index of the point within a single layer of possible orientations."""
         radial_index = self.index_radial
         num_o_rot = len(self.full_sv.full_grid.o_rotations.get_grid_as_array())
         return self.index_position_grid - num_o_rot * radial_index
@@ -426,48 +463,63 @@ class Point:
             # the point is outside the largest voronoi sphere
             return None
 
-    def get_sv_above(self):
+    def _get_sv_above(self) -> SphericalVoronoi:
+        """Get the spherical Voronoi with the first radius that is larger than point radius."""
         return self.full_sv.get_voronoi_discretisation()[self._find_index_sv_above()]
 
-    def get_radius_above(self):
-        sv_above = self.get_sv_above()
-        return sv_above.radius
-
-    def get_radius_below(self):
-        sv_below = self.get_sv_below()
-        if sv_below is None:
-            return 0.0
-        else:
-            return sv_below.radius
-
-    def get_sv_below(self):
+    def _get_sv_below(self) -> SphericalVoronoi or None:
+        """Get the spherical Voronoi with the largest radius that is smaller than point radius. If the point is in the
+        first layer, return None."""
         index_above = self._find_index_sv_above()
         if index_above != 0:
             return self.full_sv.get_voronoi_discretisation()[index_above-1]
         else:
             return None
 
-    def get_area_above(self):
-        sv_above = self.get_sv_above()
+    ##################################################################################################################
+    #                            GETTERS - DISTANCES, AREAS, VOLUMES
+    ##################################################################################################################
+
+    def get_radius_above(self) -> float:
+        """Get the radius of the SphericalVoronoi cell that is the upper surface of the cell."""
+        sv_above = self._get_sv_above()
+        return sv_above.radius
+
+    def get_radius_below(self) -> float:
+        """Get the radius of the SphericalVoronoi cell that is the lower surface of the cell (return zero if there is
+        no Voronoi layer below)."""
+        sv_below = self._get_sv_below()
+        if sv_below is None:
+            return 0.0
+        else:
+            return sv_below.radius
+
+    def get_area_above(self) -> float:
+        """Get the area of the Voronoi surface that is the upper side of the cell (curved surface, part of sphere)."""
+        sv_above = self._get_sv_above()
         areas = sv_above.calculate_areas()
         return areas[self.index_within_sphere]
 
-    def get_area_below(self):
-        sv_below = self.get_sv_below()
+    def get_area_below(self) -> float:
+        """Get the area of the Voronoi surface that is the lower side of the cell (curved surface, part of sphere)."""
+        sv_below = self._get_sv_below()
         if sv_below is None:
             return 0.0
         else:
             areas = sv_below.calculate_areas()
             return areas[self.index_within_sphere]
 
-    def get_vertices_above(self):
-        sv_above = self.get_sv_above()
+    def get_vertices_above(self) -> NDArray:
+        """Get the vertices of this cell that belong to the SphericalVoronoi above the point."""
+        sv_above = self._get_sv_above()
         regions = sv_above.regions[self.index_within_sphere]
         vertices_above = sv_above.vertices[regions]
         return vertices_above
 
-    def get_vertices_below(self):
-        sv_below = self.get_sv_below()
+    def get_vertices_below(self) -> NDArray:
+        """Get the vertices of this cell that belong to the SphericalVoronoi below the point (or just the origin
+        if the point belongs to the first layer."""
+        sv_below = self._get_sv_below()
         if sv_below is None:
             vertices_below = np.zeros((1, 3))
         else:
@@ -477,12 +529,15 @@ class Point:
         return vertices_below
 
     def get_vertices(self):
+        """Get all vertices of this cell as a single array."""
         vertices_above = self.get_vertices_above()
         vertices_below = self.get_vertices_below()
 
         return np.concatenate((vertices_above, vertices_below))
 
     def get_cell_volume(self):
+        """Get the volume of this cell (calculated as the difference between the part of sphere volume at radius above
+        minus the same area at smaller radius)."""
         radius_above = self.get_radius_above()
         radius_below = self.get_radius_below()
         area_above = self.get_area_above()

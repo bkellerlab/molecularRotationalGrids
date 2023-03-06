@@ -43,7 +43,8 @@ def save_or_use_saved(my_method):
     Requirements:
         the class must have an attribute self.use_saved (bool)
         the class must have a method get_name() which provides a name that is suitable for saving (no whitespace etc)
-        the method should not have any parameters that are commonly changed
+        the method should not have any parameters that are commonly changed or their values should be part of the name
+        (otherwise you risk reading and using data with old parameters)
 
     Args:
         my_method: around which method the wrapper is applied

@@ -13,6 +13,7 @@ from IPython import display
 from scipy.spatial import geometric_slerp
 
 from molgri.constants import DIM_SQUARE, DEFAULT_DPI, EXTENSION_FIGURES, DEFAULT_DPI_MULTI
+from molgri.logfiles import paths_free_4_all
 from molgri.paths import PATH_OUTPUT_PLOTS, PATH_OUTPUT_ANIS
 from molgri.space.utils import normalise_vectors
 
@@ -107,9 +108,10 @@ class RepresentationCollection(ABC):
     def _save_plot_type(self, plot_type_name: str, **saving_kwargs):
         save_ending = saving_kwargs.pop("save_ending", EXTENSION_FIGURES)
         dpi = saving_kwargs.pop("dpi", DEFAULT_DPI)
-        path_plot = f"{self.fig_path}{self.data_name}_{plot_type_name}"
+        #path_plot = f"{self.fig_path}{self.data_name}_{plot_type_name}"
+        path = paths_free_4_all([f"{self.data_name}_{plot_type_name}"], [save_ending], [self.fig_path])[0]
         self.fig.tight_layout()
-        plt.savefig(f"{path_plot}.{save_ending}", dpi=dpi, bbox_inches='tight')
+        plt.savefig(path, dpi=dpi, bbox_inches='tight')
         plt.close()
 
     def _save_animation_type(self, animation: Animation, ani_type_name: str, fps: int = 10,

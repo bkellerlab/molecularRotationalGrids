@@ -164,6 +164,7 @@ def test_cell_assignment():
 def test_distances_voronoi_centers():
     # tetrahedron
     fg, fvg = get_tetrahedron_grid(visualise=False, use_saved=False)
+    all_dist = fvg.get_all_distances_between_centers_as_numpy()
     rs = fg.get_radii()
     ideal_angle = IdealTetrahedron(rs).get_vertex_center_vertex_angle()
     ideal_dist = rs[0]*ideal_angle
@@ -171,33 +172,48 @@ def test_distances_voronoi_centers():
     for i in range(4):
         for j in range(i+1, 4):
             arch_dist = fvg.get_distance_between_centers(i, j, print_message=False)
+            assert np.isclose(all_dist[i][j], arch_dist)
+            assert np.isclose(all_dist[j][i], arch_dist)
             rel_errors.append(np.abs(arch_dist-ideal_dist)/ideal_dist * 100)
     print(f"Relative errors in tetrahedron distances {np.round(rel_errors, 2)}")
+
+    # from molgri.plotting.other_plots import ArrayPlot
+    # ArrayPlot(all_dist, data_name="tetra_distances").make_heatmap_plot(save=True)
 
     #icosahedron
     fg, fvg = get_icosahedron_grid(visualise=False, use_saved=False)
     rs = fg.get_radii()
 
+    # all idealised distances
+    ideal_ray_dist = rs[1] - rs[0]
+    ideal_first_arch = rs[0] * IdealIcosahedron(rs).get_vertex_center_vertex_angle()
+    ideal_second_arch = rs[1] * IdealIcosahedron(rs).get_vertex_center_vertex_angle()
+
+    all_dist = fvg.get_all_distances_between_centers_as_numpy()
+
+    # from molgri.plotting.other_plots import ArrayPlot
+    # ArrayPlot(all_dist, data_name="ico_distances").make_heatmap_plot(save=True)
+
     # ray distances
-    ideal_ray_dist = rs[1]-rs[0]
     for i in range(12):
-        assert np.isclose(fvg.get_distance_between_centers(i, i+12, print_message=False), ideal_ray_dist)
+        assert np.isclose(all_dist[i, i+12], ideal_ray_dist)
+        assert np.isclose(all_dist[i+12, i], ideal_ray_dist)
 
     # first circle distance
-    ideal_first_arch = rs[0]*IdealIcosahedron(rs).get_vertex_center_vertex_angle()
     for i in range(12):
         for j in range(i+1, 12):
-            arch_dist = fvg.get_distance_between_centers(i, j, print_message=False)
-            if arch_dist is not None:
-                assert np.isclose(arch_dist, ideal_first_arch)
+            # if they are neighbours, they must have a specific distance
+            if not np.isclose(all_dist[i, j], 0):
+                assert np.isclose(all_dist[i, j], ideal_first_arch)
+                assert np.isclose(all_dist[j, i], ideal_first_arch)
 
     # second circle distance
-    ideal_second_arch = rs[1] * IdealIcosahedron(rs).get_vertex_center_vertex_angle()
     for i in range(12, 24):
         for j in range(i + 1, 24):
-            arch_dist = fvg.get_distance_between_centers(i, j, print_message=False)
-            if arch_dist is not None:
-                assert np.isclose(arch_dist, ideal_second_arch)
+            # if they are neighbours, they must have a specific distance
+            if not np.isclose(all_dist[i, j], 0):
+                assert np.isclose(all_dist[i, j], ideal_second_arch)
+                assert np.isclose(all_dist[j, i], ideal_second_arch)
 
 
 def test_division_area():
@@ -210,10 +226,17 @@ def test_division_area():
     R = fg.get_between_radii()
     expected_surface = IdealTetrahedron(R).get_ideal_sideways_area()[0]
 
+    # calculated all at once
+    all_areas = fvg.get_all_voronoi_surfaces()
+    all_areas = all_areas.toarray(order='C')
+
     all_div_areas = []
     for i in range(4):
         for j in range(i+1, 4):
-            all_div_areas.append(fvg.get_division_area(i, j))
+            division_area = fvg.get_division_area(i, j)
+            all_div_areas.append(division_area)
+            assert np.isclose(division_area, all_areas[i, j])
+            assert np.isclose(division_area, all_areas[j, i])
     # because all should be neighbours
     assert None not in all_div_areas
     all_div_areas = np.array(all_div_areas)
@@ -224,6 +247,10 @@ def test_division_area():
     assert np.all(all_div_areas > 0.95 * expected_surface)
     rel_errors = np.abs(all_div_areas - expected_surface) / expected_surface * 100
     print(f"Relative errors in tetrahedron surfaces: {np.round(rel_errors, 2)}")
+
+    # uncomment to visualise array
+    # from molgri.plotting.other_plots import ArrayPlot
+    # ArrayPlot(all_areas, data_name="tetra_areas").make_heatmap_plot(save=True)
 
     # the next example is with 12 points in form of an icosahedron and two layers
 
@@ -251,6 +278,12 @@ def test_division_area():
     real_areas_first_level = np.array(real_areas_first_level)
     assert np.allclose(real_areas_first_level, areas_sideways[0])
 
+    # uncomment to visualise array
+    # all_areas = fvg2.get_all_voronoi_surfaces()
+    # all_areas = all_areas.toarray(order='C')
+    # from molgri.plotting.other_plots import ArrayPlot
+    # ArrayPlot(all_areas, data_name="ico_areas").make_heatmap_plot(save=True)
+
     real_areas_sec_level = []
     # now let's see some sideways areas - this time second level of points
     for i in range(12, 24):
@@ -260,6 +293,18 @@ def test_division_area():
                 real_areas_sec_level.append(area)
     real_areas_sec_level = np.array(real_areas_sec_level)
     assert np.allclose(real_areas_sec_level, areas_sideways[1])
+
+    # assert that curved areas add up to a full surface of sphere
+    N_o = 22
+    full_grid = FullGrid(t_grid_name="[3, 7]", o_grid_name=f"cube3D_{N_o}", b_grid_name="cube4D_6")
+    fvg = full_grid.get_full_voronoi_grid()
+    first_radius = full_grid.get_between_radii()[0]
+    exp_total_area = 4 * pi * first_radius ** 2
+    areas = fvg.get_all_voronoi_surfaces_as_numpy()
+    sum_curved_areas = 0
+    for i in range(N_o):
+        sum_curved_areas += areas[i, i+N_o]
+    assert np.allclose(sum_curved_areas, exp_total_area)
 
 
 def test_volumes():
@@ -281,6 +326,14 @@ def test_volumes():
     ideal_vol = ii.get_ideal_volume()
     assert np.allclose(real_vol[:12], ideal_vol[0])
     assert np.allclose(real_vol[12:], ideal_vol[1])
+
+    # test that volumes add up to a total volume of the largest sphere
+    full_grid = FullGrid(t_grid_name="[3, 7]", o_grid_name="ico_56", b_grid_name="cube3D_6")
+    fvg = full_grid.get_full_voronoi_grid()
+    max_radius = full_grid.get_between_radii()[-1]
+    exp_total_volume = 4/3 * pi * max_radius**3
+    sum_volumes = np.sum(fvg.get_all_voronoi_volumes())
+    assert np.allclose(exp_total_volume, sum_volumes)
 
 
 def test_default_full_grids():
@@ -364,7 +417,17 @@ def test_voronoi_regression():
                               4712.38898038,  3769.91118431,  3769.91118431])
     assert np.allclose(volumes[:8], expected_vols)
 
-    print(fvg.get_all_voronoi_surfaces().toarray())
+    all_areas = fvg.get_all_voronoi_surfaces()
+    assert np.isclose(all_areas[13, 0], 306.05083753623484)
+    assert np.isclose(all_areas[22, 0], 802.7509557055915)
+    assert np.isclose(all_areas[11, 2], 457.7498855540331)
+    assert np.isclose(all_areas[11, 4], 249.1084615036705)
+    assert np.isclose(all_areas[41, 42], 402.99180271836235)
+
+    # uncomment to visualise array
+    # all_areas = all_areas.toarray(order='C')
+    # from molgri.plotting.other_plots import ArrayPlot
+    # ArrayPlot(all_areas).make_heatmap_plot(save=True)
 
 
 

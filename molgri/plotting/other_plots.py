@@ -1,5 +1,3 @@
-import hashlib
-
 import numpy as np
 from numpy.typing import NDArray
 import seaborn as sns
@@ -15,20 +13,26 @@ class ArrayPlot(RepresentationCollection):
     A tool for plotting arrays, eg by highlighting high and low values
     """
 
-    def __init__(self, my_array: NDArray, *args, **kwargs):
+    def __init__(self, my_array: NDArray, *args, data_name="array", **kwargs):
         self.array = my_array
-        array_hash = int(hashlib.md5(self.array).hexdigest()[:8], 16)
-        data_name = f"array_{array_hash}"
         super().__init__(data_name, *args, **kwargs)
 
     def make_heatmap_plot(self, ax: Axes = None, fig: Figure = None, save: bool = True):
         """
         This method draws the array and colors the fields according to their values (red = very large,
-        blue = very small). Zero values are always white, a two slope norm is used.
+        blue = very small). Zero values are always white, negative ones always blue, positive ones always red.
         """
         self._create_fig_ax(fig=fig, ax=ax)
-        norm = colors.TwoSlopeNorm(vcenter=0)
-        sns.heatmap(self.array, cmap="bwr", ax=self.ax, xticklabels=False, yticklabels=False, norm=norm)
+        if np.all(self.array < 0):
+            cmap = "Blues"
+            norm = None
+        elif np.all(self.array > 0):
+            cmap = "Reds"
+            norm = None
+        else:
+            cmap = "bwr"
+            norm = colors.TwoSlopeNorm(vcenter=0)
+        sns.heatmap(self.array, cmap=cmap, ax=self.ax, xticklabels=False, yticklabels=False, norm=norm)
 
         self._equalize_axes()
         if save:
