@@ -26,11 +26,12 @@ class TrajectoryPlot(RepresentationCollection):
         return atom_selection
 
     def _make_scatter_plot(self, projection, data, **kwargs):
-        self.ax.scatter(*data, **kwargs)
+        sc = self.ax.scatter(*data, **kwargs)
         if projection == "3d":
             self._equalize_axes()
         elif projection == "hammer":
             self.ax.set_xticks([])
+        return sc
 
     def get_possible_title(self):
         return f"N={self.N_used}"
@@ -41,7 +42,8 @@ class TrajectoryPlot(RepresentationCollection):
         atom_selection = self._default_atom_selection(atom_selection)
 
         # filter out unique COMs
-        coms, _ = self.parsed_trajectory.get_unique_com_till_N(N=self.N_used, atom_selection=atom_selection)
+        coms, _ = self.parsed_trajectory.get_unique_com_till_N(N=self.N_used, atom_selection=atom_selection,
+                                                               energy_type=None)
 
         # plot data
         self._make_scatter_plot(projection, coms.T, color="black")
@@ -69,10 +71,14 @@ class TrajectoryPlot(RepresentationCollection):
         norm = Normalize(vmin=vmin, vmax=vmax)
 
         # plot data
-        self._make_scatter_plot(projection, coms.T, cmap=cmap, c=energies, norm=norm)
+        sc = self._make_scatter_plot(projection, coms.T, cmap=cmap, c=energies, norm=norm)
 
-        save_name = f"energies_{ENERGY2SHORT[energy_type]}"
+        try:
+            save_name = f"energies_{ENERGY2SHORT[energy_type]}"
+        except KeyError:
+            save_name = "energies"
         if save:
+            self.fig.colorbar(sc, ax=self.ax)
             self._save_plot_type(f"{save_name}_{projection}")
 
         if animate_rot and projection == "3d":

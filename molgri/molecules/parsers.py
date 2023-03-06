@@ -121,8 +121,7 @@ class ParsedMolecule:
 
 class FileParser:
 
-    def __init__(self, path_topology: str, path_trajectory: str = None, path_energy: str = None,
-                 path_full_grid: str = None):
+    def __init__(self, path_topology: str, path_trajectory: str = None, path_energy: str = None):
         """
         This module serves to load topology or trajectory information and output it in a standard format of
         a ParsedMolecule or a generator of ParsedMolecules (one per frame). No properties should be accessed directly,
@@ -136,10 +135,14 @@ class FileParser:
         self.path_trajectory = path_trajectory
         self.path_energy = self._try_find_energy_file(path_energy)
         self.path_topology, self.path_trajectory = self._try_to_add_extension()
-        if self.path_trajectory is not None:
+        if self.path_trajectory is not None and self.path_topology is not None:
             self.universe = mda.Universe(self.path_topology, self.path_trajectory)
-        else:
+        elif self.path_topology is not None:
             self.universe = mda.Universe(self.path_topology)
+        elif self.path_trajectory is not None:
+            self.universe = mda.Universe(self.path_trajectory)
+        else:
+            raise ValueError("FileParser cannot produce any output if path_topology and path_trajectory are None.")
 
     def _try_find_energy_file(self, path_energy):
         # file exists and is provided
@@ -283,7 +286,7 @@ class PtParser(FileParser):
 
 class ParsedEnergy:
 
-    def __init__(self, energies, labels, unit):
+    def __init__(self, energies: NDArray, labels, unit):
         self.energies = energies
         self.labels = labels
         self.unit = unit
@@ -423,13 +426,15 @@ class ParsedTrajectory:
         energy info is provided)
         """
         round_to = 3  # number of decimal places
-        my_energies = self.energies.get_energies(energy_type)
+        my_energies = self.energies
         my_coms = self.get_all_COM(atom_selection)
 
-        if my_energies is None:
+        if my_energies is None or energy_type is None:
             _, indices = np.unique(my_coms.round(round_to), axis=0, return_index=True)
             unique_coms = np.take(my_coms, indices, axis=0)
-            return unique_coms, my_energies
+            return unique_coms, None
+        else:
+            my_energies = self.energies.get_energies(energy_type)
 
         # if there are energies, among same COMs, select the one with lowest energy
         coms_tuples = [tuple(row.round(round_to)) for row in my_coms]
@@ -443,4 +448,30 @@ class ParsedTrajectory:
 
     def get_unique_com_till_N(self, N: int, energy_type: str = "Potential", atom_selection=None):
         coms, ens = self.get_unique_com(energy_type=energy_type, atom_selection=atom_selection)
+        if ens is None:
+            return coms[:N], None
         return coms[:N], ens[:N]
+
+
+if __name__ == "__main__":
+    path_energy = "/home/mdglasius/Modelling/trypsin_normal/nobackup/outputs/data.txt"
+    df = pd.read_csv(path_energy)
+    energies = df['Potential Energy (kJ/mole)'].to_numpy()[:, np.newaxis]
+    pe = ParsedEnergy(energies=energies, labels=["Potential Energy"], unit="(kJ/mole)")
+    pt_parser = FileParser(
+             path_topology="/home/mdglasius/Modelling/trypsin_normal/inputs/trypsin_probe.pdb",
+             path_trajectory="/home/mdglasius/Modelling/trypsin_normal/nobackup/outputs/aligned_traj.dcd")
+    parsed_trajectory = pt_parser.get_parsed_trajectory()
+    parsed_trajectory.energies = pe
+    fg = FullGrid(t_grid_name="[5, 10, 15, 20]", o_grid_name="ico_100", b_grid_name="zero")
+    assignments = parsed_trajectory.assign_coms_2_grid_points(full_grid=fg, atom_selection="segid B")
+    import seaborn as sns
+    import matplotlib.pyplot as plt
+    bins = np.arange(0, len(fg.get_flat_position_grid()))
+    sns.histplot(assignments, bins=bins)
+    plt.show()
+    from molgri.plotting.molecule_plots import TrajectoryPlot
+    tp = TrajectoryPlot(parsed_trajectory)
+    tp.make_COM_plot(atom_selection="segid B", animate_rot=True)
+    tp.make_energy_COM_plot(atom_selection="segid B", animate_rot=True, energy_type="Potential Energy",
+                            projection="hammer")
