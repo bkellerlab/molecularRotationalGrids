@@ -1,10 +1,12 @@
 import os
+import numpy as np
 
 from molgri.molecules.parsers import PtParser
 from molgri.plotting.molecule_plots import TrajectoryPlot, ConvergenceMultiCollection
 from molgri.plotting.spheregrid_plots import SphereGridPlot, PolytopePlot, PanelSphereGridPlots, \
     ConvergenceSphereGridPlot, PanelConvergenceSphereGridPlots
 from molgri.plotting.fullgrid_plots import FullGridPlot, ConvergenceFullGridPlot, PanelConvergenceFullGridPlots
+from molgri.plotting.other_plots import ArrayPlot
 
 from molgri.constants import GRID_ALGORITHMS, PATH_EXAMPLES, MINI_NS
 from molgri.space.fullgrid import FullGrid, ConvergenceFullGridO
@@ -84,3 +86,11 @@ def test_trajectory_plots():
     ConvergenceMultiCollection(pt).create_all_plots(and_animations=False)
     # user-defined Ns
     ConvergenceMultiCollection(pt, N_set=(10, 20, 50)).create_all_plots(and_animations=False)
+
+
+def test_other_plots():
+    my_array = np.array([[-3, 2, 0, 7],
+                         [2, 1, -17, 0],
+                         [2, 1, 0, -13],
+                         [2, 2, 2, 2]])
+    ArrayPlot(my_array).make_heatmap_plot()

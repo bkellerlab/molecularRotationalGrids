@@ -348,6 +348,27 @@ def test_position_grid():
         assert np.allclose(normalised_lines, normalised_lines[0])
 
 
+def test_voronoi_regression():
+    """
+    A collection of tests created by recording the current values of Voronoi areas, volumes or distances - when
+    the implementation changes, these tests should confirm that the values are still correct.
+
+    However, they are regression tests and should not be trusted unconditionally!
+    """
+    N_o = 22
+    N_t = 2
+    fg = FullGrid(b_grid_name="cube3D_16", o_grid_name=f"ico_{N_o}", t_grid_name="[2, 4]", use_saved=USE_SAVED)
+    fvg = fg.get_full_voronoi_grid()
+    volumes = fvg.get_all_voronoi_volumes()
+    expected_vols = np.array([8027.50955706,  3769.91118431,  4712.38898038,  3769.91118431, 4712.38898038,
+                              4712.38898038,  3769.91118431,  3769.91118431])
+    assert np.allclose(volumes[:8], expected_vols)
+
+    print(fvg.get_all_voronoi_surfaces().toarray())
+
+
+
+
 if __name__ == "__main__":
     #test_fullgrid_voronoi_radii()
     test_cell_assignment()

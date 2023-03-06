@@ -1,12 +1,12 @@
 from copy import copy
 
 import numpy as np
-import scipy
 from numpy.typing import NDArray
 from scipy.spatial.transform import Rotation
 from scipy.spatial import SphericalVoronoi
 from scipy.spatial.distance import cdist
 from scipy.constants import pi
+from scipy.sparse import coo_array
 import pandas as pd
 
 from molgri.constants import SMALL_NS
@@ -366,6 +366,30 @@ class FullVoronoiGrid:
         for i in range(0, N):
             volumes[i] = self.get_volume(i)
         return volumes
+
+    def get_all_voronoi_surfaces(self):
+        """
+        If l is the length of the flattened position array, returns a lxl (sparse) array where the i-th row and j-th
+        column (as well as the j-th row and the i-th column) represent the size of the Voronoi surface between points
+        i and j in position grid. If the points do not share a division area, no value will be set.
+
+        Returns:
+
+        """
+        data = []
+        row_indices = []
+        column_indices = []
+        N_pos_array = len(self.flat_positions)
+        for i in range(N_pos_array):
+            for j in range(i+1, N_pos_array):
+                area = self.get_division_area(i, j, print_message=False)
+                if area is not None:
+                    # this value will be added to coordinates (i, j) and (j, i)
+                    data.extend([area, area])
+                    row_indices.extend([i, j])
+                    column_indices.extend([j, i])
+        sparse_surfaces = coo_array((data, (row_indices, column_indices)), shape=(N_pos_array, N_pos_array))
+        return sparse_surfaces.tocsc()
 
 
 class Point:
