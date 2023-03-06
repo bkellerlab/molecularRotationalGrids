@@ -26,7 +26,7 @@ from molgri.constants import UNIQUE_TOL, EXTENSION_GRID_FILES, NAME2PRETTY_NAME,
 from molgri.paths import PATH_OUTPUT_ROTGRIDS, PATH_OUTPUT_STAT
 from molgri.space.polytopes import Cube4DPolytope, IcosahedronPolytope, Cube3DPolytope, Polytope
 from molgri.space.rotations import grid2rotation, rotation2grid4vector
-from molgri.wrappers import time_method, save_or_use_saved
+from molgri.wrappers import time_method, save_or_use_saved, deprecated
 
 
 class SphereGridNDim(ABC):
@@ -54,8 +54,9 @@ class SphereGridNDim(ABC):
     def __len__(self):
         return self.N
 
-    def get_N(self):
-        # important to use the getter for filter_non_unique option
+    def get_N(self) -> int:
+        """Get the number of points in the self.grid array. It is important to use this getter and not the attribute
+        self.N as they can differ if the self.filter_non_unique option is set."""
         return len(self.get_grid_as_array())
 
     def __str__(self):
@@ -112,6 +113,7 @@ class SphereGridNDim(ABC):
 
     @time_method
     def gen_and_time(self) -> NDArray:
+        """Same as generation, but prints the information about time needed. Useful for end users."""
         return self._gen_grid()
 
     def _check_uniformity(self):
@@ -127,7 +129,7 @@ class SphereGridNDim(ABC):
     #                      name and path getters
     ##################################################################################################################
 
-    def get_name(self, with_dim=True) -> str:
+    def get_name(self, with_dim: bool = True) -> str:
         """
         This is a standard name that can be used for saving files, but not pretty enough for titles etc.
 
@@ -145,12 +147,15 @@ class SphereGridNDim(ABC):
         return output
 
     def get_decorator_name(self) -> str:
+        """Name used in printing and decorators, not suitable for file names."""
         return f"{NAME2PRETTY_NAME[self.gen_algorithm]} algorithm, {self.N} points"
 
     def get_grid_path(self, extension=EXTENSION_GRID_FILES) -> str:
+        """Get the entire path to where the fullgrid is saved."""
         return f"{PATH_OUTPUT_ROTGRIDS}{self.get_name(with_dim=True)}.{extension}"
 
     def get_statistics_path(self, extension) -> str:
+        """get the entire path to where the statistics are saved."""
         return f"{PATH_OUTPUT_STAT}{self.get_name(with_dim=True)}.{extension}"
 
     ##################################################################################################################
@@ -165,14 +170,23 @@ class SphereGridNDim(ABC):
         self.gen_grid()
         return self.grid
 
+    @deprecated
     def save_grid(self, extension: str = EXTENSION_GRID_FILES):
+        """
+        Deprecated - all necessary data is saved by individual methods using save_or_use_saved.
+        """
         if extension == "txt":
             # noinspection PyTypeChecker
             np.savetxt(self.get_grid_path(extension=extension), self.get_grid_as_array())
         else:
             np.save(self.get_grid_path(extension=extension), self.get_grid_as_array())
 
+    @deprecated
     def save_uniformity_statistics(self, num_random: int = 100, alphas=None):
+        """
+        Deprecated - all necessary data is saved by individual methods using save_or_use_saved.
+        Save both the short, user-friendly summary of statistics and the entire uniformity data.
+        """
         short_statistics_path = self.get_statistics_path(extension="txt")
         statistics_path = self.get_statistics_path(extension="csv")
         stat_data, full_data = prepare_statistics(self.get_grid_as_array(), alphas, d=self.dimensions,

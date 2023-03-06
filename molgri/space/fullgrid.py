@@ -1,3 +1,17 @@
+"""
+Full discretisation of space in spherical layers.
+
+The module fullgrid combines a linear translation grid with two spherical grids: discretisation of approach vectors
+(3D sphere, orientation grid) and of internal rotations of the second body (4D half-sphere of quaternions, body grid).
+The three grids are commonly referred to as t_grid, o_grid and b_grid.
+
+Position grid is a product of t_grid and o_grid and represents a set of spherical points in 3D space that are repeated
+at different radii. Based on a position grid it is possible to create a Voronoi discretisation of 3D space using
+identical (up to radius) layers of Voronoi surfaces between layers of grid points and connecting them with ray points
+from the origin to are vertices of Voronoi cells. Methods to calculate volumes, areas and distances between centers of
+such discretisation sof position space are provided.
+"""
+
 from copy import copy
 from typing import Callable
 
@@ -16,21 +30,22 @@ from molgri.space.translations import TranslationParser
 from molgri.naming import GridNameParser
 from molgri.paths import PATH_OUTPUT_FULL_GRIDS
 from molgri.space.utils import norm_per_axis, normalise_vectors, angle_between_vectors
-from molgri.wrappers import save_or_use_saved
+from molgri.wrappers import save_or_use_saved, deprecated
 
 
 class FullGrid:
 
+    """
+    A combination object that enables work a combination of three grids (provided by their names)
+
+    Args:
+        b_grid_name: body rotation grid (a 4D sphere grid of quaternions used to generate orientations)
+        o_grid_name: origin rotation grid (a 3D sphere grid used to create approach vectors)
+        t_grid_name: translation grid (a linear grid used to determine distances to origin)
+    """
+
     def __init__(self, b_grid_name: str, o_grid_name: str, t_grid_name: str, use_saved: bool = True,
                  filter_non_unique=False):
-        """
-        A combination object that enables work a combination of three grids (provided by their names)
-
-        Args:
-            b_grid_name: body rotation grid (a 4D sphere grid of quaternions used to generate orientations)
-            o_grid_name: origin rotation grid (a 3D sphere grid used to create approach vectors)
-            t_grid_name: translation grid (a linear grid used to determine distances to origin)
-        """
         b_grid_name = GridNameParser(b_grid_name, "b")
         self.b_rotations = SphereGridFactory.create(alg_name=b_grid_name.get_alg(), N=b_grid_name.get_N(),
                                                     dimensions=4, use_saved=use_saved,
@@ -42,15 +57,16 @@ class FullGrid:
         self.o_positions = self.o_rotations.get_grid_as_array()
         self.t_grid = TranslationParser(t_grid_name)
         self.use_saved = use_saved
-        #self.save_full_grid()
 
     def get_name(self):
+        """Name that is appropriate for saving."""
         o_name = self.o_rotations.get_name(with_dim=False)
         b_name = self.b_rotations.get_name(with_dim=False)
         return f"o_{o_name}_b_{b_name}_t_{self.t_grid.grid_hash}"
 
     @save_or_use_saved
     def get_full_grid(self) -> tuple:
+        """Get all relevant sub-grids."""
         return self.b_rotations, self.o_rotations, self.t_grid
 
     def get_radii(self) -> NDArray:
@@ -86,6 +102,7 @@ class FullGrid:
         return between_radii
 
     def get_body_rotations(self) -> Rotation:
+        """Get a Rotation object (may encapsulate a list of rotations) from the body grid."""
         return Rotation.from_quat(self.b_rotations.get_grid_as_array())
 
     @save_or_use_saved
@@ -112,15 +129,22 @@ class FullGrid:
         return result
 
     @save_or_use_saved
-    def get_flat_position_grid(self):
+    def get_flat_position_grid(self) -> NDArray:
+        """
+        Get a position grid that is not structured layer-by-layer but is simply a 2D array of shape (N_t*N_o, 3) where
+        N_t is the length of translation grid and N_o the length of orientation grid.
+        """
         pos_grid = self.get_position_grid()
         pos_grid = np.swapaxes(pos_grid, 0, 1)
         return pos_grid.reshape((-1, 3))
 
+    @deprecated
     def save_full_grid(self):
+        """Save position grid."""
         np.save(f"{PATH_OUTPUT_FULL_GRIDS}position_grid_{self.get_name()}", self.get_position_grid())
 
     def get_full_voronoi_grid(self):
+        """Get the corresponding FullVoronoiGrid object."""
         try:
             return FullVoronoiGrid(self)
         except AttributeError:
@@ -169,10 +193,13 @@ class FullGrid:
 
 class FullVoronoiGrid:
 
+    """
+    Created from FullGrid, implements functionality that is specifically Voronoi-based.
+
+    Enables calculations of all distances, areas, and volumes of/between cells.
+    """
+
     def __init__(self, full_grid: FullGrid):
-        """
-        This is a sister object to FullGrid, implements functionality that is specifically Voronoi-based.
-        """
         self.full_grid = full_grid
         self.use_saved = self.full_grid.use_saved
         self.flat_positions = self.full_grid.get_flat_position_grid()
@@ -184,9 +211,10 @@ class FullVoronoiGrid:
     ###################################################################################################################
 
     def get_name(self):
+        """Name for saving files."""
         return f"voronoi_{self.full_grid.get_name()}"
 
-    def _change_voronoi_radius(self, sv: SphericalVoronoi, new_radius):
+    def _change_voronoi_radius(self, sv: SphericalVoronoi, new_radius: float) -> SphericalVoronoi:
         """
         This is a helper function. Since a FullGrid consists of several layers of spheres in which the points are at
         exactly same places (just at different radii), it makes sense not to recalculate, but just to scale the radius,
@@ -201,7 +229,7 @@ class FullVoronoiGrid:
     @save_or_use_saved
     def get_voronoi_discretisation(self) -> list:
         """
-        Create a list of spherical voronois that are identical except at different radii. The radii are set in such a
+        Create a list of spherical voronoi-s that are identical except at different radii. The radii are set in such a
         way that there is always a Voronoi cell layer right in-between two layers of grid cells. (see FullGrid method
         get_between_radii for details.
         """
@@ -590,6 +618,7 @@ class ConvergenceFullGridO:
 
 if __name__ == "__main__":
     full_grid = FullGrid(b_grid_name="cube3D_16", o_grid_name="ico_15", t_grid_name="[1, 2, 3]")
+    full_grid.save_full_grid()
     # fvg = full_grid.get_full_voronoi_grid()
     # print(fvg)
     points = np.array([[-1, 3, 2], [-0.5, -0.5, 1], [22, 8, 4], [1, 1, 222]])

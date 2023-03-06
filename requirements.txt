@@ -51,3 +51,4 @@ packaging~=21.3
 threadpoolctl~=3.1.0
 kiwisolver~=1.4.4
 zipp~=3.11.0
+deprecation~=2.1.0

@@ -1,4 +1,5 @@
 import os
+import warnings
 from functools import wraps
 from time import time
 from datetime import timedelta
@@ -77,4 +78,18 @@ def save_or_use_saved(my_method):
             with open(name_without_ext, 'wb') as f:
                 pickle.dump(method_output, f)
         return method_output
+    return decorated
+
+
+def deprecated(my_method):
+    """
+    Mark functions or methods that may be removed in the future. Raises a warning.
+    """
+    warnings.warn(f"The method {my_method.__name__} is deprecated and may be removed in the future.",
+                  DeprecationWarning, stacklevel=2)
+
+    @wraps(my_method)
+    def decorated(*args, **kwargs):
+        return my_method(*args, **kwargs)
+
     return decorated
