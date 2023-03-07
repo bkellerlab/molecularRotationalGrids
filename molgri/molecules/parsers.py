@@ -374,7 +374,7 @@ class ParsedTrajectory:
     def get_num_unique_com(self, energy_type="Potential", atom_selection=None):
         return len(self.get_unique_com(energy_type=energy_type, atom_selection=atom_selection)[0])
 
-    def assign_coms_2_grid_points(self, full_grid: FullGrid, atom_selection=None):
+    def assign_coms_2_grid_points(self, full_grid: FullGrid, atom_selection=None, coms=None):
         """
         Given a simulation, select centres of mass of a subset of atoms (eg. one of the molecules and assign them
         to the Voronoi cells of a selected position grid. This is useful to see what part of position space a
@@ -389,8 +389,8 @@ class ParsedTrajectory:
             an array of numbers, length the same as the length of the parsed trajectory, each number represents the
             index of the point in the flattened position grid of the full_grid that is closest to this COM.
         """
-        # TODO: fit rotations and translations to the first frame
-        coms = self.get_all_COM(atom_selection=atom_selection)
+        if coms is None:
+            coms = self.get_all_COM(atom_selection=atom_selection)
         return full_grid.point2cell_position_grid(coms)
 
     def set_c_r(self, c_num: int, r_num: int):
@@ -446,6 +446,28 @@ class ParsedTrajectory:
         unique_energies = np.take(my_energies, new_df.index, axis=0)
         return unique_coms, unique_energies
 
+    def get_only_lowest_highest(self, coms: NDArray, energies: NDArray, lowest_k: int = None, highest_j: int = None):
+        """
+        After any step that produces a set of COMs and corresponding energies, you may filter out only the (COM, energy)
+        with k lowest and/or j highest energies. This is useful for plotting so that only relevant points are visible.
+        """
+        if lowest_k or highest_j:
+            # if not set, just set it to zero
+            if lowest_k is None:
+                lowest_k = 0
+
+            order = energies.argsort()
+            coms = coms[order]
+            energies = energies[order]
+            # use lowest values
+            selected_coms = coms[:lowest_k]
+            selected_energies = energies[:lowest_k]
+            if highest_j is not None:
+                selected_coms = np.concatenate((selected_coms, coms[-highest_j:]))
+                selected_energies = np.concatenate((selected_energies, energies[-highest_j:]))
+            return selected_coms, selected_energies
+        return coms, energies
+
     def get_unique_com_till_N(self, N: int, energy_type: str = "Potential", atom_selection=None):
         coms, ens = self.get_unique_com(energy_type=energy_type, atom_selection=atom_selection)
         if ens is None:
@@ -454,6 +476,8 @@ class ParsedTrajectory:
 
 
 if __name__ == "__main__":
+    import matplotlib.pyplot as plt
+    # SIMULATION
     path_energy = "/home/mdglasius/Modelling/trypsin_normal/nobackup/outputs/data.txt"
     df = pd.read_csv(path_energy)
     energies = df['Potential Energy (kJ/mole)'].to_numpy()[:, np.newaxis]
@@ -463,15 +487,23 @@ if __name__ == "__main__":
              path_trajectory="/home/mdglasius/Modelling/trypsin_normal/nobackup/outputs/aligned_traj.dcd")
     parsed_trajectory = pt_parser.get_parsed_trajectory()
     parsed_trajectory.energies = pe
-    fg = FullGrid(t_grid_name="[5, 10, 15, 20]", o_grid_name="ico_100", b_grid_name="zero")
+    #fg = FullGrid(t_grid_name="linspace(0.8, 2.5, 8)", o_grid_name="ico_512", b_grid_name="zero")
+    fg = FullGrid(t_grid_name="[5, 10, 15]", o_grid_name="ico_100", b_grid_name="zero")
     assignments = parsed_trajectory.assign_coms_2_grid_points(full_grid=fg, atom_selection="segid B")
-    import seaborn as sns
-    import matplotlib.pyplot as plt
-    bins = np.arange(0, len(fg.get_flat_position_grid()))
-    sns.histplot(assignments, bins=bins)
-    plt.show()
-    from molgri.plotting.molecule_plots import TrajectoryPlot
-    tp = TrajectoryPlot(parsed_trajectory)
-    tp.make_COM_plot(atom_selection="segid B", animate_rot=True)
-    tp.make_energy_COM_plot(atom_selection="segid B", animate_rot=True, energy_type="Potential Energy",
-                            projection="hammer")
+    num_cells_visited = len(np.unique(assignments))
+    num_cells_total = len(fg.get_flat_position_grid())
+    print(f"Percentage of non-empty cells: {np.round(num_cells_visited/num_cells_total * 100, 2)}%")
+    # import seaborn as sns
+    # import matplotlib.pyplot as plt
+    # bins = np.arange(0, len(fg.get_flat_position_grid()))
+    # sns.histplot(assignments, bins=bins)
+    # sns.scatterplot(x=assignments, y=energies.squeeze(), ax=plt.gca().twinx())
+    # plt.show()
+    # from molgri.plotting.molecule_plots import TrajectoryPlot
+    # from molgri.plotting.fullgrid_plots import FullGridPlot
+    # tp = TrajectoryPlot(parsed_trajectory)
+    # #tp.make_COM_plot(atom_selection="segid B", animate_rot=True)
+    # tp.make_energy_COM_plot(atom_selection="segid B", animate_rot=False, energy_type="Potential Energy",
+    #                         projection="3d", save=False)
+    # fg = FullGridPlot(fg)
+    # fg.make_full_voronoi_plot(ax=tp.ax, fig=tp.fig, animate_rot=True, plot_vertex_points=False)

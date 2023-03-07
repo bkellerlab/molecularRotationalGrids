@@ -49,10 +49,16 @@ class FullGridPlot(RepresentationCollection):
         if animate_rot:
             return self._animate_figure_view(self.fig, self.ax, f"position_rotated")
 
-    def make_full_voronoi_plot(self, ax=None, fig=None, save=True, animate_rot=False, plot_vertex_points=True):
+    def make_full_voronoi_plot(self, ax=None, fig=None, save=True, animate_rot=False, plot_vertex_points=True,
+                               numbered: bool = False):
         self._create_fig_ax(fig=fig, ax=ax, projection="3d")
 
         origin = np.zeros((3,))
+
+        if numbered:
+            points = self.full_grid.get_flat_position_grid()
+            for i, point in enumerate(points):
+                self.ax.text(*point, s=f"{i}")
 
         try:
             voronoi_disc = self.full_voronoi_grid.get_voronoi_discretisation()

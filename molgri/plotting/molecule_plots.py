@@ -8,6 +8,7 @@ import seaborn as sns
 from molgri.constants import ENERGY2SHORT
 from molgri.molecules.parsers import ParsedTrajectory
 from molgri.plotting.abstract import RepresentationCollection, MultiRepresentationCollection
+from molgri.plotting.fullgrid_plots import FullGridPlot
 
 
 class TrajectoryPlot(RepresentationCollection):
@@ -36,7 +37,8 @@ class TrajectoryPlot(RepresentationCollection):
     def get_possible_title(self):
         return f"N={self.N_used}"
 
-    def make_COM_plot(self, ax=None, fig=None, save=True, atom_selection=None, projection="3d", animate_rot=False):
+    def make_COM_plot(self, ax=None, fig=None, save=True, atom_selection=None, projection="3d", animate_rot=False,
+                      fg = None):
         self._create_fig_ax(ax=ax, fig=fig, projection=projection)
         # if a pseudotrajectory, default setting is to plot COM or r_molecule
         atom_selection = self._default_atom_selection(atom_selection)
@@ -44,24 +46,35 @@ class TrajectoryPlot(RepresentationCollection):
         # filter out unique COMs
         coms, _ = self.parsed_trajectory.get_unique_com_till_N(N=self.N_used, atom_selection=atom_selection,
                                                                energy_type=None)
-
+        if fg and projection == "3d":
+            fgp = FullGridPlot(fg)
+            fgp.make_full_voronoi_plot(ax=self.ax, fig=self.fig, animate_rot=False, plot_vertex_points=False,
+                                       save=False, numbered=False)
+            c = self.parsed_trajectory.assign_coms_2_grid_points(full_grid=fg, atom_selection=atom_selection,
+                                                                 coms=coms)
+            cmap="Spectral"
+        else:
+            c="black"
+            cmap=None
         # plot data
-        self._make_scatter_plot(projection, coms.T, color="black")
+        self._make_scatter_plot(projection, coms.T, c=c, cmap=cmap)
 
         if save:
             self._save_plot_type(f"com_{projection}")
 
         if animate_rot and projection == "3d":
-            self._animate_figure_view(self.fig, self.ax, f"com_rotated")
+            return self._animate_figure_view(self.fig, self.ax, f"com_rotated")
 
     def make_energy_COM_plot(self, ax=None, fig=None, save=True, atom_selection=None, projection="3d",
-                             animate_rot=False, energy_type="Potential", vmin=None, vmax=None):
+                             animate_rot=False, energy_type="Potential", vmin=None, vmax=None,
+                             lowest_k = None, highest_j = None):
         self._create_fig_ax(ax=ax, fig=fig, projection=projection)
         atom_selection = self._default_atom_selection(atom_selection)
 
         coms, energies = self.parsed_trajectory.get_unique_com_till_N(N=self.N_used, energy_type=energy_type,
                                                                       atom_selection=atom_selection)
-
+        coms, energies = self.parsed_trajectory.get_only_lowest_highest(coms, energies, lowest_k=lowest_k,
+                                                                        highest_j=highest_j)
         # convert energies to colors
         cmap = cm.coolwarm
         if vmin is None:
@@ -71,7 +84,7 @@ class TrajectoryPlot(RepresentationCollection):
         norm = Normalize(vmin=vmin, vmax=vmax)
 
         # plot data
-        sc = self._make_scatter_plot(projection, coms.T, cmap=cmap, c=energies, norm=norm)
+        sc = self._make_scatter_plot(projection, coms.T, cmap=cmap, c=energies, norm=norm, s=1)
 
         try:
             save_name = f"energies_{ENERGY2SHORT[energy_type]}"
