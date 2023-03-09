@@ -2,6 +2,7 @@
 In this module, the two methods of evaluating transitions between states - the MSM and the SqRA approach - are
 implemented.
 """
+from abc import ABC, abstractmethod
 
 import numpy as np
 from numpy.typing import NDArray
@@ -38,11 +39,10 @@ class SimulationHistogram:
         return self.parsed_trajectory.assign_coms_2_grid_points(self.full_grid, atom_selection=atom_selection)
 
 
-class MSM:
+class TransitionModel(ABC):
 
     """
-    Markov state model (MSM) works on simulation trajectories by discretising the accessed space and counting
-    transitions between states in the time span of tau.
+    A class that contains both the MSM and SQRA models.
     """
 
     def __init__(self, sim_hist: SimulationHistogram, tau_array: NDArray = None, use_saved: bool = False):
@@ -57,20 +57,58 @@ class MSM:
     def get_name(self):
         return self.sim_hist.get_name()
 
+    @abstractmethod
+    def get_transitions_matrix(self):
+        pass
+
     @save_or_use_saved
-    def get_transitions_matrix(self, tau_array: np.ndarray = None, noncorr: bool = False):
+    def get_eigenval_eigenvec(self, num_eigenv: int = 15, **kwargs):
+        """
+        Obtain eigenvectors and eigenvalues of the transition matrices.
+
+        Args:
+            num_eigv: how many eigenvalues/vectors pairs
+            **kwargs: named arguments to forward to eigs()
+        Returns:
+            (eigenval, eigenvec) a tuple of eigenvalues and eigenvectors, first num_eigv given for all tau-s
+        """
+        all_tms = self.get_transitions_matrix()
+        all_eigenval = []
+        all_eigenvec =[]
+        for tau_i, tau in enumerate(self.tau_array):
+            tm = all_tms[tau_i]
+            tm = tm.T
+            eigenval, eigenvec = eigs(tm, num_eigenv, maxiter=100000, tol=0, **kwargs)
+            if eigenvec.imag.max() == 0 and eigenval.imag.max() == 0:
+                eigenvec = eigenvec.real
+                eigenval = eigenval.real
+            # sort eigenvectors according to their eigenvalues
+            idx = eigenval.argsort()[::-1]
+            eigenval = eigenval[idx]
+            eigenvec = eigenvec[:, idx]
+            all_eigenval.append(eigenval)
+            all_eigenvec.append(eigenvec)
+        return np.array(all_eigenval), np.array(all_eigenvec)
+
+
+class MSM(TransitionModel):
+
+    """
+    Markov state model (MSM) works on simulation trajectories by discretising the accessed space and counting
+    transitions between states in the time span of tau.
+    """
+
+    @save_or_use_saved
+    def get_transitions_matrix(self, noncorr: bool = False):
         """
         Obtain a set of transition matrices for different tau-s specified in tau_array.
 
         Args:
-            tau_array: 1D array of tau values for which the transition matrices should be constructed
             noncorr: bool, should only every tau-th frame be used for MSM construction
                      (if False, use sliding window - much more expensive but throws away less data)
         Returns:
             an array of transition matrices
         """
-        if tau_array:
-            self.tau_array = tau_array
 
         def window(seq, len_window, step=1):
             # in this case always move the window by step and use all points in simulations to count transitions
@@ -108,42 +146,27 @@ class MSM:
             all_matrices.append(transition_matrix)
         return np.array(all_matrices)
 
-    @save_or_use_saved
-    def get_eigenval_eigenvec(self, num_eigenv: int = 15, **kwargs):
-        """
-        Obtain eigenvectors and eigenvalues of the transition matrices.
 
-        Args:
-            num_eigv: how many eigenvalues/vectors pairs
-            **kwargs: named arguments to forward to eigs()
-        Returns:
-            (eigenval, eigenvec) a tuple of eigenvalues and eigenvectors, first num_eigv given for all tau-s
-        """
-        all_tms = self.get_transitions_matrix()
-        all_eigenval = []
-        all_eigenvec =[]
-        for tau_i, tau in enumerate(self.tau_array):
-            tm = all_tms[tau_i]
-            tm = tm.T
-            eigenval, eigenvec = eigs(tm, num_eigenv, maxiter=100000, tol=0, **kwargs)
-            if eigenvec.imag.max() == 0 and eigenval.imag.max() == 0:
-                eigenvec = eigenvec.real
-                eigenval = eigenval.real
-            # sort eigenvectors according to their eigenvalues
-            idx = eigenval.argsort()[::-1]
-            eigenval = eigenval[idx]
-            eigenvec = eigenvec[:, idx]
-            all_eigenval.append(eigenval)
-            all_eigenvec.append(eigenvec)
-        return np.array(all_eigenval), np.array(all_eigenvec)
-
-
-class SQRA:
+class SQRA(TransitionModel):
 
     """
     As opposed to MSM, this object works with a pseudo-trajectory that evaluates energy at each grid point and
     with geometric parameters of position space division.
     """
+
+    @save_or_use_saved
+    def get_transitions_matrix(self, D: float = 1, energy_type: str = "Potential"):
+        """
+
+        Return 1 x num_cells x num_cells matrix (first dimension to be compatible with the MSM model)
+        """
+        trans_matrix = np.zeros(shape=(self.num_cells, self.num_cells))
+        voronoi_grid = self.sim_hist.full_grid.get_full_voronoi_grid()
+        all_volumes = voronoi_grid.get_all_voronoi_volumes()
+        all_energies = self.sim_hist.parsed_trajectory.get_all_energies(energy_type=energy_type)
+        assert len(all_energies) == self.num_cells, "Exactly one energy point per cell"
+        all_surfaces = voronoi_grid.get_all_voronoi_surfaces()
+        all_distances = voronoi_grid.get_all_distances_between_centers()
 
 
 if __name__ == "__main__":
