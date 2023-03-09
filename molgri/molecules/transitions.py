@@ -160,13 +160,30 @@ class SQRA(TransitionModel):
 
         Return 1 x num_cells x num_cells matrix (first dimension to be compatible with the MSM model)
         """
-        trans_matrix = np.zeros(shape=(self.num_cells, self.num_cells))
         voronoi_grid = self.sim_hist.full_grid.get_full_voronoi_grid()
         all_volumes = voronoi_grid.get_all_voronoi_volumes()
-        all_energies = self.sim_hist.parsed_trajectory.get_all_energies(energy_type=energy_type)
+        all_energies = np.empty(shape=(self.num_cells,))
+        energy_counts = np.zeros(shape=(self.num_cells,))
+        obtained_energies = self.sim_hist.parsed_trajectory.get_all_energies(energy_type=energy_type)
+        for a, e in zip(self.assignments, obtained_energies):
+            all_energies[a] += e
+            energy_counts[a] += 1
+        all_energies = np.where(energy_counts == 0, all_energies, all_energies/energy_counts)
+        print(all_energies)
         assert len(all_energies) == self.num_cells, "Exactly one energy point per cell"
-        all_surfaces = voronoi_grid.get_all_voronoi_surfaces()
-        all_distances = voronoi_grid.get_all_distances_between_centers()
+        # TODO: move your work to sparse matrices at some point?
+        all_surfaces = voronoi_grid.get_all_voronoi_surfaces_as_numpy()
+        all_distances = voronoi_grid.get_all_distances_between_centers_as_numpy()
+
+        rate_matrix = D * all_surfaces / all_distances
+        for i, _ in enumerate(rate_matrix):
+            rate_matrix[i] /= (all_volumes[i]*np.sqrt(all_energies[i]))
+
+        for j, _ in enumerate(rate_matrix):
+            rate_matrix[:, j] *= np.sqrt(all_energies[j])
+
+        rate_matrix = rate_matrix[np.newaxis, :]
+        return rate_matrix
 
 
 if __name__ == "__main__":

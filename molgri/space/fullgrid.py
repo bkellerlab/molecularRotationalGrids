@@ -165,7 +165,7 @@ class FullGrid:
 
         # determine radii of cells
         norms = norm_per_axis(points_vector)
-        layers = np.zeros((len(points_vector),))
+        layers = np.zeros((len(points_vector),), dtype=int)
         vor_radii = self.get_between_radii()
 
         # find the index of the layer to which each point belongs
