@@ -48,11 +48,11 @@ class MSM:
     def __init__(self, sim_hist: SimulationHistogram, tau_array: NDArray = None, use_saved: bool = False):
         self.sim_hist = sim_hist
         if tau_array is None:
-            tau_array = np.array([5, 7, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100, 110, 130, 150, 180, 200])
+            tau_array = np.array([2, 5, 7, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100, 110, 130, 150, 180, 200])
         self.tau_array = tau_array
         self.use_saved = use_saved
         self.assignments = self.sim_hist.get_all_assignments()
-        self.num_cells = len(self.assignments)
+        self.num_cells = len(self.sim_hist.full_grid.get_flat_position_grid())
 
     def get_name(self):
         return self.sim_hist.get_name()
@@ -106,10 +106,10 @@ class MSM:
             sums[sums == 0] = 1
             transition_matrix = transition_matrix / sums
             all_matrices.append(transition_matrix)
-        return all_matrices
+        return np.array(all_matrices)
 
     @save_or_use_saved
-    def get_eigenval_eigenvec(self, num_eigenv: int = 6, **kwargs):
+    def get_eigenval_eigenvec(self, num_eigenv: int = 15, **kwargs):
         """
         Obtain eigenvectors and eigenvalues of the transition matrices.
 
@@ -135,7 +135,15 @@ class MSM:
             eigenvec = eigenvec[:, idx]
             all_eigenval.append(eigenval)
             all_eigenvec.append(eigenvec)
-        return all_eigenval, all_eigenvec
+        return np.array(all_eigenval), np.array(all_eigenvec)
+
+
+class SQRA:
+
+    """
+    As opposed to MSM, this object works with a pseudo-trajectory that evaluates energy at each grid point and
+    with geometric parameters of position space division.
+    """
 
 
 if __name__ == "__main__":
@@ -157,6 +165,4 @@ if __name__ == "__main__":
     fg = FullGrid(t_grid_name="[5, 10, 15]", o_grid_name="ico_100", b_grid_name="zero")
 
     sh = SimulationHistogram(parsed_trajectory, fg)
-    my_msm = MSM(sh, tau_array=np.array([10, 50, 100]))
-    my_msm.get_transitions_matrix()
-    print(my_msm.get_eigenval_eigenvec())
+    my_msm = MSM(sh, tau_array=np.array([10, 50, 100]), use_saved=False)

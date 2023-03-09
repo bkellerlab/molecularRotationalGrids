@@ -1,5 +1,6 @@
 import numpy as np
 import seaborn as sns
+from matplotlib import colors
 
 from molgri.constants import GRID_ALGORITHMS, NAME2SHORT_NAME
 from molgri.plotting.abstract import RepresentationCollection, PanelRepresentationCollection, plot_voronoi_cells
@@ -8,11 +9,11 @@ from molgri.space.fullgrid import FullGrid, ConvergenceFullGridO
 
 class FullGridPlot(RepresentationCollection):
 
-    def __init__(self, full_grid: FullGrid):
+    def __init__(self, full_grid: FullGrid, *args, **kwargs):
         self.full_grid = full_grid
         self.full_voronoi_grid = full_grid.get_full_voronoi_grid()
         data_name = self.full_grid.get_name()
-        super().__init__(data_name)
+        super().__init__(data_name, *args, **kwargs)
 
     def get_possible_title(self, algs = True, N_points = False):
         name = ""
@@ -30,22 +31,26 @@ class FullGridPlot(RepresentationCollection):
             name += N_name
         return name
 
-    def make_position_plot(self, ax=None, fig=None, save=True, animate_rot=False, numbered: bool = False):
-        self._create_fig_ax(fig=fig, ax=ax, projection="3d")
+    def make_position_plot(self, ax=None, fig=None, save=True, animate_rot=False, numbered: bool = False,
+                           c="black", projection="3d"):
+        self._create_fig_ax(fig=fig, ax=ax, projection=projection)
 
         points = self.full_grid.get_flat_position_grid()
-        self.ax.scatter(*points.T, color="black", s=30)
+        cmap = "bwr"
+        norm = colors.TwoSlopeNorm(vcenter=0)
+        self.ax.scatter(*points.T, c=c, cmap=cmap, norm=norm)
 
         if numbered:
             for i, point in enumerate(points):
                 self.ax.text(*point, s=f"{i}")
 
-        self.ax.view_init(elev=10, azim=30)
-        self._set_axis_limits()
-        self._equalize_axes()
+        if projection == "3d":
+            self.ax.view_init(elev=10, azim=30)
+            self._set_axis_limits()
+            self._equalize_axes()
 
         if save:
-            self._save_plot_type("position")
+            self._save_plot_type(f"position_{projection}")
         if animate_rot:
             return self._animate_figure_view(self.fig, self.ax, f"position_rotated")
 
