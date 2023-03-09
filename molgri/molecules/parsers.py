@@ -191,6 +191,10 @@ class FileParser:
                                          f"Please specify the extension you want to use.")
         return to_return
 
+    def get_dt(self):
+        "Time in ps between trajectory frames (assuming constant time step)"
+        return self.universe.trajectory[1].time - self.universe.trajectory[0].time
+
     def get_file_path_trajectory(self):
         return self.path_trajectory
 
@@ -207,7 +211,7 @@ class FileParser:
             return None
         return Path(self.path_trajectory).stem
 
-    def get_parsed_trajectory(self):
+    def get_parsed_trajectory(self, default_atom_selection=None):
         if not self.path_energy:
             parsed_energies = None
         else:
@@ -216,7 +220,8 @@ class FileParser:
 
         name = self.get_topology_file_name()
         molecule_generator = self.generate_frame_as_molecule
-        return ParsedTrajectory(name, molecule_generator, parsed_energies, is_pt=isinstance(self, PtParser))
+        return ParsedTrajectory(name, molecule_generator, parsed_energies, is_pt=isinstance(self, PtParser),
+                                default_atom_selection=default_atom_selection, dt=self.get_dt())
 
     def as_parsed_molecule(self) -> ParsedMolecule:
         """
@@ -363,15 +368,20 @@ class XVGParser(object):
 
 class ParsedTrajectory:
 
-    def __init__(self, name: str, molecule_generator: Callable, energies: ParsedEnergy, is_pt=False):
+    def __init__(self, name: str, molecule_generator: Callable, energies: ParsedEnergy, is_pt=False,
+                 default_atom_selection=None, dt=1):
         self.name = name
         self.is_pt = is_pt
         self.molecule_generator = molecule_generator
         self.energies = energies
         self.c_num = None
         self.r_num = None
+        self.default_atom_selection = default_atom_selection
+        self.dt = dt
 
     def get_num_unique_com(self, energy_type="Potential", atom_selection=None):
+        if atom_selection is None:
+            atom_selection = self.default_atom_selection
         return len(self.get_unique_com(energy_type=energy_type, atom_selection=atom_selection)[0])
 
     def assign_coms_2_grid_points(self, full_grid: FullGrid, atom_selection=None, coms=None):
@@ -389,6 +399,8 @@ class ParsedTrajectory:
             an array of numbers, length the same as the length of the parsed trajectory, each number represents the
             index of the point in the flattened position grid of the full_grid that is closest to this COM.
         """
+        if atom_selection is None:
+            atom_selection = self.default_atom_selection
         if coms is None:
             coms = self.get_all_COM(atom_selection=atom_selection)
         return full_grid.point2cell_position_grid(coms)
@@ -401,6 +413,8 @@ class ParsedTrajectory:
         return self.energies.get_energies(energy_type)
 
     def get_all_COM(self, atom_selection=None) -> NDArray:
+        if atom_selection is None:
+            atom_selection = self.default_atom_selection
         all_com = []
         for mol in self.molecule_generator(atom_selection):
             all_com.append(mol.get_center_of_mass())
@@ -425,6 +439,8 @@ class ParsedTrajectory:
         Get only the subset of COMs that have unique positions. Among those, select the ones with lowest energy (if
         energy info is provided)
         """
+        if atom_selection is None:
+            atom_selection = self.default_atom_selection
         round_to = 3  # number of decimal places
         my_energies = self.energies
         my_coms = self.get_all_COM(atom_selection)
@@ -469,6 +485,8 @@ class ParsedTrajectory:
         return coms, energies
 
     def get_unique_com_till_N(self, N: int, energy_type: str = "Potential", atom_selection=None):
+        if atom_selection is None:
+            atom_selection = self.default_atom_selection
         coms, ens = self.get_unique_com(energy_type=energy_type, atom_selection=atom_selection)
         if ens is None:
             return coms[:N], None
@@ -485,6 +503,7 @@ if __name__ == "__main__":
     pt_parser = FileParser(
              path_topology="/home/mdglasius/Modelling/trypsin_normal/inputs/trypsin_probe.pdb",
              path_trajectory="/home/mdglasius/Modelling/trypsin_normal/nobackup/outputs/aligned_traj.dcd")
+    print(pt_parser.get_dt())
     parsed_trajectory = pt_parser.get_parsed_trajectory()
     parsed_trajectory.energies = pe
     #fg = FullGrid(t_grid_name="linspace(0.8, 2.5, 8)", o_grid_name="ico_512", b_grid_name="zero")
