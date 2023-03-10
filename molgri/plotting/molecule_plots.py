@@ -84,7 +84,7 @@ class TrajectoryPlot(RepresentationCollection):
         norm = Normalize(vmin=vmin, vmax=vmax)
 
         # plot data
-        sc = self._make_scatter_plot(projection, coms.T, cmap=cmap, c=energies, norm=norm, s=1)
+        sc = self._make_scatter_plot(projection, coms.T, cmap=cmap, c=energies, norm=norm)
 
         try:
             save_name = f"energies_{ENERGY2SHORT[energy_type]}"
