@@ -6,7 +6,7 @@ import argparse
 
 from molgri.constants import EXTENSION_TOPOLOGY, EXTENSION_TRAJECTORY
 from molgri.molecules.writers import PtIOManager
-from ..scripts.set_up_io import freshly_create_all_folders
+from molgri.scripts.set_up_io import freshly_create_all_folders
 
 import warnings
 warnings.filterwarnings("ignore")

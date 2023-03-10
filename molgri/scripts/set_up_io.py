@@ -7,7 +7,7 @@ import argparse
 import os
 import shutil
 
-from ..constants import PATH_USER_PATHS, PATH_EXAMPLES
+from molgri.constants import PATH_USER_PATHS, PATH_EXAMPLES
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--examples', action='store_true',

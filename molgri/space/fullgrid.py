@@ -11,9 +11,10 @@ identical (up to radius) layers of Voronoi surfaces between layers of grid point
 from the origin to are vertices of Voronoi cells. Methods to calculate volumes, areas and distances between centers of
 such discretisation sof position space are provided.
 """
-
+from __future__ import annotations
 from copy import copy
-from typing import Callable
+from typing import Callable, Tuple, Optional
+
 
 import numpy as np
 from numpy.typing import NDArray
@@ -25,7 +26,7 @@ from scipy.sparse import coo_array, csc_array
 import pandas as pd
 
 from molgri.constants import SMALL_NS
-from molgri.space.rotobj import SphereGridFactory
+from molgri.space.rotobj import SphereGridFactory, SphereGridNDim
 from molgri.space.translations import TranslationParser
 from molgri.naming import GridNameParser
 from molgri.paths import PATH_OUTPUT_FULL_GRIDS
@@ -45,7 +46,16 @@ class FullGrid:
     """
 
     def __init__(self, b_grid_name: str, o_grid_name: str, t_grid_name: str, use_saved: bool = True,
-                 filter_non_unique=False):
+                 filter_non_unique: bool = False):
+
+        """
+        Args:
+            b_grid_name: of the form 'ico_17'
+            o_grid_name: of the form 'cube4D_12'
+            t_grid_name: of the form '[1, 3, 4.5]'
+            use_saved: try to obtain saved data if possible
+            filter_non_unique: remove repeating points from spherical grids so that Voronoi cells can be built
+        """
         b_grid_name = GridNameParser(b_grid_name, "b")
         self.b_rotations = SphereGridFactory.create(alg_name=b_grid_name.get_alg(), N=b_grid_name.get_N(),
                                                     dimensions=4, use_saved=use_saved,
@@ -58,14 +68,14 @@ class FullGrid:
         self.t_grid = TranslationParser(t_grid_name)
         self.use_saved = use_saved
 
-    def get_name(self):
+    def get_name(self) -> str:
         """Name that is appropriate for saving."""
         o_name = self.o_rotations.get_name(with_dim=False)
         b_name = self.b_rotations.get_name(with_dim=False)
         return f"o_{o_name}_b_{b_name}_t_{self.t_grid.grid_hash}"
 
     @save_or_use_saved
-    def get_full_grid(self) -> tuple:
+    def get_full_grid(self) -> Tuple[SphereGridNDim, SphereGridNDim, TranslationParser]:
         """Get all relevant sub-grids."""
         return self.b_rotations, self.o_rotations, self.t_grid
 
@@ -143,7 +153,7 @@ class FullGrid:
         """Save position grid."""
         np.save(f"{PATH_OUTPUT_FULL_GRIDS}position_grid_{self.get_name()}", self.get_position_grid())
 
-    def get_full_voronoi_grid(self):
+    def get_full_voronoi_grid(self) -> Optional[FullVoronoiGrid]:
         """Get the corresponding FullVoronoiGrid object."""
         try:
             return FullVoronoiGrid(self)
@@ -165,7 +175,7 @@ class FullGrid:
 
         # determine radii of cells
         norms = norm_per_axis(points_vector)
-        layers = np.zeros((len(points_vector),), dtype=int)
+        layers = np.zeros((len(points_vector),))
         vor_radii = self.get_between_radii()
 
         # find the index of the layer to which each point belongs
@@ -181,6 +191,16 @@ class FullGrid:
         layer_len = len(rot_points)
         indices = layers * layer_len + indices_within_layer
         return indices
+
+    def nan_free_assignments(self, points_vector: NDArray) -> Tuple[NDArray, NDArray]:
+        """
+        Same as point2cell_position_grid, but remove any cells that don't belong to the grid. In this way, there are no
+        NaNs in the assignment array and it can be converted to the integer type
+        """
+        indices = self.point2cell_position_grid(points_vector)
+        valid_points = points_vector[~np.isnan(indices)]
+        indices = indices[~np.isnan(indices)]
+        return valid_points, indices.astype(int)
 
     def points2cell_scipy(self, points_vector: NDArray):
         """

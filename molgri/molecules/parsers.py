@@ -384,7 +384,8 @@ class ParsedTrajectory:
             atom_selection = self.default_atom_selection
         return len(self.get_unique_com(energy_type=energy_type, atom_selection=atom_selection)[0])
 
-    def assign_coms_2_grid_points(self, full_grid: FullGrid, atom_selection=None, coms=None):
+    def assign_coms_2_grid_points(self, full_grid: FullGrid, atom_selection=None, coms=None,
+                                  nan_free=False) -> Tuple[NDArray, NDArray]:
         """
         Given a simulation, select centres of mass of a subset of atoms (eg. one of the molecules and assign them
         to the Voronoi cells of a selected position grid. This is useful to see what part of position space a
@@ -403,7 +404,11 @@ class ParsedTrajectory:
             atom_selection = self.default_atom_selection
         if coms is None:
             coms = self.get_all_COM(atom_selection=atom_selection)
-        return full_grid.point2cell_position_grid(coms)
+        if nan_free:
+            # remove NaNs and convert the rest to int
+            return full_grid.nan_free_assignments(coms)
+        else:
+            return coms, full_grid.point2cell_position_grid(coms)
 
     def set_c_r(self, c_num: int, r_num: int):
         self.c_num = c_num
@@ -508,7 +513,7 @@ if __name__ == "__main__":
     parsed_trajectory.energies = pe
     #fg = FullGrid(t_grid_name="linspace(0.8, 2.5, 8)", o_grid_name="ico_512", b_grid_name="zero")
     fg = FullGrid(t_grid_name="[5, 10, 15]", o_grid_name="ico_100", b_grid_name="zero")
-    assignments = parsed_trajectory.assign_coms_2_grid_points(full_grid=fg, atom_selection="segid B")
+    coms, assignments = parsed_trajectory.assign_coms_2_grid_points(full_grid=fg, atom_selection="segid B")
     num_cells_visited = len(np.unique(assignments))
     num_cells_total = len(fg.get_flat_position_grid())
     print(f"Percentage of non-empty cells: {np.round(num_cells_visited/num_cells_total * 100, 2)}%")

@@ -26,18 +26,24 @@ class SimulationHistogram:
         self.parsed_trajectory = parsed_trajectory
         self.full_grid = full_grid
 
+    # noinspection PyMissingOrEmptyDocstring
     def get_name(self) -> str:
         traj_name = self.parsed_trajectory.get_name()
         grid_name = self.full_grid.get_name()
         return f"{traj_name}_{grid_name}"
 
-    def get_all_assignments(self) -> NDArray:
+    def get_all_assignments(self) -> Tuple[NDArray, NDArray]:
         """
         For each step in the trajectory assign which cell it belongs to. Uses the default atom selection of the
         ParsedTrajectory object.
+
+        Returns:
+            (all centers of mass within grid, all assignments to grid cells)
         """
         atom_selection = self.parsed_trajectory.default_atom_selection
-        return self.parsed_trajectory.assign_coms_2_grid_points(self.full_grid, atom_selection=atom_selection)
+        # if you do nan_free, your tau may not be correct anymore because several steps in-between may be missing
+        return self.parsed_trajectory.assign_coms_2_grid_points(self.full_grid, atom_selection=atom_selection,
+                                                                nan_free=False)
 
 
 class TransitionModel(ABC):
@@ -52,10 +58,11 @@ class TransitionModel(ABC):
             tau_array = np.array([2, 5, 7, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100, 110, 130, 150, 180, 200])
         self.tau_array = tau_array
         self.use_saved = use_saved
-        self.assignments = self.sim_hist.get_all_assignments()
+        _, self.assignments = self.sim_hist.get_all_assignments()
         self.num_cells = len(self.sim_hist.full_grid.get_flat_position_grid())
         self.num_tau = len(self.tau_array)
 
+    # noinspection PyMissingOrEmptyDocstring
     def get_name(self) -> str:
         return self.sim_hist.get_name()
 
@@ -140,7 +147,9 @@ class MSM(TransitionModel):
             """
             # in this case always move the window by step and use all points in simulations to count transitions
             for k in range(0, len(seq) - len_window, step):
-                yield tuple(seq[k: k + len_window + 1:len_window])
+                start_stop_list = seq[k: k + len_window + 1:len_window]
+                if np.NaN not in start_stop_list:
+                    yield tuple([int(el) for el in start_stop_list])
 
         def noncorr_window(seq: Sequence, len_window: int) -> Tuple[Any, Any]:
             """
@@ -223,8 +232,9 @@ class SQRA(TransitionModel):
         energy_counts = np.zeros(shape=(self.num_cells,))
         obtained_energies = self.sim_hist.parsed_trajectory.get_all_energies(energy_type=energy_type)
         for a, e in zip(self.assignments, obtained_energies):
-            all_energies[a] += e
-            energy_counts[a] += 1
+            if a != np.NaN:
+                all_energies[int(a)] += e
+                energy_counts[int(a)] += 1
         all_energies = np.where(energy_counts == 0, all_energies, all_energies/energy_counts)
 
         rate_matrix = D * all_surfaces / all_distances

@@ -6,7 +6,7 @@ import argparse
 
 from molgri.space.rotobj import SphereGridFactory
 from molgri.plotting.spheregrid_plots import SphereGridPlot
-from ..scripts.set_up_io import freshly_create_all_folders
+from molgri.scripts.set_up_io import freshly_create_all_folders
 
 import warnings
 warnings.filterwarnings("ignore")

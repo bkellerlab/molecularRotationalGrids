@@ -50,7 +50,7 @@ class TrajectoryPlot(RepresentationCollection):
             fgp = FullGridPlot(fg)
             fgp.make_full_voronoi_plot(ax=self.ax, fig=self.fig, animate_rot=False, plot_vertex_points=False,
                                        save=False, numbered=False)
-            c = self.parsed_trajectory.assign_coms_2_grid_points(full_grid=fg, atom_selection=atom_selection,
+            _, c = self.parsed_trajectory.assign_coms_2_grid_points(full_grid=fg, atom_selection=atom_selection,
                                                                  coms=coms)
             cmap="Spectral"
         else:
