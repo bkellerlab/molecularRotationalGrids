@@ -3,13 +3,13 @@ In this module, the two methods of evaluating transitions between states - the M
 implemented.
 """
 from abc import ABC, abstractmethod
+from typing import Tuple, Sequence, Any
 
 import numpy as np
 from numpy.typing import NDArray
 from scipy.sparse.linalg import eigs
 from tqdm import tqdm
 
-from molgri.paths import PATH_OUTPUT_PLOTS
 from molgri.wrappers import save_or_use_saved
 from molgri.molecules.parsers import ParsedTrajectory
 from molgri.space.fullgrid import FullGrid
@@ -26,14 +26,15 @@ class SimulationHistogram:
         self.parsed_trajectory = parsed_trajectory
         self.full_grid = full_grid
 
-    def get_name(self):
+    def get_name(self) -> str:
         traj_name = self.parsed_trajectory.get_name()
         grid_name = self.full_grid.get_name()
         return f"{traj_name}_{grid_name}"
 
-    def get_all_assignments(self):
+    def get_all_assignments(self) -> NDArray:
         """
-        For each step in the trajectory assign which cell it belongs to.
+        For each step in the trajectory assign which cell it belongs to. Uses the default atom selection of the
+        ParsedTrajectory object.
         """
         atom_selection = self.parsed_trajectory.default_atom_selection
         return self.parsed_trajectory.assign_coms_2_grid_points(self.full_grid, atom_selection=atom_selection)
@@ -53,32 +54,42 @@ class TransitionModel(ABC):
         self.use_saved = use_saved
         self.assignments = self.sim_hist.get_all_assignments()
         self.num_cells = len(self.sim_hist.full_grid.get_flat_position_grid())
+        self.num_tau = len(self.tau_array)
 
-    def get_name(self):
+    def get_name(self) -> str:
         return self.sim_hist.get_name()
 
     @abstractmethod
-    def get_transitions_matrix(self):
+    def get_transitions_matrix(self) -> NDArray:
+        """For MSM, generate the transition matrix from simulation data. For SQRA, generate rate matrix from the
+        point energy calculations.
+
+        Returns:
+            an array of shape (num_tau, num_cells, num_cells) for MSM or (n1, num_cells, num_cells) for SQRA
+        """
         pass
 
     @save_or_use_saved
-    def get_eigenval_eigenvec(self, num_eigenv: int = 15, **kwargs):
+    def get_eigenval_eigenvec(self, num_eigenv: int = 15, **kwargs) -> Tuple[NDArray, NDArray]:
         """
         Obtain eigenvectors and eigenvalues of the transition matrices.
 
         Args:
-            num_eigv: how many eigenvalues/vectors pairs
+            num_eigenv: how many eigenvalues/vectors pairs to return (too many may give inaccurate results)
             **kwargs: named arguments to forward to eigs()
         Returns:
             (eigenval, eigenvec) a tuple of eigenvalues and eigenvectors, first num_eigv given for all tau-s
+            Eigenval is of shape (num_tau, num_eigenv), eigenvec of shape (num_tau, num_cells, num_eigenv)
         """
         all_tms = self.get_transitions_matrix()
-        all_eigenval = []
-        all_eigenvec =[]
+        all_eigenval = np.zeros((self.num_tau, num_eigenv))
+        all_eigenvec = np.zeros((self.num_tau, self.num_cells, num_eigenv))
         for tau_i, tau in enumerate(self.tau_array):
-            tm = all_tms[tau_i]
+            tm = all_tms[tau_i]  # the transition matrix for this tau
             tm = tm.T
             eigenval, eigenvec = eigs(tm, num_eigenv, maxiter=100000, tol=0, **kwargs)
+            # don't need to deal with complex outputs in case all values are real
+            # TODO: what happens here if we have negative imaginary components?
             if eigenvec.imag.max() == 0 and eigenval.imag.max() == 0:
                 eigenvec = eigenvec.real
                 eigenval = eigenval.real
@@ -86,9 +97,9 @@ class TransitionModel(ABC):
             idx = eigenval.argsort()[::-1]
             eigenval = eigenval[idx]
             eigenvec = eigenvec[:, idx]
-            all_eigenval.append(eigenval)
-            all_eigenvec.append(eigenvec)
-        return np.array(all_eigenval), np.array(all_eigenvec)
+            all_eigenval[tau_i] = eigenval
+            all_eigenvec[tau_i] = eigenvec
+        return all_eigenval, all_eigenvec
 
 
 class MSM(TransitionModel):
@@ -99,52 +110,78 @@ class MSM(TransitionModel):
     """
 
     @save_or_use_saved
-    def get_transitions_matrix(self, noncorr: bool = False):
+    def get_transitions_matrix(self, noncorr: bool = False) -> NDArray:
         """
-        Obtain a set of transition matrices for different tau-s specified in tau_array.
+        Obtain a set of transition matrices for different tau-s specified in self.tau_array.
 
         Args:
             noncorr: bool, should only every tau-th frame be used for MSM construction
                      (if False, use sliding window - much more expensive but throws away less data)
         Returns:
-            an array of transition matrices
+            an array of transition matrices of shape (self.num_tau, self.num_cells, self.num_cells)
         """
 
-        def window(seq, len_window, step=1):
+        def window(seq: Sequence, len_window: int, step: int = 1) -> Tuple[Any, Any]:
+            """
+            How this works: returns a list of sublists. Each sublist has two elements: [start_element, end_element].
+            Both elements are taken from the seq and are len_window elements apart. The parameter step controls what
+            the step between subsequent start_elements is.
+
+            Yields:
+                [start_element, end_element] where both elements com from seq where they are len_window positions
+                apart
+
+            Example:
+                >>> gen_window = window([1, 2, 3, 4, 5, 6], len_window=2, step=3)
+                >>> next(gen_window)
+                (1, 3)
+                >>> next(gen_window)
+                (4, 6)
+            """
             # in this case always move the window by step and use all points in simulations to count transitions
-            return [seq[k: k + len_window:len_window-1] for k in range(0, (len(seq)+1)-len_window, step)]
+            for k in range(0, len(seq) - len_window, step):
+                yield tuple(seq[k: k + len_window + 1:len_window])
 
-        def noncorr_window(seq, len_window):
-            # in this case, only use every tau-th element for MSM. Faster but loses a lot of data
-            cut_seq = seq[0:-1:len_window]
-            return [[a, b] for a, b in zip(cut_seq[0:-2], cut_seq[1:])]
+        def noncorr_window(seq: Sequence, len_window: int) -> Tuple[Any, Any]:
+            """
+            Subsample the seq so that only each len_window-th element remains and then similarly return pairs of
+            elements.
 
-        all_matrices = []
+            Example:
+                >>> gen_obj = noncorr_window([1, 2, 3, 4, 5, 6, 7], 3)
+                >>> next(gen_obj)
+                (1, 4)
+                >>> next(gen_obj)
+                (4, 7)
+
+            """
+            # in this case, only use every len_window-th element for MSM. Faster but loses a lot of data
+            return window(seq, len_window, step=len_window)
+
+        all_matrices = np.zeros(shape=(self.num_tau, self.num_cells, self.num_cells))
         for tau_i, tau in enumerate(tqdm(self.tau_array)):
-            transition_matrix = np.zeros(shape=(self.num_cells, self.num_cells))
+            # save the number of transitions between cell with index i and cell with index j
             count_per_cell = {(i, j): 0 for i in range(self.num_cells) for j in range(self.num_cells)}
             if not noncorr:
                 window_cell = window(self.assignments, int(tau))
             else:
                 window_cell = noncorr_window(self.assignments, int(tau))
             for cell_slice in window_cell:
-                start_cell = cell_slice[0]
-                end_cell = cell_slice[1]
                 try:
-                    count_per_cell[(start_cell, end_cell)] += 1
+                    count_per_cell[cell_slice] += 1
                 except KeyError:
+                    # the point is outside the grid and assigned to NaN - ignore for now
                     pass
             for key, value in count_per_cell.items():
                 start_cell, end_cell = key
-                transition_matrix[start_cell, end_cell] += value
+                all_matrices[tau_i, start_cell, end_cell] += value
                 # enforce detailed balance
-                transition_matrix[end_cell, start_cell] += value
+                all_matrices[tau_i, end_cell, start_cell] += value
             # divide each row of each matrix by the sum of that row
-            sums = transition_matrix.sum(axis=-1, keepdims=True)
+            sums = all_matrices[tau_i].sum(axis=-1, keepdims=True)
             sums[sums == 0] = 1
-            transition_matrix = transition_matrix / sums
-            all_matrices.append(transition_matrix)
-        return np.array(all_matrices)
+            all_matrices[tau_i] = all_matrices[tau_i] / sums
+        return all_matrices
 
 
 class SQRA(TransitionModel):
@@ -154,14 +191,34 @@ class SQRA(TransitionModel):
     with geometric parameters of position space division.
     """
 
-    @save_or_use_saved
-    def get_transitions_matrix(self, D: float = 1, energy_type: str = "Potential"):
-        """
+    def __init__(self, sim_hist: SimulationHistogram, **kwargs):
+        # SQRA doesn't need a tau array, but for compatibility with MSM we use this one
+        tau_array = np.array([1])
+        super().__init__(sim_hist, tau_array=tau_array, **kwargs)
 
-        Return 1 x num_cells x num_cells matrix (first dimension to be compatible with the MSM model)
+    @save_or_use_saved
+    def get_transitions_matrix(self, D: float = 1, energy_type: str = "Potential") -> NDArray:
+        """
+        Return the rate matrix as calculated by the SqRA formula:
+
+        Q_ij = np.sqrt(pi_j/pi_i) * D * S_ij / (h_ij * V_i)
+
+        Args:
+            D: diffusion constant
+            energy_type: the keyword to pass to self.sim_hist.parsed_trajectory.get_all_energies to obtain energy
+            information at centers of cells
+
+        Returns:
+            a (1, self.num_cells, self.num_cells) array that is a rate matrix estimated with SqRA (first dimension
+            is expanded to be compatible with the MSM model)
         """
         voronoi_grid = self.sim_hist.full_grid.get_full_voronoi_grid()
         all_volumes = voronoi_grid.get_all_voronoi_volumes()
+        # TODO: move your work to sparse matrices at some point?
+        all_surfaces = voronoi_grid.get_all_voronoi_surfaces_as_numpy()
+        all_distances = voronoi_grid.get_all_distances_between_centers_as_numpy()
+        # energies are either NaN (calculation in that cell was not completed or the particle left the cell during
+        # optimisation) or they are the arithmetic average of all energies of COM assigned to that cell.
         all_energies = np.empty(shape=(self.num_cells,))
         energy_counts = np.zeros(shape=(self.num_cells,))
         obtained_energies = self.sim_hist.parsed_trajectory.get_all_energies(energy_type=energy_type)
@@ -169,11 +226,6 @@ class SQRA(TransitionModel):
             all_energies[a] += e
             energy_counts[a] += 1
         all_energies = np.where(energy_counts == 0, all_energies, all_energies/energy_counts)
-        print(all_energies)
-        assert len(all_energies) == self.num_cells, "Exactly one energy point per cell"
-        # TODO: move your work to sparse matrices at some point?
-        all_surfaces = voronoi_grid.get_all_voronoi_surfaces_as_numpy()
-        all_distances = voronoi_grid.get_all_distances_between_centers_as_numpy()
 
         rate_matrix = D * all_surfaces / all_distances
         for i, _ in enumerate(rate_matrix):
@@ -183,6 +235,7 @@ class SQRA(TransitionModel):
             rate_matrix[:, j] *= np.sqrt(all_energies[j])
 
         rate_matrix = rate_matrix[np.newaxis, :]
+        assert rate_matrix.shape == (1, self.num_cells, self.num_cells)
         return rate_matrix
 
 
