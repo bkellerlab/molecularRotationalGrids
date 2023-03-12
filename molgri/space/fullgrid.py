@@ -202,7 +202,7 @@ class FullGrid:
         indices = indices[~np.isnan(indices)]
         return valid_points, indices.astype(int)
 
-    def points2cell_scipy(self, points_vector: NDArray):
+    def points2cell_scipy(self, points_vector: NDArray) -> NDArray:
         """
         For comparison to self.point2cell_position_grid(), here is a method that assigns belonging to a grid point
         simply based on distance and not considering the spherical nature of the grid.
@@ -230,7 +230,7 @@ class FullVoronoiGrid:
     #                           basic creation/getter functions
     ###################################################################################################################
 
-    def get_name(self):
+    def get_name(self) -> str:
         """Name for saving files."""
         return f"voronoi_{self.full_grid.get_name()}"
 
@@ -263,11 +263,11 @@ class FullVoronoiGrid:
     #                           point helper functions
     ###################################################################################################################
 
-    def _at_same_radius(self, point1, point2):
+    def _at_same_radius(self, point1: Point, point2: Point) -> bool:
         """Check that two points belong to the same layer"""
         return np.isclose(point1.d_to_origin, point2.d_to_origin)
 
-    def _are_neighbours(self, point1, point2):
+    def _are_neighbours(self, point1: Point, point2: Point) -> bool:
         """
         Check whether points are neighbours in any way. We define neighbours as those sharing surface and NOT sharing
         only vertex points or lines.
@@ -276,13 +276,13 @@ class FullVoronoiGrid:
         index2 = point2.index_position_grid
         return self.get_division_area(index1, index2, print_message=False) is not None
 
-    def _are_sideways_neighbours(self, point1, point2):
+    def _are_sideways_neighbours(self, point1: Point, point2: Point) -> bool:
         """
         Check whether points belong to the same radius and are neighbours.
         """
         return self._at_same_radius(point1, point2) and self._are_neighbours(point1, point2)
 
-    def _are_on_same_ray(self, point1, point2):
+    def _are_on_same_ray(self, point1: Point, point2: Point) -> bool:
         """
         Two points are on the same ray if they are on the same vector from origin (may be at different distances)
         """
@@ -290,7 +290,7 @@ class FullVoronoiGrid:
         normalised2 = point2.get_normalised_point()
         return np.allclose(normalised1, normalised2)
 
-    def _point1_right_above_point2(self, point1, point2):
+    def _point1_right_above_point2(self, point1: Point, point2: Point) -> bool:
         """
         Right above should be interpreted spherically.
 
@@ -300,7 +300,7 @@ class FullVoronoiGrid:
         radial_index2 = point2.index_radial
         return self._are_on_same_ray(point1, point2) and radial_index1 == radial_index2 + 1
 
-    def _point2_right_above_point1(self, point1, point2):
+    def _point2_right_above_point1(self, point1: Point, point2: Point) -> bool:
         """See _point1_right_above_point2."""
         radial_index1 = point1.index_radial
         radial_index2 = point2.index_radial
@@ -333,7 +333,7 @@ class FullVoronoiGrid:
             raise ValueError("The value of which not recognised, select 'all', 'upper', 'lower'.")
         return vertices
 
-    def get_distance_between_centers(self, index_1: int, index_2: int, print_message=True):
+    def get_distance_between_centers(self, index_1: int, index_2: int, print_message=True) -> Optional[float]:
         """
         Calculate the distance between two position grid points selected by their indices. Optionally print message
         if they are not neighbours.
@@ -361,7 +361,7 @@ class FullVoronoiGrid:
                 print(f"Points {index_1} and {index_2} are not neighbours.")
             return None
 
-    def get_division_area(self, index_1: int, index_2: int, print_message=True):
+    def get_division_area(self, index_1: int, index_2: int, print_message: bool = True) -> Optional[float]:
         """
         Calculate the area (in Angstrom squared) that is the border area between two Voronoi cells. This is either
         a curved area (a part of a sphere) if the two cells are one above the other or a flat, part of circle or
@@ -402,7 +402,7 @@ class FullVoronoiGrid:
             print(f"Points {index_1} and {index_2} are not neighbours.")
         return None
 
-    def get_volume(self, index):
+    def get_volume(self, index: int) -> float:
         """
         Get the volume of any
         """
@@ -410,7 +410,10 @@ class FullVoronoiGrid:
         return point.get_cell_volume()
 
     @save_or_use_saved
-    def get_all_voronoi_volumes(self):
+    def get_all_voronoi_volumes(self) -> NDArray:
+        """
+        Get an array in the same order as flat position grid, listing the volumes of Voronoi cells.
+        """
         N = len(self.flat_positions)
         volumes = np.zeros((N,))
         for i in range(0, N):
@@ -419,12 +422,14 @@ class FullVoronoiGrid:
 
     def _get_property_all_pairs(self, method: Callable) -> csc_array:
         """
+        Helper method for any property that is dependent on a pair of indices. Examples: obtaining all distances
+        between cell centers or all areas between cells. Always symmetrical - value at (i, j) equals the one at (j, i)
 
         Args:
-            method:
+            method: must have a signature (index1: int, index2: int, print_message: boolean)
 
         Returns:
-
+            a sparse matrix of shape (len_flat_position_array, len_flat_position_array)
         """
         data = []
         row_indices = []
@@ -503,7 +508,7 @@ class Point:
         num_o_rot = len(self.full_sv.full_grid.o_rotations.get_grid_as_array())
         return self.index_position_grid - num_o_rot * radial_index
 
-    def _find_index_sv_above(self):
+    def _find_index_sv_above(self) -> Optional[int]:
         for i, sv in enumerate(self.full_sv.get_voronoi_discretisation()):
             if sv.radius > self.d_to_origin:
                 return i
@@ -515,7 +520,7 @@ class Point:
         """Get the spherical Voronoi with the first radius that is larger than point radius."""
         return self.full_sv.get_voronoi_discretisation()[self._find_index_sv_above()]
 
-    def _get_sv_below(self) -> SphericalVoronoi or None:
+    def _get_sv_below(self) -> Optional[SphericalVoronoi]:
         """Get the spherical Voronoi with the largest radius that is smaller than point radius. If the point is in the
         first layer, return None."""
         index_above = self._find_index_sv_above()
