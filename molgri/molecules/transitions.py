@@ -94,7 +94,7 @@ class TransitionModel(ABC):
         for tau_i, tau in enumerate(self.tau_array):
             tm = all_tms[tau_i]  # the transition matrix for this tau
             tm = tm.T
-            eigenval, eigenvec = eigs(tm, num_eigenv, maxiter=100000, tol=0, **kwargs)
+            eigenval, eigenvec = eigs(tm, num_eigenv, maxiter=100000, tol=0, which="LR", **kwargs)
             # don't need to deal with complex outputs in case all values are real
             # TODO: what happens here if we have negative imaginary components?
             if eigenvec.imag.max() == 0 and eigenval.imag.max() == 0:
@@ -250,7 +250,7 @@ class SQRA(TransitionModel):
                                        where=multiply_with != np.NaN)
 
         # normalise rows
-        sums = np.sum(rate_matrix, axis=1)
+        sums = np.sum(rate_matrix, axis=0)
         np.fill_diagonal(rate_matrix, -sums)
 
         # additional axis
