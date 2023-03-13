@@ -15,7 +15,7 @@ class TransitionPlot(RepresentationCollection):
         data_name = self.transition_obj.get_name()
         super().__init__(data_name, *args, **kwargs)
 
-    def make_its_plot(self, fig=None, ax=None, save=True, num_eigenv=6):
+    def make_its_plot(self, fig=None, ax=None, save=True, num_eigenv=6, as_line=False):
         """
         Plot iterative timescales.
         """
@@ -25,10 +25,17 @@ class TransitionPlot(RepresentationCollection):
         eigenvals = np.array(eigenvals)
         dt = self.transition_obj.sim_hist.parsed_trajectory.dt
 
-        for j in range(1, num_eigenv):
-            to_plot_abs = np.array(-tau_array * dt / np.log(np.abs(eigenvals[:, j])))
-            sns.lineplot(x=tau_array * dt, y=to_plot_abs,
-                         ax=ax, legend=False)
+        if not as_line:
+            for j in range(1, num_eigenv):
+                to_plot_abs = np.array(-tau_array * dt / np.log(np.abs(eigenvals[:, j])))
+                sns.lineplot(x=tau_array * dt, y=to_plot_abs,
+                             ax=ax, legend=False)
+        else:
+            # for SQRA plot vertical lines
+            tau_array = np.concatenate(np.array([0]), tau_array)
+            for j in range(1, len(eigenvals[:num_eigenv])):
+                absolute_its = np.array([- 1 / eigenvals[j] for _ in tau_array])
+                ax.plot(tau_array * dt, absolute_its, color="black", ls="--")
 
         self.ax.set_xlim(left=0, right=tau_array[-1] * dt)
         self.ax.set_xlabel(r"$\tau$")
@@ -141,15 +148,17 @@ if __name__ == "__main__":
     parsed_trajectory.energies = pe
 
     # the exact grid used
-    fg = FullGrid(t_grid_name="linspace(0.8, 2.5, 8)", o_grid_name="ico_512", b_grid_name="zero")
+    fg = FullGrid(t_grid_name="linspace(0.8, 2.5, 2)", o_grid_name="ico_80", b_grid_name="zero")
 
     # plotting
     sh = SimulationHistogram(parsed_trajectory, fg)
     my_sqra = SQRA(sh, use_saved=False)
 
     tp = TransitionPlot(my_sqra)
-    tp.make_its_plot()
+    tp.make_its_plot(as_line=True)
     tp.make_eigenvalues_plot()
+    for i in range(3):
+        tp.make_one_eigenvector_plot(i, animate_rot=True)
 
     tp.make_eigenvectors_plot(projection="3d")
     tp.make_eigenvectors_plot(projection="hammer")

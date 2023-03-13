@@ -148,7 +148,7 @@ class MSM(TransitionModel):
             # in this case always move the window by step and use all points in simulations to count transitions
             for k in range(0, len(seq) - len_window, step):
                 start_stop_list = seq[k: k + len_window + 1:len_window]
-                if np.NaN not in start_stop_list:
+                if not np.isnan(start_stop_list).any():
                     yield tuple([int(el) for el in start_stop_list])
 
         def noncorr_window(seq: Sequence, len_window: int) -> Tuple[Any, Any]:
@@ -232,18 +232,28 @@ class SQRA(TransitionModel):
         energy_counts = np.zeros(shape=(self.num_cells,))
         obtained_energies = self.sim_hist.parsed_trajectory.get_all_energies(energy_type=energy_type)
         for a, e in zip(self.assignments, obtained_energies):
-            if a != np.NaN:
+            if not np.isnan(a):
                 all_energies[int(a)] += e
                 energy_counts[int(a)] += 1
-        all_energies = np.where(energy_counts == 0, all_energies, all_energies/energy_counts)
+        # in both cases avoiding division with zero
+        all_energies = np.divide(all_energies, energy_counts, out=np.zeros_like(all_energies), where=energy_counts != 0)
+        rate_matrix = np.divide(D * all_surfaces, all_distances, out=np.zeros_like(D * all_surfaces),
+                                where=all_distances!=0)
 
-        rate_matrix = D * all_surfaces / all_distances
         for i, _ in enumerate(rate_matrix):
-            rate_matrix[i] /= (all_volumes[i]*np.sqrt(all_energies[i]))
-
+            divide_by = all_volumes[i]*np.sqrt(np.abs(all_energies[i]))
+            rate_matrix[i] = np.divide(rate_matrix[i], divide_by, out=np.zeros_like(rate_matrix[i]),
+                                    where=(divide_by != 0 and divide_by != np.NaN))
         for j, _ in enumerate(rate_matrix):
-            rate_matrix[:, j] *= np.sqrt(all_energies[j])
+            multiply_with = np.sqrt(np.abs(all_energies[j]))
+            rate_matrix[:, j] = np.multiply(rate_matrix[:, j], multiply_with, out=np.zeros_like(rate_matrix[:, j]),
+                                       where=multiply_with != np.NaN)
 
+        # normalise rows
+        sums = np.sum(rate_matrix, axis=1)
+        np.fill_diagonal(rate_matrix, -sums)
+
+        # additional axis
         rate_matrix = rate_matrix[np.newaxis, :]
         assert rate_matrix.shape == (1, self.num_cells, self.num_cells)
         return rate_matrix
