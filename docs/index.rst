@@ -21,8 +21,9 @@ Advanced users who may wish to import the package and extend it for their purpos
 following API.
 
 .. toctree::
-   :maxdepth: 3
+   :glob:
+   :maxdepth: 2
    :caption: Contents:
 
-   api
+   api/*
 

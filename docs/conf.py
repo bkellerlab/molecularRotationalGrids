@@ -25,7 +25,7 @@ source_suffix = {
 project = 'molgri'
 copyright = '2022, Hana Zupan'
 author = 'Hana Zupan'
-release = 'v1.2.0'
+release = 'v1.3.5'
 
 # -- General configuration ---------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#general-configuration
@@ -47,7 +47,7 @@ autodoc_default_options = {
 }
 
 templates_path = ['_templates']
-exclude_patterns = ['_build', 'Thumbs.db', '.DS_Store']
+exclude_patterns = ['_build', 'Thumbs.db', '.DS_Store', 'api/molgri.rst']
 autoclass_content = 'both'
 
 
