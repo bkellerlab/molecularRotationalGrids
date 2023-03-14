@@ -20,15 +20,31 @@ at `our GitHub page <https://github.com/bkellerlab/molecularRotationalGrids>`_
 Advanced users who may wish to import the package and extend it for their purposes are invited to read the
 following API.
 
+Sub-modules
+~~~~~~~~~~
+
+Interested in discretisation of 3D and 4D spheres, analysis of uniformity, generation of full rotational
+and translational grids independent of application?
+
+ -> read on in the sub-module :mod:`molgri.space`
+
+Interested in applying the grids to molecular structure files, generating pseudo-trajectories and analysing
+transitions based on the Markov state model (MSM) or Square-root approximation (SqRA)?
+
+ -> read on in the sub-module :ref:`molecules`
+
+Interested in visualising any of the above?
+
+ -> read on in the sub-module :mod:`molgri/plotting`
+
+
+
+Full API
+~~~~~~~~~~
+
+
 .. toctree::
    :glob:
    :maxdepth: 3
-   :caption: Contents:
 
    api
-
-.. autosummary::
-   :toctree: generated
-   :recursive:
-
-    molgri
