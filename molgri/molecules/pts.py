@@ -6,8 +6,6 @@ For this purpose, Writers in molgri.writers module are provided.
 
 from typing import Tuple, Generator
 
-from scipy.spatial.transform import Rotation
-
 from molgri.molecules.parsers import ParsedMolecule
 from molgri.space.fullgrid import FullGrid
 

@@ -3,7 +3,6 @@ This module contains PtWriter object to write Pseudotrajectories to trajectory/t
 is a high-level function combining: parsing from input files, creating grids and writing the outputs.
 """
 import os
-import shutil
 
 # noinspection PyPep8Naming
 import MDAnalysis as mda
@@ -11,7 +10,7 @@ from MDAnalysis import Merge
 import numpy as np
 
 from molgri.constants import EXTENSION_TRAJECTORY, EXTENSION_TOPOLOGY, EXTENSION_LOGGING
-from molgri.logfiles import PtLogger, paths_free_4_all, find_first_free_index, format_name
+from molgri.logfiles import PtLogger, paths_free_4_all
 from molgri.space.fullgrid import FullGrid
 from molgri.molecules.parsers import FileParser, ParsedMolecule
 from molgri.paths import PATH_INPUT_BASEGRO, PATH_OUTPUT_PT, PATH_OUTPUT_LOGGING
