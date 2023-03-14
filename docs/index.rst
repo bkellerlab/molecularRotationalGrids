@@ -22,8 +22,13 @@ following API.
 
 .. toctree::
    :glob:
-   :maxdepth: 2
+   :maxdepth: 3
    :caption: Contents:
 
    api
 
+.. autosummary::
+   :toctree: generated
+   :recursive:
+
+    molgri
