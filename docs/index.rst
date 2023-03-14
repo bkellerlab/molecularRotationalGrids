@@ -25,5 +25,5 @@ following API.
    :maxdepth: 2
    :caption: Contents:
 
-   api/*
+   api
 
