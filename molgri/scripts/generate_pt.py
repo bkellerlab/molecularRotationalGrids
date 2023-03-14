@@ -1,5 +1,5 @@
 """
-This is a user-friendly script for generating a pseudotrajectory.
+User script for generating pseudo-trajectories.
 """
 
 import argparse

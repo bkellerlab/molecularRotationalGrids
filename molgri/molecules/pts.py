@@ -1,4 +1,6 @@
 """
+Apply a FullGrid to a ParsedMolecule in a specific sequence.
+
 A Pseudotrajectory takes a ParsedMolecule and a FullGrid and returns a generator that provides this ParsedMolecule in
 all combinations of positions/orientations defined by the grid. This class does not deal with any file input/output.
 For this purpose, Writers in molgri.writers module are provided.

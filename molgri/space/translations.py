@@ -1,3 +1,7 @@
+"""
+Parse linear discretisations provided by users.
+"""
+
 import hashlib
 import numbers
 from ast import literal_eval

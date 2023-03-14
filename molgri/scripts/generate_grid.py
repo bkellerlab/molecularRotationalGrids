@@ -1,5 +1,5 @@
 """
-This is a user-friendly script for generating a custom rotational grid.
+User script for generating custom rotational grids.
 """
 
 import argparse

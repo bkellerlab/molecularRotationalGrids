@@ -1,3 +1,12 @@
+"""
+All project-applicable wrappers.
+
+Specifically, functionality for:
+ - timing the function and writing out the result
+ - using saved data if it exists
+ - marking deprecated functions
+"""
+
 import os
 import warnings
 from functools import wraps

@@ -1,3 +1,9 @@
+"""
+Useful functions for rotations and vectors.
+
+Functions that belong in this module perform simple conversions, normalisations or assertions that are useful at various
+points in the molgri.space subpackage.
+"""
 from typing import Tuple
 
 import numpy as np

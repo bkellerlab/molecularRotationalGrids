@@ -1,3 +1,9 @@
+"""
+Plots connected to the fullgrid module.
+
+Plot position grids in space, Voronoi cells and their volumes etc.
+"""
+
 import numpy as np
 import seaborn as sns
 from matplotlib import colors

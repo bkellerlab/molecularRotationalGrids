@@ -1,4 +1,6 @@
 """
+Write pseudo-trajectories to files.
+
 This module contains PtWriter object to write Pseudotrajectories to trajectory/topology files and a PtIOManager that
 is a high-level function combining: parsing from input files, creating grids and writing the outputs.
 """

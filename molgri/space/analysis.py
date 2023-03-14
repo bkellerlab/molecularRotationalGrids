@@ -1,3 +1,6 @@
+"""
+Analysis of uniformity of 3D and 4D sphere grids.
+"""
 from typing import Tuple
 
 import numpy as np

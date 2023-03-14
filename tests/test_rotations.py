@@ -1,5 +1,5 @@
 from molgri.assertions import two_sets_of_quaternions_equal
-from molgri.space.rotations import Rotation2D, quaternion2grid, \
+from molgri.space.rotations import quaternion2grid, \
     grid2quaternion, grid2rotation, rotation2grid, two_vectors2rot
 from molgri.space.utils import normalise_vectors, random_quaternions
 from scipy.spatial.transform import Rotation
@@ -7,57 +7,6 @@ from scipy.spatial.transform import Rotation
 from scipy.constants import pi
 import numpy as np
 
-
-def test_rotation_2D():
-    # rotating counterclockwise
-    rot = Rotation2D(pi/6)
-    expected_matrix = np.array([[np.sqrt(3)/2, -1/2], [1/2, np.sqrt(3)/2]])
-    assert np.allclose(rot.rot_matrix, expected_matrix)
-    # rotating clockwise
-    rot = Rotation2D(-pi/6)
-    expected_matrix = np.array([[np.sqrt(3)/2, 1/2], [-1/2, np.sqrt(3)/2]])
-    assert np.allclose(rot.rot_matrix, expected_matrix)
-    # more than 180 degrees
-    rot = Rotation2D(pi + pi / 6)
-    expected_matrix = np.array([[-np.sqrt(3)/2, 1/2], [-1/2, -np.sqrt(3)/2]])
-    assert np.allclose(rot.rot_matrix, expected_matrix)
-    # apply to one vector
-    vector1 = np.array([-1, 1])
-    vector1 = normalise_vectors(vector1)
-    rot = Rotation2D(np.deg2rad(45))
-    rot_vector = rot.apply(vector1)
-    expected_vector = np.array([-1, 0])
-    assert np.allclose(rot_vector, expected_vector)
-    # apply in inverse
-    rot = Rotation2D(np.deg2rad(45))
-    rot_vector = rot.apply(vector1, inverse=True)
-    expected_vector = np.array([0, 1])
-    assert np.allclose(rot_vector, expected_vector)
-    # apply to one vector for > 360 degrees
-    vector2 = np.array([0, -1])
-    rot = Rotation2D(np.deg2rad(2*360+180+30))
-    rot_vector = rot.apply(vector2)
-    expected_vector = np.array([-1/2, np.sqrt(3)/2])
-    assert np.allclose(rot_vector, expected_vector)
-    # apply to several vectors
-    vector_set = np.array([[-np.sqrt(2)/2, np.sqrt(2)/2], [0, -1], [np.sqrt(3)/2, 1/2]])
-    assert vector_set.shape == (3, 2)
-    rot = Rotation2D(np.deg2rad(45))
-    rot_vector_set = rot.apply(vector_set)
-    expected_vector_set = np.array([[-1, 0],
-                                    [np.sqrt(2)/2, -np.sqrt(2)/2],
-                                    [(-1 + np.sqrt(3))/(2 * np.sqrt(2)), (1 + np.sqrt(3))/(2 * np.sqrt(2))]])
-    assert np.allclose(rot_vector_set, expected_vector_set)
-    # several vectors - apply in inverse
-    rot_vector_set_i = rot.apply(vector_set, inverse=True)
-    expected_vector_set_i = np.array([[0, 1],
-                                     [-np.sqrt(2)/2, -np.sqrt(2)/2],
-                                     [(1 + np.sqrt(3))/(2*np.sqrt(2)), -(-1 + np.sqrt(3))/(2*np.sqrt(2))]])
-    assert np.allclose(rot_vector_set_i, expected_vector_set_i)
-    # several vectors > 360 deg in inverse
-    rot = Rotation2D(np.deg2rad(3*360))
-    rot_vector_set_i = rot.apply(vector_set, inverse=True)
-    assert np.allclose(rot_vector_set_i, vector_set)
 
 
 def test_rot2grid():

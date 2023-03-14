@@ -1,3 +1,7 @@
+"""
+The central source of constants.
+"""
+
 from seaborn import color_palette
 from pkg_resources import resource_filename
 from scipy.constants import pi

@@ -1,4 +1,6 @@
 """
+Grids on N-dimensional spheres.
+
 This module is one of central building blocks of the molgri package. The central object here is the SphereGridNDim
 (And the corresponding Factory object that creates a sphere grid given the algorithm, dimension and number of points).
 A SphereGridNDim object implements a grid that consists of points on a N-dimensional unit sphere.

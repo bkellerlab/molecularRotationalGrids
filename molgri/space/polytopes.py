@@ -1,5 +1,5 @@
 """
-Polytopes are networkX graphs representing Platonic solids in 3- or 4D.
+NetworkX graphs representing Platonic solids in 3- or 4D.
 
 Specifically, we implement the 3D polytopes
 icosahedron and cube and the 4D polytope hypercube. As a start, vertices of the polytope are added as

@@ -1,3 +1,6 @@
+"""
+User script for analysing (pseudo)trajectories post energy calculation.
+"""
 import argparse
 import ast
 

@@ -1,4 +1,6 @@
 """
+User script for generating a folder structure.
+
 This script should be run to define input and output directories if the user wants to select directories other
 than default ones. It can also be run at any later point to move the contents from previously selected directories
 to new ones.

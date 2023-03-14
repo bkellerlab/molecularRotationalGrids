@@ -1,3 +1,9 @@
+"""
+Plots of ITS, eigenvectors and eigenvalues of transition/rate matrix.
+
+A collection of methods to visualise the SqRA or MSM objects.
+"""
+
 import numpy as np
 import seaborn as sns
 import matplotlib.pyplot as plt

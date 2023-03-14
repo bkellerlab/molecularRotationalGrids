@@ -1,3 +1,7 @@
+"""
+Conversions rotations <-> grid points.
+"""
+
 from typing import Tuple
 
 import numpy as np
@@ -196,36 +200,3 @@ def N_eye_matrices(N, d=3):
     idx = np.arange(shape[1])
     identity_d[:, idx, idx] = 1
     return identity_d
-
-
-class Rotation2D:
-
-    def __init__(self, alpha: float):
-        """
-        Initializes 2D rotation matrix with an angle. Rotates in counterclockwise direction.
-
-        Args:
-            alpha: angle in radians
-        """
-        rot_matrix = np.array([[np.cos(alpha), -np.sin(alpha)],
-                               [np.sin(alpha), np.cos(alpha)]])
-        self.rot_matrix = rot_matrix
-
-    def apply(self, vector_set: NDArray, inverse: bool = False) -> NDArray:
-        """
-        Applies 2D rotational matrix to a set of vectors of shape (N, 2) or a single vector with shape (2, )
-
-        Args:
-            vector_set: array (each row a vector) that should be rotated
-            inverse: True if the rotation should be inverted (eg in clockwise direction)
-
-        Returns:
-            rotated vector set of the same shape as the initial vector set
-        """
-        if inverse:
-            inverted_mat = self.rot_matrix.T
-            result = inverted_mat.dot(vector_set.T)
-        else:
-            result = self.rot_matrix.dot(vector_set.T)
-        result = result.squeeze()
-        return result.T

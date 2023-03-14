@@ -1,8 +1,12 @@
 """
+Parse files and energies - wrap MDAnalysis functions.
+
 The parsers module deals with input. This can be a trajectory or single-frame topology file (FileParser),
-specifically a Pseudotrajectory file (PtParser) or a string describing a translational grid (TranslationParser).
+specifically a Pseudotrajectory file (PtParser) or energy write-out (XVGParser).
+
 The result of file parsing is immediately transformed into a ParsedMolecule or a sequence of ParsedMolecule
-objects, which is a wrapper that other modules should access.
+objects -> ParsedTrajectory. Similarly, energies are stored in the ParsedEnergy object that can be connected to
+ParsedTrajectory. Those are the objects that other modules should access.
 """
 
 import os

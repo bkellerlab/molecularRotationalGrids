@@ -1,3 +1,10 @@
+"""
+Plotting SphereGridNDim and Polytope-based objects.
+
+Visualising 3D with 3D and hammer plots and 4D with translation animation and cell plots. Plotting spherical Voronoi
+cells and their areas. A lot of convergence and uniformity testing.
+"""
+
 import matplotlib.pyplot as plt
 import numpy as np
 import seaborn as sns

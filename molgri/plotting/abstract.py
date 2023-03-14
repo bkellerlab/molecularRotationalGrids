@@ -1,3 +1,14 @@
+"""
+Abstract implementation of plots and multi-plots.
+
+All other plots extend RepresentationCollection. Each RepresentationCollection has a set of methods used to view the
+data of the object with which the Collection is initiated in different ways. Plotting methods always posses ax and fig
+arguments so that several plots can be plotted on top of each other or next to each other.
+
+MultiRepresentationCollection provides functionality for combining several plots in one image.
+PanelRepresentationCollection specifically creates one sub-plot for each grid-generating algorithm.
+"""
+
 from abc import ABC
 from typing import Union, List
 

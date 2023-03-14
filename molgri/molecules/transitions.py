@@ -1,4 +1,6 @@
 """
+Combine a ParsedTrajectory and a FullGrid to generate a MSM or SqRA model.
+
 In this module, the two methods of evaluating transitions between states - the MSM and the SqRA approach - are
 implemented.
 """

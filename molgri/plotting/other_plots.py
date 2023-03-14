@@ -1,3 +1,7 @@
+"""
+Plotting 2D array as heatmap.
+"""
+
 import numpy as np
 from numpy.typing import NDArray
 import seaborn as sns

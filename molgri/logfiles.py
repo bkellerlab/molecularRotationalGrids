@@ -1,3 +1,7 @@
+"""
+Logging. Naming of files with first free index.
+"""
+
 import os
 from abc import ABC, abstractmethod
 import logging
@@ -19,9 +23,6 @@ class PtLogger(AbstractLogger):
 
     def log_set_up(self, investigated_object, ):
         super(PtLogger, self).log_set_up(investigated_object)
-        # self.logger.info(f"kwargs: {self.kwargs}")
-        # self.logger.info(f"parameter: {self.varied_parameter}")
-        # self.logger.info(f"range of values: {self.parameter_range}")
 
 
 def first_index_free_4_all(list_names, list_endings, list_paths, index_places: int = 4) -> int:

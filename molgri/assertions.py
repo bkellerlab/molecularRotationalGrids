@@ -1,4 +1,6 @@
 """
+All boolean/assertion helper functions.
+
 This module implements helper functions that can be used by different test/other functions. The determining
 characteristics of all functions in this module is that they operate with booleans (either return a boolean
 answer or assert that a condition is true.

@@ -1,3 +1,10 @@
+"""
+Plots connected with (pseudo)trajectories and their energies.
+
+Enables plotting COM of ParsedTrajectory and coloring them according to energies, convergence of energies with the
+length of the (pseudo)trajectory.
+"""
+
 import numpy as np
 import matplotlib.cm as cm
 from matplotlib.colors import Normalize

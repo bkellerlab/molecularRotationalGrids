@@ -1,3 +1,7 @@
+"""
+Naming conventions are defined here.
+"""
+
 from molgri.constants import GRID_ALGORITHMS, ZERO_ALGORITHM, DEFAULT_ALGORITHM_O, DEFAULT_ALGORITHM_B
 
 
