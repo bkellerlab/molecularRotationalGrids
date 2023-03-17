@@ -1,5 +1,8 @@
 """
-Parse linear discretisations provided by users.
+Parse linear discretisation in units provided by users.
+
+Able to process strings like '[1, 2, 3]', 'linspace(1, 5, 50)' or 'range(0.5, 3, 0.4)' and translate them to appropriate
+arrays of distances.
 """
 
 import hashlib
@@ -7,7 +10,7 @@ import numbers
 from ast import literal_eval
 
 import numpy as np
-from numpy.typing import NDArray, ArrayLike
+from numpy.typing import NDArray
 
 from molgri.constants import NM2ANGSTROM
 from molgri.paths import PATH_OUTPUT_TRANSGRIDS
@@ -15,15 +18,17 @@ from molgri.paths import PATH_OUTPUT_TRANSGRIDS
 
 class TranslationParser(object):
 
-    def __init__(self, user_input: str):
-        """
-        User input is expected in nanometers (nm)!
+    """
+    User input is expected in nanometers (nm)!
 
         Parse all ways in which the user may provide a linear translation grid. Currently supported formats:
             - a list of numbers, eg '[1, 2, 3]'
             - a linearly spaced list with optionally provided number of elements eg. 'linspace(1, 5, 50)'
             - a range with optionally provided step, eg 'range(0.5, 3, 0.4)'
+    """
 
+    def __init__(self, user_input: str):
+        """
         Args:
             user_input: a string in one of allowed formats
         """
@@ -48,18 +53,20 @@ class TranslationParser(object):
         np.savetxt(path, self.trans_grid)
 
     def get_trans_grid(self) -> NDArray:
+        """Getter to access all distances from origin in angstorms."""
         return self.trans_grid
 
     def get_N_trans(self) -> int:
+        """Get the number of translations in this grid."""
         return len(self.trans_grid)
 
-    def sum_increments_from_first_radius(self) -> ArrayLike:
+    def sum_increments_from_first_radius(self) -> float:
         """
         Get final distance - first non-zero distance == sum(increments except the first one).
 
         Useful because often the first radius is large and then only small increments are made.
         """
-        return np.sum(self.get_increments()[1:])
+        return float(np.sum(self.get_increments()[1:]))
 
     def get_increments(self) -> NDArray:
         """

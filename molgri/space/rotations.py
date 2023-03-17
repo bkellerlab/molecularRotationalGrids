@@ -38,6 +38,9 @@ def rotation2grid(rotations: Rotation) -> Tuple[NDArray, ...]:
 
 
 def rotation2grid4vector(rotations: Rotation, vector: NDArray = None) -> NDArray:
+    """
+    Convert a set of rotations to a set of grid points by applying the rotation(s) to a specific vector.
+    """
     if vector is None:
         vector = np.array([0, 0, 1])
     return rotations.apply(vector)
@@ -115,6 +118,7 @@ def skew(x: NDArray) -> NDArray:
     """
 
     def skew_2D(m):
+        """Implement the definition of the skew matrix."""
         return np.array([[0, -m[2], m[1]],
                          [m[2], 0, -m[0]],
                          [-m[1], m[0], 0]])
@@ -184,7 +188,7 @@ def two_vectors2rot(x: NDArray, y: NDArray) -> NDArray:
     return my_matrix
 
 
-def N_eye_matrices(N, d=3):
+def N_eye_matrices(N: int, d: int = 3):
     """
     Returns a (N, d, d) array in which each 'row' is an identity matrix.
 
@@ -193,7 +197,7 @@ def N_eye_matrices(N, d=3):
         d: dimension of the identity matrix
 
     Returns:
-
+        a "hyper"-matrix of identity matrices
     """
     shape = (N, d, d)
     identity_d = np.zeros(shape)

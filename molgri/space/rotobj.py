@@ -14,6 +14,7 @@ Connected to:
 import os
 from abc import ABC, abstractmethod
 from time import time
+from typing import Optional
 
 import numpy as np
 import pandas as pd
@@ -42,19 +43,19 @@ class SphereGridNDim(ABC):
     algorithm_name = "generic"
 
     def __init__(self, dimensions: int, N: int = None, use_saved: bool = True,
-                 print_messages: bool = False, time_generation: bool = False, filter_non_unique=False):
+                 print_messages: bool = False, time_generation: bool = False, filter_non_unique: bool = False):
         self.dimensions = dimensions
         self.N = N
         self.gen_algorithm = self.algorithm_name
         self.use_saved = use_saved
         self.time_generation = time_generation
         self.print_messages = print_messages
-        self.grid: NDArray = None
+        self.grid: Optional[NDArray] = None
         self.filter_non_unique = filter_non_unique
-        self.spherical_voronoi: SphericalVoronoi = None
+        self.spherical_voronoi: Optional[SphericalVoronoi] = None
 
-    def __len__(self):
-        return self.N
+    def __len__(self) -> int:
+        return self.get_N()
 
     def get_N(self) -> int:
         """Get the number of points in the self.grid array. It is important to use this getter and not the attribute
@@ -83,7 +84,7 @@ class SphereGridNDim(ABC):
             else:
                 self.grid = self._gen_grid()
             if self.print_messages:
-                self._check_uniformity()
+                self._check_uniqueness()
         assert isinstance(self.grid, np.ndarray), "A grid must be a numpy array!"
         if not self.filter_non_unique:
             assert self.grid.shape == (self.N, self.dimensions), f"Grid not of correct shape!"
@@ -118,7 +119,11 @@ class SphereGridNDim(ABC):
         """Same as generation, but prints the information about time needed. Useful for end users."""
         return self._gen_grid()
 
-    def _check_uniformity(self):
+    def _check_uniqueness(self):
+        """
+        Optional - check if every grid point in this grid is unique (not too close to other points). Will fail for
+        sufficiently dense grids and same algorithms.
+        """
         as_quat = False
         if self.dimensions == 4:
             as_quat = True
