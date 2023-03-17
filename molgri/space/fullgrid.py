@@ -10,6 +10,12 @@ at different radii. Based on a position grid it is possible to create a Voronoi 
 identical (up to radius) layers of Voronoi surfaces between layers of grid points and connecting them with ray points
 from the origin to are vertices of Voronoi cells. Methods to calculate volumes, areas and distances between centers of
 such discretisation sof position space are provided.
+
+Objects:
+ - FullGrid combines 3D sphere grid, 4D sphere grid and a translation grid
+ - FullVoronoiGrid extends FullGrid with methods to evaluate distances/areas/volumes of cells
+ - Point represents a single point in FullVoronoiGrid and implements helper functions like identifying vertices of cell
+ - ConvergenceFullGridO provides plotting data by creating a range of FullGrids with different N of o_grid points
 """
 from __future__ import annotations
 from copy import copy
@@ -89,7 +95,8 @@ class FullGrid:
         """
         Get the radii at which Voronoi cells of the position grid should be positioned. This should be right in-between
         two orientation point layers (except the first layer that is fully encapsulated by the first voronoi layer
-        and the last one that is simply in-between two voronoi layers).
+        and the last one that is above the last one so that the last layer of points is right in-between the two last
+        Voronoi cells
 
         Returns:
             an array of distances, same length as the self.get_radii array but with all distances larger than the
@@ -247,7 +254,7 @@ class FullVoronoiGrid:
         return copy(sv)
 
     @save_or_use_saved
-    def get_voronoi_discretisation(self) -> list:
+    def get_voronoi_discretisation(self) -> list[SphericalVoronoi]:
         """
         Create a list of spherical voronoi-s that are identical except at different radii. The radii are set in such a
         way that there is always a Voronoi cell layer right in-between two layers of grid cells. (see FullGrid method
@@ -404,7 +411,7 @@ class FullVoronoiGrid:
 
     def get_volume(self, index: int) -> float:
         """
-        Get the volume of any
+        Get the volume of any cell in FullVoronoiGrid, defined by its index in flattened position grid.
         """
         point = Point(index, self)
         return point.get_cell_volume()
@@ -483,11 +490,11 @@ class Point:
 
     def __init__(self, index_position_grid: int, full_sv: FullVoronoiGrid):
         self.full_sv = full_sv
-        self.index_position_grid = index_position_grid
-        self.point = self.full_sv.flat_positions[index_position_grid]
-        self.d_to_origin = np.linalg.norm(self.point)
-        self.index_radial = self._find_index_radial()
-        self.index_within_sphere = self._find_index_within_sphere()
+        self.index_position_grid: int = index_position_grid
+        self.point: NDArray = self.full_sv.flat_positions[index_position_grid]
+        self.d_to_origin: float = np.linalg.norm(self.point)
+        self.index_radial: int = self._find_index_radial()
+        self.index_within_sphere: int = self._find_index_within_sphere()
 
     def get_normalised_point(self) -> NDArray:
         """Get the vector to the grid point (center of Voronoi cell) normalised to length 1."""
@@ -581,14 +588,14 @@ class Point:
 
         return vertices_below
 
-    def get_vertices(self):
+    def get_vertices(self) -> NDArray:
         """Get all vertices of this cell as a single array."""
         vertices_above = self.get_vertices_above()
         vertices_below = self.get_vertices_below()
 
         return np.concatenate((vertices_above, vertices_below))
 
-    def get_cell_volume(self):
+    def get_cell_volume(self) -> float:
         """Get the volume of this cell (calculated as the difference between the part of sphere volume at radius above
         minus the same area at smaller radius)."""
         radius_above = self.get_radius_above()
@@ -600,8 +607,14 @@ class Point:
 
 
 class ConvergenceFullGridO:
+    
+    """
+    This object is used to study the convergence of properties as the number of points in the o_grid of FullGrid 
+    changes. Mostly used to plot how voronoi volumes, calculation times ... converge.
+    """
 
-    def __init__(self, b_grid_name: str, t_grid_name: str,  o_alg_name: str, N_set = None, use_saved=False, **kwargs):
+    def __init__(self, b_grid_name: str, t_grid_name: str,  o_alg_name: str, N_set: tuple = None,
+                 use_saved: bool = False, **kwargs):
         if N_set is None:
             N_set = SMALL_NS
         self.N_set = N_set
@@ -610,13 +623,18 @@ class ConvergenceFullGridO:
         self.list_full_grids = self.create(b_grid_name=b_grid_name, t_grid_name=t_grid_name,  o_alg_name=o_alg_name,
                                            N_set=self.N_set, use_saved=use_saved, **kwargs)
 
-    def get_name(self):
+    def get_name(self) -> str:
+        """Get name for saving."""
         b_name = self.list_full_grids[0].b_rotations.get_name(with_dim=False)
         t_name = self.list_full_grids[0].t_grid.grid_hash
         return f"convergence_o_{self.alg_name}_b_{b_name}_t_{t_name}"
 
     @classmethod
-    def create(cls,  b_grid_name: str, t_grid_name: str,  o_alg_name: str, N_set, **kwargs) -> list:
+    def create(cls,  b_grid_name: str, t_grid_name: str,  o_alg_name: str, N_set: tuple, **kwargs) -> list:
+        """
+        Build the FullGrid object for each of the given Ns in N_set. This is the create function that is only
+        called by __init__.
+        """
         list_full_grids = []
         for N in N_set:
             fg = FullGrid(b_grid_name=b_grid_name, o_grid_name=f"{o_alg_name}_{N}", t_grid_name=t_grid_name, **kwargs)
@@ -624,7 +642,10 @@ class ConvergenceFullGridO:
         return list_full_grids
 
     @save_or_use_saved
-    def get_voronoi_volumes(self):
+    def get_voronoi_volumes(self) -> pd.DataFrame:
+        """
+        Get all volumes of cells for all choices of self.N_set in order to create convergence plots.
+        """
         data = []
         for N, fg in zip(self.N_set, self.list_full_grids):
             N_real = fg.o_rotations.get_N()
@@ -639,12 +660,3 @@ class ConvergenceFullGridO:
                 data.append([N_real, layer, ideal_volumes[i//N_real], volume])
         df = pd.DataFrame(data, columns=["N", "layer", "ideal volume", "Voronoi cell volume"])
         return df
-
-
-if __name__ == "__main__":
-    full_grid = FullGrid(b_grid_name="cube3D_16", o_grid_name="ico_15", t_grid_name="[1, 2, 3]")
-    full_grid.save_full_grid()
-    # fvg = full_grid.get_full_voronoi_grid()
-    # print(fvg)
-    points = np.array([[-1, 3, 2], [-0.5, -0.5, 1], [22, 8, 4], [1, 1, 222]])
-    print(full_grid.point2cell_position_grid(points))
