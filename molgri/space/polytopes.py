@@ -25,6 +25,7 @@ Objects:
 
 from abc import ABC, abstractmethod
 from itertools import product, combinations
+from typing import Hashable, Iterable
 
 import networkx as nx
 import numpy as np
@@ -37,18 +38,21 @@ from molgri.space.utils import normalise_vectors, dist_on_sphere, unique_quatern
 
 class Polytope(ABC):
 
+    """
+    A polytope is a d-dim object consisting of a set of nodes (vertices) and connections between them (edges) saved
+    in self.G (graph).
+
+    The basic polytope will be created when the object is initiated. All further divisions should be performed
+    with the function self.divide_edges()
+    """
+
     def __init__(self, d: int = 3, is_quat: bool = False):
         """
-        A polytope is a d-dim object consisting of a set of nodes (vertices) and connections between them (edges) saved
-        in self.G (graph).
-
-        The basic polytope will be created when the object is initiated. All further divisions should be performed
-        with the function self.divide_edges()
-
         Args:
             d: number of dimensions
             is_quat: does the object represent quaternions (meaning that q and -q points are treated as equal)
         """
+
         self.G = nx.Graph()
         self.current_level = 0
         self.side_len = 0
@@ -136,7 +140,7 @@ class Polytope(ABC):
             ValueError if N larger than the number of available unique nodes
         """
 
-        def remove_and_reconnect(g, node):
+        def remove_and_reconnect(g: nx.Graph, node: tuple):
             """Remove a node and reconnect edges, adding the properties of previous edges together."""
             sources = list(g.neighbors(node))
             targets = list(g.neighbors(node))
@@ -170,13 +174,8 @@ class Polytope(ABC):
         # for the rest of the points, determine centrality of the subgraph with already used points removed
         for i in range(1, N):
             # TODO: use sub-graphs removed_points and remaining_points
-            # maybe nx.degree could also be useful?
             max_iter = np.max([100, 10*N_available])  # bigger graphs may need more iterations than default
             dict_centrality = nx.eigenvector_centrality(subgraph, weight="p_dist", max_iter=max_iter, tol=1.0e-3)
-            # option 2 with dijkstra
-            # dict_centrality = dict()
-            # for k, v in nx.all_pairs_dijkstra_path_length(subgraph, weight="length"):
-            #     dict_centrality[k] = np.sum(list(v.values()))
             # key with largest value is the point in the center of the remaining graph
             most_distant_point = min(dict_centrality, key=dict_centrality.get)
             if projections:
@@ -259,7 +258,8 @@ class Polytope(ABC):
                                             self.G.nodes[n]["projection"])[0]
                     self.G.add_edge(new_node, n, p_dist=distance, length=length)
 
-    def _add_edges_of_len(self, edge_len: float, wished_levels: list = None, only_seconds=True, only_face=True):
+    def _add_edges_of_len(self, edge_len: float, wished_levels: list[int] = None, only_seconds: bool = True,
+                          only_face: bool = True):
         """
         Sometimes, additional edges among already existing points need to be added in order to achieve equal
         sub-division of all surfaces.
@@ -271,6 +271,9 @@ class Polytope(ABC):
 
         Args:
             edge_len: length of edge on the polyhedron surface that is condition for adding edges
+            wished_levels: at what level of division should the points that we want to connect be?
+            only_seconds: if True, search only among the points that are second neighbours
+            only_face: if True, search only among the points that lie on the same face
         """
         if wished_levels is None:
             wished_levels = [self.current_level, self.current_level]
@@ -318,12 +321,12 @@ class Polytope(ABC):
 
 class PolyhedronFromG(Polytope):
 
+    """
+    A mock polyhedron created from an existing graph. No guarantee that it actually represents a polyhedron. Useful for
+    side tasks like visualisations, searches ...
+    """
+
     def __init__(self, G: nx.Graph):
-        """
-        This is a mock polyhedron created from an existing graph. No guarantee that it represents a polyhedron.
-        Args:
-            G:
-        """
         super().__init__()
         self.G = G
 
@@ -359,6 +362,7 @@ class Cube4DPolytope(Polytope):
             list_old_points: each item is a list of already existing nodes - their average should be added as
             a new point
         """
+        # TODO: refactor so that this is part of Polyhedron and adding edges is an extra step
         for new_neighbours in list_old_points:
             # new node is the midpoint of the old ones
             new_node_arr = np.average(np.array(new_neighbours), axis=0)
@@ -368,19 +372,15 @@ class Cube4DPolytope(Polytope):
                 self.G.add_node(new_node, level=self.current_level, face=self._find_face(new_neighbours),
                                 projection=normalise_vectors(np.array(new_node)))
 
-    def _add_point_at_len(self, edge_len: float, wished_levels: list = None, only_seconds=True, only_face=True):
+    def _add_point_at_len(self, edge_len: float, wished_levels: list = None, only_seconds: bool = True,
+                          only_face: bool = True):
         """
         Sometimes, additional edges among already existing points need to be added in order to achieve equal
         sub-division of all surfaces.
 
-        In order to shorten the time to search for appropriate points, it is advisable to make use of filters:
-         - only_seconds will only search for connections between points that are second neighbours of each other
-         - wished_levels defines at which division level the points between which the edge is created should be
-         - only_face: only connections between points on the same face will be created
-
-        Args:
-            edge_len: length of edge on the polyhedron surface that is condition for adding edges
+       See also Polyhedron's function add_edges_of_len
         """
+        # TODO: also join with Polyhedron
         if wished_levels is None:
             wished_levels = [self.current_level, self.current_level]
         else:
@@ -425,8 +425,9 @@ class Cube4DPolytope(Polytope):
         self.side_len = self.side_len / 2
         self.current_level += 1
 
-
     def divide_edges(self):
+        """Before or after dividing edges, make sure all relevant connections are present. Then perform a division of
+        all connections (point in the middle, connection split in two), increase the level and halve the side_len."""
         self._add_point_at_len(2*self.side_len*np.sqrt(2), wished_levels=[self.current_level-1, self.current_level-1],
                                only_seconds=False)
         self._add_point_at_len(2 * self.side_len * np.sqrt(3),
@@ -534,6 +535,10 @@ class Cube3DPolytope(Polytope):
         self.current_level += 1
 
     def divide_edges(self):
+        """
+        Subdivide each existing edge. Before the division make sure there are diagonal and straight connections so that
+        new points appear at mid-edges and mid-faces.
+        """
         # also add the diagonals in the other direction
         self._add_edges_of_len(self.side_len * np.sqrt(2),
                                wished_levels=[self.current_level-1, self.current_level-1], only_seconds=True)
@@ -548,8 +553,9 @@ class Cube3DPolytope(Polytope):
 #######################################################################################################################
 
 
-def second_neighbours(graph: nx.Graph, node):
-    """Yield second neighbors of node in graph. Ignore second neighbours that are also first neighbours.
+def second_neighbours(graph: nx.Graph, node: Hashable) -> Iterable:
+    """
+    Yield second neighbors of node in graph. Ignore second neighbours that are also first neighbours.
     Second neighbors may repeat!
 
     Example:
@@ -574,9 +580,9 @@ def second_neighbours(graph: nx.Graph, node):
                 yield n
 
 
-def third_neighbours(graph: nx.Graph, node):
+def third_neighbours(graph: nx.Graph, node: Hashable) -> Iterable:
     """
-    Yield second neighbors of node in graph. Analogous to second neighbours, one more degree of separation
+    Yield third neighbors of node in graph. Analogous to second neighbours, one more degree of separation
 
     Example:
 
