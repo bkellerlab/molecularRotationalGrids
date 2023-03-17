@@ -265,7 +265,7 @@ class FullVoronoiGrid:
 
     def _at_same_radius(self, point1: Point, point2: Point) -> bool:
         """Check that two points belong to the same layer"""
-        return np.isclose(point1.d_to_origin, point2.d_to_origin)
+        return bool(np.isclose(point1.d_to_origin, point2.d_to_origin))
 
     def _are_neighbours(self, point1: Point, point2: Point) -> bool:
         """

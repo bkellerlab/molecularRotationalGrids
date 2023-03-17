@@ -149,3 +149,5 @@ dmypy.json
 
 sandbox.py
 jupyter/*
+
+molgri/molecules/_load_examples.py
