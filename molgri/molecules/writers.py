@@ -117,7 +117,7 @@ class PtIOManager:
         logger.info(f"central molecule: {self.central_parser.get_topology_file_name()}")
         logger.info(f"rotating molecule: {self.rotating_parser.get_topology_file_name()}")
         logger.info(f"full grid name: {self.pt.get_full_grid().get_name()}")
-        logger.info(f"translation grid [A]: {self.pt.get_full_grid().t_grid.get_trans_grid()}")
+        logger.info(f"translation grid [A]: {self.pt.get_full_grid().get_radii()}")
         logger.info(f"quaternions for rot around the body: {self.pt.get_full_grid().get_body_rotations().as_quat()}")
         logger.info(f"positions on a sphere for origin rot: {self.pt.get_full_grid().o_positions}")
         # log set-up before calculating PT in case any errors occur in-between

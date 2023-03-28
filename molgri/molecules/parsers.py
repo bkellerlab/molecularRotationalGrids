@@ -94,9 +94,10 @@ class ParsedMolecule:
         assert len(position) == 3, "Position must be a 3D location in space"
         com_radius = np.linalg.norm(self.get_center_of_mass())
         position_radius = np.linalg.norm(position)
+        self.translate_radially(position_radius - com_radius)
         rot_matrix = two_vectors2rot(self.get_center_of_mass(), position)
         self.rotate_about_origin(Rotation.from_matrix(rot_matrix))
-        self.translate_radially(position_radius - com_radius)
+
 
     def translate_to_origin(self):
         """
