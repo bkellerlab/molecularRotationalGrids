@@ -207,7 +207,7 @@ class ConvergenceMultiCollection(MultiRepresentationCollection):
             self.unify_axis_limits(x_ax=False, y_ax=True)
 
         if animate_rot and dim == 3:
-            self.animate_figure_view(f"energy_{dim}d")
+            self.animate_figure_view(f"energy_{dim}d", dpi=100)
         if save:
             self._save_multiplot(f"energy_{dim}d")
 

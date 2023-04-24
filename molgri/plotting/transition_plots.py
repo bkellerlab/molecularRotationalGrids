@@ -117,56 +117,48 @@ class TransitionPlot(RepresentationCollection):
 
 
 if __name__ == "__main__":
-    import pandas as pd
-    from molgri.molecules.parsers import FileParser, ParsedEnergy
-    from molgri.space.fullgrid import FullGrid
-    from molgri.molecules.transitions import SimulationHistogram
-    from molgri.molecules.transitions import MSM, SQRA
+    if __name__ == "__main__":
+        from molgri.molecules._load_examples import load_molgri_data, load_simulation_data
+        from molgri.space.fullgrid import FullGrid
+        from molgri.molecules.transitions import MSM, SQRA, SimulationHistogram
+        from molgri.plotting.other_plots import ArrayPlot
+        from molgri.plotting.molecule_plots import TrajectoryPlot
 
-    # SIMULATION + MSM MODEL
-    # preparing the parsed trajectory
-    # pt_parser = FileParser(
-    #     path_topology="/home/mdglasius/Modelling/trypsin_normal/inputs/trypsin_probe.pdb",
-    #     path_trajectory="/home/mdglasius/Modelling/trypsin_normal/nobackup/outputs/aligned_traj.dcd")
-    # parsed_trajectory = pt_parser.get_parsed_trajectory(default_atom_selection="segid B")
-    #
-    # # preparing the grid
-    # fg = FullGrid(t_grid_name="[5, 10, 15]", o_grid_name="ico_10", b_grid_name="zero")
-    #
-    # sh = SimulationHistogram(parsed_trajectory, fg)
-    # my_msm = MSM(sh, use_saved=False)
-    #
-    # tp = TransitionPlot(my_msm)
-    # tp.make_its_plot()
-    # tp.make_eigenvalues_plot()
-    #
-    # tp.make_eigenvectors_plot(projection="3d")
-    # tp.make_eigenvectors_plot(projection="hammer")
+        USE_SAVED = True
 
-    # MOLGRI + SQRA
-    # preparing the parsed trajectory
-    path_energy = "/home/mdglasius/Modelling/trypsin_test/output/measurements/temp_minimized.csv"
-    df = pd.read_csv(path_energy)
-    energies = df['potential'].to_numpy()[:, np.newaxis]
-    pe = ParsedEnergy(energies=energies, labels=["Potential"], unit="(kJ/mole)")
-    pt_parser = FileParser(
-        path_topology="/home/mdglasius/Modelling/trypsin_test/output/pt_files/final_trypsin_NH4_o_ico_512_b_zero_1_t_2153868773.gro",
-        path_trajectory="/home/mdglasius/Modelling/trypsin_test/output/pt_files/minimizedPT.pdb")
-    parsed_trajectory = pt_parser.get_parsed_trajectory(default_atom_selection="not protein")
-    parsed_trajectory.energies = pe
+        # TRANSITION MATRIX
 
-    # the exact grid used
-    fg = FullGrid(t_grid_name="linspace(0.8, 2.5, 2)", o_grid_name="ico_40", b_grid_name="zero")
+        parsed_sim = load_simulation_data()
+        # define some full grid to assign to
+        # full_grid = FullGrid(t_grid_name="linspace(3, 13, 4)", o_grid_name="ico_20", b_grid_name="zero")
+        #
+        # combined_sim = SimulationHistogram(parsed_sim, full_grid)
+        # msm = MSM(combined_sim, use_saved=USE_SAVED)
+        # transition_matrix = msm.get_transitions_matrix()
+        # ArrayPlot(transition_matrix[0], default_context="talk").make_heatmap_plot(save=True)
+        # tp_msm = TransitionPlot(msm, default_context="talk")
+        # tp_msm.make_its_plot(save=True)
+        # tp_msm.make_eigenvectors_plot(num_eigenv=3)
+        # tp_msm.make_eigenvalues_plot()
+        #
+        # # RATE MATRIX
+        #
+        # molgri_pt = load_molgri_data()
+        #
+        # tp = TrajectoryPlot(molgri_pt)
+        #
+        # full_grid_m = FullGrid(t_grid_name="linspace(0.8, 1.5, 4)", o_grid_name="ico_20", b_grid_name="zero")
+        #
+        # combined_molgri = SimulationHistogram(molgri_pt, full_grid_m)
+        # sqra = SQRA(combined_molgri, use_saved=USE_SAVED)
+        # rates_matrix = sqra.get_transitions_matrix(energy_type="Potential Energy")
+        # ArrayPlot(rates_matrix[0], default_context="talk").make_heatmap_plot(save=True)
+        #
+        # tp_sqra = TransitionPlot(sqra, default_context="talk")
+        # tp_sqra.make_its_plot(save=True, as_line=True)
+        # tp_sqra.make_eigenvectors_plot(num_eigenv=3)
+        # tp_sqra.make_eigenvalues_plot()
 
-    # plotting
-    sh = SimulationHistogram(parsed_trajectory, fg)
-    my_sqra = SQRA(sh, use_saved=False)
-
-    tp = TransitionPlot(my_sqra)
-    tp.make_its_plot(as_line=True)
-    tp.make_eigenvalues_plot()
-    # for i in range(3):
-    #     tp.make_one_eigenvector_plot(i, animate_rot=True)
-
-    #tp.make_eigenvectors_plot(projection="3d")
-    #tp.make_eigenvectors_plot(projection="hammer")
+        full_grid = FullGrid(t_grid_name="[5, 15]", o_grid_name="ico_10", b_grid_name="zero")
+        tp = TrajectoryPlot(parsed_sim)
+        ani = tp.make_COM_plot(animate_rot=True, projection="3d", save=True, fg=full_grid)

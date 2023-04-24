@@ -16,7 +16,7 @@ from seaborn import color_palette
 import networkx as nx
 
 from molgri.constants import DEFAULT_ALPHAS_3D, TEXT_ALPHAS_3D, DEFAULT_ALPHAS_4D, TEXT_ALPHAS_4D, COLORS, \
-    GRID_ALGORITHMS, NAME2SHORT_NAME
+    GRID_ALGORITHMS, NAME2SHORT_NAME, DEFAULT_DPI_MULTI, DIM_LANDSCAPE, DIM_SQUARE, DEFAULT_NS
 from molgri.plotting.abstract import RepresentationCollection, PanelRepresentationCollection, plot_voronoi_cells
 from molgri.space.analysis import vector_within_alpha
 from molgri.space.polytopes import Polytope, second_neighbours, third_neighbours, PolyhedronFromG
@@ -149,9 +149,9 @@ class SphereGridPlot(RepresentationCollection):
         if animate_rot:
             return self._animate_figure_view(self.fig, self.ax, f"sph_voronoi_rotated")
 
-    def make_rot_animation(self):
+    def make_rot_animation(self, **kwargs):
         self.make_grid_plot(save=False)
-        return self._animate_figure_view(self.fig, self.ax)
+        return self._animate_figure_view(self.fig, self.ax, **kwargs)
 
     def make_ordering_animation(self):
         self.make_grid_plot(save=True)
@@ -173,7 +173,7 @@ class SphereGridPlot(RepresentationCollection):
         self._save_animation_type(ani, "order", fps=len(facecolors_before) // fps_factor)
         return ani
 
-    def make_trans_animation(self, fig: plt.Figure = None, ax=None):
+    def make_trans_animation(self, fig: plt.Figure = None, ax=None, save=True, **kwargs):
         points = self.sphere_grid.get_grid_as_array()
         # create the axis with the right num of dimensions
 
@@ -217,7 +217,8 @@ class SphereGridPlot(RepresentationCollection):
 
         anim = FuncAnimation(self.fig, animate, frames=len(points) // step,
                              interval=100)  # , frames=180, interval=50
-        self._save_animation_type(anim, "trans", fps=len(points) // step // 2)
+        if save:
+            self._save_animation_type(anim, "trans", fps=len(points) // step // 2, **kwargs)
         return anim
 
     def create_all_plots(self, and_animations=False):
@@ -285,7 +286,8 @@ class PolytopePlot(RepresentationCollection):
             self._save_plot_type(f"neighbours_{node_i}")
 
     def make_node_plot(self, ax: Axes3D = None, fig: Figure = None, select_faces: set = None, projection: bool = False,
-                       plot_edges: bool = False, color_by: str = "level", save=True):
+                       plot_edges: bool = False, plot_nodes: bool = True,
+                       color_by: str = "level", enumerate_nodes=False, save=True):
         """
         Plot the points of the polytope + possible division points. Colored by level at which the point was added.
         Or: colored by index to see how sorting works. Possible to select only one or a few faces on which points
@@ -310,26 +312,30 @@ class PolytopePlot(RepresentationCollection):
         level_color = ["black", "red", "blue", "green"]
         index_palette = color_palette("coolwarm", n_colors=self.polytope.G.number_of_nodes())
 
-        for i, point in enumerate(self.polytope.get_N_ordered_points(projections=False)):
-            # select only points that belong to at least one of the chosen select_faces (or plot all if None selection)
-            node = self.polytope.G.nodes[tuple(point)]
-            point_faces = set(node["face"])
-            point_level = node["level"]
-            point_projection = node["projection"]
-            if select_faces is None or len(point_faces.intersection(select_faces)) > 0:
-                # color selected based on the level of the node or index of the sorted nodes
-                if color_by == "level":
-                    color = level_color[point_level]
-                elif color_by == "index":
-                    color = index_palette[i]
-                else:
-                    raise ValueError(f"The argument color_by={color_by} not possible (try 'index', 'level')")
+        if plot_nodes:
+            for i, point in enumerate(self.polytope.get_N_ordered_points(projections=False)):
+                # select only points that belong to at least one of the chosen select_faces (or plot all if None selection)
+                node = self.polytope.G.nodes[tuple(point)]
+                point_faces = set(node["face"])
+                point_level = node["level"]
+                point_projection = node["projection"]
+                if select_faces is None or len(point_faces.intersection(select_faces)) > 0:
+                    # color selected based on the level of the node or index of the sorted nodes
+                    if color_by == "level":
+                        color = level_color[point_level]
+                    elif color_by == "index":
+                        color = index_palette[i]
+                    else:
+                        raise ValueError(f"The argument color_by={color_by} not possible (try 'index', 'level')")
 
-                if projection:
-                    self.ax.scatter(*point_projection, color=color, s=30)
-                else:
-                    self.ax.scatter(*point, color=color, s=30)
-                    self.ax.text(*point, s=f"{i}")
+                    if projection:
+                        self.ax.scatter(*point_projection, color=color, s=30)
+                    else:
+                        self.ax.scatter(*point, color=color, s=30)
+                        if enumerate_nodes:
+                            self.ax.text(*point, s=f"{i}")
+        self._set_axis_limits((-0.6, 0.6, -0.6, 0.6, -0.6, 0.6))
+        self._equalize_axes()
         if plot_edges:
             self._plot_edges(self.ax, select_faces=select_faces)
         if save:
@@ -360,7 +366,7 @@ class PolytopePlot(RepresentationCollection):
                     ax.text(*midpoint, s=f"{s:.3f}")
 
     def make_cell_plot(self, ax: Axes3D = None, fig: Figure = None, cell_index: int = 0, draw_edges: bool = True,
-                       save: bool = True, animate_rot: bool = False):
+                       save: bool = True, animate_rot: bool = False, plot_nodes: bool = True, projection = False):
         """
         Since you cannot visualise a 4D object directly, here's an option to visualise the 3D sub-cells of a 4D object.
 
@@ -392,8 +398,9 @@ class PolytopePlot(RepresentationCollection):
         # create a 3D polyhedron and use its plotting functions
         sub_polyhedron = PolyhedronFromG(subgraph_3D)
         poly_plotter = PolytopePlot(sub_polyhedron)
-        poly_plotter.make_node_plot(ax=self.ax, plot_edges=draw_edges)
-
+        poly_plotter.make_node_plot(ax=self.ax, plot_edges=draw_edges, plot_nodes=plot_nodes, projection=projection)
+        self._set_axis_limits((-0.6, 0.6, -0.6, 0.6, -0.6, 0.6))
+        self._equalize_axes()
         if save:
             self._save_plot_type("cell")
         if animate_rot:
@@ -423,13 +430,90 @@ class PanelSphereGridPlots(PanelRepresentationCollection):
         data_name = f"all_{N_points}_{grid_dim}d"
         super().__init__(data_name, list_plots, **kwargs)
 
-    def make_all_grid_plots(self, animate_rot=False):
+    def make_all_grid_plots(self, animate_rot=False, animate_trans=False):
         self._make_plot_for_all("make_grid_plot", projection="3d")
         self.add_titles(list_titles=[subplot.get_possible_title() for subplot in self.list_plots],
                         pad=-14)
         if animate_rot:
-            self.animate_figure_view("grid")
-        self._save_multiplot("grid")
+            self.animate_figure_view("grid", dpi=100)
+        if animate_trans:
+            self._make_plot_for_all("make_trans_animation", projection="3d")
+        self._save_multiplot("grid", dpi=100)
+
+    def make_all_trans_animations(self, fig: plt.Figure = None, ax=None, save=True, **kwargs):
+
+        all_points = []
+        for plot in self.list_plots:
+            all_points.append(plot.sphere_grid.get_grid_as_array())
+
+
+        dimension = all_points[0].shape[1] - 1
+
+        if dimension == 3:
+            projection = "3d"
+        else:
+            projection = None
+
+        figsize = self.n_columns * DIM_SQUARE[0], self.n_rows * DIM_SQUARE[1]
+        self.fig, self.all_ax = plt.subplots(self.n_rows, self.n_columns, subplot_kw={'projection': projection},
+                                             figsize=figsize)
+
+        # sort by the value of the specific dimension you are looking at
+        all_points_3D = []
+        for i, points in enumerate(all_points):
+            ind = np.argsort(points[:, -1])
+            all_points_3D.append(points[ind])
+        # map the 4th dimension into values 0-1
+        all_alphas = []
+        for points_3D in all_points_3D:
+            alphas = points_3D[:, -1].T
+            alphas = (alphas - np.min(alphas)) / np.ptp(alphas)
+            all_alphas.append(alphas)
+
+        # plot the lower-dimensional scatterplot
+        plotted_points = []
+        for ax, points3D in zip(np.ravel(self.all_ax), all_points_3D):
+            ax.set_box_aspect(aspect=[1, 1, 1])
+            sub_plotted_points = []
+            for line in points3D:
+                sub_plotted_points.append(ax.scatter(*line[:-1], color="black", alpha=1))
+            plotted_points.append(sub_plotted_points)
+
+        self.all_ax[0, 0].set_xlim(-1, 1)
+        self.all_ax[0, 0].set_ylim(-1, 1)
+        if dimension == 3:
+            self.all_ax[0, 0].set_zlim(-1, 1)
+        self.unify_axis_limits()
+        for ax in np.ravel(self.all_ax):
+            ax.set_xticks([])
+            ax.set_yticks([])
+            if dimension == 3:
+                ax.set_zticks([])
+
+        self.add_titles(list_titles=[subplot.get_possible_title() for subplot in self.list_plots],
+                        pad=-14)
+
+        if len(all_points_3D[0]) < 20:
+            step = 1
+        elif len(all_points_3D[0]) < 100:
+            step = 5
+        else:
+            step = 20
+
+        def animate(frame):
+            # plot current point
+            current_time = alphas[frame * step]
+            for ax_alphas, ax_points, ax in zip(all_alphas, plotted_points, np.ravel(self.all_ax)):
+                for i, p in enumerate(ax_points):
+                    new_alpha = np.max([0, 1 - np.abs(ax_alphas[i] - current_time) * 10])
+                    p.set_alpha(new_alpha)
+            return self.all_ax,
+
+        anim = FuncAnimation(self.fig, animate, frames=len(all_points_3D[0]) // step,
+                             interval=100)  # , frames=180, interval=50
+        if save:
+            self.save_multianimation(anim, "trans", fps=len(all_points_3D[0]) // step // 2, dpi=200)
+        return anim
 
     def make_all_convergence_plots(self):
         self._make_plot_for_all("make_convergence_plot")
@@ -522,11 +606,33 @@ class PanelConvergenceSphereGridPlots(PanelRepresentationCollection):
 if __name__ == "__main__":
     from molgri.constants import SMALL_NS
 
-    # psgp = PanelSphereGridPlots(1000, 4, use_saved=False)
-    # psgp.make_all_uniformity_plots()
+
+    # sg = SphereGridFactory().create("ico", 42, 3)
+    # sgp = SphereGridPlot(sg, default_complexity_level="half_empty")
+    # sgp.make_grid_plot()
+    # sgp.make_spherical_voronoi_plot(ax=sgp.ax, fig=sgp.fig, animate_rot=True)
+
+    # conv_obj = ConvergenceSphereGridFactory("ico", dimensions=3, use_saved=True, N_set=DEFAULT_NS)
+    # conv_plot = ConvergenceSphereGridPlot(conv_obj)
+    # conv_plot.make_voronoi_area_conv_plot(save=True)
+    # conv_plot.ax.set_xscale("log")
+
+    # sgp.make_grid_plot()
+    # sgp.make_rot_animation(dpi=200)
+    # sgp.make_trans_animation()
+
+    psgp = PanelSphereGridPlots(544, 4, default_complexity_level="half_empty", default_context="talk", use_saved=True)
+    #psgp.make_all_grid_plots()
+    #psgp.make_all_uniformity_plots()
+    psgp.make_all_convergence_plots()
     #
-    pcsgp = PanelConvergenceSphereGridPlots(3, use_saved=False, N_set=SMALL_NS, filter_non_unique=True)
-    pcsgp.make_all_voronoi_area_plots()
+    #psgp = PanelSphereGridPlots(700, 3, default_complexity_level="half_empty", default_context="talk", use_saved=True)
+    #psgp.make_all_grid_plots(animate_rot=False)
+    #psgp.make_all_uniformity_plots()
+    #psgp.make_all_convergence_plots()
+    #
+    # pcsgp = PanelConvergenceSphereGridPlots(3, use_saved=False, N_set=SMALL_NS, filter_non_unique=True)
+    # pcsgp.make_all_voronoi_area_plots()
 
     # for alg in GRID_ALGORITHMS[:-1]:
     # sg = SphereGridFactory.create("cube4D", 200, 3, use_saved=False, filter_non_unique=True)

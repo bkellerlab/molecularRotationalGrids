@@ -23,7 +23,7 @@ from numpy.typing import NDArray
 from IPython import display
 from scipy.spatial import geometric_slerp
 
-from molgri.constants import DIM_SQUARE, DEFAULT_DPI, EXTENSION_FIGURES, DEFAULT_DPI_MULTI
+from molgri.constants import DIM_SQUARE, DEFAULT_DPI, EXTENSION_FIGURES, DEFAULT_DPI_MULTI, EXTENSION_ANIMATIONS
 from molgri.logfiles import paths_free_4_all
 from molgri.paths import PATH_OUTPUT_PLOTS, PATH_OUTPUT_ANIS
 from molgri.space.utils import normalise_vectors
@@ -119,7 +119,6 @@ class RepresentationCollection(ABC):
     def _save_plot_type(self, plot_type_name: str, **saving_kwargs):
         save_ending = saving_kwargs.pop("save_ending", EXTENSION_FIGURES)
         dpi = saving_kwargs.pop("dpi", DEFAULT_DPI)
-        #path_plot = f"{self.fig_path}{self.data_name}_{plot_type_name}"
         path = paths_free_4_all([f"{self.data_name}_{plot_type_name}"], [save_ending], [self.fig_path])[0]
         self.fig.tight_layout()
         plt.savefig(path, dpi=dpi, bbox_inches='tight')
@@ -127,9 +126,10 @@ class RepresentationCollection(ABC):
 
     def _save_animation_type(self, animation: Animation, ani_type_name: str, fps: int = 10,
                              dpi: int = DEFAULT_DPI_MULTI):
+        path = paths_free_4_all([f"{self.data_name}_{ani_type_name}"], [EXTENSION_ANIMATIONS], [self.ani_path])[0]
         writergif = PillowWriter(fps=fps, bitrate=-1)
         # noinspection PyTypeChecker
-        animation.save(f"{self.ani_path}{self.data_name}_{ani_type_name}.gif", writer=writergif, dpi=dpi)
+        animation.save(path, writer=writergif, dpi=dpi)
 
     def __set_complexity_level(self, complexity_level: str):
         if complexity_level == "empty" or complexity_level == "half_empty":
@@ -199,7 +199,7 @@ class RepresentationCollection(ABC):
             z_max_limit = limits[5]
             self.ax.set_zlim(z_min_limit, z_max_limit)
 
-    def _animate_figure_view(self, fig, ax, ani_name="rotated") -> FuncAnimation:
+    def _animate_figure_view(self, fig, ax, ani_name="rotated", **kwargs) -> FuncAnimation:
         """
         Call after you have created some 3D figure.
         Rotate the 3D figure for 360 degrees around itself and save the animation.
@@ -211,7 +211,8 @@ class RepresentationCollection(ABC):
             return fig
 
         anim = FuncAnimation(fig, animate, frames=180, interval=50)
-        self._save_animation_type(anim, ani_name, fps=10, dpi=400)
+        dpi = kwargs.pop("dpi", 200)
+        self._save_animation_type(anim, ani_name, fps=10, dpi=dpi)
         return anim
 
 
@@ -282,6 +283,12 @@ class MultiRepresentationCollection(ABC):
                          bbox_inches='tight', **kwargs)
         plt.close()
 
+    def save_multianimation(self, animation, plot_type, dpi=100, fps=10):
+        writergif = PillowWriter(fps=fps, bitrate=-1)
+        ani_path = self.list_plots[0].ani_path
+        # noinspection PyTypeChecker
+        animation.save(f"{ani_path}{self.data_name}_{plot_type}.gif", writer=writergif, dpi=dpi)
+
     ##################################################################################################################
     #                             USEFUL FUNCTIONS TO BE CALLED BY SUB-CLASSES
     ##################################################################################################################
@@ -341,7 +348,7 @@ class MultiRepresentationCollection(ABC):
             if isinstance(subaxis, Axes3D) and z_ax:
                 subaxis.set_zlim(*z_lim)
 
-    def animate_figure_view(self, plot_type: str) -> FuncAnimation:
+    def animate_figure_view(self, plot_type: str, dpi=100) -> FuncAnimation:
         """
         Rotate all 3D figures for 360 degrees around themselves and save the animation.
         """
@@ -353,10 +360,7 @@ class MultiRepresentationCollection(ABC):
             return self.fig
 
         anim = FuncAnimation(self.fig, animate, frames=180, interval=50)
-        writergif = PillowWriter(fps=10, bitrate=-1)
-        ani_path = self.list_plots[0].ani_path
-        # noinspection PyTypeChecker
-        anim.save(f"{ani_path}{self.data_name}_{plot_type}.gif", writer=writergif, dpi=400)
+        self.save_multianimation(anim, plot_type=plot_type, dpi=dpi)
         return anim
 
     def add_colorbar(self, **cbar_kwargs):

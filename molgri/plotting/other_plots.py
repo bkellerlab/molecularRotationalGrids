@@ -42,7 +42,6 @@ class ArrayPlot(RepresentationCollection):
         if save:
             self._save_plot_type("heatmap")
 
-
 if __name__ == "__main__":
     import pandas as pd
     from molgri.molecules.transitions import SimulationHistogram, SQRA, MSM
