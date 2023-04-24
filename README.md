@@ -5,10 +5,6 @@
 [![Documentation Status](https://readthedocs.org/projects/molgri/badge/?version=main)](https://molgri.readthedocs.io/en/main/?badge=main)
 ![release](https://img.shields.io/github/v/release/bkellerlab/molecularRotationalGrids)
 
-This repository is connected to the publication:
-Hana Zupan, Frederick Heinz, Bettina G. Keller: "Grid-based state space exploration for molecular binding",
-arXiv preprint: [https://arxiv.org/abs/2211.00566](https://arxiv.org/abs/2211.00566)
-
 # molecularRotationalGrids
 
 The python package ```molgri``` has three main purposes: 1) generation of rotation grids, 2) analysis of
@@ -210,3 +206,11 @@ flexibility with visualisation tools can import ```molgri```
 as a python package (following installation described above) and work with all provided modules. Documentation
 of all modules is available online
 [via ReadTheDocs](https://molgri.readthedocs.io/en/main/).
+
+## Citation
+
+If this repository has helped you, please cite the following publication:
+
+Zupan, Hana, Frederick Heinz, and Bettina G. Keller. "Grid-based state space exploration for molecular binding." Canadian Journal of Chemistry (2022)
+
+arXiv preprint available at: [https://arxiv.org/abs/2211.00566](https://arxiv.org/abs/2211.00566)
