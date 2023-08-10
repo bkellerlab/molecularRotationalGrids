@@ -124,17 +124,19 @@ if __name__ == "__main__":
         from molgri.plotting.other_plots import ArrayPlot
         from molgri.plotting.molecule_plots import TrajectoryPlot
 
-        USE_SAVED = True
+        USE_SAVED = False
 
         # TRANSITION MATRIX
 
-        parsed_sim = load_simulation_data()
-        # define some full grid to assign to
+        # parsed_sim = load_simulation_data()
+        # # define some full grid to assign to
         # full_grid = FullGrid(t_grid_name="linspace(3, 13, 4)", o_grid_name="ico_20", b_grid_name="zero")
         #
         # combined_sim = SimulationHistogram(parsed_sim, full_grid)
-        # msm = MSM(combined_sim, use_saved=USE_SAVED)
-        # transition_matrix = msm.get_transitions_matrix()
+        # msm = MSM(combined_sim, energy_type="Potential Energy", use_saved=USE_SAVED)
+        # transition_matrix = msm.get_transitions_matrix(
+        #
+        # )
         # ArrayPlot(transition_matrix[0], default_context="talk").make_heatmap_plot(save=True)
         # tp_msm = TransitionPlot(msm, default_context="talk")
         # tp_msm.make_its_plot(save=True)
@@ -143,22 +145,22 @@ if __name__ == "__main__":
         #
         # # RATE MATRIX
         #
-        # molgri_pt = load_molgri_data()
-        #
-        # tp = TrajectoryPlot(molgri_pt)
-        #
-        # full_grid_m = FullGrid(t_grid_name="linspace(0.8, 1.5, 4)", o_grid_name="ico_20", b_grid_name="zero")
-        #
-        # combined_molgri = SimulationHistogram(molgri_pt, full_grid_m)
-        # sqra = SQRA(combined_molgri, use_saved=USE_SAVED)
-        # rates_matrix = sqra.get_transitions_matrix(energy_type="Potential Energy")
-        # ArrayPlot(rates_matrix[0], default_context="talk").make_heatmap_plot(save=True)
-        #
-        # tp_sqra = TransitionPlot(sqra, default_context="talk")
-        # tp_sqra.make_its_plot(save=True, as_line=True)
-        # tp_sqra.make_eigenvectors_plot(num_eigenv=3)
-        # tp_sqra.make_eigenvalues_plot()
+        molgri_pt = load_molgri_data()
 
-        full_grid = FullGrid(t_grid_name="[5, 15]", o_grid_name="ico_10", b_grid_name="zero")
-        tp = TrajectoryPlot(parsed_sim)
-        ani = tp.make_COM_plot(animate_rot=True, projection="3d", save=True, fg=full_grid)
+        tp = TrajectoryPlot(molgri_pt)
+
+        full_grid_m = FullGrid(t_grid_name="linspace(0.8, 1.5, 10)", o_grid_name="ico_50", b_grid_name="zero")
+        #
+        combined_molgri = SimulationHistogram(molgri_pt, full_grid_m)
+        sqra = SQRA(combined_molgri, energy_type="Potential Energy", use_saved=USE_SAVED)
+        #rates_matrix = sqra.get_transitions_matrix()
+        #ArrayPlot(rates_matrix[0], default_context="talk").make_heatmap_plot(save=True)
+
+        tp_sqra = TransitionPlot(sqra, default_context="talk")
+        tp_sqra.make_its_plot(save=True, as_line=True)
+        tp_sqra.make_eigenvectors_plot(num_eigenv=3)
+        tp_sqra.make_eigenvalues_plot()
+
+        # full_grid = FullGrid(t_grid_name="[5, 15]", o_grid_name="ico_10", b_grid_name="zero")
+        # tp = TrajectoryPlot(parsed_sim)
+        # ani = tp.make_COM_plot(animate_rot=True, projection="3d", save=True, fg=full_grid)

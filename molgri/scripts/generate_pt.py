@@ -43,6 +43,11 @@ parser.add_argument('--save_as', type=str, default=None, help='define the (base)
 
 
 def run_generate_pt():
+    """
+
+    Returns:
+
+    """
     freshly_create_all_folders()
     my_args = parser.parse_args()
     if my_args.only_origin:

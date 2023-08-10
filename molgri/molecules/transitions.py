@@ -10,6 +10,7 @@ from typing import Tuple, Sequence, Any
 import numpy as np
 from numpy.typing import NDArray
 from scipy.sparse.linalg import eigs
+from scipy.constants import k as kB
 from tqdm import tqdm
 
 from molgri.wrappers import save_or_use_saved
@@ -63,6 +64,7 @@ class TransitionModel(ABC):
         _, self.assignments = self.sim_hist.get_all_assignments()
         self.num_cells = len(self.sim_hist.full_grid.get_flat_position_grid())
         self.num_tau = len(self.tau_array)
+        self.transition_matrix = None
 
     # noinspection PyMissingOrEmptyDocstring
     def get_name(self) -> str:
@@ -95,8 +97,9 @@ class TransitionModel(ABC):
         all_eigenvec = np.zeros((self.num_tau, self.num_cells, num_eigenv))
         for tau_i, tau in enumerate(self.tau_array):
             tm = all_tms[tau_i]  # the transition matrix for this tau
-            tm = tm.T
-            eigenval, eigenvec = eigs(tm, num_eigenv, maxiter=100000, tol=0, which="LR", **kwargs)
+            tm[np.isnan(tm)] = 0  # replace nans with zeros
+            # in order to compute left eigenvectors, compute right eigenvectors of the transpose
+            eigenval, eigenvec = eigs(tm.T, num_eigenv, maxiter=100000, tol=0, which="LM", sigma=0, **kwargs)
             # don't need to deal with complex outputs in case all values are real
             # TODO: what happens here if we have negative imaginary components?
             if eigenvec.imag.max() == 0 and eigenval.imag.max() == 0:
@@ -169,30 +172,31 @@ class MSM(TransitionModel):
             # in this case, only use every len_window-th element for MSM. Faster but loses a lot of data
             return window(seq, len_window, step=len_window)
 
-        all_matrices = np.zeros(shape=(self.num_tau, self.num_cells, self.num_cells))
-        for tau_i, tau in enumerate(tqdm(self.tau_array)):
-            # save the number of transitions between cell with index i and cell with index j
-            count_per_cell = {(i, j): 0 for i in range(self.num_cells) for j in range(self.num_cells)}
-            if not noncorr:
-                window_cell = window(self.assignments, int(tau))
-            else:
-                window_cell = noncorr_window(self.assignments, int(tau))
-            for cell_slice in window_cell:
-                try:
-                    count_per_cell[cell_slice] += 1
-                except KeyError:
-                    # the point is outside the grid and assigned to NaN - ignore for now
-                    pass
-            for key, value in count_per_cell.items():
-                start_cell, end_cell = key
-                all_matrices[tau_i, start_cell, end_cell] += value
-                # enforce detailed balance
-                all_matrices[tau_i, end_cell, start_cell] += value
-            # divide each row of each matrix by the sum of that row
-            sums = all_matrices[tau_i].sum(axis=-1, keepdims=True)
-            sums[sums == 0] = 1
-            all_matrices[tau_i] = all_matrices[tau_i] / sums
-        return all_matrices
+        if self.transition_matrix is None:
+            self.transition_matrix = np.zeros(shape=(self.num_tau, self.num_cells, self.num_cells))
+            for tau_i, tau in enumerate(tqdm(self.tau_array)):
+                # save the number of transitions between cell with index i and cell with index j
+                count_per_cell = {(i, j): 0 for i in range(self.num_cells) for j in range(self.num_cells)}
+                if not noncorr:
+                    window_cell = window(self.assignments, int(tau))
+                else:
+                    window_cell = noncorr_window(self.assignments, int(tau))
+                for cell_slice in window_cell:
+                    try:
+                        count_per_cell[cell_slice] += 1
+                    except KeyError:
+                        # the point is outside the grid and assigned to NaN - ignore for now
+                        pass
+                for key, value in count_per_cell.items():
+                    start_cell, end_cell = key
+                    self.transition_matrix[tau_i, start_cell, end_cell] += value
+                    # enforce detailed balance
+                    self.transition_matrix[tau_i, end_cell, start_cell] += value
+                # divide each row of each matrix by the sum of that row
+                sums = self.transition_matrix[tau_i].sum(axis=-1, keepdims=True)
+                sums[sums == 0] = 1
+                self.transition_matrix[tau_i] = self.transition_matrix[tau_i] / sums
+        return self.transition_matrix
 
 
 class SQRA(TransitionModel):
@@ -202,13 +206,14 @@ class SQRA(TransitionModel):
     with geometric parameters of position space division.
     """
 
-    def __init__(self, sim_hist: SimulationHistogram, **kwargs):
+    def __init__(self, sim_hist: SimulationHistogram, energy_type: str = "Potential", **kwargs):
         # SQRA doesn't need a tau array, but for compatibility with MSM we use this one
         tau_array = np.array([1])
+        self.energy_type = energy_type
         super().__init__(sim_hist, tau_array=tau_array, **kwargs)
 
     @save_or_use_saved
-    def get_transitions_matrix(self, D: float = 1, energy_type: str = "Potential") -> NDArray:
+    def get_transitions_matrix(self, D: float = 1, T=273) -> NDArray:
         """
         Return the rate matrix as calculated by the SqRA formula:
 
@@ -223,42 +228,48 @@ class SQRA(TransitionModel):
             a (1, self.num_cells, self.num_cells) array that is a rate matrix estimated with SqRA (first dimension
             is expanded to be compatible with the MSM model)
         """
-        voronoi_grid = self.sim_hist.full_grid.get_full_voronoi_grid()
-        all_volumes = voronoi_grid.get_all_voronoi_volumes()
-        # TODO: move your work to sparse matrices at some point?
-        all_surfaces = voronoi_grid.get_all_voronoi_surfaces_as_numpy()
-        all_distances = voronoi_grid.get_all_distances_between_centers_as_numpy()
-        # energies are either NaN (calculation in that cell was not completed or the particle left the cell during
-        # optimisation) or they are the arithmetic average of all energies of COM assigned to that cell.
-        all_energies = np.empty(shape=(self.num_cells,))
-        energy_counts = np.zeros(shape=(self.num_cells,))
-        obtained_energies = self.sim_hist.parsed_trajectory.get_all_energies(energy_type=energy_type)
-        for a, e in zip(self.assignments, obtained_energies):
-            if not np.isnan(a):
-                all_energies[int(a)] += e
-                energy_counts[int(a)] += 1
-        # in both cases avoiding division with zero
-        all_energies = np.divide(all_energies, energy_counts, out=np.zeros_like(all_energies), where=energy_counts != 0)
-        rate_matrix = np.divide(D * all_surfaces, all_distances, out=np.zeros_like(D * all_surfaces),
-                                where=all_distances!=0)
+        if self.transition_matrix is None:
+            voronoi_grid = self.sim_hist.full_grid.get_full_voronoi_grid()
+            all_volumes = voronoi_grid.get_all_voronoi_volumes()
+            # TODO: move your work to sparse matrices at some point?
+            all_surfaces = voronoi_grid.get_all_voronoi_surfaces_as_numpy()
+            all_distances = voronoi_grid.get_all_distances_between_centers_as_numpy()
+            # energies are either NaN (calculation in that cell was not completed or the particle left the cell during
+            # optimisation) or they are the arithmetic average of all energies of COM assigned to that cell.
+            all_energies = np.empty(shape=(self.num_cells,))
+            energy_counts = np.zeros(shape=(self.num_cells,))
+            obtained_energies = self.sim_hist.parsed_trajectory.get_all_energies(energy_type=self.energy_type)
+            for a, e in zip(self.assignments, obtained_energies):
+                if not np.isnan(a):
+                    all_energies[int(a)] += e
+                    energy_counts[int(a)] += 1
+            # in both cases avoiding division with zero
+            # TODO: instead of averaging find the most central point
+            all_energies = np.divide(all_energies, energy_counts, out=np.zeros_like(all_energies),
+                                     where=energy_counts != 0)
+            self.transition_matrix = np.divide(D * all_surfaces, all_distances, out=np.zeros_like(D * all_surfaces),
+                                    where=all_distances!=0)
 
-        for i, _ in enumerate(rate_matrix):
-            divide_by = all_volumes[i]*np.sqrt(np.abs(all_energies[i]))
-            rate_matrix[i] = np.divide(rate_matrix[i], divide_by, out=np.zeros_like(rate_matrix[i]),
-                                    where=(divide_by != 0 and divide_by != np.NaN))
-        for j, _ in enumerate(rate_matrix):
-            multiply_with = np.sqrt(np.abs(all_energies[j]))
-            rate_matrix[:, j] = np.multiply(rate_matrix[:, j], multiply_with, out=np.zeros_like(rate_matrix[:, j]),
-                                       where=multiply_with != np.NaN)
+            for i, _ in enumerate(self.transition_matrix):
+                divide_by = all_volumes[i]
+                self.transition_matrix[i] = np.divide(self.transition_matrix[i], divide_by,
+                                                      out=np.zeros_like(self.transition_matrix[i]),
+                                         where=(divide_by != 0 and divide_by != np.NaN))
+            for j, _ in enumerate(self.transition_matrix):
+                for i, _ in enumerate(self.transition_matrix):
+                    # gromacs uses kJ/mol as energy unit, boltzmann constant is J/K
+                    multiply_with = np.exp((all_energies[i]-all_energies[j])*1000/(2*kB*T))
+                    self.transition_matrix[i, j] = np.multiply(self.transition_matrix[i, j], multiply_with,
+                                                               out=np.zeros_like(self.transition_matrix[i, j]),
+                                               where=multiply_with != np.NaN)
 
-        # normalise rows
-        sums = np.sum(rate_matrix, axis=0)
-        np.fill_diagonal(rate_matrix, -sums)
-
-        # additional axis
-        rate_matrix = rate_matrix[np.newaxis, :]
-        assert rate_matrix.shape == (1, self.num_cells, self.num_cells)
-        return rate_matrix
+            # normalise rows
+            sums = np.sum(self.transition_matrix, axis=1)
+            np.fill_diagonal(self.transition_matrix, -sums)
+            # additional axis
+            self.transition_matrix = self.transition_matrix[np.newaxis, :]
+            assert self.transition_matrix.shape == (1, self.num_cells, self.num_cells)
+        return self.transition_matrix
 
 
 if __name__ == "__main__":
