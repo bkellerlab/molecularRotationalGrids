@@ -19,7 +19,7 @@ homepage = "https://www.bcp.fu-berlin.de/en/chemie/chemie/forschung/PhysTheoChem
 documentation = "https://molgri.readthedocs.io/en/main/"
 
 [tool.poetry.dependencies]
-python = ">=3.9"
+python = ">=3.9,<3.13"
 matplotlib = "~=3.7.2"
 MDAnalysis = "~=2.4.0"
 networkx = "~=2.8.8"
