@@ -53,7 +53,7 @@ same directory, we recommend an initially empty directory).
 ```
 molgri-io --examples
 molgri-grid -N 250 -algo ico --draw --animate --animate_ordering --statistics
-molgri-pt -m1 H2O -m2 NH3 -o cube3D_15 -b ico_10 -t "range(1, 5, 2)"
+molgri-pt -m1 H2O -m2 NH3 -o 15 -b 10 -t "range(1, 5, 2)"
 molgri-energy -xvg H2O_H2O_o_ico_500_b_ico_5_t_3830884671 --p1d --p2d --p3d --animate --convergence --Ns_o "(50, 100, 500)"
 ```
 
