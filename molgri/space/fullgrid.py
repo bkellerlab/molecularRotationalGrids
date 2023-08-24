@@ -28,7 +28,7 @@ from scipy.spatial.transform import Rotation
 from scipy.spatial import SphericalVoronoi
 from scipy.spatial.distance import cdist
 from scipy.constants import pi
-from scipy.sparse import coo_array, csc_array
+from scipy.sparse import bmat, coo_array, csc_array, diags, spdiags, bsr_array, block_diag
 import pandas as pd
 
 from molgri.constants import SMALL_NS
@@ -73,6 +73,79 @@ class FullGrid:
         self.o_positions = self.o_rotations.get_grid_as_array()
         self.t_grid = TranslationParser(t_grid_name)
         self.use_saved = use_saved
+
+    def __len__(self):
+        """The length of the full grid is a product of lengths of all sub-grids"""
+        return self.b_rotations.get_N() * self.o_rotations.get_N() * self.t_grid.get_N_trans()
+
+    def get_adjacency_sparse_matrix(self):
+        n_points = len(self)
+        sparse_adj_matrix = coo_array((n_points, n_points), dtype=bool)
+        sparse_is_same_r_distance = coo_array((n_points, n_points), dtype=bool)
+        for first_point_index in range(n_points):
+            for second_point_index in range(n_points):
+                pass
+
+    def get_adjacency_of_position_grid(self):
+        flat_pos_grid = self.get_flat_position_grid()
+        n_points = len(flat_pos_grid)
+        n_o = self.o_rotations.get_N()
+        n_t = self.t_grid.get_N_trans()
+
+        # you have neighbours that occur from being at subsequent radii and same ray,
+        # so points i and i+n_o will also be neighbours
+        # so this is basically just off-diagonal by n_o and -n_o
+
+        sparse_adj_position_grid = coo_array((n_points, n_points), dtype=bool)
+
+        # TODO: test that it works for 1, 2, >2 radii
+        sparse_adj_position_grid += diags((True,), offsets=n_o, shape=(n_points, n_points), dtype=bool,
+                                          format="coo")
+        sparse_adj_position_grid += diags((True,), offsets=-n_o, shape=(n_points, n_points), dtype=bool,
+                                          format="coo")
+
+        # we only need to know adjacency for the first n_o points, the rest have the same pattern
+        vg = self.get_full_voronoi_grid()
+        neig = np.zeros((n_o, n_o), dtype=bool)
+        for i in range(n_o):
+            for j in range(n_o):
+                are_neighbours = vg._are_sideways_neighbours(Point(i, vg), Point(j, vg))
+                neig[i][j] = are_neighbours
+                neig[j][i] = are_neighbours
+        print(neig.shape, (n_points, n_points))
+
+        rows = np.arange(0, n_points, n_o)
+        cols = np.arange(0, n_points, n_o)
+        my_blocks = [neig]
+        my_blocks.extend([None,]*n_t*n_o)
+        my_blocks = my_blocks * n_o * n_t
+        my_blocks = my_blocks[:-n_o*n_t]
+        my_blocks = np.array(my_blocks, dtype=object).reshape(n_o*n_t, n_o*n_t)
+
+        my_array = bmat(my_blocks, dtype=float)
+
+        #my_array = bsr_array((n_points, n_points), dtype=bool)
+
+        # for row_col in np.arange(0, n_points, n_o):
+        #     my_array += bsr_array((neig, (row_col, row_col)), shape=(n_points, n_points), dtype=bool)
+
+            # the first n_o points are at radius r1, then again n_o points at r2 ...
+        # meaning that the layer neighbours will be repeated n_t times along a diagonal
+
+
+
+        #from pytransform3d.rotations._conversions import transform_from, exponential_coordinates_from_transform
+        #for point in flat_pos_grid[:n_o]:
+
+        #cdist_matrix = cdist(flat_pos_grid[:n_o], flat_pos_grid[:n_o], metric="cosine")
+        import seaborn as sns
+        import matplotlib.pyplot as plt
+        g = sns.heatmap(my_array.toarray())
+        plt.tight_layout()
+        plt.savefig("my_array")
+
+
+        #         print(np.linalg.norm(point-point2))
 
     def get_name(self) -> str:
         """Name that is appropriate for saving."""
@@ -660,3 +733,7 @@ class ConvergenceFullGridO:
                 data.append([N_real, layer, ideal_volumes[i//N_real], volume])
         df = pd.DataFrame(data, columns=["N", "layer", "ideal volume", "Voronoi cell volume"])
         return df
+
+if __name__ == "__main__":
+    fg = FullGrid("cube4D_8", "ico_7", "linspace(1, 5, 3)")
+    fg.get_adjacency_of_position_grid()

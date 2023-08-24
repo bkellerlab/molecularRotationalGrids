@@ -11,6 +11,7 @@ from ast import literal_eval
 
 import numpy as np
 from numpy.typing import NDArray
+from scipy.sparse import coo_array
 
 from molgri.constants import NM2ANGSTROM
 from molgri.paths import PATH_OUTPUT_TRANSGRIDS
@@ -51,6 +52,13 @@ class TranslationParser(object):
         path = f"{PATH_OUTPUT_TRANSGRIDS}trans_{self.grid_hash}.txt"
         # noinspection PyTypeChecker
         np.savetxt(path, self.trans_grid)
+
+    def get_neigbour_matrix(self):
+        """For the translation grid, the neighbours are simpy the points coming before and after (first and last
+        point have only one neighbour)"""
+        n_t_points = self.get_N_trans()
+        return np.diag(np.ones((n_t_points,)), k=1) + np.diag(np.ones((n_t_points,)), k=-1)
+        t_grid_neighbours = coo_array((n_t_points, n_t_points), dtype=bool)
 
     def get_trans_grid(self) -> NDArray:
         """Getter to access all distances from origin in angstorms."""

@@ -666,3 +666,19 @@ def detect_all_cubes(graph: nx.Graph) -> list:
                     if form_cube(array_points) and points not in cube_nodes:
                         cube_nodes.append([*points])
     return cube_nodes
+
+
+if __name__ == "__main__":
+    import matplotlib.pyplot as plt
+    ico = IcosahedronPolytope()
+    ico.divide_edges()
+    ico.divide_edges()
+
+    ico_graph = ico.G
+    N_points = ico.get_N_ordered_points(50)
+    print([tuple(n) for n in N_points])
+    ico_subgraph = ico_graph.subgraph([tuple(n) for n in N_points])
+    print(ico_subgraph.nodes)
+    print(ico_graph.number_of_nodes(), ico_subgraph.number_of_nodes())
+    #nx.draw(ico_subgraph)
+    #plt.show()
