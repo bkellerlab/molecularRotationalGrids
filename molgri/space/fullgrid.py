@@ -86,25 +86,47 @@ class FullGrid:
             for second_point_index in range(n_points):
                 pass
 
-    def get_adjacency_of_position_grid(self):
+    def get_adjacency_of_orientations(self) -> coo_array:
+        all_orientations = self.get_body_rotations()
+        all_quat = np.array([o.as_quat() for o in all_orientations])
+
+        def constrained_angle_distance(q1, q2):
+            theta = angle_between_vectors(q1, q2)
+            #theta = np.arccos(q1[3] * q2[3] + q1[0] * q2[0] + q1[1] * q2[1] + q1[2] * q2[2])
+            if (theta > pi / 2):
+                theta = pi - theta
+            return theta
+
+        return cdist(all_quat, all_quat, constrained_angle_distance)
+
+    def get_adjacency_of_position_grid(self) -> coo_array:
+        """
+        Get a position grid adjacency matrix of shape (n_t*n_o, n_t*n_o) based on the numbering of flat position matrix.
+        Two indices of position matrix are neigbours if
+            i) one is directly above the other, or
+            ii) they are voronoi neighbours at the same radius
+
+        Returns:
+            a diagonally-symmetric boolean sparse matrix where entries are True if neighbours and False otherwise
+
+        """
         flat_pos_grid = self.get_flat_position_grid()
-        n_points = len(flat_pos_grid)
+        n_points = len(flat_pos_grid)  # equals n_o*n_t
         n_o = self.o_rotations.get_N()
         n_t = self.t_grid.get_N_trans()
 
-        # you have neighbours that occur from being at subsequent radii and same ray,
-        # so points i and i+n_o will also be neighbours
-        # so this is basically just off-diagonal by n_o and -n_o
+        # First you have neighbours that occur from being at subsequent radii and the same ray
+        # Since the position grid has all orientations at first r, then all at second r ... the points i and i+n_o will
+        # always be neighbours, so we need the off-diagonals by n_o and -n_o
+        # Most points have two neighbours this way, first and last layer have only one
 
-        sparse_adj_position_grid = coo_array((n_points, n_points), dtype=bool)
-
-        # TODO: test that it works for 1, 2, >2 radii
-        sparse_adj_position_grid += diags((True,), offsets=n_o, shape=(n_points, n_points), dtype=bool,
+        same_ray_neighbours = diags((True,), offsets=n_o, shape=(n_points, n_points), dtype=bool,
                                           format="coo")
-        sparse_adj_position_grid += diags((True,), offsets=-n_o, shape=(n_points, n_points), dtype=bool,
+        same_ray_neighbours += diags((True,), offsets=-n_o, shape=(n_points, n_points), dtype=bool,
                                           format="coo")
 
-        # we only need to know adjacency for the first n_o points, the rest have the same pattern
+        # Now we also want neighbours on the same level based on Voronoi discretisation
+        # We first focus on the first n_o points since the set-up repeats at every radius
         vg = self.get_full_voronoi_grid()
         neig = np.zeros((n_o, n_o), dtype=bool)
         for i in range(n_o):
@@ -112,40 +134,21 @@ class FullGrid:
                 are_neighbours = vg._are_sideways_neighbours(Point(i, vg), Point(j, vg))
                 neig[i][j] = are_neighbours
                 neig[j][i] = are_neighbours
-        print(neig.shape, (n_points, n_points))
-
-        rows = np.arange(0, n_points, n_o)
-        cols = np.arange(0, n_points, n_o)
-        my_blocks = [neig]
-        my_blocks.extend([None,]*n_t*n_o)
-        my_blocks = my_blocks * n_o * n_t
-        my_blocks = my_blocks[:-n_o*n_t]
-        my_blocks = np.array(my_blocks, dtype=object).reshape(n_o*n_t, n_o*n_t)
-
-        my_array = bmat(my_blocks, dtype=float)
-
-        #my_array = bsr_array((n_points, n_points), dtype=bool)
-
-        # for row_col in np.arange(0, n_points, n_o):
-        #     my_array += bsr_array((neig, (row_col, row_col)), shape=(n_points, n_points), dtype=bool)
-
-            # the first n_o points are at radius r1, then again n_o points at r2 ...
-        # meaning that the layer neighbours will be repeated n_t times along a diagonal
-
-
-
-        #from pytransform3d.rotations._conversions import transform_from, exponential_coordinates_from_transform
-        #for point in flat_pos_grid[:n_o]:
-
-        #cdist_matrix = cdist(flat_pos_grid[:n_o], flat_pos_grid[:n_o], metric="cosine")
-        import seaborn as sns
-        import matplotlib.pyplot as plt
-        g = sns.heatmap(my_array.toarray())
-        plt.tight_layout()
-        plt.savefig("my_array")
-
-
-        #         print(np.linalg.norm(point-point2))
+        # in case there are several translation distances, the array neig repeats along the diagonal n_t times
+        if n_t > 1:
+            rows = np.arange(0, n_points, n_o)
+            cols = np.arange(0, n_points, n_o)
+            my_blocks = [neig]
+            my_blocks.extend([None,] * n_t)
+            my_blocks = my_blocks * n_t
+            my_blocks = my_blocks[:-n_t]
+            my_blocks = np.array(my_blocks, dtype=object)
+            my_blocks = my_blocks.reshape(n_t, n_t)
+            same_radius_neighbours = bmat(my_blocks, dtype=float)
+        else:
+            same_radius_neighbours = neig
+        all_neighbours = same_ray_neighbours + same_radius_neighbours
+        return all_neighbours
 
     def get_name(self) -> str:
         """Name that is appropriate for saving."""
@@ -735,5 +738,19 @@ class ConvergenceFullGridO:
         return df
 
 if __name__ == "__main__":
-    fg = FullGrid("cube4D_8", "ico_7", "linspace(1, 5, 3)")
-    fg.get_adjacency_of_position_grid()
+    fg = FullGrid("cube4D_50", "ico_7", "linspace(1, 5, 3)")
+    my_array = fg.get_adjacency_of_orientations()
+    my_array =  my_array < 1
+    np.fill_diagonal(my_array, False)
+    areas = fg.get_full_voronoi_grid().get_all_voronoi_surfaces_as_numpy()
+
+    import seaborn as sns
+    import matplotlib.pyplot as plt
+
+    g = sns.heatmap(my_array)
+    plt.tight_layout()
+    plt.savefig("my_array_rotations")
+
+    g = sns.heatmap(areas)
+    plt.tight_layout()
+    plt.savefig("my_array_areas")

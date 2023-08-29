@@ -430,11 +430,154 @@ def test_voronoi_regression():
     # ArrayPlot(all_areas).make_heatmap_plot(save=True)
 
 
+def test_position_adjacency():
+    # mini examples that you can calculate by hand
+    fg = FullGrid(b_grid_name="randomQ_15", o_grid_name="ico_4", t_grid_name="[0.1, 0.2]")
+    n_points = 2*4
+    # neighbours to everyone in same layer (not itself) + right above
+    expected_adj = np.array([[False, True, True, True, True, False, False, False],
+                             [True, False, True, True, False, True, False, False],
+                             [True, True, False, True, False, False, True, False],
+                             [True, True, True, False, False, False, False, True],
+                             [True, False, False, False, False, True, True, True],
+                             [False, True, False, False, True, False, True, True],
+                             [False, False, True, False, True, True, False, True],
+                             [False, False, False, True, True, True, True, False]])
+    assert np.all(fg.get_adjacency_of_position_grid().toarray() == expected_adj)
 
+    # examples where I know the answers
+    # one radius
+    fg = FullGrid("zero", "ico_17", "[1,]")
+    my_array = fg.get_adjacency_of_position_grid()
+    my_result = np.array([[False, False, False, False, False, False, False, False, False,
+        False, False,  True, False,  True,  True,  True,  True],
+       [False, False, False,  True, False,  True,  True, False,  True,
+        False, False, False, False, False, False, False, False],
+       [False, False, False, False, False, False, False,  True, False,
+         True,  True,  True, False, False, False, False, False],
+       [False,  True, False, False, False,  True, False,  True, False,
+        False,  True, False, False, False, False, False, False],
+       [False, False, False, False, False, False,  True, False,  True,
+         True, False,  True, False,  True, False,  True, False],
+       [False,  True, False,  True, False, False, False, False, False,
+        False, False, False,  True, False,  True, False, False],
+       [False,  True, False, False,  True, False, False, False,  True,
+         True, False, False, False, False, False, False, False],
+       [False, False,  True,  True, False, False, False, False, False,
+        False,  True, False, False, False,  True, False, False],
+       [False,  True, False, False,  True, False,  True, False, False,
+        False, False, False,  True,  True, False, False,  True],
+       [False, False,  True, False,  True, False,  True, False, False,
+        False,  True, False, False, False, False, False, False],
+       [False, False,  True,  True, False, False, False,  True, False,
+         True, False, False, False, False, False, False, False],
+       [ True, False,  True, False,  True, False, False, False, False,
+        False, False, False, False, False,  True,  True, False],
+       [False, False, False, False, False,  True, False, False,  True,
+        False, False, False, False, False,  True, False,  True],
+       [ True, False, False, False,  True, False, False, False,  True,
+        False, False, False, False, False, False,  True,  True],
+       [ True, False, False, False, False,  True, False,  True, False,
+        False, False,  True,  True, False, False, False,  True],
+       [ True, False, False, False,  True, False, False, False, False,
+        False, False,  True, False,  True, False, False, False],
+       [ True, False, False, False, False, False, False, False,  True,
+        False, False, False,  True,  True,  True, False, False]])
+    assert np.all(my_array == my_result)
+
+    # two radii
+    fg = FullGrid("zero", "ico_10", "[1, 2]")
+    my_array = fg.get_adjacency_of_position_grid()
+    my_result = np.array([[0., 0., 0., 1., 1., 1., 0., 0., 0., 1., 1., 0., 0., 0., 0., 0.,
+        0., 0., 0., 0.],
+       [0., 0., 1., 0., 1., 0., 1., 1., 1., 0., 0., 1., 0., 0., 0., 0.,
+        0., 0., 0., 0.],
+       [0., 1., 0., 0., 1., 0., 0., 0., 1., 1., 0., 0., 1., 0., 0., 0.,
+        0., 0., 0., 0.],
+       [1., 0., 0., 0., 0., 1., 0., 1., 1., 1., 0., 0., 0., 1., 0., 0.,
+        0., 0., 0., 0.],
+       [1., 1., 1., 0., 0., 0., 1., 0., 0., 0., 0., 0., 0., 0., 1., 0.,
+        0., 0., 0., 0.],
+       [1., 0., 0., 1., 0., 0., 1., 1., 0., 0., 0., 0., 0., 0., 0., 1.,
+        0., 0., 0., 0.],
+       [0., 1., 0., 0., 1., 1., 0., 1., 0., 0., 0., 0., 0., 0., 0., 0.,
+        1., 0., 0., 0.],
+       [0., 1., 0., 1., 0., 1., 1., 0., 1., 0., 0., 0., 0., 0., 0., 0.,
+        0., 1., 0., 0.],
+       [0., 1., 1., 1., 0., 0., 0., 1., 0., 1., 0., 0., 0., 0., 0., 0.,
+        0., 0., 1., 0.],
+       [1., 0., 1., 1., 0., 0., 0., 0., 1., 0., 0., 0., 0., 0., 0., 0.,
+        0., 0., 0., 1.],
+       [1., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 1., 1., 1.,
+        0., 0., 0., 1.],
+       [0., 1., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 1., 0., 1., 0.,
+        1., 1., 1., 0.],
+       [0., 0., 1., 0., 0., 0., 0., 0., 0., 0., 0., 1., 0., 0., 1., 0.,
+        0., 0., 1., 1.],
+       [0., 0., 0., 1., 0., 0., 0., 0., 0., 0., 1., 0., 0., 0., 0., 1.,
+        0., 1., 1., 1.],
+       [0., 0., 0., 0., 1., 0., 0., 0., 0., 0., 1., 1., 1., 0., 0., 0.,
+        1., 0., 0., 0.],
+       [0., 0., 0., 0., 0., 1., 0., 0., 0., 0., 1., 0., 0., 1., 0., 0.,
+        1., 1., 0., 0.],
+       [0., 0., 0., 0., 0., 0., 1., 0., 0., 0., 0., 1., 0., 0., 1., 1.,
+        0., 1., 0., 0.],
+       [0., 0., 0., 0., 0., 0., 0., 1., 0., 0., 0., 1., 0., 1., 0., 1.,
+        1., 0., 1., 0.],
+       [0., 0., 0., 0., 0., 0., 0., 0., 1., 0., 0., 1., 1., 1., 0., 0.,
+        0., 1., 0., 1.],
+       [0., 0., 0., 0., 0., 0., 0., 0., 0., 1., 1., 0., 1., 1., 0., 0.,
+        0., 0., 1., 0.]])
+    assert np.all(my_array.toarray() == my_result)
+
+    # three radii
+    fg = FullGrid("cube4D_8", "ico_7", "linspace(1, 5, 3)")
+    my_array = fg.get_adjacency_of_position_grid()
+    my_result = np.array([[0., 0., 1., 1., 1., 1., 0., 1., 0., 0., 0., 0., 0., 0., 0., 0.,
+        0., 0., 0., 0., 0.],
+       [0., 0., 1., 1., 1., 0., 1., 0., 1., 0., 0., 0., 0., 0., 0., 0.,
+        0., 0., 0., 0., 0.],
+       [1., 1., 0., 1., 1., 0., 0., 0., 0., 1., 0., 0., 0., 0., 0., 0.,
+        0., 0., 0., 0., 0.],
+       [1., 1., 1., 0., 0., 1., 0., 0., 0., 0., 1., 0., 0., 0., 0., 0.,
+        0., 0., 0., 0., 0.],
+       [1., 1., 1., 0., 0., 0., 1., 0., 0., 0., 0., 1., 0., 0., 0., 0.,
+        0., 0., 0., 0., 0.],
+       [1., 0., 0., 1., 0., 0., 1., 0., 0., 0., 0., 0., 1., 0., 0., 0.,
+        0., 0., 0., 0., 0.],
+       [0., 1., 0., 0., 1., 1., 0., 0., 0., 0., 0., 0., 0., 1., 0., 0.,
+        0., 0., 0., 0., 0.],
+       [1., 0., 0., 0., 0., 0., 0., 0., 0., 1., 1., 1., 1., 0., 1., 0.,
+        0., 0., 0., 0., 0.],
+       [0., 1., 0., 0., 0., 0., 0., 0., 0., 1., 1., 1., 0., 1., 0., 1.,
+        0., 0., 0., 0., 0.],
+       [0., 0., 1., 0., 0., 0., 0., 1., 1., 0., 1., 1., 0., 0., 0., 0.,
+        1., 0., 0., 0., 0.],
+       [0., 0., 0., 1., 0., 0., 0., 1., 1., 1., 0., 0., 1., 0., 0., 0.,
+        0., 1., 0., 0., 0.],
+       [0., 0., 0., 0., 1., 0., 0., 1., 1., 1., 0., 0., 0., 1., 0., 0.,
+        0., 0., 1., 0., 0.],
+       [0., 0., 0., 0., 0., 1., 0., 1., 0., 0., 1., 0., 0., 1., 0., 0.,
+        0., 0., 0., 1., 0.],
+       [0., 0., 0., 0., 0., 0., 1., 0., 1., 0., 0., 1., 1., 0., 0., 0.,
+        0., 0., 0., 0., 1.],
+       [0., 0., 0., 0., 0., 0., 0., 1., 0., 0., 0., 0., 0., 0., 0., 0.,
+        1., 1., 1., 1., 0.],
+       [0., 0., 0., 0., 0., 0., 0., 0., 1., 0., 0., 0., 0., 0., 0., 0.,
+        1., 1., 1., 0., 1.],
+       [0., 0., 0., 0., 0., 0., 0., 0., 0., 1., 0., 0., 0., 0., 1., 1.,
+        0., 1., 1., 0., 0.],
+       [0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 1., 0., 0., 0., 1., 1.,
+        1., 0., 0., 1., 0.],
+       [0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 1., 0., 0., 1., 1.,
+        1., 0., 0., 0., 1.],
+       [0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 1., 0., 1., 0.,
+        0., 1., 0., 0., 1.],
+       [0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 1., 0., 1.,
+        0., 0., 1., 1., 0.]]
+
+    )
+    assert np.all(my_array.toarray()==my_result)
 
 if __name__ == "__main__":
-    #test_fullgrid_voronoi_radii()
-    test_cell_assignment()
-    test_division_area()
-    test_volumes()
-    test_distances_voronoi_centers()
+    test_position_adjacency()
