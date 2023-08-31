@@ -23,11 +23,123 @@ from molgri.space.polytopes import Polytope, second_neighbours, third_neighbours
 from molgri.space.rotobj import SphereGridNDim, SphereGridFactory, ConvergenceSphereGridFactory
 
 
-class SphereGridPlot(RepresentationCollection):
+class ArrayPlot(RepresentationCollection):
+    """
+    This subclass has an array of 2-, 3- or 4D points as the basis and implements methods to scatter, display and
+    animate those points.
+    """
+
+    def __init__(self, data_name: str, my_array: NDArray, **kwargs):
+        super().__init__(data_name, **kwargs)
+        self.my_array = my_array
+
+    def make_grid_plot(self, fig: Figure = None, ax: Axes3D = None, save: bool = True, c=None):
+        """Plot the 3D grid plot, for 4D the 4th dimension plotted as color. It always has limits (-1, 1) and equalized
+        figure size"""
+
+        # 3d plots for >2 dimensions
+        if self.my_array.shape[1] > 2:
+            self._create_fig_ax(fig=fig, ax=ax, projection="3d")
+        else:
+            self._create_fig_ax(fig=fig, ax=ax)
+
+        # use color for 4th dimension only if there are 4 dimensions (and nothing else specified)
+        if c is None:
+            if self.my_array.shape[1] <= 3:
+                c = "black"
+            else:
+                c = self.my_array[:, 3].T
+        self.ax.scatter(*self.my_array[:, :3].T, c=c, s=30)
+        # if self.my_array.shape[1] <= 3:
+        #     self.ax.scatter(*self.my_array.T, color="black", s=30)
+        # else:
+        #     self.ax.scatter(*self.my_array[:, :3].T, c=self.my_array[:, 3].T, s=30)  # cmap=plt.hot()
+
+        self.ax.view_init(elev=10, azim=30)
+        self._set_axis_limits()
+        self._equalize_axes()
+
+        if save:
+            self._save_plot_type("grid")
+
+    def make_rot_animation(self, **kwargs):
+        self.make_grid_plot(save=False)
+        return self._animate_figure_view(self.fig, self.ax, **kwargs)
+
+    def make_ordering_animation(self):
+        self.make_grid_plot(save=True)
+        sc = self.ax.collections[0]
+
+        def update(i):
+            current_colors = np.concatenate([facecolors_before[:i], all_white[i:]])
+            sc.set_facecolors(current_colors)
+            sc.set_edgecolors(current_colors)
+            return sc,
+
+        facecolors_before = sc.get_facecolors()
+        shape_colors = facecolors_before.shape
+        all_white = np.zeros(shape_colors)
+
+        self.ax.view_init(elev=10, azim=30)
+        ani = FuncAnimation(self.fig, func=update, frames=len(facecolors_before), interval=100, repeat=False)
+        fps_factor = np.min([len(facecolors_before), 20])
+        self._save_animation_type(ani, "order", fps=len(facecolors_before) // fps_factor)
+        return ani
+
+    def make_trans_animation(self, fig: plt.Figure = None, ax=None, save=True, **kwargs):
+        # create the axis with the right num of dimensions
+
+        dimension = self.my_array.shape[1] - 1
+
+        if dimension == 3:
+            projection = "3d"
+        else:
+            projection = None
+
+        self._create_fig_ax(fig=fig, ax=ax, projection=projection)
+        # sort by the value of the specific dimension you are looking at
+        ind = np.argsort(self.my_array[:, -1])
+        points_3D = self.my_array[ind]
+        # map the 4th dimension into values 0-1
+        alphas = points_3D[:, -1].T
+        alphas = (alphas - np.min(alphas)) / np.ptp(alphas)
+
+        # plot the lower-dimensional scatterplot
+        all_points = []
+        for line in points_3D:
+            all_points.append(self.ax.scatter(*line[:-1], color="black", alpha=1))
+
+        self._set_axis_limits((-1, 1) * dimension)
+        self._equalize_axes()
+
+        if len(self.my_array) < 20:
+            step = 1
+        elif len(self.my_array) < 100:
+            step = 5
+        else:
+            step = 20
+
+        def animate(frame):
+            # plot current point
+            current_time = alphas[frame * step]
+            for i, p in enumerate(all_points):
+                new_alpha = np.max([0, 1 - np.abs(alphas[i] - current_time) * 20])
+                p.set_alpha(new_alpha)
+            return self.ax,
+
+        anim = FuncAnimation(self.fig, animate, frames=len(self.my_array) // step,
+                             interval=100)  # , frames=180, interval=50
+        if save:
+            self._save_animation_type(anim, "trans", fps=len(self.my_array) // step // 2, **kwargs)
+        return anim
+
+
+class SphereGridPlot(ArrayPlot):
 
     def __init__(self, sphere_grid: SphereGridNDim, **kwargs):
         data_name = sphere_grid.get_name(with_dim=True)
-        super().__init__(data_name, default_axes_limits=(-1, 1, -1, 1, -1, 1), **kwargs)
+        super().__init__(data_name, my_array=sphere_grid.get_grid_as_array(),
+                         default_axes_limits=(-1, 1, -1, 1, -1, 1), **kwargs)
         self.sphere_grid = sphere_grid
         if self.sphere_grid.dimensions == 3:
             self.alphas = DEFAULT_ALPHAS_3D
@@ -38,25 +150,6 @@ class SphereGridPlot(RepresentationCollection):
 
     def get_possible_title(self):
         return NAME2SHORT_NAME[self.sphere_grid.algorithm_name]
-
-    def make_grid_plot(self, fig: Figure = None, ax: Axes3D = None, save: bool = True):
-        """Plot the 3D grid plot, for 4D the 4th dimension plotted as color. It always has limits (-1, 1) and equalized
-        figure size"""
-
-        self._create_fig_ax(fig=fig, ax=ax, projection="3d")
-
-        points = self.sphere_grid.get_grid_as_array()
-        if points.shape[1] == 3:
-            self.ax.scatter(*points.T, color="black", s=30)
-        else:
-            self.ax.scatter(*points[:, :3].T, c=points[:, 3].T, s=30)  # cmap=plt.hot()
-
-        self.ax.view_init(elev=10, azim=30)
-        self._set_axis_limits()
-        self._equalize_axes()
-
-        if save:
-            self._save_plot_type("grid")
 
     def make_grid_colored_with_alpha(self, ax=None, fig=None, central_vector: NDArray = None, save=True):
         if self.sphere_grid.dimensions != 3:
@@ -149,77 +242,7 @@ class SphereGridPlot(RepresentationCollection):
         if animate_rot:
             return self._animate_figure_view(self.fig, self.ax, f"sph_voronoi_rotated")
 
-    def make_rot_animation(self, **kwargs):
-        self.make_grid_plot(save=False)
-        return self._animate_figure_view(self.fig, self.ax, **kwargs)
 
-    def make_ordering_animation(self):
-        self.make_grid_plot(save=True)
-        sc = self.ax.collections[0]
-
-        def update(i):
-            current_colors = np.concatenate([facecolors_before[:i], all_white[i:]])
-            sc.set_facecolors(current_colors)
-            sc.set_edgecolors(current_colors)
-            return sc,
-
-        facecolors_before = sc.get_facecolors()
-        shape_colors = facecolors_before.shape
-        all_white = np.zeros(shape_colors)
-
-        self.ax.view_init(elev=10, azim=30)
-        ani = FuncAnimation(self.fig, func=update, frames=len(facecolors_before), interval=100, repeat=False)
-        fps_factor = np.min([len(facecolors_before), 20])
-        self._save_animation_type(ani, "order", fps=len(facecolors_before) // fps_factor)
-        return ani
-
-    def make_trans_animation(self, fig: plt.Figure = None, ax=None, save=True, **kwargs):
-        points = self.sphere_grid.get_grid_as_array()
-        # create the axis with the right num of dimensions
-
-        dimension = points.shape[1] - 1
-
-        if dimension == 3:
-            projection = "3d"
-        else:
-            projection = None
-
-        self._create_fig_ax(fig=fig, ax=ax, projection=projection)
-        # sort by the value of the specific dimension you are looking at
-        ind = np.argsort(points[:, -1])
-        points_3D = points[ind]
-        # map the 4th dimension into values 0-1
-        alphas = points_3D[:, -1].T
-        alphas = (alphas - np.min(alphas)) / np.ptp(alphas)
-
-        # plot the lower-dimensional scatterplot
-        all_points = []
-        for line in points_3D:
-            all_points.append(self.ax.scatter(*line[:-1], color="black", alpha=1))
-
-        self._set_axis_limits((-1, 1) * dimension)
-        self._equalize_axes()
-
-        if len(points) < 20:
-            step = 1
-        elif len(points) < 100:
-            step = 5
-        else:
-            step = 20
-
-        def animate(frame):
-            # plot current point
-            current_time = alphas[frame * step]
-            for i, p in enumerate(all_points):
-                new_alpha = np.max([0, 1 - np.abs(alphas[i] - current_time) * 10])
-                p.set_alpha(new_alpha)
-            return self.ax,
-
-        anim = FuncAnimation(self.fig, animate, frames=len(points) // step,
-                             interval=100)  # , frames=180, interval=50
-        if save:
-            self._save_animation_type(anim, "trans", fps=len(points) // step // 2, **kwargs)
-        return anim
 
     def create_all_plots(self, and_animations=False):
         self.make_grid_plot()
@@ -233,14 +256,15 @@ class SphereGridPlot(RepresentationCollection):
             self.make_trans_animation()
 
 
-class PolytopePlot(RepresentationCollection):
+class PolytopePlot(ArrayPlot):
 
     def __init__(self, polytope: Polytope, **kwargs):
         self.polytope = polytope
         split_name = str(polytope).split()
         data_name = f"{split_name[0]}_{split_name[-1]}"
         default_complexity_level = kwargs.pop("default_complexity_level", "half_empty")
-        super().__init__(data_name, default_complexity_level=default_complexity_level, **kwargs)
+        super().__init__(data_name, my_array=self.polytope.get_node_coordinates(),
+                         default_complexity_level=default_complexity_level, **kwargs)
 
     def make_graph(self, ax=None, fig=None, with_labels=True, save=True):
         """
@@ -254,36 +278,52 @@ class PolytopePlot(RepresentationCollection):
         if save:
             self._save_plot_type("graph")
 
-    def make_neighbours_plot(self, ax: Axes3D = None, fig: Figure = None, save: bool = True, node_i: int = 0):
+    def make_neighbours_plot(self, ax: Axes3D = None, fig: Figure = None, save: bool = True, node_i: int = 0,
+                             up_to: int = 2):
         """
         Want to see which points count as neighbours, second- or third neighbours of a specific node? Use this plotting
         method.
+
+        Args:
+            up_to: 1, 2 or 3 -> plot up to first, second or third neighbours.
         """
 
         if self.polytope.d != 3:
             print(f"Plotting neighbours not available for d={self.polytope.d}")
-            return
 
-        self._create_fig_ax(fig=fig, ax=ax, projection="3d")
+        all_nodes = self.my_array
 
-        all_nodes = self.polytope.get_node_coordinates()
+        if up_to > 3:
+            print("Cannot plot more than third neighbours. Will proceed with third neighbours")
+            up_to = 3
+
+        self.make_grid_plot(ax=ax, fig=fig, save=False, c="black")
+
+        # plot node and first neighbours
         node = tuple(all_nodes[node_i])
+        self.ax.scatter(*node[:3], color="red", s=40)
         neig = self.polytope.G.neighbors(node)
-        sec_neig = list(second_neighbours(self.polytope.G, node))
-        third_neig = list(third_neighbours(self.polytope.G, node))
-        for sel_node in all_nodes:
+        for n in neig:
+            self.ax.scatter(*n[:3], color="blue", s=38)
 
-            self.ax.scatter(*sel_node, color="black", s=30, alpha=0.5)
-            if np.allclose(sel_node, node):
-                self.ax.scatter(*sel_node, color="red", s=40, alpha=0.5)
-            if tuple(sel_node) in neig:
-                self.ax.scatter(*sel_node, color="blue", s=38, alpha=0.5)
-            if tuple(sel_node) in sec_neig:
-                self.ax.scatter(*sel_node, color="green", s=35, alpha=0.5)
-            if tuple(sel_node) in third_neig:
-                self.ax.scatter(*sel_node, color="orange", s=32, alpha=0.5)
-        if save:
-            self._save_plot_type(f"neighbours_{node_i}")
+        # optionally plot second and third neighbours
+        if up_to >= 2:
+            sec_neig = list(second_neighbours(self.polytope.G, node))
+            for n in sec_neig:
+                self.ax.scatter(*n[:3], color="green", s=38)
+            third_neig = list(third_neighbours(self.polytope.G, node))
+            if up_to == 3:
+                for n in third_neig:
+                    self.ax.scatter(*n[:3], color="orange", s=38)
+                if save:
+                    self._save_plot_type(f"neighbours_{node_i}")
+
+
+    def make_neighbours_animation(self, **kwargs):
+        self.make_neighbours_plot(save=False, **kwargs)
+        return self._animate_figure_view(self.fig, self.ax, **kwargs)
+
+
 
     def make_node_plot(self, ax: Axes3D = None, fig: Figure = None, select_faces: set = None, projection: bool = False,
                        plot_edges: bool = False, plot_nodes: bool = True,
@@ -403,6 +443,7 @@ class PolytopePlot(RepresentationCollection):
         self._equalize_axes()
         if save:
             self._save_plot_type("cell")
+            return sub_polyhedron
         if animate_rot:
             return self._animate_figure_view(self.fig, self.ax, f"cell_rotated")
 
@@ -604,39 +645,30 @@ class PanelConvergenceSphereGridPlots(PanelRepresentationCollection):
 
 
 if __name__ == "__main__":
-    from molgri.constants import SMALL_NS
+    from molgri.space.polytopes import Cube4DPolytope, IcosahedronPolytope
+    my_poly = Cube4DPolytope()
+    my_poly.divide_edges()
+    my_poly.divide_edges()
 
+    my_ico = IcosahedronPolytope()
+    my_ico.divide_edges()
+    my_ico.divide_edges()
 
-    # sg = SphereGridFactory().create("ico", 42, 3)
-    # sgp = SphereGridPlot(sg, default_complexity_level="half_empty")
-    # sgp.make_grid_plot()
-    # sgp.make_spherical_voronoi_plot(ax=sgp.ax, fig=sgp.fig, animate_rot=True)
+    ip = PolytopePlot(my_ico)
+    ip.make_neighbours_plot()
+    #ip.make_neighbours_animation()
+    # ip.make_grid_plot()
+    # ip.make_rot_animation()
+    # ip.make_trans_animation()
 
-    # conv_obj = ConvergenceSphereGridFactory("ico", dimensions=3, use_saved=True, N_set=DEFAULT_NS)
-    # conv_plot = ConvergenceSphereGridPlot(conv_obj)
-    # conv_plot.make_voronoi_area_conv_plot(save=True)
-    # conv_plot.ax.set_xscale("log")
-
-    # sgp.make_grid_plot()
-    # sgp.make_rot_animation(dpi=200)
-    # sgp.make_trans_animation()
-
-    psgp = PanelSphereGridPlots(544, 4, default_complexity_level="half_empty", default_context="talk", use_saved=True)
-    #psgp.make_all_grid_plots()
-    #psgp.make_all_uniformity_plots()
-    psgp.make_all_convergence_plots()
-    #
-    #psgp = PanelSphereGridPlots(700, 3, default_complexity_level="half_empty", default_context="talk", use_saved=True)
-    #psgp.make_all_grid_plots(animate_rot=False)
-    #psgp.make_all_uniformity_plots()
-    #psgp.make_all_convergence_plots()
-    #
-    # pcsgp = PanelConvergenceSphereGridPlots(3, use_saved=False, N_set=SMALL_NS, filter_non_unique=True)
-    # pcsgp.make_all_voronoi_area_plots()
-
-    # for alg in GRID_ALGORITHMS[:-1]:
-    # sg = SphereGridFactory.create("cube4D", 200, 3, use_saved=False, filter_non_unique=True)
-    # sgp = SphereGridPlot(sg)
-    # sgp.make_rot_animation()
-    # sgp.make_spherical_voronoi_plot(animate_rot=True)
-
+    pp =PolytopePlot(my_poly)
+    #pp.make_neighbours_plot()
+    #pp.make_neighbours_animation()
+    for cell_index in range(3):
+        sub_poly = pp.make_cell_plot(cell_index=cell_index)
+        new_plot = PolytopePlot(sub_poly)
+        new_plot.make_neighbours_animation(up_to=1)
+    # pp.make_grid_plot()
+    # pp.make_rot_animation()
+    # pp.make_trans_animation()
+    #pp.make_node_plot(plot_edges=True, plot_nodes=True)

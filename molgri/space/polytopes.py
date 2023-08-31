@@ -186,6 +186,22 @@ class Polytope(ABC):
             remove_and_reconnect(subgraph, most_distant_point)
         return result
 
+    def get_neighbours_of_N_ordered_points(self, N_ordered_points: NDArray):
+        """
+        For every point in N_ordered_points, return a list containing coordinates that are neighbours of this point AND
+        are also in the array N_ordered_points.
+
+        TODO: I guess for dropped points you need to reconnect the lines??
+
+        Args:
+            N_ordered_points (): an output of self.get_N_ordered_points(N)
+
+        Returns:
+
+        """
+        all_neighbour_nodes =
+
+
     def divide_edges(self):
         """
         Subdivide once by putting a new point at mid-point of each existing edge and replacing this sub-edge with

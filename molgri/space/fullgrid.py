@@ -740,8 +740,24 @@ class ConvergenceFullGridO:
 if __name__ == "__main__":
     fg = FullGrid("cube4D_50", "ico_7", "linspace(1, 5, 3)")
     my_array = fg.get_adjacency_of_orientations()
-    my_array =  my_array < 1
-    np.fill_diagonal(my_array, False)
+
+    sorted_arr = np.argsort(my_array, axis=0)
+    for line in my_array:
+        print(np.argmin(line))
+    print(np.argmin(my_array, axis=0))
+    #print(sorted_arr[:, :5])
+    #my_array = my_array[sorted_arr[:, :5]]
+    boolean_arr = np.zeros(my_array.shape, dtype=bool)
+    for i, line in enumerate(boolean_arr):
+        print(sorted_arr[i, :5])
+        boolean_arr[i][sorted_arr[i, :5]] = True
+    #boolean_arr[sorted_arr[:, :5]] = True
+    #print(boolean_arr)
+    # print(indices_of_five_smallest_el)
+    # print(indices_of_five_smallest_el[:, :5])
+    # my_array =  my_array < my_array[indices_of_five_smallest_el[:5, :5]]
+    # print(indices_of_five_smallest_el.shape, my_array.shape)
+    #np.fill_diagonal(my_array, False)
     areas = fg.get_full_voronoi_grid().get_all_voronoi_surfaces_as_numpy()
 
     import seaborn as sns
@@ -750,6 +766,12 @@ if __name__ == "__main__":
     g = sns.heatmap(my_array)
     plt.tight_layout()
     plt.savefig("my_array_rotations")
+    plt.close()
+
+    g = sns.heatmap(boolean_arr)
+    plt.tight_layout()
+    plt.savefig("my_array_boolean")
+    plt.close()
 
     g = sns.heatmap(areas)
     plt.tight_layout()
