@@ -646,22 +646,26 @@ class PanelConvergenceSphereGridPlots(PanelRepresentationCollection):
 
 if __name__ == "__main__":
     from molgri.space.polytopes import Cube4DPolytope, IcosahedronPolytope
+    from molgri.space.rotobj import SphereGridFactory
     my_poly = Cube4DPolytope()
     my_poly.divide_edges()
     #my_poly.divide_edges()
 
-    my_ico = IcosahedronPolytope()
-    my_ico.divide_edges()
+    #my_ico = IcosahedronPolytope()
+    #my_ico.divide_edges()
     #my_ico.divide_edges()
 
-    ip = PolytopePlot(my_ico)
+    #ip = PolytopePlot(my_ico)
     #ip.make_neighbours_plot()
     #ip.make_neighbours_animation()
     # ip.make_grid_plot()
     # ip.make_rot_animation()
     # ip.make_trans_animation()
 
-    N_points = my_ico.get_N_ordered_points(15)
+    sphere_obj = SphereGridFactory().create("ico", 20, 3, use_saved=False)
+    N_points = sphere_obj.get_grid_as_array()
+    my_ico = sphere_obj.polytope
+    #my_ico.get_N_ordered_points(15)
     valid_G, _ = my_ico.get_valid_graph(N_points)
     valid_plot = PolytopePlot(PolyhedronFromG(valid_G))
     valid_plot.make_grid_plot()

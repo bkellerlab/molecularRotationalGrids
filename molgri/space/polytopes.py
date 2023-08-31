@@ -147,29 +147,64 @@ class Polytope(ABC):
             N = N_available
         if N > N_available:
             raise ValueError(f"Cannot order more points than there are! N={N} > {N_available}")
-        result = np.zeros((N, self.d))
+        result = []
         # first point does not matter, just select the first point
-        if projections:
-            result[0] = self.G.nodes[tuple(current_points[0])]["projection"]
-        else:
-            result[0] = current_points[0]
+        # if projections:
+        #     result[0] = self.G.nodes[tuple(current_points[0])]["projection"]
+        # else:
+        #     result[0] = current_points[0]
 
-        subgraph = self.G.subgraph(current_points).copy()
-        remove_and_reconnect(subgraph, current_points[0])
-        current_points.pop(0)
-        # for the rest of the points, determine centrality of the subgraph with already used points removed
-        for i in range(1, N):
-            # TODO: use sub-graphs removed_points and remaining_points
-            max_iter = np.max([100, 10*N_available])  # bigger graphs may need more iterations than default
-            dict_centrality = nx.eigenvector_centrality(subgraph, weight="p_dist", max_iter=max_iter, tol=1.0e-3)
-            # key with largest value is the point in the center of the remaining graph
-            most_distant_point = min(dict_centrality, key=dict_centrality.get)
+
+        # TODO: select all points from lower levels and then random ones
+        indices_to_remove = []
+        for i, point in enumerate(current_points):
+            node = self.G.nodes[point]
+            if node["level"] < self.current_level - 1:
+                indices_to_remove.append(i)
+                if projections:
+                    result.append(list(node["projection"]))
+                else:
+                    result.append(list(point))
+
+        if len(result) > N:
+            raise ValueError("You subdivided the polyhedron more times than necessary!")
+
+        # remove points already used
+        for index in sorted(indices_to_remove, reverse=True):
+            del current_points[index]
+
+        # random remaining points
+        np.random.shuffle(current_points)
+        random_points = current_points[:N - len(result)]
+
+        for point in random_points:
             if projections:
-                result[i] = self.G.nodes[tuple(most_distant_point)]["projection"]
+                result.append(list(self.G.nodes[point]["projection"]))
             else:
-                result[i] = most_distant_point
-            current_points.remove(most_distant_point)
-            remove_and_reconnect(subgraph, most_distant_point)
+                result.append(list(point))
+
+        result = np.array(result)
+
+        # subgraph = self.G.subgraph(current_points).copy()
+        # remove_and_reconnect(subgraph, current_points[0])
+        # current_points.pop(0)
+        # # for the rest of the points, determine centrality of the subgraph with already used points removed
+        # for i in range(1, N):
+        #     # TODO: use sub-graphs removed_points and remaining_points
+        #     max_iter = np.max([100, 10*N_available])  # bigger graphs may need more iterations than default
+        #     dict_centrality = nx.eigenvector_centrality(subgraph, weight="p_dist", max_iter=max_iter, tol=1.0e-3)
+        #     # key with largest value is the point in the center of the remaining graph
+        #     most_distant_point = min(dict_centrality, key=dict_centrality.get)
+        #     if projections:
+        #         result[i] = self.G.nodes[tuple(most_distant_point)]["projection"]
+        #     else:
+        #         result[i] = most_distant_point
+        #     current_points.remove(most_distant_point)
+        #
+        #     if len(subgraph.edges(most_distant_point)) <= 2:
+        #         remove_and_reconnect(subgraph, most_distant_point)
+        #     else:
+        #         subgraph.remove(most_distant_point)
         return result
 
     def get_valid_graph(self, N_ordered_points: NDArray):
@@ -181,7 +216,7 @@ class Polytope(ABC):
             is_in_list = np.any([np.allclose(data["projection"], x) for x in N_ordered_points])
             if not is_in_list:
                 # if it acts like a bridge, reconnect
-                if len(valid_G.edges(node)) <= 3:
+                if len(valid_G.edges(node)) <= 2:
                     remove_and_reconnect(valid_G, node)
                 else:
                     valid_G.remove_node(node)
