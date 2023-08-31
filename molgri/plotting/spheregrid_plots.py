@@ -321,7 +321,7 @@ class PolytopePlot(ArrayPlot):
 
     def make_neighbours_animation(self, **kwargs):
         self.make_neighbours_plot(save=False, **kwargs)
-        return self._animate_figure_view(self.fig, self.ax, **kwargs)
+        return self._animate_figure_view(self.fig, self.ax)
 
 
 
@@ -648,27 +648,28 @@ if __name__ == "__main__":
     from molgri.space.polytopes import Cube4DPolytope, IcosahedronPolytope
     my_poly = Cube4DPolytope()
     my_poly.divide_edges()
-    my_poly.divide_edges()
+    #my_poly.divide_edges()
 
     my_ico = IcosahedronPolytope()
     my_ico.divide_edges()
-    my_ico.divide_edges()
+    #my_ico.divide_edges()
 
     ip = PolytopePlot(my_ico)
-    ip.make_neighbours_plot()
+    #ip.make_neighbours_plot()
     #ip.make_neighbours_animation()
     # ip.make_grid_plot()
     # ip.make_rot_animation()
     # ip.make_trans_animation()
 
-    pp =PolytopePlot(my_poly)
-    #pp.make_neighbours_plot()
-    #pp.make_neighbours_animation()
-    for cell_index in range(3):
-        sub_poly = pp.make_cell_plot(cell_index=cell_index)
-        new_plot = PolytopePlot(sub_poly)
-        new_plot.make_neighbours_animation(up_to=1)
-    # pp.make_grid_plot()
-    # pp.make_rot_animation()
-    # pp.make_trans_animation()
-    #pp.make_node_plot(plot_edges=True, plot_nodes=True)
+    N_points = my_ico.get_N_ordered_points(15)
+    valid_G, _ = my_ico.get_valid_graph(N_points)
+    valid_plot = PolytopePlot(PolyhedronFromG(valid_G))
+    valid_plot.make_grid_plot()
+    valid_plot.make_neighbours_animation(up_to=1)
+
+    # pp =PolytopePlot(my_poly)
+    # for cell_index in range(3):
+    #     sub_poly = pp.make_cell_plot(cell_index=cell_index)
+    #     new_plot = PolytopePlot(sub_poly)
+    #     new_plot.make_neighbours_animation(up_to=1)
+

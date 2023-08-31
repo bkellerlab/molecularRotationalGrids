@@ -139,20 +139,6 @@ class Polytope(ABC):
         Raises:
             ValueError if N larger than the number of available unique nodes
         """
-
-        def remove_and_reconnect(g: nx.Graph, node: tuple):
-            """Remove a node and reconnect edges, adding the properties of previous edges together."""
-            sources = list(g.neighbors(node))
-            targets = list(g.neighbors(node))
-
-            new_edges = list(product(sources, targets))
-            distances = [g.edges[(node, s)]["p_dist"]+g.edges[(node, t)]["p_dist"] for s, t in new_edges]
-            # remove self-loops
-            new_edges = [(edge[0], edge[1], {"p_dist": distances[j]}) for j, edge in enumerate(new_edges) if
-                         edge[0] != edge[1]]
-            g.add_edges_from(new_edges)
-            g.remove_node(node)
-
         # important to use the getter
         current_points = [tuple(point) for point in self.get_node_coordinates()]
         N_available = len(current_points)
@@ -186,6 +172,27 @@ class Polytope(ABC):
             remove_and_reconnect(subgraph, most_distant_point)
         return result
 
+    def get_valid_graph(self, N_ordered_points: NDArray):
+        my_nodes = []
+        # need to calculate valid graph by dropping the points that are not within N ordered points
+        valid_G = self.G.copy()
+        all_in = 0
+        for node, data in self.G.nodes(data=True):
+            is_in_list = np.any([np.allclose(data["projection"], x) for x in N_ordered_points])
+            if not is_in_list:
+                # if it acts like a bridge, reconnect
+                if len(valid_G.edges(node)) <= 3:
+                    remove_and_reconnect(valid_G, node)
+                else:
+                    valid_G.remove_node(node)
+            else:
+                # update my nodes
+                my_nodes.append(node)
+            all_in += is_in_list
+        assert all_in == len(N_ordered_points)
+        assert valid_G.number_of_nodes() == len(N_ordered_points)
+        return valid_G, my_nodes
+
     def get_neighbours_of_N_ordered_points(self, N_ordered_points: NDArray):
         """
         For every point in N_ordered_points, return a list containing coordinates that are neighbours of this point AND
@@ -194,12 +201,18 @@ class Polytope(ABC):
         TODO: I guess for dropped points you need to reconnect the lines??
 
         Args:
-            N_ordered_points (): an output of self.get_N_ordered_points(N)
+            N_ordered_points (): an output of self.get_N_ordered_points(N, projection=True)
 
         Returns:
 
         """
-        all_neighbour_nodes =
+        # while for-looping we wanna save the non-projected values of our projected points
+        valid_G, my_nodes = self.get_valid_graph(N_ordered_points)
+        # now get neighbours from valid graph for every point in the N_ordered_points array
+        all_neighbours = []
+        for node in my_nodes:
+            all_neighbours.append(list(valid_G.neighbors(node)))
+        return all_neighbours
 
 
     def divide_edges(self):
@@ -684,17 +697,23 @@ def detect_all_cubes(graph: nx.Graph) -> list:
     return cube_nodes
 
 
+def remove_and_reconnect(g: nx.Graph, node: tuple):
+    """Remove a node and reconnect edges, adding the properties of previous edges together."""
+    sources = list(g.neighbors(node))
+    targets = list(g.neighbors(node))
+
+    new_edges = list(product(sources, targets))
+    distances = [g.edges[(node, s)]["p_dist"] + g.edges[(node, t)]["p_dist"] for s, t in new_edges]
+    # remove self-loops
+    new_edges = [(edge[0], edge[1], {"p_dist": distances[j]}) for j, edge in enumerate(new_edges) if
+                 edge[0] != edge[1]]
+    g.add_edges_from(new_edges)
+    g.remove_node(node)
+
+
 if __name__ == "__main__":
-    import matplotlib.pyplot as plt
     ico = IcosahedronPolytope()
     ico.divide_edges()
-    ico.divide_edges()
-
-    ico_graph = ico.G
-    N_points = ico.get_N_ordered_points(50)
-    print([tuple(n) for n in N_points])
-    ico_subgraph = ico_graph.subgraph([tuple(n) for n in N_points])
-    print(ico_subgraph.nodes)
-    print(ico_graph.number_of_nodes(), ico_subgraph.number_of_nodes())
-    #nx.draw(ico_subgraph)
-    #plt.show()
+    N_p = ico.get_N_ordered_points(15)
+    my_neig = ico.get_neighbours_of_N_ordered_points(N_p)
+    print([len(x) for x in my_neig])

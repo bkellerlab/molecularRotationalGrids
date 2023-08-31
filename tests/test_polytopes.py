@@ -4,7 +4,8 @@ import matplotlib.pyplot as plt
 from scipy.constants import pi
 
 from molgri.space.polytopes import Cube3DPolytope, IcosahedronPolytope, second_neighbours, \
-    Cube4DPolytope, third_neighbours, detect_all_cubes, detect_all_squares, PolyhedronFromG
+    Cube4DPolytope, third_neighbours, detect_all_cubes, detect_all_squares, PolyhedronFromG, \
+    remove_and_reconnect
 from molgri.assertions import all_row_norms_similar, all_row_norms_equal_k, all_rows_unique
 from molgri.space.utils import normalise_vectors, dist_on_sphere
 
@@ -308,6 +309,15 @@ def test_edge_attributes():
                    np.isclose(data["p_dist"], np.sqrt(3)*side_len/2) or np.isclose(data["p_dist"], side_len/2)
         cube4D.divide_edges()
         side_len = side_len / 2
+
+def test_remove_and_reconnect():
+    # if I remove point 2, I want connection betwen 1 and 3
+    my_G = nx.Graph([(1, 2), (2, 3)])
+    nx.set_edge_attributes(my_G, 1, name="p_dist")
+    assert (1, 2) in my_G.edges and (2, 3) in my_G.edges
+    remove_and_reconnect(my_G, 2)
+    assert (1, 3) in my_G.edges and len(my_G.edges) == 1
+
 
 if __name__ == "__main__":
     test_sorting()
