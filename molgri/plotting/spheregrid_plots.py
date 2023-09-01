@@ -662,7 +662,7 @@ if __name__ == "__main__":
     # ip.make_rot_animation()
     # ip.make_trans_animation()
 
-    sphere_obj = SphereGridFactory().create("ico", 20, 3, use_saved=False)
+    sphere_obj = SphereGridFactory().create("ico", 35, 3, use_saved=False)
     N_points = sphere_obj.get_grid_as_array()
     my_ico = sphere_obj.polytope
     #my_ico.get_N_ordered_points(15)

@@ -184,27 +184,6 @@ class Polytope(ABC):
                 result.append(list(point))
 
         result = np.array(result)
-
-        # subgraph = self.G.subgraph(current_points).copy()
-        # remove_and_reconnect(subgraph, current_points[0])
-        # current_points.pop(0)
-        # # for the rest of the points, determine centrality of the subgraph with already used points removed
-        # for i in range(1, N):
-        #     # TODO: use sub-graphs removed_points and remaining_points
-        #     max_iter = np.max([100, 10*N_available])  # bigger graphs may need more iterations than default
-        #     dict_centrality = nx.eigenvector_centrality(subgraph, weight="p_dist", max_iter=max_iter, tol=1.0e-3)
-        #     # key with largest value is the point in the center of the remaining graph
-        #     most_distant_point = min(dict_centrality, key=dict_centrality.get)
-        #     if projections:
-        #         result[i] = self.G.nodes[tuple(most_distant_point)]["projection"]
-        #     else:
-        #         result[i] = most_distant_point
-        #     current_points.remove(most_distant_point)
-        #
-        #     if len(subgraph.edges(most_distant_point)) <= 2:
-        #         remove_and_reconnect(subgraph, most_distant_point)
-        #     else:
-        #         subgraph.remove(most_distant_point)
         return result
 
     def get_valid_graph(self, N_ordered_points: NDArray):
@@ -215,7 +194,8 @@ class Polytope(ABC):
         for node, data in self.G.nodes(data=True):
             is_in_list = np.any([np.allclose(data["projection"], x) for x in N_ordered_points])
             if not is_in_list:
-                # if it acts like a bridge, reconnect
+                #remove_and_reconnect(valid_G, node)
+                #if it acts like a bridge, reconnect
                 if len(valid_G.edges(node)) <= 2:
                     remove_and_reconnect(valid_G, node)
                 else:
@@ -227,27 +207,6 @@ class Polytope(ABC):
         assert all_in == len(N_ordered_points)
         assert valid_G.number_of_nodes() == len(N_ordered_points)
         return valid_G, my_nodes
-
-    def get_neighbours_of_N_ordered_points(self, N_ordered_points: NDArray):
-        """
-        For every point in N_ordered_points, return a list containing coordinates that are neighbours of this point AND
-        are also in the array N_ordered_points.
-
-        TODO: I guess for dropped points you need to reconnect the lines??
-
-        Args:
-            N_ordered_points (): an output of self.get_N_ordered_points(N, projection=True)
-
-        Returns:
-
-        """
-        # while for-looping we wanna save the non-projected values of our projected points
-        valid_G, my_nodes = self.get_valid_graph(N_ordered_points)
-        # now get neighbours from valid graph for every point in the N_ordered_points array
-        all_neighbours = []
-        for node in my_nodes:
-            all_neighbours.append(list(valid_G.neighbors(node)))
-        return all_neighbours
 
 
     def divide_edges(self):
@@ -746,9 +705,3 @@ def remove_and_reconnect(g: nx.Graph, node: tuple):
     g.remove_node(node)
 
 
-if __name__ == "__main__":
-    ico = IcosahedronPolytope()
-    ico.divide_edges()
-    N_p = ico.get_N_ordered_points(15)
-    my_neig = ico.get_neighbours_of_N_ordered_points(N_p)
-    print([len(x) for x in my_neig])

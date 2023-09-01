@@ -21,7 +21,7 @@ from __future__ import annotations
 from copy import copy
 from typing import Callable, Tuple, Optional
 
-
+import networkx as nx
 import numpy as np
 from numpy.typing import NDArray
 from scipy.spatial.transform import Rotation
@@ -78,13 +78,31 @@ class FullGrid:
         """The length of the full grid is a product of lengths of all sub-grids"""
         return self.b_rotations.get_N() * self.o_rotations.get_N() * self.t_grid.get_N_trans()
 
+
     def get_adjacency_sparse_matrix(self):
+        """combined adjacency TODO"""
         n_points = len(self)
         sparse_adj_matrix = coo_array((n_points, n_points), dtype=bool)
         sparse_is_same_r_distance = coo_array((n_points, n_points), dtype=bool)
         for first_point_index in range(n_points):
             for second_point_index in range(n_points):
                 pass
+
+    def get_polyhedron_adjacency(self, o_grid=True):
+        """
+        If o-grid, return adjacency of o_grid, else b_grid. Will not function if not polyhedra-based grids.
+        Args:
+            o_grid ():
+
+        Returns:
+
+        """
+        if o_grid:
+            valid_G, my_nodes = self.o_rotations.polytope.get_valid_graph(self.o_positions)
+            return nx.adjacency_matrix(valid_G, nodelist=my_nodes)
+        else:
+            valid_G, my_nodes = self.b_rotations.polytope.get_valid_graph(self.b_rotations.get_grid_as_array())
+            return nx.adjacency_matrix(valid_G, nodelist=my_nodes)
 
     def get_adjacency_of_orientations(self) -> coo_array:
         all_orientations = self.get_body_rotations()
@@ -146,7 +164,7 @@ class FullGrid:
             my_blocks = my_blocks.reshape(n_t, n_t)
             same_radius_neighbours = bmat(my_blocks, dtype=float)
         else:
-            same_radius_neighbours = neig
+            same_radius_neighbours = coo_array(neig)
         all_neighbours = same_ray_neighbours + same_radius_neighbours
         return all_neighbours
 
@@ -738,41 +756,18 @@ class ConvergenceFullGridO:
         return df
 
 if __name__ == "__main__":
-    fg = FullGrid("cube4D_50", "ico_7", "linspace(1, 5, 3)")
-    my_array = fg.get_adjacency_of_orientations()
-
-    sorted_arr = np.argsort(my_array, axis=0)
-    for line in my_array:
-        print(np.argmin(line))
-    print(np.argmin(my_array, axis=0))
-    #print(sorted_arr[:, :5])
-    #my_array = my_array[sorted_arr[:, :5]]
-    boolean_arr = np.zeros(my_array.shape, dtype=bool)
-    for i, line in enumerate(boolean_arr):
-        print(sorted_arr[i, :5])
-        boolean_arr[i][sorted_arr[i, :5]] = True
-    #boolean_arr[sorted_arr[:, :5]] = True
-    #print(boolean_arr)
-    # print(indices_of_five_smallest_el)
-    # print(indices_of_five_smallest_el[:, :5])
-    # my_array =  my_array < my_array[indices_of_five_smallest_el[:5, :5]]
-    # print(indices_of_five_smallest_el.shape, my_array.shape)
-    #np.fill_diagonal(my_array, False)
-    areas = fg.get_full_voronoi_grid().get_all_voronoi_surfaces_as_numpy()
-
-    import seaborn as sns
     import matplotlib.pyplot as plt
-
-    g = sns.heatmap(my_array)
-    plt.tight_layout()
-    plt.savefig("my_array_rotations")
-    plt.close()
-
-    g = sns.heatmap(boolean_arr)
-    plt.tight_layout()
-    plt.savefig("my_array_boolean")
-    plt.close()
-
-    g = sns.heatmap(areas)
-    plt.tight_layout()
-    plt.savefig("my_array_areas")
+    import seaborn as sns
+    fig, ax = plt.subplots(3, 3, figsize=(20, 20))
+    n_os = (15, 30, 50)
+    for i, n_o in enumerate(n_os):
+        fg = FullGrid(f"zero", f"ico_{n_o}", "[0.1,]", use_saved=False)
+        vor_adj = fg.get_adjacency_of_position_grid().toarray()
+        sns.heatmap(vor_adj, cmap="gray", ax=ax[i][0], cbar=False)
+        poly_adj = fg.o_rotations.get_adjecency_from_polytope().toarray()
+        sns.heatmap(poly_adj, cmap="gray", ax=ax[i][1], cbar=False)
+        sns.heatmap(poly_adj ^ vor_adj, cmap="gray", ax=ax[i][2], cbar=False)
+    ax[0][0].set_title("Voronoi adjacency")
+    ax[0][1].set_title("Polytope adjacency")
+    ax[0][2].set_title("Difference")
+    plt.show()

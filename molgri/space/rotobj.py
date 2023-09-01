@@ -20,6 +20,7 @@ import numpy as np
 import pandas as pd
 from numpy.typing import NDArray
 from scipy.constants import pi
+from scipy.sparse import coo_array
 from scipy.spatial import SphericalVoronoi
 from scipy.spatial.transform import Rotation
 
@@ -53,6 +54,7 @@ class SphereGridNDim(ABC):
         self.grid: Optional[NDArray] = None
         self.filter_non_unique = filter_non_unique
         self.spherical_voronoi: Optional[SphericalVoronoi] = None
+        self.polytope = None
 
     def __len__(self) -> int:
         return self.get_N()
@@ -505,7 +507,4 @@ class ConvergenceSphereGridFactory:
         df = pd.DataFrame(data, columns=["N", "Time [s]"])
         return df
 
-
-if __name__ == "__main__":
-    SphereGridFactory.create("cube4D", 200, 3, use_saved=False, print_messages=True, filter_non_unique=True)
 
