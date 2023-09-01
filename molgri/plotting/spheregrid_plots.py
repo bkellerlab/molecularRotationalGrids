@@ -279,7 +279,7 @@ class PolytopePlot(ArrayPlot):
             self._save_plot_type("graph")
 
     def make_neighbours_plot(self, ax: Axes3D = None, fig: Figure = None, save: bool = True, node_i: int = 0,
-                             up_to: int = 2):
+                             up_to: int = 2, edges=False, projected=False):
         """
         Want to see which points count as neighbours, second- or third neighbours of a specific node? Use this plotting
         method.
@@ -297,24 +297,36 @@ class PolytopePlot(ArrayPlot):
             print("Cannot plot more than third neighbours. Will proceed with third neighbours")
             up_to = 3
 
-        self.make_grid_plot(ax=ax, fig=fig, save=False, c="black")
+        self.make_node_plot(ax=ax, fig=fig, save=False, color_by=None, plot_edges=edges, projection=projected)
 
         # plot node and first neighbours
         node = tuple(all_nodes[node_i])
-        self.ax.scatter(*node[:3], color="red", s=40)
+        if projected:
+            self.ax.scatter(*node[:3]/np.linalg.norm(node[:3]), color="red", s=40)
+        else:
+            self.ax.scatter(*node[:3], color="red", s=40)
         neig = self.polytope.G.neighbors(node)
         for n in neig:
-            self.ax.scatter(*n[:3], color="blue", s=38)
+            if projected:
+                self.ax.scatter(*n[:3]/np.linalg.norm(n[:3]), color="blue", s=38)
+            else:
+                self.ax.scatter(*n[:3], color="blue", s=38)
 
         # optionally plot second and third neighbours
         if up_to >= 2:
             sec_neig = list(second_neighbours(self.polytope.G, node))
             for n in sec_neig:
-                self.ax.scatter(*n[:3], color="green", s=38)
+                if projected:
+                    self.ax.scatter(*n[:3]/np.linalg.norm(n[:3]), color="green", s=38)
+                else:
+                    self.ax.scatter(*n[:3], color="green", s=38)
             third_neig = list(third_neighbours(self.polytope.G, node))
             if up_to == 3:
                 for n in third_neig:
-                    self.ax.scatter(*n[:3], color="orange", s=38)
+                    if projected:
+                        self.ax.scatter(*n[:3]/np.linalg.norm(n[:3]), color="orange", s=38)
+                    else:
+                        self.ax.scatter(*n[:3], color="orange", s=38)
                 if save:
                     self._save_plot_type(f"neighbours_{node_i}")
 
@@ -365,6 +377,8 @@ class PolytopePlot(ArrayPlot):
                         color = level_color[point_level]
                     elif color_by == "index":
                         color = index_palette[i]
+                    elif color_by is None:
+                        color="black"
                     else:
                         raise ValueError(f"The argument color_by={color_by} not possible (try 'index', 'level')")
 

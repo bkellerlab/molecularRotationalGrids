@@ -88,6 +88,20 @@ class FullGrid:
             for second_point_index in range(n_points):
                 pass
 
+    def get_poly_dist_adjacency(self):
+        standard_neig = {"ico": 6, "cube3D": 4}
+        valid_G, my_nodes = self.o_rotations.polytope.get_valid_graph(self.o_positions)
+        distances = cdist(self.o_positions, self.o_positions, "cos")
+        empty_arr = np.zeros(distances.shape, dtype=bool)
+        for j, dist in enumerate(distances):
+            idx = np.argsort(dist)
+            level = valid_G.nodes[my_nodes[j]]["level"]
+            max_index = standard_neig[self.o_rotations.algorithm_name] + 1
+            if level == 0:
+                max_index-=1
+            empty_arr[j][idx[1:max_index]] = True
+        return empty_arr
+
     def get_polyhedron_adjacency(self, o_grid=True):
         """
         If o-grid, return adjacency of o_grid, else b_grid. Will not function if not polyhedra-based grids.
@@ -757,17 +771,28 @@ class ConvergenceFullGridO:
 
 if __name__ == "__main__":
     import matplotlib.pyplot as plt
+    from molgri.plotting.spheregrid_plots import PolytopePlot, SphereGridPlot
+    from molgri.space.polytopes import PolyhedronFromG
     import seaborn as sns
-    fig, ax = plt.subplots(3, 3, figsize=(20, 20))
+
     n_os = (15, 30, 50)
+
+    fig, ax = plt.subplots(len(n_os), 5, figsize=(50, 30))
+
     for i, n_o in enumerate(n_os):
         fg = FullGrid(f"zero", f"ico_{n_o}", "[0.1,]", use_saved=False)
+        fg.get_poly_dist_adjacency()
         vor_adj = fg.get_adjacency_of_position_grid().toarray()
         sns.heatmap(vor_adj, cmap="gray", ax=ax[i][0], cbar=False)
-        poly_adj = fg.o_rotations.get_adjecency_from_polytope().toarray()
+        poly_adj = fg.get_polyhedron_adjacency(o_grid=True).toarray()
         sns.heatmap(poly_adj, cmap="gray", ax=ax[i][1], cbar=False)
-        sns.heatmap(poly_adj ^ vor_adj, cmap="gray", ax=ax[i][2], cbar=False)
+        sns.heatmap(poly_adj ^ vor_adj, cmap="Reds", ax=ax[i][2], cbar=False)
+        empty_arr = fg.get_poly_dist_adjacency()
+        sns.heatmap(empty_arr, ax=ax[i][3], cmap="gray", cbar=False)
+        sns.heatmap(empty_arr ^ vor_adj, ax=ax[i][4], cmap="Reds", cbar=False)
     ax[0][0].set_title("Voronoi adjacency")
     ax[0][1].set_title("Polytope adjacency")
-    ax[0][2].set_title("Difference")
+    ax[0][2].set_title("Error polytope")
+    ax[0][3].set_title("Distances")
+    ax[0][4].set_title("Error distances")
     plt.show()
