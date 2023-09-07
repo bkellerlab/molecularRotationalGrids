@@ -19,6 +19,7 @@ from matplotlib.animation import FuncAnimation, PillowWriter, Animation
 from matplotlib.pyplot import Figure
 from matplotlib.axes import Axes
 from mpl_toolkits.mplot3d.axes3d import Axes3D
+from mpl_toolkits.mplot3d.art3d import Poly3DCollection
 from numpy.typing import NDArray
 from IPython import display
 from scipy.spatial import geometric_slerp
@@ -406,14 +407,14 @@ def show_anim_in_jupyter(anim):
     plt.close()
 
 
-def plot_voronoi_cells(sv, ax, plot_vertex_points=True):
+def plot_voronoi_cells(sv, ax, plot_vertex_points=True, colors=None):
     sv.sort_vertices_of_regions()
     t_vals = np.linspace(0, 1, 2000)
     # plot Voronoi vertices
     if plot_vertex_points:
         ax.scatter(sv.vertices[:, 0], sv.vertices[:, 1], sv.vertices[:, 2], c='g')
     # indicate Voronoi regions (as Euclidean polygons)
-    for region in sv.regions:
+    for i, region in enumerate(sv.regions):
         n = len(region)
         for j in range(n):
             start = sv.vertices[region][j]
@@ -421,3 +422,7 @@ def plot_voronoi_cells(sv, ax, plot_vertex_points=True):
             norm = np.linalg.norm(start)
             result = geometric_slerp(normalise_vectors(start), normalise_vectors(end), t_vals)
             ax.plot(norm * result[..., 0], norm * result[..., 1], norm * result[..., 2], c='k')
+        if colors:
+            polygon = Poly3DCollection([sv.vertices[region]], alpha=0.5)
+            polygon.set_color(colors[i])
+            ax.add_collection3d(polygon)

@@ -104,10 +104,29 @@ class ArrayPlot(RepresentationCollection):
         alphas = points_3D[:, -1].T
         alphas = (alphas - np.min(alphas)) / np.ptp(alphas)
 
+        # determine neighbours of point 0
+        #from scipy.spatial import Voronoi
+        #vor = Voronoi(self.my_array, qhull_options="Qbb Qc Qz", furthest_site=True)
+
+        neig_of_zero = np.where(self.sphere_grid.get_dist_adjacency()[0])[0]
+        #print(neig_of_zero)
+        #zero_regions = set(vor.regions[0])
+        # for i, other_reg in enumerate(vor.regions):
+        #     # if sharing more than 2 el are neig
+        #     overlap = len(zero_regions.intersection(set(other_reg)))
+        #     if 2 <= overlap < len(zero_regions):
+        #         neig_of_zero.append(i)
+
         # plot the lower-dimensional scatterplot
         all_points = []
-        for line in points_3D:
-            all_points.append(self.ax.scatter(*line[:-1], color="black", alpha=1))
+        for i, line in enumerate(points_3D):
+            if i in  neig_of_zero:
+                color="red"
+            elif i==0:
+                color="blue"
+            else:
+                color="black"
+            all_points.append(self.ax.scatter(*line[:-1], color=color, alpha=1))
 
         self._set_axis_limits((-1, 1) * dimension)
         self._equalize_axes()
@@ -221,11 +240,11 @@ class SphereGridPlot(ArrayPlot):
 
     def make_spherical_voronoi_plot(self, ax=None, fig=None, save=True, animate_rot=False):
 
+        self._create_fig_ax(fig=fig, ax=ax, projection="3d")
+
         if self.sphere_grid.dimensions != 3:
             print("make_spherical_voronoi_plot only implemented for 3D grids")
             return
-
-        self._create_fig_ax(fig=fig, ax=ax, projection="3d")
 
         try:
             sv = self.sphere_grid.get_spherical_voronoi_cells()
@@ -291,7 +310,13 @@ class PolytopePlot(ArrayPlot):
         if self.polytope.d != 3:
             print(f"Plotting neighbours not available for d={self.polytope.d}")
 
-        all_nodes = self.my_array
+        try:
+            all_nodes = sorted(self.polytope.G.nodes(), key=lambda n: self.polytope.G.nodes[n]['central_index'])
+            all_nodes = np.array(all_nodes)
+            all_nodes_dict = {self.polytope.G.nodes[n]['central_index']: n for n in self.polytope.G.nodes}
+        except KeyError:
+            all_nodes_dict = {i: n for i, n in enumerate(self.polytope.G.nodes)}
+            all_nodes = self.my_array
 
         if up_to > 3:
             print("Cannot plot more than third neighbours. Will proceed with third neighbours")
@@ -300,35 +325,42 @@ class PolytopePlot(ArrayPlot):
         self.make_node_plot(ax=ax, fig=fig, save=False, color_by=None, plot_edges=edges, projection=projected)
 
         # plot node and first neighbours
-        node = tuple(all_nodes[node_i])
-        if projected:
-            self.ax.scatter(*node[:3]/np.linalg.norm(node[:3]), color="red", s=40)
-        else:
-            self.ax.scatter(*node[:3], color="red", s=40)
-        neig = self.polytope.G.neighbors(node)
-        for n in neig:
+        try:
+            node = all_nodes_dict[node_i]
             if projected:
-                self.ax.scatter(*n[:3]/np.linalg.norm(n[:3]), color="blue", s=38)
+                self.ax.scatter(*node[:3]/np.linalg.norm(node[:3]), color="red", s=40)
+                self.ax.text(*node[:3]/np.linalg.norm(node[:3]), node_i)
             else:
-                self.ax.scatter(*n[:3], color="blue", s=38)
-
-        # optionally plot second and third neighbours
-        if up_to >= 2:
-            sec_neig = list(second_neighbours(self.polytope.G, node))
-            for n in sec_neig:
+                self.ax.scatter(*node[:3], color="red", s=40)
+                self.ax.text(*node[:3], node_i)
+            neig = self.polytope.G.neighbors(node)
+            for n in neig:
                 if projected:
-                    self.ax.scatter(*n[:3]/np.linalg.norm(n[:3]), color="green", s=38)
+                    self.ax.scatter(*n[:3]/np.linalg.norm(n[:3]), color="blue", s=38)
                 else:
-                    self.ax.scatter(*n[:3], color="green", s=38)
-            third_neig = list(third_neighbours(self.polytope.G, node))
-            if up_to == 3:
-                for n in third_neig:
+                    self.ax.scatter(*n[:3], color="blue", s=38)
+                    self.ax.text(*n[:3], self.polytope.G.nodes[n]["central_index"])
+            # optionally plot second and third neighbours
+            if up_to >= 2:
+                sec_neig = list(second_neighbours(self.polytope.G, node))
+                for n in sec_neig:
                     if projected:
-                        self.ax.scatter(*n[:3]/np.linalg.norm(n[:3]), color="orange", s=38)
+                        self.ax.scatter(*n[:3]/np.linalg.norm(n[:3]), color="green", s=38)
                     else:
-                        self.ax.scatter(*n[:3], color="orange", s=38)
-                if save:
-                    self._save_plot_type(f"neighbours_{node_i}")
+                        self.ax.scatter(*n[:3], color="green", s=38)
+                third_neig = list(third_neighbours(self.polytope.G, node))
+                if up_to == 3:
+                    for n in third_neig:
+                        if projected:
+                            self.ax.scatter(*n[:3]/np.linalg.norm(n[:3]), color="orange", s=38)
+                        else:
+                            self.ax.scatter(*n[:3], color="orange", s=38)
+
+        except KeyError:
+            print("This point not in this graph")
+        if save:
+            self._save_plot_type(f"neighbours_{node_i}")
+
 
 
     def make_neighbours_animation(self, **kwargs):
@@ -452,7 +484,8 @@ class PolytopePlot(ArrayPlot):
         # create a 3D polyhedron and use its plotting functions
         sub_polyhedron = PolyhedronFromG(subgraph_3D)
         poly_plotter = PolytopePlot(sub_polyhedron)
-        poly_plotter.make_node_plot(ax=self.ax, plot_edges=draw_edges, plot_nodes=plot_nodes, projection=projection)
+        poly_plotter.make_neighbours_animation(ax=self.ax, fig=self.fig, up_to=1)
+        #poly_plotter.make_node_plot(ax=self.ax, plot_edges=draw_edges, plot_nodes=plot_nodes, projection=projection)
         self._set_axis_limits((-0.6, 0.6, -0.6, 0.6, -0.6, 0.6))
         self._equalize_axes()
         if save:
@@ -661,29 +694,21 @@ class PanelConvergenceSphereGridPlots(PanelRepresentationCollection):
 if __name__ == "__main__":
     from molgri.space.polytopes import Cube4DPolytope, IcosahedronPolytope
     from molgri.space.rotobj import SphereGridFactory
-    my_poly = Cube4DPolytope()
-    my_poly.divide_edges()
-    #my_poly.divide_edges()
 
-    #my_ico = IcosahedronPolytope()
-    #my_ico.divide_edges()
-    #my_ico.divide_edges()
+    c4 = Cube4DPolytope()
+    #c4.divide_edges()
+    all_subpolys = c4.get_all_cells()
 
-    #ip = PolytopePlot(my_ico)
-    #ip.make_neighbours_plot()
-    #ip.make_neighbours_animation()
-    # ip.make_grid_plot()
-    # ip.make_rot_animation()
-    # ip.make_trans_animation()
+    fig, ax = plt.subplots(2, 4, subplot_kw=dict(projection='3d'))
 
-    sphere_obj = SphereGridFactory().create("ico", 35, 3, use_saved=False)
-    N_points = sphere_obj.get_grid_as_array()
-    my_ico = sphere_obj.polytope
-    #my_ico.get_N_ordered_points(15)
-    valid_G, _ = my_ico.get_valid_graph(N_points)
-    valid_plot = PolytopePlot(PolyhedronFromG(valid_G))
-    valid_plot.make_grid_plot()
-    valid_plot.make_neighbours_animation(up_to=1)
+    for i, subax in enumerate(ax.ravel()):
+        pp = PolytopePlot(all_subpolys[i])
+        pp.make_neighbours_plot(fig=fig, ax=subax, save=False, node_i=0, up_to=1)
+        #pp.make_neighbours_animation(cell_index=3)
+    plt.show()
+    # sphere_obj = SphereGridFactory().create("cube4D", 300, 4, use_saved=False)
+    # sphere_plot = SphereGridPlot(sphere_obj)
+    # sphere_plot.make_trans_animation()
 
     # pp =PolytopePlot(my_poly)
     # for cell_index in range(3):

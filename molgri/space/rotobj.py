@@ -268,6 +268,21 @@ class SphereGridNDim(ABC):
         sv = self.get_spherical_voronoi_cells()
         return sv.calculate_areas()
 
+    def get_dist_adjacency(self):
+        from scipy.spatial.distance import cdist
+        standard_neig = {"ico": 6, "cube3D": 4, "cube4D": 8}
+        valid_G, my_nodes = self.polytope.get_valid_graph(self.get_grid_as_array())
+        distances = cdist(self.get_grid_as_array(), self.get_grid_as_array())
+        empty_arr = np.zeros(distances.shape, dtype=bool)
+        for j, dist in enumerate(distances):
+            idx = np.argsort(dist)
+            level = valid_G.nodes[my_nodes[j]]["level"]
+            max_index = standard_neig[self.algorithm_name] + 1
+            if level == 0:
+                max_index-=1
+            empty_arr[j][idx[1:max_index]] = True
+        return empty_arr
+
 
 def _select_unique_rotations(rotations):
     rot_matrices = rotations.as_matrix()

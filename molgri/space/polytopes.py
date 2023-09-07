@@ -463,6 +463,32 @@ class Cube4DPolytope(Polytope):
         self._add_edges_of_len(2*self.side_len, wished_levels=[self.current_level-1, self.current_level-1],
                                only_seconds=False)
 
+    def get_all_cells(self):
+        """Returns 8 sub-graphs belonging to individual cells of hyper-cube."""
+        all_subpoly = []
+        # add central index as property
+        nx.set_node_attributes(self.G, {node: i for i, node in enumerate(self.G.nodes)}, name="central_index")
+        for cell_index in range(8):
+            nodes = (
+                node
+                for node, data
+                in self.G.nodes(data=True)
+                if cell_index in data.get('face')
+            )
+            subgraph = self.G.subgraph(nodes)
+            # find the component corresponding to the constant 4th dimension
+            arr_nodes = np.array(subgraph.nodes)
+            dim_to_keep = list(np.where(~np.all(arr_nodes == arr_nodes[0, :], axis=0))[0])
+            new_nodes = {old: (old[dim_to_keep[0]], old[dim_to_keep[1]], old[dim_to_keep[2]]) for old in subgraph.nodes}
+            subgraph_3D = nx.relabel_nodes(subgraph, new_nodes)
+            # create a 3D polyhedron and use its plotting functions
+            sub_polyhedron = PolyhedronFromG(subgraph_3D)
+            all_subpoly.append(sub_polyhedron)
+            # nx.draw(subgraph_3D, labels={node: data["central_index"] for node, data in subgraph_3D.nodes(data=True)}, with_labels = True)
+            # import matplotlib.pyplot as plt
+            # plt.show()
+        return all_subpoly
+
 
 class IcosahedronPolytope(Polytope):
     """

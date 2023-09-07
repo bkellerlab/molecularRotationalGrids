@@ -89,9 +89,9 @@ class FullGrid:
                 pass
 
     def get_poly_dist_adjacency(self):
-        standard_neig = {"ico": 6, "cube3D": 4}
+        standard_neig = {"ico": 6, "cube3D": 4, "cube4D": 8}
         valid_G, my_nodes = self.o_rotations.polytope.get_valid_graph(self.o_positions)
-        distances = cdist(self.o_positions, self.o_positions, "cos")
+        distances = cdist(self.o_positions, self.o_positions)
         empty_arr = np.zeros(distances.shape, dtype=bool)
         for j, dist in enumerate(distances):
             idx = np.argsort(dist)
@@ -121,6 +121,10 @@ class FullGrid:
     def get_adjacency_of_orientations(self) -> coo_array:
         all_orientations = self.get_body_rotations()
         all_quat = np.array([o.as_quat() for o in all_orientations])
+        from scipy.spatial import Voronoi
+
+        vor = Voronoi(all_quat, qhull_options="Qbb Qc Qz", furthest_site=True)
+        print(vor.regions)
 
         def constrained_angle_distance(q1, q2):
             theta = angle_between_vectors(q1, q2)
@@ -780,24 +784,6 @@ if __name__ == "__main__":
     from molgri.space.polytopes import PolyhedronFromG
     import seaborn as sns
 
-    n_os = (15, 30, 50)
+    fg = FullGrid(f"33", f"ico_15", "[0.1,]", use_saved=False)
 
-    fig, ax = plt.subplots(len(n_os), 5, figsize=(50, 30))
-
-    for i, n_o in enumerate(n_os):
-        fg = FullGrid(f"zero", f"ico_{n_o}", "[0.1,]", use_saved=False)
-        fg.get_poly_dist_adjacency()
-        vor_adj = fg.get_adjacency_of_position_grid().toarray()
-        sns.heatmap(vor_adj, cmap="gray", ax=ax[i][0], cbar=False)
-        poly_adj = fg.get_polyhedron_adjacency(o_grid=True).toarray()
-        sns.heatmap(poly_adj, cmap="gray", ax=ax[i][1], cbar=False)
-        sns.heatmap(poly_adj ^ vor_adj, cmap="Reds", ax=ax[i][2], cbar=False)
-        empty_arr = fg.get_poly_dist_adjacency()
-        sns.heatmap(empty_arr, ax=ax[i][3], cmap="gray", cbar=False)
-        sns.heatmap(empty_arr ^ vor_adj, ax=ax[i][4], cmap="Reds", cbar=False)
-    ax[0][0].set_title("Voronoi adjacency")
-    ax[0][1].set_title("Polytope adjacency")
-    ax[0][2].set_title("Error polytope")
-    ax[0][3].set_title("Distances")
-    ax[0][4].set_title("Error distances")
-    plt.show()
+    fg.get_adjacency_of_orientations()

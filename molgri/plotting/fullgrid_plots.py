@@ -61,7 +61,7 @@ class FullGridPlot(RepresentationCollection):
             return self._animate_figure_view(self.fig, self.ax, f"position_rotated")
 
     def make_full_voronoi_plot(self, ax=None, fig=None, save=True, animate_rot=False, plot_vertex_points=True,
-                               numbered: bool = False):
+                               numbered: bool = False, colors=None):
         self._create_fig_ax(fig=fig, ax=ax, projection="3d")
 
         origin = np.zeros((3,))
@@ -75,7 +75,7 @@ class FullGridPlot(RepresentationCollection):
             voronoi_disc = self.full_voronoi_grid.get_voronoi_discretisation()
 
             for i, sv in enumerate(voronoi_disc):
-                plot_voronoi_cells(sv, self.ax, plot_vertex_points=plot_vertex_points)
+                plot_voronoi_cells(sv, self.ax, plot_vertex_points=plot_vertex_points, colors=colors)
                 # plot rays from origin to highest level
                 if i == len(voronoi_disc)-1:
                     for vertex in sv.vertices:
@@ -175,12 +175,19 @@ class PanelConvergenceFullGridPlots(PanelRepresentationCollection):
 
 if __name__ == "__main__":
     from molgri.constants import SMALL_NS, DEFAULT_NS, MINI_NS
-    fg = FullGrid("zero", "ico_42", "[0.1, 0.2, 0.3, 0.4, 0.5]") #
-    fgp = FullGridPlot(fg, default_complexity_level="half_empty", default_context="talk")
-    fgp.make_position_plot()
-    # fgp.make_full_voronoi_plot(ax=fgp.ax, fig=fgp.fig, animate_rot=True, numbered=True, plot_vertex_points=False)
-    #cfgo = ConvergenceFullGridO("zero", t_grid_name="[0.1, 0.3]", o_alg_name="ico", use_saved=True)
-    #ConvergenceFullGridPlot(cfgo).make_voronoi_volume_conv_plot()
-    # PanelConvergenceFullGridPlots(t_grid_name="[1.5, 3]", use_saved=False,
-    #                               N_set=SMALL_NS).make_all_voronoi_volume_plots()
-    # PanelConvergenceFullGridPlots(t_grid_name="[1.5, 3]", N_set=DEFAULT_NS, use_saved=False).make_all_voronoi_volume_plots()
+
+    n_o = 40
+    fg = FullGrid(f"zero", f"cube3D_{n_o}", "[0.1,]", use_saved=False)
+    colors = ["white"] * len(fg.get_flat_position_grid())
+    vor_adj = fg.get_adjacency_of_position_grid().toarray()
+    dist_adj = fg.get_poly_dist_adjacency()
+    poly_adj = fg.get_polyhedron_adjacency(o_grid=True).toarray()
+
+    dist_neig = ((dist_adj[0] | poly_adj[0]) == 1)
+    for i, trug in enumerate(dist_neig):
+        if trug:
+            colors[i] = "green"
+    colors[0] = "blue"
+
+    fgp = FullGridPlot(fg)
+    ani = fgp.make_full_voronoi_plot(save=False, animate_rot=True, numbered=True, colors=colors)
