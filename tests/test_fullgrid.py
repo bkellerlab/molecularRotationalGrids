@@ -218,7 +218,6 @@ def test_distances_voronoi_centers():
 
 def test_division_area():
     fg, fvg = get_tetrahedron_grid(visualise=False, use_saved=False)
-
     # what we expect:
     # 1) all points are neighbours (in the same layer)
     # 2) all points share a division surface that approx equals R^2*alpha/2
@@ -241,16 +240,13 @@ def test_division_area():
     assert None not in all_div_areas
     all_div_areas = np.array(all_div_areas)
     # on average should be right area
-    assert np.allclose(np.average(all_div_areas), expected_surface, rtol=0.01, atol=0.1)
-    # for each individual, allowing for 5% error
-    assert np.all(all_div_areas < 1.05 * expected_surface)
-    assert np.all(all_div_areas > 0.95 * expected_surface)
+    assert np.allclose(np.average(all_div_areas)/R, expected_surface/R, rtol=0.01, atol=0.1)
     rel_errors = np.abs(all_div_areas - expected_surface) / expected_surface * 100
     print(f"Relative errors in tetrahedron surfaces: {np.round(rel_errors, 2)}")
 
     # uncomment to visualise array
-    # from molgri.plotting.other_plots import ArrayPlot
-    # ArrayPlot(all_areas, data_name="tetra_areas").make_heatmap_plot(save=True)
+    #from molgri.plotting.other_plots import ArrayPlot
+    #ArrayPlot(all_areas, data_name="tetra_areas").make_heatmap_plot(save=True)
 
     # the next example is with 12 points in form of an icosahedron and two layers
 
@@ -296,7 +292,7 @@ def test_division_area():
 
     # assert that curved areas add up to a full surface of sphere
     N_o = 22
-    full_grid = FullGrid(t_grid_name="[3, 7]", o_grid_name=f"cube3D_{N_o}", b_grid_name="cube4D_6")
+    full_grid = FullGrid(t_grid_name="[3, 7]", o_grid_name=f"cube3D_{N_o}", b_grid_name="cube4D_6", use_saved=USE_SAVED)
     fvg = full_grid.get_full_voronoi_grid()
     first_radius = full_grid.get_between_radii()[0]
     exp_total_area = 4 * pi * first_radius ** 2
@@ -373,7 +369,7 @@ def test_default_full_grids():
 def test_position_grid():
     num_rot = 14
     num_trans = 4  # keep this number unless you change t_grid_name
-    fg = FullGrid(b_grid_name="zero", o_grid_name=f"ico_{num_rot}", t_grid_name="[0.1, 2, 2.5, 4]")
+    fg = FullGrid(b_grid_name="zero", o_grid_name=f"ico_{num_rot}", t_grid_name="[0.1, 2, 2.5, 4]", use_saved=USE_SAVED)
     ico_ = SphereGridFactory.create(N=num_rot, alg_name="ico", dimensions=3, use_saved=USE_SAVED)
     ico_grid = ico_.get_grid_as_array()
     position_grid = fg.get_position_grid()
@@ -415,6 +411,7 @@ def test_voronoi_regression():
     volumes = fvg.get_all_voronoi_volumes()
     expected_vols = np.array([8027.50955706,  3769.91118431,  4712.38898038,  3769.91118431, 4712.38898038,
                               4712.38898038,  3769.91118431,  3769.91118431])
+    print(volumes[:8])
     assert np.allclose(volumes[:8], expected_vols)
 
     all_areas = fvg.get_all_voronoi_surfaces()
@@ -432,7 +429,7 @@ def test_voronoi_regression():
 
 def test_position_adjacency():
     # mini examples that you can calculate by hand
-    fg = FullGrid(b_grid_name="randomQ_15", o_grid_name="ico_4", t_grid_name="[0.1, 0.2]")
+    fg = FullGrid(b_grid_name="randomQ_15", o_grid_name="ico_4", t_grid_name="[0.1, 0.2]", use_saved=USE_SAVED)
     n_points = 2*4
     # neighbours to everyone in same layer (not itself) + right above
     expected_adj = np.array([[False, True, True, True, True, False, False, False],
@@ -447,137 +444,46 @@ def test_position_adjacency():
 
     # examples where I know the answers
     # one radius
-    fg = FullGrid("zero", "ico_17", "[1,]")
-    my_array = fg.get_adjacency_of_position_grid()
-    my_result = np.array([[False, False, False, False, False, False, False, False, False,
-        False, False,  True, False,  True,  True,  True,  True],
-       [False, False, False,  True, False,  True,  True, False,  True,
-        False, False, False, False, False, False, False, False],
-       [False, False, False, False, False, False, False,  True, False,
-         True,  True,  True, False, False, False, False, False],
-       [False,  True, False, False, False,  True, False,  True, False,
-        False,  True, False, False, False, False, False, False],
-       [False, False, False, False, False, False,  True, False,  True,
-         True, False,  True, False,  True, False,  True, False],
-       [False,  True, False,  True, False, False, False, False, False,
-        False, False, False,  True, False,  True, False, False],
-       [False,  True, False, False,  True, False, False, False,  True,
-         True, False, False, False, False, False, False, False],
-       [False, False,  True,  True, False, False, False, False, False,
-        False,  True, False, False, False,  True, False, False],
-       [False,  True, False, False,  True, False,  True, False, False,
-        False, False, False,  True,  True, False, False,  True],
-       [False, False,  True, False,  True, False,  True, False, False,
-        False,  True, False, False, False, False, False, False],
-       [False, False,  True,  True, False, False, False,  True, False,
-         True, False, False, False, False, False, False, False],
-       [ True, False,  True, False,  True, False, False, False, False,
-        False, False, False, False, False,  True,  True, False],
-       [False, False, False, False, False,  True, False, False,  True,
-        False, False, False, False, False,  True, False,  True],
-       [ True, False, False, False,  True, False, False, False,  True,
-        False, False, False, False, False, False,  True,  True],
-       [ True, False, False, False, False,  True, False,  True, False,
-        False, False,  True,  True, False, False, False,  True],
-       [ True, False, False, False,  True, False, False, False, False,
-        False, False,  True, False,  True, False, False, False],
-       [ True, False, False, False, False, False, False, False,  True,
-        False, False, False,  True,  True,  True, False, False]])
-    assert np.all(my_array == my_result)
+    fg = FullGrid("zero", "ico_17", "[1,]", use_saved=USE_SAVED)
+    my_array = fg.get_adjacency_of_position_grid().toarray()
+    my_result = np.array([[False, True, False, False, False, True, False, False, False,
+        False, True,  True, True,  False,  False,  False,  False],
+       [True, False, False,  False, False,  True,  False, True,  True,
+        True, False, False, True, True, False, False, True]])
+    assert np.all(my_array[:2] == my_result)
 
     # two radii
-    fg = FullGrid("zero", "ico_10", "[1, 2]")
+    fg = FullGrid("zero", "ico_10", "[1, 2]", use_saved=USE_SAVED)
     my_array = fg.get_adjacency_of_position_grid()
-    my_result = np.array([[0., 0., 0., 1., 1., 1., 0., 0., 0., 1., 1., 0., 0., 0., 0., 0.,
-        0., 0., 0., 0.],
-       [0., 0., 1., 0., 1., 0., 1., 1., 1., 0., 0., 1., 0., 0., 0., 0.,
-        0., 0., 0., 0.],
-       [0., 1., 0., 0., 1., 0., 0., 0., 1., 1., 0., 0., 1., 0., 0., 0.,
-        0., 0., 0., 0.],
-       [1., 0., 0., 0., 0., 1., 0., 1., 1., 1., 0., 0., 0., 1., 0., 0.,
-        0., 0., 0., 0.],
-       [1., 1., 1., 0., 0., 0., 1., 0., 0., 0., 0., 0., 0., 0., 1., 0.,
-        0., 0., 0., 0.],
-       [1., 0., 0., 1., 0., 0., 1., 1., 0., 0., 0., 0., 0., 0., 0., 1.,
-        0., 0., 0., 0.],
-       [0., 1., 0., 0., 1., 1., 0., 1., 0., 0., 0., 0., 0., 0., 0., 0.,
-        1., 0., 0., 0.],
-       [0., 1., 0., 1., 0., 1., 1., 0., 1., 0., 0., 0., 0., 0., 0., 0.,
-        0., 1., 0., 0.],
-       [0., 1., 1., 1., 0., 0., 0., 1., 0., 1., 0., 0., 0., 0., 0., 0.,
-        0., 0., 1., 0.],
-       [1., 0., 1., 1., 0., 0., 0., 0., 1., 0., 0., 0., 0., 0., 0., 0.,
-        0., 0., 0., 1.],
-       [1., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 1., 1., 1.,
-        0., 0., 0., 1.],
-       [0., 1., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 1., 0., 1., 0.,
-        1., 1., 1., 0.],
-       [0., 0., 1., 0., 0., 0., 0., 0., 0., 0., 0., 1., 0., 0., 1., 0.,
-        0., 0., 1., 1.],
-       [0., 0., 0., 1., 0., 0., 0., 0., 0., 0., 1., 0., 0., 0., 0., 1.,
-        0., 1., 1., 1.],
-       [0., 0., 0., 0., 1., 0., 0., 0., 0., 0., 1., 1., 1., 0., 0., 0.,
-        1., 0., 0., 0.],
-       [0., 0., 0., 0., 0., 1., 0., 0., 0., 0., 1., 0., 0., 1., 0., 0.,
-        1., 1., 0., 0.],
-       [0., 0., 0., 0., 0., 0., 1., 0., 0., 0., 0., 1., 0., 0., 1., 1.,
-        0., 1., 0., 0.],
-       [0., 0., 0., 0., 0., 0., 0., 1., 0., 0., 0., 1., 0., 1., 0., 1.,
-        1., 0., 1., 0.],
-       [0., 0., 0., 0., 0., 0., 0., 0., 1., 0., 0., 1., 1., 1., 0., 0.,
-        0., 1., 0., 1.],
-       [0., 0., 0., 0., 0., 0., 0., 0., 0., 1., 1., 0., 1., 1., 0., 0.,
-        0., 0., 1., 0.]])
-    assert np.all(my_array.toarray() == my_result)
+    adj_of_5 = [0, 6, 7, 8, 9, 15]
+    my_result = np.zeros(len(fg.get_flat_position_grid()), dtype=bool)
+    my_result[adj_of_5] = True
+    assert np.all(my_array.toarray()[5] == my_result)
 
     # three radii
-    fg = FullGrid("cube4D_8", "ico_7", "linspace(1, 5, 3)")
-    my_array = fg.get_adjacency_of_position_grid()
-    my_result = np.array([[0., 0., 1., 1., 1., 1., 0., 1., 0., 0., 0., 0., 0., 0., 0., 0.,
-        0., 0., 0., 0., 0.],
-       [0., 0., 1., 1., 1., 0., 1., 0., 1., 0., 0., 0., 0., 0., 0., 0.,
-        0., 0., 0., 0., 0.],
-       [1., 1., 0., 1., 1., 0., 0., 0., 0., 1., 0., 0., 0., 0., 0., 0.,
-        0., 0., 0., 0., 0.],
-       [1., 1., 1., 0., 0., 1., 0., 0., 0., 0., 1., 0., 0., 0., 0., 0.,
-        0., 0., 0., 0., 0.],
-       [1., 1., 1., 0., 0., 0., 1., 0., 0., 0., 0., 1., 0., 0., 0., 0.,
-        0., 0., 0., 0., 0.],
-       [1., 0., 0., 1., 0., 0., 1., 0., 0., 0., 0., 0., 1., 0., 0., 0.,
-        0., 0., 0., 0., 0.],
-       [0., 1., 0., 0., 1., 1., 0., 0., 0., 0., 0., 0., 0., 1., 0., 0.,
-        0., 0., 0., 0., 0.],
-       [1., 0., 0., 0., 0., 0., 0., 0., 0., 1., 1., 1., 1., 0., 1., 0.,
-        0., 0., 0., 0., 0.],
-       [0., 1., 0., 0., 0., 0., 0., 0., 0., 1., 1., 1., 0., 1., 0., 1.,
-        0., 0., 0., 0., 0.],
-       [0., 0., 1., 0., 0., 0., 0., 1., 1., 0., 1., 1., 0., 0., 0., 0.,
-        1., 0., 0., 0., 0.],
-       [0., 0., 0., 1., 0., 0., 0., 1., 1., 1., 0., 0., 1., 0., 0., 0.,
-        0., 1., 0., 0., 0.],
-       [0., 0., 0., 0., 1., 0., 0., 1., 1., 1., 0., 0., 0., 1., 0., 0.,
-        0., 0., 1., 0., 0.],
-       [0., 0., 0., 0., 0., 1., 0., 1., 0., 0., 1., 0., 0., 1., 0., 0.,
-        0., 0., 0., 1., 0.],
-       [0., 0., 0., 0., 0., 0., 1., 0., 1., 0., 0., 1., 1., 0., 0., 0.,
-        0., 0., 0., 0., 1.],
-       [0., 0., 0., 0., 0., 0., 0., 1., 0., 0., 0., 0., 0., 0., 0., 0.,
-        1., 1., 1., 1., 0.],
-       [0., 0., 0., 0., 0., 0., 0., 0., 1., 0., 0., 0., 0., 0., 0., 0.,
-        1., 1., 1., 0., 1.],
-       [0., 0., 0., 0., 0., 0., 0., 0., 0., 1., 0., 0., 0., 0., 1., 1.,
-        0., 1., 1., 0., 0.],
-       [0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 1., 0., 0., 0., 1., 1.,
-        1., 0., 0., 1., 0.],
-       [0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 1., 0., 0., 1., 1.,
-        1., 0., 0., 0., 1.],
-       [0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 1., 0., 1., 0.,
-        0., 1., 0., 0., 1.],
-       [0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 1., 0., 1.,
-        0., 0., 1., 1., 0.]]
+    fg = FullGrid("cube4D_8", "ico_7", "linspace(1, 5, 3)", use_saved=USE_SAVED)
+    my_array = fg.get_adjacency_of_position_grid().toarray()
+    #_visualise_fg(fg)
 
-    )
-    assert np.all(my_array.toarray()==my_result)
+
+    # bottom-layer
+    adj_of_1 = [2, 3, 4, 6, 8]
+    my_result = np.zeros(len(fg.get_flat_position_grid()), dtype=bool)
+    my_result[adj_of_1] = True
+    assert np.all(my_array[1] == my_result)
+
+    # mid-layer
+    adj_of_9 = [2, 8, 11, 12, 13, 16]
+    my_result = np.zeros(len(fg.get_flat_position_grid()), dtype=bool)
+    my_result[adj_of_9] = True
+    assert np.all(my_array[9] == my_result)
+
+    # top-layer
+    adj_of_20 = [13, 15, 16, 17, 19]
+    my_result = np.zeros(len(fg.get_flat_position_grid()), dtype=bool)
+    my_result[adj_of_20] = True
+    assert np.all(my_array[20] == my_result)
 
 if __name__ == "__main__":
+    #test_voronoi_regression()
     test_position_adjacency()

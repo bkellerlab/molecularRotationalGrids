@@ -174,6 +174,8 @@ class Polytope(ABC):
             del current_points[index]
 
         # random remaining points
+        # define a seed to have repeatable results
+        np.random.seed(0)
         np.random.shuffle(current_points)
         random_points = current_points[:N - len(result)]
 

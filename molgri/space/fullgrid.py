@@ -159,13 +159,18 @@ class FullGrid:
 
         # Now we also want neighbours on the same level based on Voronoi discretisation
         # We first focus on the first n_o points since the set-up repeats at every radius
-        vg = self.get_full_voronoi_grid()
-        neig = np.zeros((n_o, n_o), dtype=bool)
-        for i in range(n_o):
-            for j in range(n_o):
-                are_neighbours = vg._are_sideways_neighbours(Point(i, vg), Point(j, vg))
-                neig[i][j] = are_neighbours
-                neig[j][i] = are_neighbours
+
+        # can't create Voronoi grid with <= 4 points, but then they are just all neighbours (except with itself)
+        if n_o <= 4:
+            neig = np.ones((n_o, n_o), dtype=bool) ^ np.eye(n_o, dtype=bool)
+        else:
+            vg = self.get_full_voronoi_grid()
+            neig = np.zeros((n_o, n_o), dtype=bool)
+            for i in range(n_o):
+                for j in range(n_o):
+                    are_neighbours = vg._are_sideways_neighbours(Point(i, vg), Point(j, vg))
+                    neig[i][j] = are_neighbours
+                    neig[j][i] = are_neighbours
         # in case there are several translation distances, the array neig repeats along the diagonal n_t times
         if n_t > 1:
             rows = np.arange(0, n_points, n_o)
