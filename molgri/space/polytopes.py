@@ -194,13 +194,12 @@ class Polytope(ABC):
         for node, data in self.G.nodes(data=True):
             is_in_list = np.any([np.allclose(data["projection"], x) for x in N_ordered_points])
             if not is_in_list:
-                valid_G.remove_node(node)
                 #remove_and_reconnect(valid_G, node)
                 #if it acts like a bridge, reconnect
-                # if len(valid_G.edges(node)) <= 2:
-                #     remove_and_reconnect(valid_G, node)
-                # else:
-                #     valid_G.remove_node(node)
+                if len(valid_G.edges(node)) <= 2:
+                    remove_and_reconnect(valid_G, node)
+                else:
+                    valid_G.remove_node(node)
             else:
                 # update my nodes
                 my_nodes.append(node)
