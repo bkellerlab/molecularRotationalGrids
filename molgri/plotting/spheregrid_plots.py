@@ -357,7 +357,7 @@ class PolytopePlot(ArrayPlot):
                             self.ax.scatter(*n[:3], color="orange", s=38)
 
         except KeyError:
-            print("This point not in this graph")
+            pass
         if save:
             self._save_plot_type(f"neighbours_{node_i}")
 
@@ -695,24 +695,24 @@ if __name__ == "__main__":
     from molgri.space.polytopes import Cube4DPolytope, IcosahedronPolytope
     from molgri.space.rotobj import SphereGridFactory
 
+    chosen_point = 30
+
     c4 = Cube4DPolytope()
-    #c4.divide_edges()
-    all_subpolys = c4.get_all_cells()
+    c4.divide_edges()
+    num_points = c4.G.number_of_nodes()
+    points_dic = c4.G.nodes(data=True)
+
+    non_repeating_points = []
+    for i in range(4):
+        for k, v in points_dic:
+            if np.allclose(v["projection"][:i], 0) and v["projection"][i] > 0:
+                non_repeating_points.append(k)
+    all_subpolys = c4.get_all_cells(include_only=non_repeating_points)
 
     fig, ax = plt.subplots(2, 4, subplot_kw=dict(projection='3d'))
 
     for i, subax in enumerate(ax.ravel()):
         pp = PolytopePlot(all_subpolys[i])
-        pp.make_neighbours_plot(fig=fig, ax=subax, save=False, node_i=0, up_to=1)
-        #pp.make_neighbours_animation(cell_index=3)
+        pp.make_neighbours_plot(fig=fig, ax=subax, save=False, node_i=chosen_point, up_to=1, edges=True)
     plt.show()
-    # sphere_obj = SphereGridFactory().create("cube4D", 300, 4, use_saved=False)
-    # sphere_plot = SphereGridPlot(sphere_obj)
-    # sphere_plot.make_trans_animation()
-
-    # pp =PolytopePlot(my_poly)
-    # for cell_index in range(3):
-    #     sub_poly = pp.make_cell_plot(cell_index=cell_index)
-    #     new_plot = PolytopePlot(sub_poly)
-    #     new_plot.make_neighbours_animation(up_to=1)
 
