@@ -65,6 +65,7 @@ class Polytope(ABC):
 
         # function that depends on the object being created
         self._create_level0()
+        nx.set_node_attributes(self.G, {node: i for i, node in enumerate(self.G.nodes)}, name="central_index")
 
     def __str__(self):
         return "Polytope"
@@ -221,6 +222,7 @@ class Polytope(ABC):
         self._add_mid_edge_nodes()
         self.current_level += 1
         self.side_len = self.side_len / 2
+        nx.set_node_attributes(self.G, {node: i for i, node in enumerate(self.G.nodes)}, name="central_index")
 
     def _add_mid_edge_nodes(self):
         """
@@ -463,11 +465,40 @@ class Cube4DPolytope(Polytope):
         self._add_edges_of_len(2*self.side_len, wished_levels=[self.current_level-1, self.current_level-1],
                                only_seconds=False)
 
+    def select_half_of_hypercube(self, return_central_indices: bool = False) -> list:
+        """
+        Select only half of points in a hypercube polytope in such a manner that double coverage is eliminated.
+
+        Args:
+            return_central_indices: if True, return the property 'central_index' of selected points.
+                                    if False, return non-projected nodes (tuples) of selected points.
+
+        Returns:
+            a list of elements, each of them either a node in c4_polytope.G or its central_index
+
+        How selection is done: select a list of all nodes (each node a 4-tuple) that have non-negative
+        first coordinate. Among the nodes with first coordinate equal zero, select only the ones with
+        non-negative second coordinate etc.
+
+        Points are always returned sorted in the order of increasing central_index
+        """
+        points = sorted(self.G.nodes(), key=lambda n: self.G.nodes[n]['central_index'])
+        non_repeating_points = []
+        for i in range(4):
+            for point in points:
+                projected_point = self.G.nodes[point]["projection"]
+                if np.allclose(projected_point[:i], 0) and projected_point[i] > 0:
+                    # the point is selected
+                    if return_central_indices:
+                        non_repeating_points.append(self.G.nodes[point]['central_index'])
+                    else:
+                        non_repeating_points.append(tuple(point))
+        return non_repeating_points
+
     def get_all_cells(self, include_only=None):
         """Returns 8 sub-graphs belonging to individual cells of hyper-cube."""
         all_subpoly = []
         # add central index as property
-        nx.set_node_attributes(self.G, {node: i for i, node in enumerate(self.G.nodes)}, name="central_index")
         if include_only is None:
             include_only = list(self.G.nodes)
         for cell_index in range(8):
@@ -482,8 +513,10 @@ class Cube4DPolytope(Polytope):
             # find the component corresponding to the constant 4th dimension
             if subgraph.number_of_nodes() > 0:
                 arr_nodes = np.array(subgraph.nodes)
+                num_dim = len(arr_nodes[0])
                 dim_to_keep = list(np.where(~np.all(arr_nodes == arr_nodes[0, :], axis=0))[0])
-                new_nodes = {old: tuple(old[d] for d in dim_to_keep) for old in
+                removed_dim = max(set(range(num_dim)).difference(set(dim_to_keep)))
+                new_nodes = {old: tuple(old[d] for d in range(num_dim) if d !=removed_dim) for old in
                              subgraph.nodes}
                 #new_nodes = {old: (old[dim_to_keep[0]], old[dim_to_keep[1]], old[dim_to_keep[2]]) for old in subgraph.nodes}
                 subgraph_3D = nx.relabel_nodes(subgraph, new_nodes)
@@ -496,6 +529,57 @@ class Cube4DPolytope(Polytope):
             # import matplotlib.pyplot as plt
             # plt.show()
         return all_subpoly
+
+
+    def get_polytope_neighbours(self, point_index, include_opposing_neighbours=False, only_half_of_cube=False):
+        adj_matrix = self.get_polytope_adj_matrix(include_opposing_neighbours=include_opposing_neighbours,
+                                                  only_half_of_cube=only_half_of_cube)
+        # easy - if all points are in adj matrix, just read i-th line of adj matrix
+        if not only_half_of_cube:
+            return np.nonzero(adj_matrix[point_index])[0]
+        else:
+            # change indices because adj matrix is smaller
+            available_indices = self.select_half_of_hypercube(return_central_indices=True)
+            available_indices.sort()
+            if point_index in available_indices:
+                return np.nonzero(adj_matrix[available_indices.index(point_index)])[0]
+            else:
+                return []
+
+    def get_polytope_adj_matrix(self, include_opposing_neighbours=False, only_half_of_cube=False):
+        """
+        Get adjacency matrix sorted by central index. Default is to use the creation graph to get adjacency
+        relationship.
+
+        Args:
+            include_opposing_neighbours ():
+
+        Returns:
+
+        """
+        adj_matrix = nx.adjacency_matrix(self.G, nodelist=sorted(self.G.nodes(),
+                                         key=lambda n: self.G.nodes[n]['central_index'])).toarray()
+        if include_opposing_neighbours:
+            all_central_ind = [self.G.nodes[n]['central_index'] for n in self.G.nodes]
+            all_central_ind.sort()
+
+            ind2opp_index = dict()
+            for n, d in self.G.nodes(data=True):
+                ind = d["central_index"]
+                opp_ind = find_opposing_q(ind, self.G)
+                if opp_ind in all_central_ind:
+                    ind2opp_index[ind] = opp_ind
+            for i, line in enumerate(adj_matrix):
+                for j, el in enumerate(line):
+                    if el:
+                        adj_matrix[i][all_central_ind.index(ind2opp_index[j])] = True
+        if only_half_of_cube:
+            available_indices = self.select_half_of_hypercube(return_central_indices=True)
+            available_indices.sort()
+            adj_matrix = adj_matrix[available_indices, :]
+            adj_matrix = adj_matrix[:, available_indices]
+
+        return adj_matrix
 
 
 class IcosahedronPolytope(Polytope):
@@ -739,6 +823,24 @@ def remove_and_reconnect(g: nx.Graph, node: tuple):
                  edge[0] != edge[1]]
     g.add_edges_from(new_edges)
     g.remove_node(node)
+
+
+def find_opposing_q(node_i, G):
+    """
+    Node_i is the index of one point in graph G.
+
+    Return the index of the opposing point if it is in G, else None
+    """
+    all_nodes_dict = {G.nodes[n]['central_index']: G.nodes[n]['projection'] for n in G.nodes}
+    projected = all_nodes_dict[node_i]
+    opposing_projected = - projected.copy()
+    opposing_projected = tuple(opposing_projected)
+    # return the non-projected point if available
+    for n, d in G.nodes(data=True):
+        projected_n = d["projection"]
+        if np.allclose(projected_n, opposing_projected):
+            return d["central_index"]
+    return None
 
 
 if __name__ == "__main__":

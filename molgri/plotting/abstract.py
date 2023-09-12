@@ -240,14 +240,16 @@ class MultiRepresentationCollection(ABC):
     ##################################################################################################################
 
     def _make_plot_for_all(self, plotting_method: str, all_ax: NDArray = None, plotting_kwargs: dict = None,
-                           remove_midlabels: bool = True, projection: str = None, creation_kwargs: dict = None):
+                           remove_midlabels: bool = True, projection: str = None, creation_kwargs: dict = None,
+                           fig: Figure = None):
         """This method should be run in all sub-modules to set-up the axes"""
         if plotting_kwargs is None:
             plotting_kwargs = dict()
         if creation_kwargs is None:
             creation_kwargs = dict()
         _set_style_and_context(context=self.list_plots[0].context, color_style=self.list_plots[0].color_style)
-        self.__create_fig_ax(all_ax=all_ax, projection=projection, **creation_kwargs)
+        if fig is None or all_ax is None:
+            self.__create_fig_ax(all_ax=all_ax, projection=projection, **creation_kwargs)
         for ax, subplot in zip(self.all_ax.ravel(), self.list_plots):
             plot_func = getattr(subplot, plotting_method)
             plot_func(fig=self.fig, ax=ax, save=False, **plotting_kwargs)

@@ -9,6 +9,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import seaborn as sns
 from matplotlib.pyplot import Figure, Axes
+from molgri.paths import PATH_OUTPUT_PLOTS
 from mpl_toolkits.mplot3d.axes3d import Axes3D
 from matplotlib.animation import FuncAnimation
 from numpy.typing import NDArray
@@ -17,9 +18,10 @@ import networkx as nx
 
 from molgri.constants import DEFAULT_ALPHAS_3D, TEXT_ALPHAS_3D, DEFAULT_ALPHAS_4D, TEXT_ALPHAS_4D, COLORS, \
     GRID_ALGORITHMS, NAME2SHORT_NAME, DEFAULT_DPI_MULTI, DIM_LANDSCAPE, DIM_SQUARE, DEFAULT_NS
-from molgri.plotting.abstract import RepresentationCollection, PanelRepresentationCollection, plot_voronoi_cells
+from molgri.plotting.abstract import MultiRepresentationCollection, RepresentationCollection, \
+    PanelRepresentationCollection, plot_voronoi_cells
 from molgri.space.analysis import vector_within_alpha
-from molgri.space.polytopes import Polytope, second_neighbours, third_neighbours, PolyhedronFromG
+from molgri.space.polytopes import Polytope, second_neighbours, third_neighbours, PolyhedronFromG, Cube4DPolytope
 from molgri.space.rotobj import SphereGridNDim, SphereGridFactory, ConvergenceSphereGridFactory
 
 
@@ -108,7 +110,7 @@ class ArrayPlot(RepresentationCollection):
         #from scipy.spatial import Voronoi
         #vor = Voronoi(self.my_array, qhull_options="Qbb Qc Qz", furthest_site=True)
 
-        neig_of_zero = np.where(self.sphere_grid.get_dist_adjacency()[0])[0]
+        #neig_of_zero = np.where(self.sphere_grid.get_dist_adjacency()[0])[0]
         #print(neig_of_zero)
         #zero_regions = set(vor.regions[0])
         # for i, other_reg in enumerate(vor.regions):
@@ -120,13 +122,13 @@ class ArrayPlot(RepresentationCollection):
         # plot the lower-dimensional scatterplot
         all_points = []
         for i, line in enumerate(points_3D):
-            if i in  neig_of_zero:
-                color="red"
-            elif i==0:
-                color="blue"
-            else:
-                color="black"
-            all_points.append(self.ax.scatter(*line[:-1], color=color, alpha=1))
+            # if i in  neig_of_zero:
+            #     color="red"
+            # elif i==0:
+            #     color="blue"
+            # else:
+            #     color="black"
+            all_points.append(self.ax.scatter(*line[:-1], color="black", alpha=1))
 
         self._set_axis_limits((-1, 1) * dimension)
         self._equalize_axes()
@@ -332,7 +334,7 @@ class PolytopePlot(ArrayPlot):
                 self.ax.text(*node[:3]/np.linalg.norm(node[:3]), node_i)
             else:
                 self.ax.scatter(*node[:3], color="red", s=40)
-                self.ax.text(*node[:3], node_i)
+                self.ax.text(*node[:3], s=node_i)
             neig = self.polytope.G.neighbors(node)
             for n in neig:
                 if projected:
@@ -426,6 +428,25 @@ class PolytopePlot(ArrayPlot):
             self._plot_edges(self.ax, select_faces=select_faces)
         if save:
             self._save_plot_type(f"points_{color_by}")
+
+    def _plot_single_points(self, nodes_i: list, color, label=True, ax: Axes3D = None, fig: Figure = None,
+                            save=True):
+        """
+        Plot just the points with specified central_index in specified color.
+
+        Don't plot anything (but don't return an error) if the cpecified node doesn't exist.
+        """
+
+        self._create_fig_ax(fig=fig, ax=ax, projection="3d")
+
+        for n, d in self.polytope.G.nodes(data=True):
+            if d["central_index"] in nodes_i:
+                self.ax.scatter(*n[:3], color=color, s=30)
+                if label:
+                    self.ax.text(*n[:3], d["central_index"])
+        self._equalize_axes()
+        if save:
+            self._save_plot_type(f"single_points")
 
     def _plot_edges(self, ax, select_faces=None, label=None, **kwargs):
         """
@@ -523,7 +544,7 @@ class PanelSphereGridPlots(PanelRepresentationCollection):
         self.add_titles(list_titles=[subplot.get_possible_title() for subplot in self.list_plots],
                         pad=-14)
         if animate_rot:
-            self.animate_figure_view("grid", dpi=100)
+            return self.animate_figure_view("grid", dpi=100)
         if animate_trans:
             self._make_plot_for_all("make_trans_animation", projection="3d")
         self._save_multiplot("grid", dpi=100)
@@ -691,28 +712,89 @@ class PanelConvergenceSphereGridPlots(PanelRepresentationCollection):
             self._save_multiplot("spheregrid_times")
 
 
-if __name__ == "__main__":
-    from molgri.space.polytopes import Cube4DPolytope, IcosahedronPolytope
-    from molgri.space.rotobj import SphereGridFactory
+def plot_eight_cells(c4_polytope: Cube4DPolytope, only_half_of_cube=False, ax=None, fig=None,
+                     plot_edges=True):
+    if only_half_of_cube:
+        all_subpolys = c4_polytope.get_all_cells(include_only=c4_polytope.select_half_of_hypercube())
+    else:
+        all_subpolys = c4_polytope.get_all_cells()
 
-    chosen_point = 30
-
-    c4 = Cube4DPolytope()
-    c4.divide_edges()
-    num_points = c4.G.number_of_nodes()
-    points_dic = c4.G.nodes(data=True)
-
-    non_repeating_points = []
-    for i in range(4):
-        for k, v in points_dic:
-            if np.allclose(v["projection"][:i], 0) and v["projection"][i] > 0:
-                non_repeating_points.append(k)
-    all_subpolys = c4.get_all_cells(include_only=non_repeating_points)
-
-    fig, ax = plt.subplots(2, 4, subplot_kw=dict(projection='3d'))
+    if ax is None:
+        fig, ax = plt.subplots(2, 4, subplot_kw=dict(projection='3d'), figsize=(20, 10))
 
     for i, subax in enumerate(ax.ravel()):
         pp = PolytopePlot(all_subpolys[i])
-        pp.make_neighbours_plot(fig=fig, ax=subax, save=False, node_i=chosen_point, up_to=1, edges=True)
+        pp.make_node_plot(fig=fig, ax=subax, save=False, color_by=None, plot_edges=plot_edges)
+
+
+class EightCellsPlot(MultiRepresentationCollection):
+
+    def __init__(self, cube4D: Cube4DPolytope, only_half_of_cube=False):
+        self.cube4D = cube4D
+        self.only_half_of_cube = only_half_of_cube
+        if only_half_of_cube:
+            all_subpolys = cube4D.get_all_cells(include_only=cube4D.select_half_of_hypercube())
+        else:
+            all_subpolys = cube4D.get_all_cells()
+        list_plots = [PolytopePlot(subpoly) for subpoly in all_subpolys]
+        super().__init__(data_name=f"eight_cells_{cube4D.current_level}_{only_half_of_cube}",
+                         list_plots=list_plots, n_rows=2, n_columns=4)
+
+    def plot_eight_cells(self, animate_rot=False, save=True):
+        self._make_plot_for_all("make_node_plot", projection="3d", plotting_kwargs={"color_by": None,
+                                                                                     "plot_edges": True})
+        if animate_rot:
+            return self.animate_figure_view("points", dpi=100)
+        if save:
+            self._save_multiplot("points", dpi=100)
+
+    def _plot_in_color(self, nodes_indices, color, **kwargs):
+        self._make_plot_for_all("_plot_single_points",
+                                plotting_kwargs={"nodes_i": nodes_indices, "color": color},
+                                projection="3d", **kwargs)
+
+    def plot_polytope_neighbours(self, node_index: int, save=True, animate_rot=False,
+                                 include_opposing_neighbours=False):
+        self.plot_eight_cells(save=False)
+        self._plot_in_color([node_index, ], "red", all_ax=self.all_ax, fig=self.fig)
+        # determine neighbours
+        neighbours_indices = self.cube4D.get_polytope_neighbours(node_index,
+                                                                 include_opposing_neighbours=include_opposing_neighbours,
+                                                                 only_half_of_cube=self.only_half_of_cube)
+        self._plot_in_color(neighbours_indices, "blue", all_ax=self.all_ax, fig=self.fig)
+        if animate_rot:
+            return self.animate_figure_view(f"neig_{node_index}", dpi=100)
+        if save:
+            self._save_multiplot(f"neig_{node_index}", dpi=100)
+
+    def plot_adj_matrix(self, include_opposing_neighbours=False, ax=None, fig=None, save=True):
+        if ax is None:
+            fig, ax = plt.subplots(1, 1, figsize=(10, 10))
+        adj_matrix = self.cube4D.get_polytope_adj_matrix(include_opposing_neighbours=include_opposing_neighbours,
+                                                                 only_half_of_cube=self.only_half_of_cube)
+        sns.heatmap(adj_matrix, cmap="gray", ax=ax, cbar=False)
+        ax.get_xaxis().set_visible(False)
+        ax.axes.get_yaxis().set_visible(False)
+        ax.set_aspect('equal')
+        ax.set_title(f"Avg neighbours={np.average(np.sum(adj_matrix, axis=0))}")
+        plt.tight_layout()
+        if save:
+            plt.savefig(PATH_OUTPUT_PLOTS+f"polytope_adj_{include_opposing_neighbours}_{self.only_half_of_cube}")
+
+
+if __name__ == "__main__":
+    from molgri.space.polytopes import Cube4DPolytope, IcosahedronPolytope
+    from molgri.space.rotobj import SphereGridFactory
+    import seaborn as sns
+
+    c4 = Cube4DPolytope()
+    c4.divide_edges()
+
+    # determine neighbours from polytope (with and without opposing neighbours
+    # determine neighbours from distances
+
+    ecp = EightCellsPlot(c4, only_half_of_cube=False)
+    #ecp.plot_polytope_neighbours(70, animate_rot=False, include_opposing_neighbours=True)
+    ecp.plot_adj_matrix(include_opposing_neighbours=False)
     plt.show()
 
