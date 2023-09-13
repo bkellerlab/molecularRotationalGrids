@@ -15,13 +15,15 @@ from matplotlib.animation import FuncAnimation
 from numpy.typing import NDArray
 from seaborn import color_palette
 import networkx as nx
+import matplotlib as mpl
 
 from molgri.constants import DEFAULT_ALPHAS_3D, TEXT_ALPHAS_3D, DEFAULT_ALPHAS_4D, TEXT_ALPHAS_4D, COLORS, \
     GRID_ALGORITHMS, NAME2SHORT_NAME, DEFAULT_DPI_MULTI, DIM_LANDSCAPE, DIM_SQUARE, DEFAULT_NS
 from molgri.plotting.abstract import MultiRepresentationCollection, RepresentationCollection, \
     PanelRepresentationCollection, plot_voronoi_cells
 from molgri.space.analysis import vector_within_alpha
-from molgri.space.polytopes import Polytope, second_neighbours, third_neighbours, PolyhedronFromG, Cube4DPolytope
+from molgri.space.polytopes import Polytope, find_opposing_q, second_neighbours, third_neighbours, PolyhedronFromG, \
+    Cube4DPolytope
 from molgri.space.rotobj import SphereGridNDim, SphereGridFactory, ConvergenceSphereGridFactory
 
 
@@ -712,24 +714,9 @@ class PanelConvergenceSphereGridPlots(PanelRepresentationCollection):
             self._save_multiplot("spheregrid_times")
 
 
-def plot_eight_cells(c4_polytope: Cube4DPolytope, only_half_of_cube=False, ax=None, fig=None,
-                     plot_edges=True):
-    if only_half_of_cube:
-        all_subpolys = c4_polytope.get_all_cells(include_only=c4_polytope.select_half_of_hypercube())
-    else:
-        all_subpolys = c4_polytope.get_all_cells()
-
-    if ax is None:
-        fig, ax = plt.subplots(2, 4, subplot_kw=dict(projection='3d'), figsize=(20, 10))
-
-    for i, subax in enumerate(ax.ravel()):
-        pp = PolytopePlot(all_subpolys[i])
-        pp.make_node_plot(fig=fig, ax=subax, save=False, color_by=None, plot_edges=plot_edges)
-
-
 class EightCellsPlot(MultiRepresentationCollection):
 
-    def __init__(self, cube4D: Cube4DPolytope, only_half_of_cube=False):
+    def __init__(self, cube4D: Cube4DPolytope, only_half_of_cube=True):
         self.cube4D = cube4D
         self.only_half_of_cube = only_half_of_cube
         if only_half_of_cube:
@@ -754,7 +741,7 @@ class EightCellsPlot(MultiRepresentationCollection):
                                 projection="3d", **kwargs)
 
     def plot_polytope_neighbours(self, node_index: int, save=True, animate_rot=False,
-                                 include_opposing_neighbours=False):
+                                 include_opposing_neighbours=True):
         self.plot_eight_cells(save=False)
         self._plot_in_color([node_index, ], "red", all_ax=self.all_ax, fig=self.fig)
         # determine neighbours
@@ -762,17 +749,33 @@ class EightCellsPlot(MultiRepresentationCollection):
                                                                  include_opposing_neighbours=include_opposing_neighbours,
                                                                  only_half_of_cube=self.only_half_of_cube)
         self._plot_in_color(neighbours_indices, "blue", all_ax=self.all_ax, fig=self.fig)
+
+        if include_opposing_neighbours:
+            self._plot_in_color([find_opposing_q(node_index, self.cube4D.G), ], "orange", all_ax=self.all_ax,
+                                fig=self.fig)
         if animate_rot:
             return self.animate_figure_view(f"neig_{node_index}", dpi=100)
         if save:
             self._save_multiplot(f"neig_{node_index}", dpi=100)
 
-    def plot_adj_matrix(self, include_opposing_neighbours=False, ax=None, fig=None, save=True):
+    def plot_adj_matrix(self, include_opposing_neighbours=True, ax=None, fig=None, save=True, exclude_nans=True):
         if ax is None:
-            fig, ax = plt.subplots(1, 1, figsize=(10, 10))
+            fig, ax = plt.subplots(1, 1, figsize=(5, 5))
         adj_matrix = self.cube4D.get_polytope_adj_matrix(include_opposing_neighbours=include_opposing_neighbours,
                                                                  only_half_of_cube=self.only_half_of_cube)
-        sns.heatmap(adj_matrix, cmap="gray", ax=ax, cbar=False)
+        cmap = mpl.colormaps.get_cmap('gray')
+        cmap.set_bad("green")
+
+        if exclude_nans:
+            # Find the indices of rows and columns that have no NaN values
+            valid_rows = np.all(~np.isnan(adj_matrix), axis=1)
+            valid_columns = np.all(~np.isnan(adj_matrix), axis=0)
+
+            # Extract the valid rows and columns from the original array
+            extracted_arr = adj_matrix[valid_rows, :]
+            extracted_arr = extracted_arr[:, valid_columns]
+            adj_matrix = extracted_arr
+        sns.heatmap(adj_matrix, cmap=cmap, ax=ax, cbar=False)
         ax.get_xaxis().set_visible(False)
         ax.axes.get_yaxis().set_visible(False)
         ax.set_aspect('equal')
@@ -780,6 +783,62 @@ class EightCellsPlot(MultiRepresentationCollection):
         plt.tight_layout()
         if save:
             plt.savefig(PATH_OUTPUT_PLOTS+f"polytope_adj_{include_opposing_neighbours}_{self.only_half_of_cube}")
+
+    def plot_cdist_matrix(self, ax=None, fig=None, save=True):
+
+        if ax is None:
+            fig, ax = plt.subplots(1, 1, figsize=(5, 5))
+
+        cdistances = self.cube4D.get_cdist_matrix(only_half_of_cube=self.only_half_of_cube)
+
+        vmin = 0.9 * np.min(cdistances[cdistances > 0.01])
+
+        cmap = mpl.colormaps.get_cmap('gray_r')
+        cmap.set_under("blue")
+
+        sns.heatmap(cdistances, cmap=cmap, cbar=False, ax=ax, vmin=vmin)
+        ax.get_xaxis().set_visible(False)
+        ax.axes.get_yaxis().set_visible(False)
+        ax.set_aspect('equal')
+        plt.tight_layout()
+        if save:
+            plt.savefig(PATH_OUTPUT_PLOTS + f"cdist_matrix_{self.only_half_of_cube}")
+
+    def decompose_cdist(self, vmax=2, ax=None, fig=None, save=True):
+
+        cdist_matrix = self.cube4D.get_cdist_matrix(only_half_of_cube=self.only_half_of_cube)
+        # show components individually
+        vmin = 0.9 * np.min(cdist_matrix[cdist_matrix > 1e-5])
+
+        individual_values = set(list(np.round(cdist_matrix.flatten(), 6)))
+        individual_values = sorted([x for x in individual_values if vmin < x < vmax])
+        num_values = len(individual_values)
+
+        if num_values > 5 and ax is None:
+            fig, ax = plt.subplots(2, num_values // 2 + 1, figsize=(10 * (num_values // 2 + 1), 20))
+        elif ax is None:
+            fig, ax = plt.subplots(1, num_values, figsize=(10 * num_values, 10))
+
+        cum_num_neig = np.zeros(len(cdist_matrix))
+
+        decompositions = []
+
+        for i, value in enumerate(individual_values):
+            subax = ax.ravel()[i]
+            mask = np.isclose(cdist_matrix, value)
+            sns.heatmap(mask, ax=subax, cmap="Reds", cbar=False)
+            decompositions.append(mask)
+
+            subax.set_aspect('equal')
+            subax.get_xaxis().set_visible(False)
+            subax.axes.get_yaxis().set_visible(False)
+            cum_num_neig += np.sum(mask, axis=0)
+            subax.set_title(f"Dist={str(np.round(value, 3))}, Cumulative neighbours={np.average(cum_num_neig)}",
+                            fontsize=20)
+        plt.tight_layout()
+        if save:
+            plt.savefig(PATH_OUTPUT_PLOTS + f"cdist_matrix_decomposition_{self.only_half_of_cube}")
+        return decompositions
 
 
 if __name__ == "__main__":
@@ -793,8 +852,8 @@ if __name__ == "__main__":
     # determine neighbours from polytope (with and without opposing neighbours
     # determine neighbours from distances
 
-    ecp = EightCellsPlot(c4, only_half_of_cube=False)
+    ecp = EightCellsPlot(c4, only_half_of_cube=True)
     #ecp.plot_polytope_neighbours(70, animate_rot=False, include_opposing_neighbours=True)
-    ecp.plot_adj_matrix(include_opposing_neighbours=False)
+    ecp.plot_adj_matrix(include_opposing_neighbours=True)
     plt.show()
 

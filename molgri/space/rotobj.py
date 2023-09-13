@@ -382,6 +382,28 @@ class Cube4DRotations(SphereGridNDim):
         return self.polytope.get_N_ordered_points(self.N)
 
 
+class FullDivCube4DRotations(SphereGridNDim):
+
+    algorithm_name = "fulldiv"
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        allowed_num_of_orientations = (8, 40, 272, 2080)
+        num_b = self.N
+        if num_b not in allowed_num_of_orientations:
+            raise ValueError("Only full subdivisions of cube4D are allowed")
+        self.polytope = Cube4DPolytope()
+        for i in range(allowed_num_of_orientations.index(num_b)):
+            self.polytope.divide_edges()
+
+    def _gen_grid_4D(self) -> NDArray:
+        nodes = self.polytope.select_half_of_hypercube() # sorted acc to central_index
+        quaternions = []
+        for n in nodes:
+            quaternions.append(self.polytope.G.nodes[n]["projection"])
+        return np.array(quaternions)
+
+
 class IcoAndCube3DRotations(SphereGridNDim):
 
     algorithm_name: str = None
@@ -446,6 +468,8 @@ class SphereGridFactory:
             selected_sub_obj = IcoRotations(N=N, dimensions=dimensions, **kwargs)
         elif alg_name == "cube3D":
             selected_sub_obj = Cube3DRotations(N=N, dimensions=dimensions, **kwargs)
+        elif alg_name == "fulldiv":
+            selected_sub_obj = FullDivCube4DRotations(N=N, dimensions=dimensions, **kwargs)
         else:
             raise ValueError(f"The algorithm {alg_name} not familiar to QuaternionGridFactory.")
         selected_sub_obj.gen_grid()

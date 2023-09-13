@@ -31,9 +31,10 @@ import networkx as nx
 import numpy as np
 from numpy.typing import NDArray
 from scipy.constants import pi, golden
+from scipy.spatial.distance import cdist
 
 from molgri.assertions import is_array_with_d_dim_r_rows_c_columns, all_row_norms_equal_k, form_square_array, form_cube
-from molgri.space.utils import normalise_vectors, dist_on_sphere, unique_quaternion_set
+from molgri.space.utils import angle_between_vectors, normalise_vectors, dist_on_sphere, unique_quaternion_set
 
 
 class Polytope(ABC):
@@ -546,7 +547,7 @@ class Cube4DPolytope(Polytope):
             else:
                 return []
 
-    def get_polytope_adj_matrix(self, include_opposing_neighbours=False, only_half_of_cube=False):
+    def get_polytope_adj_matrix(self, include_opposing_neighbours=True, only_half_of_cube=True):
         """
         Get adjacency matrix sorted by central index. Default is to use the creation graph to get adjacency
         relationship.
@@ -576,10 +577,37 @@ class Cube4DPolytope(Polytope):
         if only_half_of_cube:
             available_indices = self.select_half_of_hypercube(return_central_indices=True)
             available_indices.sort()
-            adj_matrix = adj_matrix[available_indices, :]
-            adj_matrix = adj_matrix[:, available_indices]
+            #adj_matrix = np.where(, adj_matrix, None)
+            # Create a new array with the same shape as the original array
+            extracted_arr = np.empty_like(adj_matrix, dtype=float)
+            extracted_arr[:] = np.nan
+
+            # Extract the specified rows and columns from the original array
+            extracted_arr[available_indices, :] = adj_matrix[available_indices, :]
+            extracted_arr[:, available_indices] = adj_matrix[:, available_indices]
+            adj_matrix = extracted_arr
+
+            #adj_matrix = adj_matrix[available_indices, :]
+            #adj_matrix = adj_matrix[:, available_indices]
 
         return adj_matrix
+
+    def get_cdist_matrix(self, only_half_of_cube=True):
+        if only_half_of_cube:
+            chosen_G = self.G.subgraph(nodes=self.select_half_of_hypercube())
+        else:
+            chosen_G = self.G
+
+        projected_nodes = sorted(chosen_G.nodes, key=lambda n: chosen_G.nodes[n]['central_index'])
+        projected_nodes = np.array([chosen_G.nodes[n]['projection'] for n in projected_nodes])
+
+        def constrained_angle_distance(q1, q2):
+            theta = angle_between_vectors(q1, q2)
+            if (theta > pi / 2):
+                theta = pi - theta
+            return theta
+
+        return cdist(projected_nodes, projected_nodes, constrained_angle_distance)
 
 
 class IcosahedronPolytope(Polytope):

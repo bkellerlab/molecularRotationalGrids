@@ -118,22 +118,21 @@ class FullGrid:
             valid_G, my_nodes = self.b_rotations.polytope.get_valid_graph(self.b_rotations.get_grid_as_array())
             return nx.adjacency_matrix(valid_G, nodelist=my_nodes)
 
-    def get_adjacency_of_orientations(self) -> coo_array:
-        all_orientations = self.get_body_rotations()
-        all_quat = np.array([o.as_quat() for o in all_orientations])
-        from scipy.spatial import Voronoi
+    def get_adjacency_of_orientation_grid(self) -> coo_array:
 
-        vor = Voronoi(all_quat, qhull_options="Qbb Qc Qz", furthest_site=True)
-        print(vor.regions)
+        def exclude_nans(arr):
+            valid_rows = np.all(~np.isnan(arr), axis=1)
+            valid_columns = np.all(~np.isnan(arr), axis=0)
 
-        def constrained_angle_distance(q1, q2):
-            theta = angle_between_vectors(q1, q2)
-            #theta = np.arccos(q1[3] * q2[3] + q1[0] * q2[0] + q1[1] * q2[1] + q1[2] * q2[2])
-            if (theta > pi / 2):
-                theta = pi - theta
-            return theta
+            # Extract the valid rows and columns from the original array
+            extracted_arr = arr[valid_rows, :]
+            extracted_arr = extracted_arr[:, valid_columns]
+            return extracted_arr
 
-        return cdist(all_quat, all_quat, constrained_angle_distance)
+        adj_with_nans = self.b_rotations.polytope.get_polytope_adj_matrix(include_opposing_neighbours=True,
+                                                                 only_half_of_cube=True)
+        return exclude_nans(adj_with_nans)
+
 
     def get_adjacency_of_position_grid(self) -> coo_array:
         """
@@ -333,6 +332,11 @@ class FullGrid:
         """
         my_cdist = cdist(points_vector, self.get_flat_position_grid())
         return np.argmin(my_cdist, axis=1)
+
+    def get_full_sequence(self) -> NDArray:
+        """Return an array of shape (n_t*n_o_n_b, 7) where for every sequential step of pt, the first 3 coordinates
+        describe the position in position space, the last four give the orientation in a form of a quaternion."""
+        pass
 
 
 class FullVoronoiGrid:
@@ -784,6 +788,16 @@ if __name__ == "__main__":
     from molgri.space.polytopes import PolyhedronFromG
     import seaborn as sns
 
-    fg = FullGrid(f"33", f"ico_15", "[0.1,]", use_saved=False)
+    n_o = 7
+    n_b = 40
+    fg = FullGrid(f"fulldiv_{n_b}", f"ico_{n_o}", "linspace(1, 5, 3)", use_saved=False)
+    position_adjacency = fg.get_adjacency_of_position_grid().toarray()
+    orientation_adjacency = fg.get_adjacency_of_orientation_grid()
 
-    fg.get_adjacency_of_orientations()
+    fig, ax = plt.subplots(1, 2, figsize=(20, 10))
+    sns.heatmap(position_adjacency, cmap="gray", ax=ax[0])
+    sns.heatmap(orientation_adjacency, cmap="gray", ax=ax[1])
+    ax[0].set_title("Position adjacency")
+    ax[1].set_title("Orientation adjacency")
+    plt.tight_layout()
+    plt.show()
