@@ -89,17 +89,25 @@ class FullGrid:
                 pass
 
     def get_poly_dist_adjacency(self):
-        standard_neig = {"ico": 6, "cube3D": 4, "cube4D": 8}
+        # TODO: make sure the order of nodes is always the same
+        standard_neig = {"ico": 6, "cube3D": 4}
+        first_neig = {"ico": 5, "cube3D": 6}
+        first_level_num = {"ico": 12, "cube3D": 8}
         valid_G, my_nodes = self.o_rotations.polytope.get_valid_graph(self.o_positions)
-        distances = cdist(self.o_positions, self.o_positions)
+        distances = cdist(self.o_positions, self.o_positions, metric="cosine")
         empty_arr = np.zeros(distances.shape, dtype=bool)
         for j, dist in enumerate(distances):
             idx = np.argsort(dist)
             level = valid_G.nodes[my_nodes[j]]["level"]
-            max_index = standard_neig[self.o_rotations.algorithm_name] + 1
-            if level == 0:
-                max_index-=1
+            #
+            if j < first_level_num[self.o_rotations.algorithm_name]:
+                max_index = first_neig[self.o_rotations.algorithm_name] + 1
+            else:
+                max_index = standard_neig[self.o_rotations.algorithm_name] + 1
             empty_arr[j][idx[1:max_index]] = True
+
+        #for i in range(len(distances)):
+        #    print(distances[0][i], empty_arr[0][i])
         return empty_arr
 
     def get_polyhedron_adjacency(self, o_grid=True):
@@ -176,8 +184,6 @@ class FullGrid:
                     neig[j][i] = are_neighbours
         # in case there are several translation distances, the array neig repeats along the diagonal n_t times
         if n_t > 1:
-            rows = np.arange(0, n_points, n_o)
-            cols = np.arange(0, n_points, n_o)
             my_blocks = [neig]
             my_blocks.extend([None,] * n_t)
             my_blocks = my_blocks * n_t
@@ -336,7 +342,58 @@ class FullGrid:
     def get_full_sequence(self) -> NDArray:
         """Return an array of shape (n_t*n_o_n_b, 7) where for every sequential step of pt, the first 3 coordinates
         describe the position in position space, the last four give the orientation in a form of a quaternion."""
-        pass
+
+        # WARNING! NOT CURRENTLY THE SAME AS PT!!!!!!!!!1
+        result = np.full((len(self), 7), np.nan)
+        position_grid = self.get_flat_position_grid()
+        quaternions = self.b_rotations.get_grid_as_array()
+        current_index = 0
+        for o_rot in position_grid:
+            for b_rot in quaternions:
+                # coordinates are (x, y, z, q0, q1, q2, q3)
+                result[current_index][:3] = o_rot
+                result[current_index][3:] = b_rot
+                current_index += 1
+        return result
+
+    def get_full_adjacency(self):
+        full_sequence = self.get_full_sequence()
+        n_total = len(full_sequence)
+        n_o = self.o_rotations.get_N()
+        n_b = self.b_rotations.get_N()
+        n_t = self.t_grid.get_N_trans()
+
+        position_adjacency = self.get_adjacency_of_position_grid().toarray()
+        if n_b > 1:
+            orientation_adjacency = self.get_adjacency_of_orientation_grid()
+        else:
+            orientation_adjacency = coo_array([False], shape=(1,1))
+
+        row = []
+        col = []
+
+        for i, line in enumerate(position_adjacency):
+            for j, el in enumerate(line):
+                if el:
+                    for k in range(n_b):
+                        row.append(n_b*i+k)
+                        col.append(n_b*j+k)
+        same_orientation_neighbours = coo_array(([True,]*len(row), (row, col)), shape=(n_total, n_total),
+                                                dtype=bool)
+
+        # along the diagonal blocks of size n_o*n_t that are neighbours exactly if their quaternions are neighbours
+        if n_t * n_o > 1:
+            my_blocks = [orientation_adjacency]
+            my_blocks.extend([None, ] * (n_t*n_o))
+            my_blocks = my_blocks * (n_t*n_o)
+            my_blocks = my_blocks[:-(n_t*n_o)]
+            my_blocks = np.array(my_blocks, dtype=object)
+            my_blocks = my_blocks.reshape((n_t*n_o), (n_t*n_o))
+            same_position_neighbours = bmat(my_blocks, dtype=float)
+        else:
+            return coo_array(orientation_adjacency)
+        all_neighbours = same_position_neighbours + same_orientation_neighbours
+        return all_neighbours
 
 
 class FullVoronoiGrid:
@@ -790,14 +847,23 @@ if __name__ == "__main__":
 
     n_o = 7
     n_b = 40
-    fg = FullGrid(f"fulldiv_{n_b}", f"ico_{n_o}", "linspace(1, 5, 3)", use_saved=False)
+    fg = FullGrid(f"fulldiv_{n_b}", f"ico_{n_o}", "linspace(1, 5, 7)", use_saved=False)
+
     position_adjacency = fg.get_adjacency_of_position_grid().toarray()
     orientation_adjacency = fg.get_adjacency_of_orientation_grid()
 
-    fig, ax = plt.subplots(1, 2, figsize=(20, 10))
+    fig, ax = plt.subplots(1, 3, figsize=(30, 10))
     sns.heatmap(position_adjacency, cmap="gray", ax=ax[0])
     sns.heatmap(orientation_adjacency, cmap="gray", ax=ax[1])
+    sns.heatmap(fg.get_full_adjacency().toarray(), cmap="gray", ax=ax[2])
     ax[0].set_title("Position adjacency")
     ax[1].set_title("Orientation adjacency")
+    ax[2].set_title("Full adjacency")
     plt.tight_layout()
     plt.show()
+
+    sequence = fg.get_full_sequence()
+    n_total = len(sequence)
+    n_o = fg.o_rotations.get_N()
+    n_b = fg.b_rotations.get_N()
+    n_t = fg.t_grid.get_N_trans()

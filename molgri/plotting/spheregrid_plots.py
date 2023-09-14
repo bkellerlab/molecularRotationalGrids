@@ -844,16 +844,8 @@ class EightCellsPlot(MultiRepresentationCollection):
 if __name__ == "__main__":
     from molgri.space.polytopes import Cube4DPolytope, IcosahedronPolytope
     from molgri.space.rotobj import SphereGridFactory
+    from molgri.space.fullgrid import FullGrid
     import seaborn as sns
 
-    c4 = Cube4DPolytope()
-    c4.divide_edges()
 
-    # determine neighbours from polytope (with and without opposing neighbours
-    # determine neighbours from distances
-
-    ecp = EightCellsPlot(c4, only_half_of_cube=True)
-    #ecp.plot_polytope_neighbours(70, animate_rot=False, include_opposing_neighbours=True)
-    ecp.plot_adj_matrix(include_opposing_neighbours=True)
-    plt.show()
 

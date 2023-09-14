@@ -176,18 +176,26 @@ class PanelConvergenceFullGridPlots(PanelRepresentationCollection):
 if __name__ == "__main__":
     from molgri.constants import SMALL_NS, DEFAULT_NS, MINI_NS
 
-    n_o = 40
+    n_o = 50
     fg = FullGrid(f"zero", f"cube3D_{n_o}", "[0.1,]", use_saved=False)
     colors = ["white"] * len(fg.get_flat_position_grid())
     vor_adj = fg.get_adjacency_of_position_grid().toarray()
     dist_adj = fg.get_poly_dist_adjacency()
     poly_adj = fg.get_polyhedron_adjacency(o_grid=True).toarray()
+    # cdis = cdist(fg.o_positions, fg.o_positions, "cos")
+    # print(cdis)
+    # wished = (8, 9, 10)
 
-    dist_neig = ((dist_adj[0] | poly_adj[0]) == 1)
-    for i, trug in enumerate(dist_neig):
+    # dist_neig = ((dist_adj[0] | poly_adj[0]) == 1)
+    point_index = 12
+
+    # for el in wished:
+    #    colors[el] = "green"
+
+    for i, trug in enumerate(poly_adj[point_index]):
         if trug:
             colors[i] = "green"
-    colors[0] = "blue"
+    colors[point_index] = "blue"
 
     fgp = FullGridPlot(fg)
-    ani = fgp.make_full_voronoi_plot(save=False, animate_rot=True, numbered=True, colors=colors)
+    ani = fgp.make_full_voronoi_plot(save=True, animate_rot=True, numbered=True, colors=colors)

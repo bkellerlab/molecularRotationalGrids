@@ -142,72 +142,65 @@ class Polytope(ABC):
             ValueError if N larger than the number of available unique nodes
         """
         # important to use the getter
-        current_points = [tuple(point) for point in self.get_node_coordinates()]
-        N_available = len(current_points)
+        ci2node = dict()
+        available_points = [] #[tuple(point) for point in self.get_node_coordinates()]
+        N_available = self.G.number_of_nodes()
         # can't order more points than there are
         if N is None:
             N = N_available
         if N > N_available:
             raise ValueError(f"Cannot order more points than there are! N={N} > {N_available}")
-        result = []
-        # first point does not matter, just select the first point
-        # if projections:
-        #     result[0] = self.G.nodes[tuple(current_points[0])]["projection"]
-        # else:
-        #     result[0] = current_points[0]
+        result = [] # save central_index in here
 
-
-        # TODO: select all points from lower levels and then random ones
-        indices_to_remove = []
-        for i, point in enumerate(current_points):
-            node = self.G.nodes[point]
-            if node["level"] < self.current_level - 1:
-                indices_to_remove.append(i)
-                if projections:
-                    result.append(list(node["projection"]))
-                else:
-                    result.append(list(point))
+        #  select all points from lower levels and then random ones
+        for n, d in self.G.nodes(data=True):
+            ci = d["central_index"]
+            if d["level"] < self.current_level - 1:
+                result.append(ci)
+            else:
+                available_points.append(ci)
+            ci2node[ci] = n
 
         if len(result) > N:
             raise ValueError("You subdivided the polyhedron more times than necessary!")
 
-        # remove points already used
-        for index in sorted(indices_to_remove, reverse=True):
-            del current_points[index]
-
         # random remaining points
         # define a seed to have repeatable results
         np.random.seed(0)
-        np.random.shuffle(current_points)
-        random_points = current_points[:N - len(result)]
+        np.random.shuffle(available_points)
+        result.extend(available_points[:(N - len(result))])
+        result.sort()
 
-        for point in random_points:
+        result_nodes = []
+        for ci in result:
             if projections:
-                result.append(list(self.G.nodes[point]["projection"]))
+                result_nodes.append(self.G.nodes[ci2node[ci]]["projection"])
             else:
-                result.append(list(point))
+                result_nodes.append(ci2node[ci])
 
-        result = np.array(result)
-        return result
+        return np.array(result_nodes)
 
     def get_valid_graph(self, N_ordered_points: NDArray):
         my_nodes = []
         # need to calculate valid graph by dropping the points that are not within N ordered points
         valid_G = self.G.copy()
         all_in = 0
-        for node, data in self.G.nodes(data=True):
-            is_in_list = np.any([np.allclose(data["projection"], x) for x in N_ordered_points])
+        nodes = sorted(self.G.nodes(), key=lambda n: self.G.nodes[n]['central_index'])
+        for node in nodes:
+            is_in_list = np.any([np.allclose(self.G.nodes[node]["projection"], x) for x in N_ordered_points])
             if not is_in_list:
-                #remove_and_reconnect(valid_G, node)
+                remove_and_reconnect(valid_G, node)
+                print("removed point", node)
                 #if it acts like a bridge, reconnect
-                if len(valid_G.edges(node)) <= 2:
-                    remove_and_reconnect(valid_G, node)
-                else:
-                    valid_G.remove_node(node)
+                # if len(valid_G.edges(node)) <= 2:
+                #     remove_and_reconnect(valid_G, node)
+                # else:
+                #     valid_G.remove_node(node)
             else:
                 # update my nodes
                 my_nodes.append(node)
             all_in += is_in_list
+
         assert all_in == len(N_ordered_points)
         assert valid_G.number_of_nodes() == len(N_ordered_points)
         return valid_G, my_nodes
