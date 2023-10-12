@@ -37,7 +37,7 @@ class ArrayPlot(RepresentationCollection):
         super().__init__(data_name, **kwargs)
         self.my_array = my_array
 
-    def make_grid_plot(self, fig: Figure = None, ax: Axes3D = None, save: bool = True, c=None):
+    def make_grid_plot(self, fig: Figure = None, ax: Axes3D = None, save: bool = True, c=None, animate_rot=False):
         """Plot the 3D grid plot, for 4D the 4th dimension plotted as color. It always has limits (-1, 1) and equalized
         figure size"""
 
@@ -58,13 +58,15 @@ class ArrayPlot(RepresentationCollection):
         #     self.ax.scatter(*self.my_array.T, color="black", s=30)
         # else:
         #     self.ax.scatter(*self.my_array[:, :3].T, c=self.my_array[:, 3].T, s=30)  # cmap=plt.hot()
-
-        self.ax.view_init(elev=10, azim=30)
+        if self.my_array.shape[1] > 2:
+            self.ax.view_init(elev=10, azim=30)
         self._set_axis_limits()
         self._equalize_axes()
 
         if save:
             self._save_plot_type("grid")
+        if animate_rot:
+            return self._animate_figure_view(self.fig, self.ax, f"sph_voronoi_rotated")
 
     def make_rot_animation(self, **kwargs):
         self.make_grid_plot(save=False)
@@ -727,7 +729,7 @@ class EightCellsPlot(MultiRepresentationCollection):
         super().__init__(data_name=f"eight_cells_{cube4D.current_level}_{only_half_of_cube}",
                          list_plots=list_plots, n_rows=2, n_columns=4)
 
-    def plot_eight_cells(self, animate_rot=False, save=True):
+    def plot_eight_cells(self, animate_rot=False, save=True, **kwargs):
         self._make_plot_for_all("make_node_plot", projection="3d", plotting_kwargs={"color_by": None,
                                                                                      "plot_edges": True})
         if animate_rot:

@@ -594,12 +594,6 @@ class Cube4DPolytope(Polytope):
         projected_nodes = sorted(chosen_G.nodes, key=lambda n: chosen_G.nodes[n]['central_index'])
         projected_nodes = np.array([chosen_G.nodes[n]['projection'] for n in projected_nodes])
 
-        def constrained_angle_distance(q1, q2):
-            theta = angle_between_vectors(q1, q2)
-            if (theta > pi / 2):
-                theta = pi - theta
-            return theta
-
         return cdist(projected_nodes, projected_nodes, constrained_angle_distance)
 
 
@@ -863,6 +857,12 @@ def find_opposing_q(node_i, G):
             return d["central_index"]
     return None
 
+
+def constrained_angle_distance(q1, q2):
+    theta = angle_between_vectors(q1, q2)
+    if (theta > pi / 2):
+        theta = pi - theta
+    return theta
 
 if __name__ == "__main__":
     pass

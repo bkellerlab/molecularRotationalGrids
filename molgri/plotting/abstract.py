@@ -250,6 +250,9 @@ class MultiRepresentationCollection(ABC):
         _set_style_and_context(context=self.list_plots[0].context, color_style=self.list_plots[0].color_style)
         if fig is None or all_ax is None:
             self.__create_fig_ax(all_ax=all_ax, projection=projection, **creation_kwargs)
+        else:
+            self.fig=fig
+            self.all_ax = all_ax
         for ax, subplot in zip(self.all_ax.ravel(), self.list_plots):
             plot_func = getattr(subplot, plotting_method)
             plot_func(fig=self.fig, ax=ax, save=False, **plotting_kwargs)
