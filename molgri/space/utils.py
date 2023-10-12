@@ -7,12 +7,12 @@ points in the molgri.space subpackage.
 from typing import Tuple
 
 import numpy as np
-from numpy.typing import NDArray
+from numpy.typing import NDArray, ArrayLike
 from scipy.constants import pi
 from scipy.spatial.transform import Rotation
 
 
-def norm_per_axis(array: np.ndarray, axis: int = None) -> np.ndarray:
+def norm_per_axis(array: NDArray, axis: int = None) -> NDArray:
     """
     Returns the norm of the vector or along some axis of an array.
     Default behaviour: if axis not specified, normalise a 1D vector or normalise 2D array row-wise. If axis specified,
@@ -24,7 +24,8 @@ def norm_per_axis(array: np.ndarray, axis: int = None) -> np.ndarray:
         axis: optionally specify along which axis the normalisation should occur
 
     Returns:
-        an array of the same shape as the input array where each value is the norm of the corresponding vector/row/column
+        an array of the same shape as the input array where each value is the norm of the corresponding
+        vector/row/column
     """
     if axis is None:
         if len(array.shape) > 1:
@@ -35,7 +36,7 @@ def norm_per_axis(array: np.ndarray, axis: int = None) -> np.ndarray:
     return np.repeat(my_norm, array.shape[axis], axis=axis)
 
 
-def normalise_vectors(array: np.ndarray, axis: int = None, length=1) -> np.ndarray:
+def normalise_vectors(array: NDArray, axis: int = None, length: float = 1) -> NDArray:
     """
     Returns the unit vector of the vector or along some axis of an array.
     Default behaviour: if axis not specified, normalise a 1D vector or normalise 2D array row-wise. If axis specified,
@@ -211,3 +212,24 @@ def random_quaternions(n: int = 1000) -> NDArray:
     result[:, 3] = np.sqrt(random_num[:, 0]) * np.cos(2 * pi * random_num[:, 2])
     assert result.shape[1] == 4
     return result
+
+
+def distance_between_quaternions(q1: NDArray, q2: NDArray) -> ArrayLike:
+    """
+    Calculate the distance between two unit quaternions or the pairwise distances between two arrays of unit
+    quaternions. Quaternion distance is like hypersphere distance, but also considers double coverage.
+    Args:
+        q1 (): array either of shape (4,) or (N, 4), every row has unit length
+        q2 (): array either of shape (4,) or (N, 4), every row has unit length
+
+    Returns:
+        Float or an array of shape (N,) containing distances between unit quaternions.
+    """
+    if q1.shape == (4,) and q2.shape == (4,):
+        theta = angle_between_vectors(q1, q2)
+    elif q1.shape[1] == 4 and q2.shape[1] == 4 and q1.shape[0]==q2.shape[0]:
+        theta = np.diagonal(angle_between_vectors(q1, q2))
+    else:
+        raise ValueError("Shape of quaternions not okay")
+    # if the distance would be more than half hypersphere, use the smaller distance
+    return np.where(theta > pi / 2, pi-theta, theta)

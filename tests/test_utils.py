@@ -1,7 +1,8 @@
 import os
 import numpy as np
 
-from molgri.space.utils import normalise_vectors, standardise_quaternion_set, random_quaternions, \
+from molgri.space.utils import distance_between_quaternions, normalise_vectors, standardise_quaternion_set, \
+    random_quaternions, \
     randomise_quaternion_set_signs
 from molgri.logfiles import find_first_free_index
 from molgri.assertions import two_sets_of_quaternions_equal
@@ -86,3 +87,31 @@ def test_randomise_quaternion_set_signs():
     quaternions = random_quaternions(500)
     rand_quaternions = randomise_quaternion_set_signs(quaternions)
     assert two_sets_of_quaternions_equal(quaternions, rand_quaternions)
+
+
+def test_distance_between_quaternions():
+    # single quaternions
+    q1 = np.array([1, 0, 0, 0])
+    q2 = - q1
+    # distance to itself and -itself is zero
+    assert np.isclose(distance_between_quaternions(q1, q1), 0)
+    assert np.isclose(distance_between_quaternions(q1, q2), 0)
+
+    q3 = np.array([0.3, 0.9, 0, 1.7])
+    q3 = q3/np.linalg.norm(q3)
+
+    # distance is symmetric
+    assert np.allclose(distance_between_quaternions(q1, q3), [distance_between_quaternions(q3, q1),
+                        distance_between_quaternions(q2, q3), distance_between_quaternions(q3, q2)])
+
+    # arrays of quaternions
+    q_array1 = np.array([q1, q2, q3])
+    q_array2 = np.array([q3, q3, q3])
+    result_array = distance_between_quaternions(q_array1, q_array2)
+    assert np.isclose(result_array[0], distance_between_quaternions(q1, q3))
+    assert np.isclose(result_array[1], distance_between_quaternions(q2, q3))
+    assert np.isclose(result_array[2], distance_between_quaternions(q3, q3))
+
+
+if __name__ == "__main__":
+    test_distance_between_quaternions()

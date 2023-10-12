@@ -34,7 +34,8 @@ from scipy.constants import pi, golden
 from scipy.spatial.distance import cdist
 
 from molgri.assertions import is_array_with_d_dim_r_rows_c_columns, all_row_norms_equal_k, form_square_array, form_cube
-from molgri.space.utils import angle_between_vectors, normalise_vectors, dist_on_sphere, unique_quaternion_set
+from molgri.space.utils import distance_between_quaternions, normalise_vectors, dist_on_sphere, \
+    unique_quaternion_set
 
 
 class Polytope(ABC):
@@ -594,7 +595,7 @@ class Cube4DPolytope(Polytope):
         projected_nodes = sorted(chosen_G.nodes, key=lambda n: chosen_G.nodes[n]['central_index'])
         projected_nodes = np.array([chosen_G.nodes[n]['projection'] for n in projected_nodes])
 
-        return cdist(projected_nodes, projected_nodes, constrained_angle_distance)
+        return cdist(projected_nodes, projected_nodes, distance_between_quaternions)
 
 
 class IcosahedronPolytope(Polytope):
@@ -857,12 +858,6 @@ def find_opposing_q(node_i, G):
             return d["central_index"]
     return None
 
-
-def constrained_angle_distance(q1, q2):
-    theta = angle_between_vectors(q1, q2)
-    if (theta > pi / 2):
-        theta = pi - theta
-    return theta
 
 if __name__ == "__main__":
     pass
