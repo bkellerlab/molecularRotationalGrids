@@ -29,11 +29,13 @@ from typing import Hashable, Iterable
 
 import networkx as nx
 import numpy as np
+from numpy._typing import ArrayLike
 from numpy.typing import NDArray
 from scipy.constants import pi, golden
 from scipy.spatial.distance import cdist
 
-from molgri.assertions import is_array_with_d_dim_r_rows_c_columns, all_row_norms_equal_k, form_square_array, form_cube
+from molgri.assertions import is_array_with_d_dim_r_rows_c_columns, all_row_norms_equal_k, form_square_array, form_cube, \
+    k_is_a_row
 from molgri.space.utils import distance_between_quaternions, normalise_vectors, dist_on_sphere, \
     unique_quaternion_set
 
@@ -48,26 +50,31 @@ class Polytope(ABC):
     with the function self.divide_edges()
     """
 
-    def __init__(self, d: int = 3, is_quat: bool = False):
+    def __init__(self, d: int = 3):
         """
+        The  central property of a Polytope is its graph G. The nodes of G are integers that uniquely describe a node
+        (also called central index). Each node has the following properties:
+         - polytope_point (coordinates of the point on the surface of a polytope)
+         - projection (coordinates of the point normed to length 1)
+         - level (in which subdivision step was the point created)
+         - face (to which sub-unit of te polytope does the point belong)
+
         Args:
             d: number of dimensions
-            is_quat: does the object represent quaternions (meaning that q and -q points are treated as equal)
         """
 
         self.G = nx.Graph()
         self.current_level = 0
         self.side_len = 0
+        self.last_node = -1
         self.d = d
-        self.is_quat = is_quat
 
         # saved objects in order to not re-construct them unnecessarily (unless the level of division has changed)
-        self.current_nodes = (None, self.current_level)
-        self.current_projections = (None, self.current_level)
+        #self.current_nodes = (None, self.current_level)
+        #self.current_projections = (None, self.current_level)
 
         # function that depends on the object being created
         self._create_level0()
-        nx.set_node_attributes(self.G, {node: i for i, node in enumerate(self.G.nodes)}, name="central_index")
 
     def __str__(self):
         return "Polytope"
@@ -76,57 +83,89 @@ class Polytope(ABC):
     def _create_level0(self):
         """This is implemented by each subclass since they have different edges, vertices and faces"""
 
-    def get_node_coordinates(self) -> NDArray:
+    def _get_attributes_array_sorted_by_index(self, attribute_name: str) -> tuple:
+        """
+        Return an array where every row/item is an attribute
+        Args:
+            attribute_name ():
+            only_indices ():
+
+        Returns:
+            (indices, attributes)
+        """
+        # tuples (index, attribute) sorted by index
+        all_data = sorted(self.G.nodes(data=attribute_name), key=lambda x: x[0])
+        indices = [i for i, a in all_data]
+        attributes = np.array([a for i, a in all_data])
+        return indices, attributes
+
+    def _get_attributes_subset(self, attribute_name: str, for_nodes: ArrayLike = None):
+        i, a = self._get_attributes_array_sorted_by_index(attribute_name)
+        if for_nodes is None:
+            for_nodes = i
+        else:
+            for_nodes = list(for_nodes)
+        return_indices = []
+        for wanted_index in for_nodes:
+            new_index = i.index(wanted_index)
+            return_indices.append(new_index)
+        return a[return_indices]
+
+    def get_node_coordinates(self, for_nodes: ArrayLike= None) -> NDArray:
         """
         Get an array in which each row represents the self.d - dimensional coordinates of the node. These are the
         points on the faces of the polytope, their norm may not be one.
 
-        If the object is_quat, approximately half of the nodes will be returned, since for quaternions q=-q.
-
         Returns:
-            a numpy array in which each row is one of the nodes in order of their addition to the graph (not sorted)
+            a numpy array in which each row is one of the nodes  (sorted by central_index)
         """
-        # check if saved available and the level of division has not changed since saving
-        if self.current_nodes[0] is not None and self.current_level == self.current_nodes[1]:
-            # noinspection PyTypeChecker
-            return self.current_nodes[0]
-        nodes = self.G.nodes
-        nodes = np.array(nodes)
-        if self.is_quat:
-            nodes = unique_quaternion_set(nodes)
-        # save nodes for further use:
-        self.current_nodes = (nodes, self.current_level)
-        return nodes
+        return self._get_attributes_subset("polytope_point", for_nodes=for_nodes)
 
-    def get_projection_coordinates(self) -> NDArray:
+    def get_projection_coordinates(self, for_nodes: ArrayLike = None) -> NDArray:
         """
         Get an array in which each row represents the self.d - dimensional coordinates of the node projected on a
         self.d-dimensional unit sphere. These points must have norm 1.
 
-        If the object is_quat, approximately half of the nodes will be returned, since for quaternions q=-q.
+        Returns:
+            a numpy array in which each row is one of the projections (sorted by central_index)
+        """
+        return self._get_attributes_subset("projection", for_nodes=for_nodes)
+
+    def get_N_indices(self, N: int = None) -> NDArray:
+        """
+        Get N indices, including all lower-level ones
+
+        Args:
+            N: wished number of points to return (if None, return all)
 
         Returns:
-            a numpy array in which each row is one of the projections in order of their addition to the graph
-            (not sorted)
+            an array of size (N, self.d) featuring N nodes/projections sorted for max distance between them
+
+        Raises:
+            ValueError if N larger than the number of available unique nodes
         """
-        # check if saved available and the level of division has not changed since saving
-        if self.current_projections[0] is not None and self.current_level == self.current_projections[1]:
-            # noinspection PyTypeChecker
-            return self.current_projections[0]
-        projections_dict = nx.get_node_attributes(self.G, "projection")
-        # important to rely on the getter because it takes care of is_quat
-        nodes = self.get_node_coordinates()
-        projections = np.zeros((len(nodes), self.d))
-        for i, n in enumerate(nodes):
-            projections[i] = projections_dict[tuple(n)]
+        N_available = self.G.number_of_nodes()
+        # can't order more points than there are
+        if N is None:
+            N = N_available
+        if N > N_available:
+            raise ValueError(f"Cannot order more points than there are! N={N} > {N_available}")
 
-        # assertions
-        is_array_with_d_dim_r_rows_c_columns(projections, d=2, r=len(nodes), c=self.d)
-        all_row_norms_equal_k(projections, 1)
+        level_dict = nx.get_node_attributes(self.G, "level")
+        #  select all points from levels before the last one
+        result = [k for k, v in level_dict.items() if v < self.current_level - 1]
+        available_points = list(set(self.G.nodes).difference(set(result)))
 
-        # save projections for further use:
-        self.current_projections = (projections, self.current_level)
-        return projections
+        if len(result) > N:
+            raise ValueError("You subdivided the polyhedron more times than necessary!")
+
+        # define a seed to have repeatable results
+        np.random.seed(0)
+        # select the remaining points randomly
+        np.random.shuffle(available_points)
+        result.extend(available_points[:(N - len(result))])
+        result.sort()
+        return np.array(result)
 
     def get_N_ordered_points(self, N: int = None, projections: bool = True) -> NDArray:
         """
@@ -142,46 +181,15 @@ class Polytope(ABC):
         Raises:
             ValueError if N larger than the number of available unique nodes
         """
-        # important to use the getter
-        ci2node = dict()
-        available_points = [] #[tuple(point) for point in self.get_node_coordinates()]
-        N_available = self.G.number_of_nodes()
-        # can't order more points than there are
-        if N is None:
-            N = N_available
-        if N > N_available:
-            raise ValueError(f"Cannot order more points than there are! N={N} > {N_available}")
-        result = [] # save central_index in here
+        indices = self.get_N_indices(N)
 
-        #  select all points from lower levels and then random ones
-        for n, d in self.G.nodes(data=True):
-            ci = d["central_index"]
-            if d["level"] < self.current_level - 1:
-                result.append(ci)
-            else:
-                available_points.append(ci)
-            ci2node[ci] = n
+        if projections:
+            return self._get_attributes_subset(attribute_name="projection", for_nodes=indices)
+        else:
+            return self._get_attributes_subset(attribute_name="polytope_point", for_nodes=indices)
 
-        if len(result) > N:
-            raise ValueError("You subdivided the polyhedron more times than necessary!")
-
-        # random remaining points
-        # define a seed to have repeatable results
-        np.random.seed(0)
-        np.random.shuffle(available_points)
-        result.extend(available_points[:(N - len(result))])
-        result.sort()
-
-        result_nodes = []
-        for ci in result:
-            if projections:
-                result_nodes.append(self.G.nodes[ci2node[ci]]["projection"])
-            else:
-                result_nodes.append(ci2node[ci])
-
-        return np.array(result_nodes)
-
-    def get_valid_graph(self, N_ordered_points: NDArray):
+    def get_N_element_graph(self, N_ordered_points: NDArray):
+        #TODO
         my_nodes = []
         # need to calculate valid graph by dropping the points that are not within N ordered points
         valid_G = self.G.copy()
@@ -191,7 +199,6 @@ class Polytope(ABC):
             is_in_list = np.any([np.allclose(self.G.nodes[node]["projection"], x) for x in N_ordered_points])
             if not is_in_list:
                 remove_and_reconnect(valid_G, node)
-                print("removed point", node)
                 #if it acts like a bridge, reconnect
                 # if len(valid_G.edges(node)) <= 2:
                 #     remove_and_reconnect(valid_G, node)
@@ -206,7 +213,6 @@ class Polytope(ABC):
         assert valid_G.number_of_nodes() == len(N_ordered_points)
         return valid_G, my_nodes
 
-
     def divide_edges(self):
         """
         Subdivide once by putting a new point at mid-point of each existing edge and replacing this sub-edge with
@@ -217,17 +223,16 @@ class Polytope(ABC):
         self._add_mid_edge_nodes()
         self.current_level += 1
         self.side_len = self.side_len / 2
-        nx.set_node_attributes(self.G, {node: i for i, node in enumerate(self.G.nodes)}, name="central_index")
 
     def _add_mid_edge_nodes(self):
         """
         For each edge in the system, add a new point in the middle of the edge and replace the previous long edge with
         two shorter ones.
         """
-        nodes_to_add = list(self.G.edges())
-        self._add_average_point_and_edges(nodes_to_add)
+        indices_to_add = list(self.G.edges())
+        self._add_average_point_and_edges(indices_to_add, add_edges=True)
         # remove the old connection: old_point1 -------- old_point2
-        for old1, old2 in nodes_to_add:
+        for old1, old2 in indices_to_add:
             self.G.remove_edge(old1, old2)
 
     def _add_square_diagonal_nodes(self):
@@ -250,7 +255,21 @@ class Polytope(ABC):
         # add new nodes and edges
         self._add_average_point_and_edges(cube_nodes)
 
-    def _add_average_point_and_edges(self, list_old_points: list):
+    def _add_polytope_point(self, polytope_point: NDArray, face=None, face_neighbours_indices=None) -> None:
+        # determine if point already exists - in this case, don't add it
+        existing_coo = self.get_node_coordinates()
+        if len(existing_coo) > 0:
+            if k_is_a_row(existing_coo, polytope_point):
+                return
+        if face_neighbours_indices is None:
+            face_neighbours_indices = []
+        if face is None:
+            face = self._find_face(face_neighbours_indices)
+        self.last_node = self.G.number_of_nodes() + 1
+        self.G.add_node(self.last_node, polytope_point=polytope_point, level=self.current_level,
+                        face=face, projection=normalise_vectors(polytope_point))
+
+    def _add_average_point_and_edges(self, list_old_indices: list, add_edges=True, remove_old_edges=True):
         """
         A helper function to _add_square_diagonal_nodes, _add_cube_diagonal_nodes and _add_mid_edge_nodes.
         Given a list in which every item is a set of nodes, add a new point that is the average of them and also add
@@ -259,26 +278,22 @@ class Polytope(ABC):
         It adds new edges and does not delete any existing ones.
 
         Args:
-            list_old_points: each item is a list of already existing nodes - their average should be added as
-            a new point
+            list_old_indices: each item is a list of already existing nodes - the average of their polytope_points
+            should be added as a new point
         """
-        for new_neighbours in list_old_points:
+        # indices that are currently in a sublist will be averaged and that will be a new point
+        for indices_to_average in list_old_indices:
             # new node is the midpoint of the old ones
-            new_node_arr = np.average(np.array(new_neighbours), axis=0)
-            new_node = tuple(new_node_arr)
-            # just in case repetition happens
-            if new_node not in self.G.nodes:
-                self.G.add_node(new_node, level=self.current_level, face=self._find_face(new_neighbours),
-                                projection=normalise_vectors(np.array(new_node)))
+            old_points = [self.G.nodes[n]["polytope_point"] for n in indices_to_average]
+            new_point = np.average(np.array(old_points), axis=0)
+            self._add_polytope_point(new_point, face_neighbours_indices=indices_to_average)
+            node_index = self.last_node
+            if add_edges:
                 # since an average, only need to calculate distances once
-                distance = np.linalg.norm(new_node_arr - np.array(new_neighbours[0]))
-                for n in new_neighbours:
-                    # IMPORTANT: even if distances on a polyhedron are the same, distances on the sphere no longer
-                    # are since the distance of points to the origin depends on where on the face of the polyhedron
-                    # the newly connected points appear
-                    length = dist_on_sphere(self.G.nodes[new_node]["projection"],
-                                            self.G.nodes[n]["projection"])[0]
-                    self.G.add_edge(new_node, n, p_dist=distance, length=length)
+                distance = np.linalg.norm(new_point - old_points[0])
+                for n in indices_to_average:
+                    length = dist_on_sphere(self.G.nodes[node_index]["projection"], self.G.nodes[n]["projection"])[0]
+                    self.G.add_edge(node_index, n, p_dist=distance, length=length)
 
     def _add_edges_of_len(self, edge_len: float, wished_levels: list[int] = None, only_seconds: bool = True,
                           only_face: bool = True):
@@ -302,16 +317,20 @@ class Polytope(ABC):
         else:
             wished_levels.sort(reverse=True)
         assert len(wished_levels) == 2
-        selected_level = [x for x, y in self.G.nodes(data=True) if y['level'] == wished_levels[0]]
+
+        # central indices of all points within wished level
+        selected_level = [n for n, d in self.G.nodes(data=True) if d['level'] == wished_levels[0]]
         for new_node in selected_level:
             # searching only second neighbours of the node if this option has been selected
             if only_seconds:
                 sec_neighbours = list(second_neighbours(self.G, new_node))
-                sec_neighbours = [x for x in sec_neighbours if self.G.nodes[x]["level"] == wished_levels[1]]
+                sec_neighbours = [n for n in sec_neighbours if self.G.nodes[n]["level"] == wished_levels[1]]
             else:
-                sec_neighbours = [x for x in self.G.nodes if self.G.nodes[x]["level"] == wished_levels[1]]
+                sec_neighbours = [n for n in self.G.nodes if self.G.nodes[n]["level"] == wished_levels[1]]
             for other_node in sec_neighbours:
-                node_dist = np.linalg.norm(np.array(new_node)-np.array(other_node))
+                new_node_point = self.G.nodes[new_node]["polytope_point"]
+                other_node_point = self.G.nodes[other_node]["polytope_point"]
+                node_dist = np.linalg.norm(new_node_point-other_node_point)
                 # check face criterion
                 if not only_face or self._find_face([new_node, other_node]):
                     # check distance criterion
@@ -367,32 +386,15 @@ class Cube4DPolytope(Polytope):
     """
 
     def __init__(self):
-        super().__init__(d=4, is_quat=True)
+        super().__init__(d=4)
 
     def __str__(self):
         return f"Cube4D up to level {self.current_level}"
 
-    def _add_average_point(self, list_old_points: list):
-        """
-        A helper function to _add_square_diagonal_nodes, _add_cube_diagonal_nodes and _add_mid_edge_nodes.
-        Given a list in which every item is a set of nodes, add a new point that is the average of them and also add
-        new edges between the newly created points and all of the old ones.
-
-        It adds new edges and does not delete any existing ones.
-
-        Args:
-            list_old_points: each item is a list of already existing nodes - their average should be added as
-            a new point
-        """
-        # TODO: refactor so that this is part of Polyhedron and adding edges is an extra step
-        for new_neighbours in list_old_points:
-            # new node is the midpoint of the old ones
-            new_node_arr = np.average(np.array(new_neighbours), axis=0)
-            new_node = tuple(new_node_arr)
-            # just in case repetition happens
-            if new_node not in self.G.nodes:
-                self.G.add_node(new_node, level=self.current_level, face=self._find_face(new_neighbours),
-                                projection=normalise_vectors(np.array(new_node)))
+    def get_cell_coordinates(self):
+        nodes_dict = nx.get_node_attributes(self.G, "cell_coordinates")
+        nodes = np.array([nodes_dict[key] for key in sorted(nodes_dict.keys())])
+        return nodes
 
     def _add_point_at_len(self, edge_len: float, wished_levels: list = None, only_seconds: bool = True,
                           only_face: bool = True):
@@ -422,45 +424,50 @@ class Cube4DPolytope(Polytope):
                 if not only_face or self._find_face([new_node, other_node]):
                     # check distance criterion
                     if np.isclose(node_dist, edge_len):
-                        self._add_average_point([[new_node, other_node]])
+                        self._add_average_point_and_edges([[new_node, other_node]], add_edges=False)
 
     def _create_level0(self):
-        self.side_len = 2 * np.sqrt(1/self.d)
+        self.side_len = 2 * np.sqrt(1/4)
         # create vertices
         vertices = list(product((-self.side_len/2, self.side_len/2), repeat=4))
+        faces = [[0, 1, 2, 3, 4, 5, 6, 7], [0, 1, 2, 3, 8, 9, 10, 11], [0, 1, 4, 5, 8, 9, 12, 13],
+                 [0, 2, 4, 6, 8, 10, 12, 14], [1, 3, 5, 7, 9, 11, 13, 15], [2, 3, 6, 7, 10, 11, 14, 15],
+                 [4, 5, 6, 7, 12, 13, 14, 15], [8, 9, 10, 11, 12, 13, 14, 15]]
+
         assert len(vertices) == 16
         assert np.all([np.isclose(x, 0.5) or np.isclose(x, -0.5) for row in vertices for x in row])
         assert len(set(vertices)) == 16
         vertices = np.array(vertices)
         # add vertices and edges to the graph
         for i, vert in enumerate(vertices):
-            self.G.add_node(tuple(vert), level=self.current_level, face=set(),
-                            projection=normalise_vectors(np.array(vert)))
+            belongs_to = [face_i for face_i, face in enumerate(faces) if i in face]
+            self._add_polytope_point(vert, face=set(belongs_to))
         self._add_edges_of_len(self.side_len, wished_levels=[self.current_level, self.current_level],
                                only_seconds=False, only_face=False)
-        # detect cells
-        cells = detect_all_cubes(self.G)
-        for i, cell in enumerate(cells):
-            # find the indices of the vertices that construct this square in the list of vertices
-            for vertex in cell:
-                self.G.nodes[tuple(vertex)]["face"].add(i)
         self.side_len = self.side_len / 2
         self.current_level += 1
 
     def divide_edges(self):
         """Before or after dividing edges, make sure all relevant connections are present. Then perform a division of
         all connections (point in the middle, connection split in two), increase the level and halve the side_len."""
-        self._add_point_at_len(2*self.side_len*np.sqrt(2), wished_levels=[self.current_level-1, self.current_level-1],
+        print("point 0", self.G.number_of_nodes(), self.G.number_of_edges())
+        # before we start division we add square and cube diagonals in order to subdivide them too
+        len_square_diagonals = 2*self.side_len*np.sqrt(2)
+        self._add_edges_of_len(len_square_diagonals, wished_levels=[self.current_level-1, self.current_level-1],
                                only_seconds=False)
-        self._add_point_at_len(2 * self.side_len * np.sqrt(3),
-                               wished_levels=[self.current_level - 1, self.current_level - 1],
+        print("point 1", self.G.number_of_nodes(), self.G.number_of_edges())
+        len_cube_diagonals = 2 * self.side_len * np.sqrt(3)
+        self._add_edges_of_len(len_cube_diagonals, wished_levels=[self.current_level - 1, self.current_level - 1],
                                only_seconds=False)
+        print("point 2", self.G.number_of_nodes(), self.G.number_of_edges())
         super().divide_edges()
-
-        self._add_edges_of_len(2*self.side_len, wished_levels=[self.current_level-1, self.current_level-1],
+        # after division we need to draw some regular straight lines in order to connect points created by diagonal
+        # division
+        print("point 3", self.G.number_of_nodes(), self.G.number_of_edges())
+        self._add_edges_of_len(2*self.side_len, wished_levels=[self.current_level - 1, self.current_level - 1],
                                only_seconds=False)
 
-    def select_half_of_hypercube(self, return_central_indices: bool = False) -> list:
+    def select_half_of_hypercube(self, return_central_indices: bool = True) -> list:
         """
         Select only half of points in a hypercube polytope in such a manner that double coverage is eliminated.
 
@@ -477,7 +484,7 @@ class Cube4DPolytope(Polytope):
 
         Points are always returned sorted in the order of increasing central_index
         """
-        points = sorted(self.G.nodes(), key=lambda n: self.G.nodes[n]['central_index'])
+        points = sorted(self.G.nodes())
         non_repeating_points = []
         for i in range(4):
             for point in points:
@@ -485,15 +492,14 @@ class Cube4DPolytope(Polytope):
                 if np.allclose(projected_point[:i], 0) and projected_point[i] > 0:
                     # the point is selected
                     if return_central_indices:
-                        non_repeating_points.append(self.G.nodes[point]['central_index'])
+                        non_repeating_points.append(point)
                     else:
-                        non_repeating_points.append(tuple(point))
+                        non_repeating_points.append(self.G.nodes[point]["polytope_point"])
         return non_repeating_points
 
     def get_all_cells(self, include_only=None):
         """Returns 8 sub-graphs belonging to individual cells of hyper-cube."""
         all_subpoly = []
-        # add central index as property
         if include_only is None:
             include_only = list(self.G.nodes)
         for cell_index in range(8):
@@ -504,21 +510,19 @@ class Cube4DPolytope(Polytope):
                 if cell_index in data.get('face')
                 and node in include_only
             )
-            subgraph = self.G.subgraph(nodes)
+            subgraph = self.G.subgraph(nodes).copy()
             # find the component corresponding to the constant 4th dimension
             if subgraph.number_of_nodes() > 0:
-                arr_nodes = np.array(subgraph.nodes)
-                num_dim = len(arr_nodes[0])
+                arr_nodes = np.array([subgraph.nodes[n]["polytope_point"] for n in subgraph.nodes])
+
+                num_dim = self.d
                 dim_to_keep = list(np.where(~np.all(arr_nodes == arr_nodes[0, :], axis=0))[0])
                 removed_dim = max(set(range(num_dim)).difference(set(dim_to_keep)))
-                new_nodes = {old: tuple(old[d] for d in range(num_dim) if d !=removed_dim) for old in
-                             subgraph.nodes}
-                #new_nodes = {old: (old[dim_to_keep[0]], old[dim_to_keep[1]], old[dim_to_keep[2]]) for old in subgraph.nodes}
-                subgraph_3D = nx.relabel_nodes(subgraph, new_nodes)
-            else:
-                subgraph_3D = subgraph
+                for n in subgraph.nodes:
+                    old = subgraph.nodes[n]["polytope_point"]
+                    subgraph.nodes[n]["polytope_point"] = np.array([old[d] for d in range(num_dim) if d !=removed_dim])
             # create a 3D polyhedron and use its plotting functions
-            sub_polyhedron = PolyhedronFromG(subgraph_3D)
+            sub_polyhedron = PolyhedronFromG(subgraph)
             all_subpoly.append(sub_polyhedron)
             # nx.draw(subgraph_3D, labels={node: data["central_index"] for node, data in subgraph_3D.nodes(data=True)}, with_labels = True)
             # import matplotlib.pyplot as plt
@@ -606,7 +610,7 @@ class IcosahedronPolytope(Polytope):
     """
 
     def __init__(self):
-        super().__init__(d=3, is_quat=False)
+        super().__init__(d=3)
 
     def __str__(self):
         return f"Icosahedron up to level {self.current_level}"
@@ -626,8 +630,7 @@ class IcosahedronPolytope(Polytope):
         # add vertices and edges to the graph
         for i, vert in enumerate(vertices):
             set_of_faces = set(faces_i for faces_i, face in enumerate(faces) if i in face)
-            self.G.add_node(tuple(vert), level=self.current_level, face=set_of_faces,
-                            projection=normalise_vectors(np.array(vert)))
+            self._add_polytope_point(vert, face=set_of_faces)
         # create edges
         self._add_edges_of_len(self.side_len, wished_levels=[self.current_level, self.current_level],
                                only_seconds=False, only_face=False)
@@ -659,7 +662,7 @@ class Cube3DPolytope(Polytope):
     """
 
     def __init__(self):
-        super().__init__(d=3, is_quat=False)
+        super().__init__(d=3)
 
     def __str__(self):
         return f"Cube3D up to level {self.current_level}"
@@ -683,8 +686,7 @@ class Cube3DPolytope(Polytope):
         # add vertices and edges to the graph
         for i, vert in enumerate(vertices):
             set_of_faces = tuple(faces_i for faces_i, face in enumerate(faces) if i in face)
-            self.G.add_node(tuple(vert), level=self.current_level, face=set_of_faces,
-                            projection=normalise_vectors(np.array(vert)))
+            self._add_polytope_point(polytope_point=vert, face=set_of_faces)
         # create edges
         self._add_edges_of_len(self.side_len, wished_levels=[self.current_level, self.current_level],
                                only_seconds=False, only_face=False)
@@ -791,9 +793,13 @@ def detect_all_squares(graph: nx.Graph) -> list:
             for two_n in n_choices:
                 n1, n2 = two_n
                 # points sorted by size so that no duplicates occur
-                points = sorted([node, sn, n1, n2])
-                if form_square_array(np.array(points)) and points not in square_nodes:
-                    square_nodes.append([*points])
+                all_indices = [node, sn, n1, n2]
+                all_indices.sort()
+                points = []
+                for index_p in all_indices:
+                    points.append(graph.nodes[index_p]["polytope_point"])
+                if form_square_array(np.array(points)) and all_indices not in square_nodes:
+                    square_nodes.append(all_indices)
     return square_nodes
 
 
@@ -820,14 +826,16 @@ def detect_all_cubes(graph: nx.Graph) -> list:
             for fn in first_choices:
                 for sn in second_choices:
                     # points sorted by size so that no duplicates occur
-                    points = sorted([node, *fn, *sn, tn])
-                    array_points = np.array(points)
-                    if form_cube(array_points) and points not in cube_nodes:
-                        cube_nodes.append([*points])
+                    point_indices = sorted([node, *fn, *sn, tn])
+                    points = []
+                    for index_p in point_indices:
+                        points.append(graph.nodes[index_p]["polytope_point"])
+                    if form_cube(np.array(points)) and point_indices not in cube_nodes:
+                        cube_nodes.append(point_indices)
     return cube_nodes
 
 
-def remove_and_reconnect(g: nx.Graph, node: tuple):
+def remove_and_reconnect(g: nx.Graph, node: int):
     """Remove a node and reconnect edges, adding the properties of previous edges together."""
     sources = list(g.neighbors(node))
     targets = list(g.neighbors(node))

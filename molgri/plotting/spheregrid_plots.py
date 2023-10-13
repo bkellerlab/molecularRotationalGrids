@@ -9,6 +9,8 @@ import matplotlib.pyplot as plt
 import numpy as np
 import seaborn as sns
 from matplotlib.pyplot import Figure, Axes
+from numpy._typing import ArrayLike
+
 from molgri.paths import PATH_OUTPUT_PLOTS
 from mpl_toolkits.mplot3d.axes3d import Axes3D
 from matplotlib.animation import FuncAnimation
@@ -109,19 +111,6 @@ class ArrayPlot(RepresentationCollection):
         # map the 4th dimension into values 0-1
         alphas = points_3D[:, -1].T
         alphas = (alphas - np.min(alphas)) / np.ptp(alphas)
-
-        # determine neighbours of point 0
-        #from scipy.spatial import Voronoi
-        #vor = Voronoi(self.my_array, qhull_options="Qbb Qc Qz", furthest_site=True)
-
-        #neig_of_zero = np.where(self.sphere_grid.get_dist_adjacency()[0])[0]
-        #print(neig_of_zero)
-        #zero_regions = set(vor.regions[0])
-        # for i, other_reg in enumerate(vor.regions):
-        #     # if sharing more than 2 el are neig
-        #     overlap = len(zero_regions.intersection(set(other_reg)))
-        #     if 2 <= overlap < len(zero_regions):
-        #         neig_of_zero.append(i)
 
         # plot the lower-dimensional scatterplot
         all_points = []
@@ -283,6 +272,10 @@ class SphereGridPlot(ArrayPlot):
 
 class PolytopePlot(ArrayPlot):
 
+    """
+    This class is for plotting 3D polytopes, for plotting hypercube see EightCellsPlot.
+    """
+
     def __init__(self, polytope: Polytope, **kwargs):
         self.polytope = polytope
         split_name = str(polytope).split()
@@ -297,9 +290,8 @@ class PolytopePlot(ArrayPlot):
         """
         self._create_fig_ax(fig=fig, ax=ax)
 
-        node_labels = {i: tuple(np.round(i, 3)) for i in self.polytope.G.nodes}
         nx.draw_networkx(self.polytope.G, pos=nx.spring_layout(self.polytope.G, weight="p_dist"),
-                         with_labels=with_labels, labels=node_labels)
+                         with_labels=with_labels)
         if save:
             self._save_plot_type("graph")
 
@@ -316,13 +308,14 @@ class PolytopePlot(ArrayPlot):
         if self.polytope.d != 3:
             print(f"Plotting neighbours not available for d={self.polytope.d}")
 
-        try:
-            all_nodes = sorted(self.polytope.G.nodes(), key=lambda n: self.polytope.G.nodes[n]['central_index'])
-            all_nodes = np.array(all_nodes)
-            all_nodes_dict = {self.polytope.G.nodes[n]['central_index']: n for n in self.polytope.G.nodes}
-        except KeyError:
-            all_nodes_dict = {i: n for i, n in enumerate(self.polytope.G.nodes)}
-            all_nodes = self.my_array
+        all_nodes = self.my_array
+        # try:
+        #     #all_nodes = sorted(self.polytope.G.nodes(), key=lambda n: self.polytope.G.nodes[n]['central_index'])
+        #     all_nodes = self.polytope.get_node_coordinates()
+        #     #all_nodes_dict = {self.polytope.G.nodes[n]['central_index']: n for n in self.polytope.G.nodes}
+        # except KeyError:
+        #     all_nodes_dict = {i: n for i, n in enumerate(self.polytope.G.nodes)}
+        #     all_nodes = self.my_array
 
         if up_to > 3:
             print("Cannot plot more than third neighbours. Will proceed with third neighbours")
@@ -332,7 +325,7 @@ class PolytopePlot(ArrayPlot):
 
         # plot node and first neighbours
         try:
-            node = all_nodes_dict[node_i]
+            node = all_nodes[node_i]
             if projected:
                 self.ax.scatter(*node[:3]/np.linalg.norm(node[:3]), color="red", s=40)
                 self.ax.text(*node[:3]/np.linalg.norm(node[:3]), node_i)
@@ -377,7 +370,7 @@ class PolytopePlot(ArrayPlot):
 
     def make_node_plot(self, ax: Axes3D = None, fig: Figure = None, select_faces: set = None, projection: bool = False,
                        plot_edges: bool = False, plot_nodes: bool = True,
-                       color_by: str = "level", enumerate_nodes=False, save=True):
+                       color_by: str = "level", label=False, save=True, N=None):
         """
         Plot the points of the polytope + possible division points. Colored by level at which the point was added.
         Or: colored by index to see how sorting works. Possible to select only one or a few faces on which points
@@ -393,9 +386,12 @@ class PolytopePlot(ArrayPlot):
             plot_edges: select True if you want to see connections between nodes
             color_by: "level" or "index"
         """
+
+        N_indices = self.polytope.get_N_indices(N)
         if self.polytope.d > 3:
-            print(f"Plotting nodes not available for d={self.polytope.d}")
-            return
+            if select_faces is None or len(select_faces) > 1:
+                select_faces = {0}
+                print(f"Because d={self.polytope.d}, we will only plot the face with index {select_faces}.")
 
         self._create_fig_ax(fig=fig, ax=ax, projection="3d")
 
@@ -403,12 +399,11 @@ class PolytopePlot(ArrayPlot):
         index_palette = color_palette("coolwarm", n_colors=self.polytope.G.number_of_nodes())
 
         if plot_nodes:
-            for i, point in enumerate(self.polytope.get_N_ordered_points(projections=False)):
-                # select only points that belong to at least one of the chosen select_faces (or plot all if None selection)
-                node = self.polytope.G.nodes[tuple(point)]
+            for i, ci in enumerate(N_indices):
+                # select only points that belong to at least one of the chosen select_faces (or plot all if None)
+                node = self.polytope.G.nodes[ci]
                 point_faces = set(node["face"])
                 point_level = node["level"]
-                point_projection = node["projection"]
                 if select_faces is None or len(point_faces.intersection(select_faces)) > 0:
                     # color selected based on the level of the node or index of the sorted nodes
                     if color_by == "level":
@@ -419,22 +414,17 @@ class PolytopePlot(ArrayPlot):
                         color="black"
                     else:
                         raise ValueError(f"The argument color_by={color_by} not possible (try 'index', 'level')")
-
-                    if projection:
-                        self.ax.scatter(*point_projection, color=color, s=30)
-                    else:
-                        self.ax.scatter(*point, color=color, s=30)
-                        if enumerate_nodes:
-                            self.ax.text(*point, s=f"{i}")
+                    self._plot_single_points([ci, ], color=color, label=label, projection=projection, ax=self.ax,
+                                             fig=self.fig, save=False)
         self._set_axis_limits((-0.6, 0.6, -0.6, 0.6, -0.6, 0.6))
         self._equalize_axes()
         if plot_edges:
-            self._plot_edges(self.ax, select_faces=select_faces)
+            self._plot_edges(self.ax, nodes_i=N_indices, select_faces=select_faces)
         if save:
             self._save_plot_type(f"points_{color_by}")
 
-    def _plot_single_points(self, nodes_i: list, color, label=True, ax: Axes3D = None, fig: Figure = None,
-                            save=True):
+    def _plot_single_points(self, nodes_i: ArrayLike, color, label=True, ax: Axes3D = None, fig: Figure = None,
+                            save=True, projection=False):
         """
         Plot just the points with specified central_index in specified color.
 
@@ -443,16 +433,21 @@ class PolytopePlot(ArrayPlot):
 
         self._create_fig_ax(fig=fig, ax=ax, projection="3d")
 
-        for n, d in self.polytope.G.nodes(data=True):
-            if d["central_index"] in nodes_i:
-                self.ax.scatter(*n[:3], color=color, s=30)
-                if label:
-                    self.ax.text(*n[:3], d["central_index"])
+        if projection:
+            all_nodes = self.polytope.get_projection_coordinates(for_nodes=nodes_i)
+        else:
+            all_nodes = self.polytope.get_node_coordinates(for_nodes=nodes_i)
+        for i, n in enumerate(nodes_i):
+            polytope_point = all_nodes[i]
+            self.ax.scatter(*polytope_point[:3], color=color, s=30)
+            if label:
+                self.ax.text(*polytope_point[:3], n)
+
         self._equalize_axes()
         if save:
             self._save_plot_type(f"single_points")
 
-    def _plot_edges(self, ax, select_faces=None, label=None, **kwargs):
+    def _plot_edges(self, ax, nodes_i: ArrayLike, select_faces=None, label=None, **kwargs):
         """
         Plot the edges between the points. Can select to display only some faces for clarity.
 
@@ -468,11 +463,12 @@ class PolytopePlot(ArrayPlot):
             # both the start and the end point of the edge must belong to one of the selected faces
             n1_on_face = select_faces is None or len(faces_edge_1.intersection(select_faces)) > 0
             n2_on_face = select_faces is None or len(faces_edge_2.intersection(select_faces)) > 0
-            if n1_on_face and n2_on_face:
+            if n1_on_face and n2_on_face and edge[0] in nodes_i and edge[1] in nodes_i:
                 # usually you only want to plot edges used in division
-                ax.plot(*np.array(edge[:2]).T, color="black",  **kwargs)
+                node_coordinates = self.polytope.get_node_coordinates(for_nodes=edge[:2])
+                ax.plot(*node_coordinates.T, color="black",  **kwargs)
                 if label:
-                    midpoint = np.average(np.array(edge[:2]), axis=0)
+                    midpoint = np.average(node_coordinates, axis=0)
                     s = edge[2][f"{label}"]
                     ax.text(*midpoint, s=f"{s:.3f}")
 
@@ -730,8 +726,11 @@ class EightCellsPlot(MultiRepresentationCollection):
                          list_plots=list_plots, n_rows=2, n_columns=4)
 
     def plot_eight_cells(self, animate_rot=False, save=True, **kwargs):
-        self._make_plot_for_all("make_node_plot", projection="3d", plotting_kwargs={"color_by": None,
-                                                                                     "plot_edges": True})
+        if not kwargs["color_by"]:
+            kwargs["color_by"] = None
+        if not kwargs["plot_edges"]:
+            kwargs["plot_edges"] = True
+        self._make_plot_for_all("make_node_plot", projection="3d", plotting_kwargs=kwargs)
         if animate_rot:
             return self.animate_figure_view("points", dpi=100)
         if save:
@@ -844,10 +843,25 @@ class EightCellsPlot(MultiRepresentationCollection):
 
 
 if __name__ == "__main__":
-    from molgri.space.polytopes import Cube4DPolytope, IcosahedronPolytope
+    from molgri.space.polytopes import Cube4DPolytope, IcosahedronPolytope, Cube3DPolytope
     from molgri.space.rotobj import SphereGridFactory
     from molgri.space.fullgrid import FullGrid
     import seaborn as sns
+
+    # cube_3d = Cube3DPolytope()
+    # cube_3d.divide_edges()
+    #
+    # pp = PolytopePlot(cube_3d)
+    # pp.make_node_plot(save=False, plot_edges=True)
+    # plt.show()
+
+    cube = Cube4DPolytope()
+    cube.divide_edges()
+    #cube.divide_edges()
+
+    ecp = EightCellsPlot(cube, only_half_of_cube=False)
+    ecp.plot_eight_cells(save=False, plot_edges=False, color_by="level", label=True)
+    plt.show()
 
 
 

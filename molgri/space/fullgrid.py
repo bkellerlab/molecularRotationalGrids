@@ -93,7 +93,7 @@ class FullGrid:
         standard_neig = {"ico": 6, "cube3D": 4}
         first_neig = {"ico": 5, "cube3D": 6}
         first_level_num = {"ico": 12, "cube3D": 8}
-        valid_G, my_nodes = self.o_rotations.polytope.get_valid_graph(self.o_positions)
+        valid_G, my_nodes = self.o_rotations.polytope.get_N_element_graph(self.o_positions)
         distances = cdist(self.o_positions, self.o_positions, metric="cosine")
         empty_arr = np.zeros(distances.shape, dtype=bool)
         for j, dist in enumerate(distances):
@@ -120,10 +120,10 @@ class FullGrid:
 
         """
         if o_grid:
-            valid_G, my_nodes = self.o_rotations.polytope.get_valid_graph(self.o_positions)
+            valid_G, my_nodes = self.o_rotations.polytope.get_N_element_graph(self.o_positions)
             return nx.adjacency_matrix(valid_G, nodelist=my_nodes)
         else:
-            valid_G, my_nodes = self.b_rotations.polytope.get_valid_graph(self.b_rotations.get_grid_as_array())
+            valid_G, my_nodes = self.b_rotations.polytope.get_N_element_graph(self.b_rotations.get_grid_as_array())
             return nx.adjacency_matrix(valid_G, nodelist=my_nodes)
 
     def get_adjacency_of_orientation_grid(self) -> coo_array:

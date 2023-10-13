@@ -52,6 +52,20 @@ def all_row_norms_similar(my_array: NDArray, atol: float = None, rtol: float = N
     assert check_equality(all_norms, average_norm, atol=atol, rtol=rtol), "The norms of all rows are not equal"
     return all_norms
 
+def k_is_a_row(my_array: NDArray, k: NDArray) -> bool:
+    """
+    Check if the row k occurs anywhere in the array up to floating point precision
+    Args:
+        my_array ():
+        k ():
+        atol ():
+        rtol ():
+
+    Returns:
+
+    """
+    is_array_with_d_dim_r_rows_c_columns(k, r=my_array.shape[1])
+    return np.any(np.all(np.isclose(k, my_array), axis=1))
 
 def all_row_norms_equal_k(my_array: NDArray, k: float, atol: float = None, rtol: float = None) -> NDArray:
     """

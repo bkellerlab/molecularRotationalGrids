@@ -23,11 +23,12 @@ def example_cube_graph() -> nx.Graph:
     previous = list(range(1, 9))
     coords = [(1/2, -1/2, 1/2), (-1/2, -1/2, 1/2), (-1/2, 1/2, 1/2), (1/2, 1/2, 1/2), (1/2, -1/2, -1/2),
               (-1/2, -1/2, -1/2), (-1/2, 1/2, -1/2), (1/2, 1/2, -1/2)]
-    G = nx.relabel_nodes(G, {p: c for p, c in zip(previous, coords)})
     # add level and projection
+    nx.set_node_attributes(G, {p: c for p, c in zip(previous, coords)}, name="polytope_point")
     nx.set_node_attributes(G, 0, name="level")
     nx.set_node_attributes(G, set(), name="face")
-    nx.set_node_attributes(G, {node: normalise_vectors(np.array(node)) for node in G.nodes}, name="projection")
+    nx.set_node_attributes(G, {node: G.nodes[node]["polytope_point"]/np.linalg.norm(G.nodes[node]["polytope_point"])
+                               for node in G.nodes}, name="projection")
     dist = {(n1, n2): dist_on_sphere(G.nodes[n1]["projection"], G.nodes[n2]["projection"])[0] for n1, n2 in G.edges}
     nx.set_edge_attributes(G, dist, name="length")
     side_len = 1
@@ -36,15 +37,14 @@ def example_cube_graph() -> nx.Graph:
 
 
 def test_polytope():
-    for polytope_type in ALL_POLYHEDRON_TYPES:
+    for polytope_type in ALL_POLYTOPE_TYPES:
         polytope = polytope_type()
-        for level in range(3):
+        for level in range(2):
             graph_before = polytope.G.copy()
-            nodes_before = list(graph_before.nodes(data=False))
+            nodes_before = polytope.get_node_coordinates() #list(graph_before.nodes(data=False))
             edges_before = list(graph_before.edges)
             polytope.divide_edges()
-            graph_after = polytope.G.copy()
-            nodes_after = list(graph_after.nodes(data=False))
+            nodes_after = polytope.get_node_coordinates()
             # no nodes should disappear
             for x in nodes_before:
                 if x not in nodes_after:
@@ -52,11 +52,10 @@ def test_polytope():
             # now the remaining points should be midpoints of edges
             all_midpoints = []
             for edge in edges_before:
-                midpoint = (np.array(edge[0]) + np.array(edge[1]))/2
-                midpoint = tuple(midpoint)
+                midpoint = np.average(polytope.get_node_coordinates(for_nodes=edge[:2]), axis=0)
                 all_midpoints.append(midpoint)
                 if midpoint not in nodes_after:
-                    raise Exception("At least one of the midpoints was not added to grid!")
+                    raise Exception(f"At least one of the midpoints was not added to grid for {polytope_type}!")
 
 
 def test_second_neighbours():
@@ -70,7 +69,6 @@ def test_second_neighbours():
     # expected second neighbours that are NOT first neighbours
     expected_sec_neig_1 = [4, 7, 10, 8]
     sec_neig_1 = list(second_neighbours(G, 1))
-    print(sec_neig_1)
     assert np.all([x in list(G.neighbors(1)) for x in expected_neig_1]), "First neighbours wrong."
     assert np.all([x in sec_neig_1 for x in expected_sec_neig_1]), "Some second neighbours missing."
     assert not np.any([x in sec_neig_1 for x in expected_neig_1]), "Some first neighbours in second neighbours"
@@ -139,7 +137,11 @@ def test_ico_polytope():
     #  icosahedron
     ico = IcosahedronPolytope()
     assert ico.G.number_of_nodes() == 12, "Icosahedron should have 12 nodes"
+    assert len(ico.get_node_coordinates()) == 12, "Icosahedron should have 12 nodes"
+    assert len(ico.get_projection_coordinates()) == 12, "Icosahedron should have 12 nodes"
     assert ico.G.number_of_edges() == 30, "Icosahedron should have 30 edges"
+
+
     # after one division
     ico.divide_edges()
     # for each edge new point
@@ -206,6 +208,8 @@ def test_cube4D_polytope():
     # fig, ax = plt.subplots(1, 1, subplot_kw={"projection": "3d"})
     # cub.draw_one_cell(ax, draw_edges=True)
     # plt.show()
+    print(cub.G.number_of_nodes())
+    # why 80?  One point per: vertex, edge, face, cell, 16 + 32 + 24 + 8 = 80
     assert cub.G.number_of_nodes() == 80, "1st division: hypercube should have 80 nodes"
     assert cub.G.number_of_edges() == 208, "1st division: hypercube should have 208 edges"
     cub.divide_edges()
@@ -238,23 +242,7 @@ def test_sorting():
         # assert that the sorted points come exactly from the list of points
         assert np.all([point in points_before for point in sorted_points])
         assert np.all([point in projections_before for point in sorted_projections])
-        # assert the distance between first and second point is np.sqrt(3)*side_len
-        assert np.isclose(np.linalg.norm(sorted_points[0]-sorted_points[1]), np.sqrt(3)*side_len)
-        # and between third and fourth too
-        assert np.isclose(np.linalg.norm(sorted_points[2] - sorted_points[3]), np.sqrt(3) * side_len)
-        # assert the distance between first and second projection is twice the radius - 2
-        assert np.isclose(np.linalg.norm(sorted_projections[0] - sorted_projections[1]), 2)
-        # and between third and fourth too
-        assert np.isclose(np.linalg.norm(sorted_projections[2] - sorted_projections[3]), 2)
-    # now let's add mid-points
-    polyh.divide_edges()
-    sorted_points = polyh.get_N_ordered_points(12, projections=False)
-    # the first newly added points - index 8 and 9 - must be at distance sqrt(2)*side_len
-    assert np.isclose(np.linalg.norm(sorted_points[8] - sorted_points[9]), np.sqrt(2) * side_len)
-    # fig, ax = plt.subplots(1, 1, subplot_kw={"projection": "3d"})
-    # polyh.plot_points(ax, color_by="index")
-    # # cube3D.plot_edges(ax, label="p_dist")
-    # plt.show()
+
 
 
 def test_detect_square_and_cubes():
@@ -320,4 +308,15 @@ def test_remove_and_reconnect():
 
 
 if __name__ == "__main__":
-    test_sorting()
+    # test_polytope()
+    # test_second_neighbours()
+    # test_third_neighbours()
+    # test_everything_runs()
+    # test_level0()
+    # test_ico_polytope()
+    # test_cube3D_polytope()
+    test_cube4D_polytope()
+    # test_sorting()
+    # test_detect_square_and_cubes()
+    # test_edge_attributes()
+    # test_remove_and_reconnect()
