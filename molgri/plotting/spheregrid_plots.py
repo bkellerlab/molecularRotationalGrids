@@ -309,13 +309,6 @@ class PolytopePlot(ArrayPlot):
             print(f"Plotting neighbours not available for d={self.polytope.d}")
 
         all_nodes = self.my_array
-        # try:
-        #     #all_nodes = sorted(self.polytope.G.nodes(), key=lambda n: self.polytope.G.nodes[n]['central_index'])
-        #     all_nodes = self.polytope.get_node_coordinates()
-        #     #all_nodes_dict = {self.polytope.G.nodes[n]['central_index']: n for n in self.polytope.G.nodes}
-        # except KeyError:
-        #     all_nodes_dict = {i: n for i, n in enumerate(self.polytope.G.nodes)}
-        #     all_nodes = self.my_array
 
         if up_to > 3:
             print("Cannot plot more than third neighbours. Will proceed with third neighbours")
@@ -447,7 +440,8 @@ class PolytopePlot(ArrayPlot):
         if save:
             self._save_plot_type(f"single_points")
 
-    def _plot_edges(self, ax, nodes_i: ArrayLike, select_faces=None, label=None, **kwargs):
+    def _plot_edges(self, ax, nodes_i: ArrayLike, select_faces=None, label=None,
+                    edge_categories = [0], **kwargs):
         """
         Plot the edges between the points. Can select to display only some faces for clarity.
 
@@ -457,7 +451,9 @@ class PolytopePlot(ArrayPlot):
             label: select the name of edge parameter if you want to display it
             **kwargs: other plotting arguments
         """
-        for edge in self.polytope.G.edges(data=True):
+        all_edges = self.polytope.get_edges_of_categories(data=True, categories=edge_categories)
+
+        for edge in all_edges:
             faces_edge_1 = set(self.polytope.G.nodes[edge[0]]["face"])
             faces_edge_2 = set(self.polytope.G.nodes[edge[1]]["face"])
             # both the start and the end point of the edge must belong to one of the selected faces
@@ -726,9 +722,9 @@ class EightCellsPlot(MultiRepresentationCollection):
                          list_plots=list_plots, n_rows=2, n_columns=4)
 
     def plot_eight_cells(self, animate_rot=False, save=True, **kwargs):
-        if not kwargs["color_by"]:
+        if "color_by" not in kwargs.keys():
             kwargs["color_by"] = None
-        if not kwargs["plot_edges"]:
+        if "plot_edges" not in kwargs.keys():
             kwargs["plot_edges"] = True
         self._make_plot_for_all("make_node_plot", projection="3d", plotting_kwargs=kwargs)
         if animate_rot:
@@ -850,6 +846,7 @@ if __name__ == "__main__":
 
     # cube_3d = Cube3DPolytope()
     # cube_3d.divide_edges()
+    # cube_3d.divide_edges()
     #
     # pp = PolytopePlot(cube_3d)
     # pp.make_node_plot(save=False, plot_edges=True)
@@ -857,10 +854,17 @@ if __name__ == "__main__":
 
     cube = Cube4DPolytope()
     cube.divide_edges()
+    print("has?", cube.G.edges(nbunch=(77, 15), data=True))
+    pp_15 = cube.G.nodes(data=True)[15]['polytope_point']
+    pp_77 = cube.G.nodes(data=True)[77]['polytope_point']
+    print(np.linalg.norm(pp_15-pp_77))
+    #(77, 15, {'p_dist': 0.7071067811865476, 'length': 0.5235987755982985})
+    print(np.unique([c for a, b, c in cube.G.edges(data="p_dist")], return_counts=True))
+
     #cube.divide_edges()
 
     ecp = EightCellsPlot(cube, only_half_of_cube=False)
-    ecp.plot_eight_cells(save=False, plot_edges=False, color_by="level", label=True)
+    ecp.plot_eight_cells(save=False, plot_edges=True, color_by="level", label=True)
     plt.show()
 
 

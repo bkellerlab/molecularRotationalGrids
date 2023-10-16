@@ -12,7 +12,7 @@ Example functions that belong to this module:
 """
 
 import numpy as np
-from numpy.typing import NDArray
+from numpy.typing import NDArray, ArrayLike
 from scipy.constants import pi
 from scipy.spatial import distance_matrix
 from scipy.spatial.distance import cdist
@@ -66,6 +66,20 @@ def k_is_a_row(my_array: NDArray, k: NDArray) -> bool:
     """
     is_array_with_d_dim_r_rows_c_columns(k, r=my_array.shape[1])
     return np.any(np.all(np.isclose(k, my_array), axis=1))
+
+def which_row_is_k(my_array: NDArray, k: NDArray) -> ArrayLike:
+    """
+    returns all indices of rows in my_array that are equal (within floating point errors) to my_array.
+    Args:
+        my_array:
+        k:
+
+    Returns:
+
+    """
+    if not np.any(my_array) or not np.any(k):
+        return None
+    return np.nonzero(np.all(np.isclose(k, my_array), axis=1))[0]
 
 def all_row_norms_equal_k(my_array: NDArray, k: float, atol: float = None, rtol: float = None) -> NDArray:
     """

@@ -199,25 +199,37 @@ def test_cube3D_polytope():
 
 def test_cube4D_polytope():
     cub = Cube4DPolytope()
-    assert cub.G.number_of_nodes() == 16, "Hypercube 4D should have 16 nodes"
+    assert cub.G.number_of_nodes() == 16, "Hypercube should have 16 nodes"
+    # categories of nodes
+    node_categories = cub._get_count_of_point_categories()
+    assert node_categories == [16], "At level 0 cube 4D has point categories [16]"
     # those points are unique
     all_rows_unique(cub.get_projection_coordinates())
-    assert cub.G.number_of_edges() == 32, "Hypercube should have 32 edges"
+    assert cub.G.number_of_edges() == 112, "Hypercube should have 112 edges"
+    # categories of edges
+    edge_categories = cub._get_count_of_edge_categories()
+    assert np.all(edge_categories == [32, 48, 32]), "At level 0 cube 4D has edge categories [32, 48, 32]"
+
     # after one division
     cub.divide_edges()
-    # fig, ax = plt.subplots(1, 1, subplot_kw={"projection": "3d"})
-    # cub.draw_one_cell(ax, draw_edges=True)
-    # plt.show()
-    print(cub.G.number_of_nodes())
     # why 80?  One point per: vertex, edge, face, cell, 16 + 32 + 24 + 8 = 80
     assert cub.G.number_of_nodes() == 80, "1st division: hypercube should have 80 nodes"
-    assert cub.G.number_of_edges() == 208, "1st division: hypercube should have 208 edges"
+    node_categories = cub._get_count_of_point_categories()
+    assert np.all(node_categories == [16, 32, 24, 8]), "At level 1 cube 4D has point categories [16, 32, 24, 8]"
+    n_edges = cub.G.number_of_edges()
+    print(cub._get_count_of_edge_categories())
+    assert n_edges == 848, f"1st division: hypercube should have 848 edges, not {n_edges}"
+    edge_categories = cub._get_count_of_edge_categories()
+    assert np.all(edge_categories == [208, 384, 256]), "At level 1 cube 4D has edge categories [208, 384, 256]"
+
+    # after two divisions
     cub.divide_edges()
-    # fig, ax = plt.subplots(1, 1, subplot_kw={"projection": "3d"})
-    # cub.draw_one_cell(ax, draw_edges=False)
-    # plt.show()
-    assert cub.G.number_of_nodes() == 544, "2nd division: hypercube should have 544 nodes"
-    assert cub.G.number_of_edges() == 1568, "2nd division: hypercube should have 1568 edges"
+    assert cub.G.number_of_nodes() == 544, f"2nd division: hypercube should have 544 nodes, not {cub.G.number_of_nodes()}"
+    assert cub.G.number_of_edges() == 6304, f"2nd division: hypercube should have 1568 edges, not {cub.G.number_of_edges()}"
+    node_categories = cub._get_count_of_point_categories()
+    assert np.all(node_categories == [16, 64, 32, 96, 96, 24, 64, 96, 48, 8]), "At level 2 cube 4D has point categories [16, 64, 32, 96, 96, 24, 64, 96, 48, 8]"
+    edge_categories = cub._get_count_of_edge_categories()
+    assert np.all(edge_categories == [1184, 3072, 2048]), "At level 2 cube 4D has edge categories [1184, 3072, 2048]"
 
 
 def test_sorting():

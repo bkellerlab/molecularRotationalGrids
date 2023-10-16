@@ -35,7 +35,7 @@ from scipy.constants import pi, golden
 from scipy.spatial.distance import cdist
 
 from molgri.assertions import is_array_with_d_dim_r_rows_c_columns, all_row_norms_equal_k, form_square_array, form_cube, \
-    k_is_a_row
+    k_is_a_row, which_row_is_k
 from molgri.space.utils import distance_between_quaternions, normalise_vectors, dist_on_sphere, \
     unique_quaternion_set
 
@@ -255,12 +255,14 @@ class Polytope(ABC):
         # add new nodes and edges
         self._add_average_point_and_edges(cube_nodes)
 
-    def _add_polytope_point(self, polytope_point: NDArray, face=None, face_neighbours_indices=None) -> None:
+    def _add_polytope_point(self, polytope_point: NDArray, face=None, face_neighbours_indices=None) -> int:
         # determine if point already exists - in this case, don't add it
         existing_coo = self.get_node_coordinates()
-        if len(existing_coo) > 0:
-            if k_is_a_row(existing_coo, polytope_point):
-                return
+        existing_central_index = which_row_is_k(existing_coo, polytope_point)
+        if existing_central_index:
+            assert len(existing_central_index) == 1, "Central index should be unique!"
+            return existing_central_index[0]
+
         if face_neighbours_indices is None:
             face_neighbours_indices = []
         if face is None:
@@ -268,6 +270,7 @@ class Polytope(ABC):
         self.last_node = self.G.number_of_nodes() + 1
         self.G.add_node(self.last_node, polytope_point=polytope_point, level=self.current_level,
                         face=face, projection=normalise_vectors(polytope_point))
+        return self.last_node
 
     def _add_average_point_and_edges(self, list_old_indices: list, add_edges=True, remove_old_edges=True):
         """
@@ -282,16 +285,19 @@ class Polytope(ABC):
             should be added as a new point
         """
         # indices that are currently in a sublist will be averaged and that will be a new point
+        occurences_15 = np.sum([True for e1, e2 in list_old_indices if e1==15 or e2==15])
+        occurences_4 = np.sum([True for e1, e2 in list_old_indices if e1 == 4 or e2 == 4])
+        print("list of old 15 and 4", occurences_15, occurences_4)
         for indices_to_average in list_old_indices:
             # new node is the midpoint of the old ones
             old_points = [self.G.nodes[n]["polytope_point"] for n in indices_to_average]
             new_point = np.average(np.array(old_points), axis=0)
-            self._add_polytope_point(new_point, face_neighbours_indices=indices_to_average)
-            node_index = self.last_node
+            node_index = self._add_polytope_point(new_point, face_neighbours_indices=indices_to_average)
             if add_edges:
-                # since an average, only need to calculate distances once
-                distance = np.linalg.norm(new_point - old_points[0])
-                for n in indices_to_average:
+                for i, n in enumerate(indices_to_average):
+                    if n == 15 and node_index == 77:
+                        print("dist", new_point, old_points[i], np.linalg.norm(new_point - old_points[i]))
+                    distance = np.linalg.norm(new_point - old_points[i])
                     length = dist_on_sphere(self.G.nodes[node_index]["projection"], self.G.nodes[n]["projection"])[0]
                     self.G.add_edge(node_index, n, p_dist=distance, length=length)
 
@@ -358,6 +364,55 @@ class Polytope(ABC):
             faces_neighbour_vector = self.G.nodes[neig]["face"]
             face = face.intersection(set(faces_neighbour_vector))
         return face
+
+    def _get_count_of_point_categories(self) -> NDArray:
+        """
+        Helper function for testing. Check how many nodes fit in distinct "projection categories" based on how central
+        they are on the hypersphere.
+
+        Returns:
+            count of nodes belonging to groups based on how far away from the unit sphere they are
+        """
+        return np.unique([np.linalg.norm(d["projection"] - d["polytope_point"]) for n, d in self.G.nodes(data=True)],
+                    return_counts=True) [1]
+
+    def _get_count_of_edge_categories(self) -> NDArray:
+        """
+        Helper function for testing. Check how many edges fit in distinct "projection categories" based on how central
+        they are on the hypersphere.
+
+        Returns:
+            count of edges belonging to groups based on how far away from the unit sphere they are
+        """
+        return np.unique([c for a, b, c in self.G.edges(data="p_dist")], return_counts=True)[1]
+
+    def get_edges_of_categories(self, categories: list  = None, data: bool = True) -> ArrayLike:
+        """
+        Get only those edges that belong to categories defined by distance to the sphere.
+
+        Args:
+            categories: a list of integers; if None, use all categories
+            data: whether to return a view of edges that includes data
+
+        Returns:
+            a view of edges [(n1, n2, attributes), (...), ...]
+        """
+        all_edges = self.G.edges(data=data)
+        if categories is None:
+            return all_edges
+        else:
+            # sort according to p_dist so we can filter by indices of categories
+            all_edges = sorted(all_edges, key=lambda edge: edge[2].get('p_dist', 1))
+            category_counts = self._get_count_of_edge_categories()
+            running_sum_counts = np.cumsum(category_counts)
+            running_sum_counts = np.concatenate([[0], running_sum_counts])
+
+            result = []
+            for cat_index in categories:
+                start, stop = running_sum_counts[cat_index:cat_index+2]
+                result.extend(all_edges[start:stop])
+            return result
+
 
 
 class PolyhedronFromG(Polytope):
@@ -444,28 +499,37 @@ class Cube4DPolytope(Polytope):
             self._add_polytope_point(vert, face=set(belongs_to))
         self._add_edges_of_len(self.side_len, wished_levels=[self.current_level, self.current_level],
                                only_seconds=False, only_face=False)
+        self._add_edges_of_len(self.side_len*np.sqrt(2), wished_levels=[self.current_level, self.current_level],
+                               only_seconds=False, only_face=False)
+        self._add_edges_of_len(self.side_len * np.sqrt(3), wished_levels=[self.current_level, self.current_level],
+                               only_seconds=False, only_face=False)
         self.side_len = self.side_len / 2
         self.current_level += 1
 
     def divide_edges(self):
         """Before or after dividing edges, make sure all relevant connections are present. Then perform a division of
         all connections (point in the middle, connection split in two), increase the level and halve the side_len."""
-        print("point 0", self.G.number_of_nodes(), self.G.number_of_edges())
-        # before we start division we add square and cube diagonals in order to subdivide them too
+        print("point -1", self.G.number_of_nodes(), self.G.number_of_edges(), len(self.G.edges(15)),
+              len(self.G.edges(4)))
+        super().divide_edges()
+
+        print("point 0", self.G.number_of_nodes(), self.G.number_of_edges(), len(self.G.edges(15)),
+              len(self.G.edges(4)))
+        self._add_edges_of_len(2*self.side_len, wished_levels=[self.current_level - 1, self.current_level - 1],
+                               only_seconds=False)
+
+        print("point 1", self.G.number_of_nodes(), self.G.number_of_edges(), len(self.G.edges(15)),
+              len(self.G.edges(4)))
         len_square_diagonals = 2*self.side_len*np.sqrt(2)
         self._add_edges_of_len(len_square_diagonals, wished_levels=[self.current_level-1, self.current_level-1],
-                               only_seconds=False)
-        print("point 1", self.G.number_of_nodes(), self.G.number_of_edges())
+                              only_seconds=False)
+
+        print("point 2", self.G.number_of_nodes(), self.G.number_of_edges(), len(self.G.edges(15)), len(self.G.edges(4)))
         len_cube_diagonals = 2 * self.side_len * np.sqrt(3)
         self._add_edges_of_len(len_cube_diagonals, wished_levels=[self.current_level - 1, self.current_level - 1],
                                only_seconds=False)
-        print("point 2", self.G.number_of_nodes(), self.G.number_of_edges())
-        super().divide_edges()
-        # after division we need to draw some regular straight lines in order to connect points created by diagonal
-        # division
-        print("point 3", self.G.number_of_nodes(), self.G.number_of_edges())
-        self._add_edges_of_len(2*self.side_len, wished_levels=[self.current_level - 1, self.current_level - 1],
-                               only_seconds=False)
+        print("point 3", self.G.number_of_nodes(), self.G.number_of_edges(), len(self.G.edges(15)),
+              len(self.G.edges(4)))
 
     def select_half_of_hypercube(self, return_central_indices: bool = True) -> list:
         """
