@@ -7,6 +7,7 @@ points in the molgri.space subpackage.
 from typing import Tuple
 
 import numpy as np
+from molgri.assertions import all_row_norms_equal_k, is_array_with_d_dim_r_rows_c_columns
 from numpy.typing import NDArray, ArrayLike
 from scipy.constants import pi
 from scipy.spatial.transform import Rotation
@@ -150,8 +151,9 @@ def standardise_quaternion_set(quaternions: NDArray, standard=np.array([1, 0, 0,
 
 def unique_quaternion_set(quaternions: NDArray) -> NDArray:
     """
-    Standardise the quaternion set so that q and -q are converted to the same object. If now any repetitions exist,
-    remove them from the array.
+    Select only the "upper half" of hyperspherical points (quaternions that may be repeating). How selection is done:
+    select a list of all quaternions that have non-negative first coordinate.
+    Among the nodes with first coordinate equal zero, select only the ones with non-negative second coordinate etc.
 
     Args:
         quaternions: array (N, 4), each row a quaternion
@@ -159,12 +161,17 @@ def unique_quaternion_set(quaternions: NDArray) -> NDArray:
     Returns:
         quaternions: array (M <= N, 4), each row a quaternion different from all other ones
     """
-    # standardizing is necessary to be able to use unique on quaternions
-    nodes = standardise_quaternion_set(quaternions)
-    # determine unique without sorting
-    _, indices = np.unique(nodes, axis=0, return_index=True)
-    quaternions = np.array([nodes[index] for index in sorted(indices)])
-    return quaternions
+    # test input
+    all_row_norms_equal_k(quaternions, 1)
+    is_array_with_d_dim_r_rows_c_columns(quaternions, d=2, c=4)
+
+    non_repeating_quaternions = []
+    for i in range(4):
+        for projected_point in quaternions:
+            if np.allclose(projected_point[:i], 0) and projected_point[i] > 0:
+                # the point is selected
+                non_repeating_quaternions.append(projected_point)
+    return np.array(non_repeating_quaternions)
 
 
 def randomise_quaternion_set_signs(quaternions: NDArray) -> NDArray:

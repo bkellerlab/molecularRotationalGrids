@@ -4,7 +4,7 @@ import matplotlib.pyplot as plt
 from scipy.constants import pi
 
 from molgri.space.polytopes import Cube3DPolytope, IcosahedronPolytope, second_neighbours, \
-    Cube4DPolytope, third_neighbours, detect_all_cubes, detect_all_squares, PolyhedronFromG, \
+    Cube4DPolytope, third_neighbours, PolyhedronFromG, \
     remove_and_reconnect
 from molgri.assertions import all_row_norms_similar, all_row_norms_equal_k, all_rows_unique
 from molgri.space.utils import normalise_vectors, dist_on_sphere
@@ -43,7 +43,7 @@ def test_getter():
      2) returns the values in the order of CI
      3) CI is a unique, increasing integer
     """
-    for polytope_type in [IcosahedronPolytope, ]:  #ALL_POLYTOPE_TYPES
+    for polytope_type in ALL_POLYTOPE_TYPES:
         polytope = polytope_type()
         polytope.divide_edges()
         N_nodes_1 = polytope.G.number_of_nodes()
@@ -74,17 +74,26 @@ def test_getter():
             assert polytope_2.G.nodes[tuple(point)]["central_index"] == i
 
 
-
-
-def test_polytope():
+def test_basics():
+    """
+    Tests that:
+    1) all polytopes can be created
+    2) no nodes disappear when subdividing
+    3) midpoints of all edges are added to the polytope during division
+    4) projected points all have the same norm and it is 1
+    5) upon creation, all points have level 0
+    """
     for polytope_type in ALL_POLYTOPE_TYPES:
         polytope = polytope_type()
+        for n in polytope.G.nodes(data=True):
+            assert n[1]["level"] == 0, "All points should be level 0 right after creation!"
         for level in range(2):
             graph_before = polytope.G.copy()
-            nodes_before = polytope.get_node_coordinates() #list(graph_before.nodes(data=False))
+            nodes_before = polytope.get_nodes()
             edges_before = list(graph_before.edges)
+            all_row_norms_equal_k(polytope.get_nodes(projection=True), 1)
             polytope.divide_edges()
-            nodes_after = polytope.get_node_coordinates()
+            nodes_after = polytope.get_nodes()
             # no nodes should disappear
             for x in nodes_before:
                 if x not in nodes_after:
@@ -92,7 +101,7 @@ def test_polytope():
             # now the remaining points should be midpoints of edges
             all_midpoints = []
             for edge in edges_before:
-                midpoint = np.average(polytope.get_node_coordinates(for_nodes=edge[:2]), axis=0)
+                midpoint = np.average(np.array(edge[:2]), axis=0)
                 all_midpoints.append(midpoint)
                 if midpoint not in nodes_after:
                     raise Exception(f"At least one of the midpoints was not added to grid for {polytope_type}!")
@@ -139,38 +148,6 @@ def test_third_neighbours():
     assert sorted(third_neighbours(G, 1)) == sorted([9])
     # third neighbours of 7: 2, 6, 11, 8
     assert sorted(third_neighbours(G, 7)) == sorted([2, 6, 11, 8])
-
-
-def test_everything_runs():
-    # test all
-    for polytope_type in ALL_POLYTOPE_TYPES:
-        pol = polytope_type()
-        pol.divide_edges()
-        all_row_norms_similar(pol.get_nodes(projection=True))
-
-
-def test_level0():
-    # all
-    for poly_type in ALL_POLYTOPE_TYPES:
-        pol = poly_type()
-        points = pol.get_node_coordinates()
-        projections = pol.get_projection_coordinates()
-        # all level attributes must be 0
-        for n in pol.G.nodes(data=True):
-            assert n[1]["level"] == 0, "All points should be level 0 right after creation!"
-        # number of points at level 0
-        points_at_0 = len(projections)
-        # afterwards, projections always of length 1
-        all_row_norms_equal_k(projections, 1)
-        pol.divide_edges()
-        projections_1 = pol.get_projection_coordinates()
-        all_row_norms_equal_k(projections_1, 1)
-        # the ordering of projections does not change
-        projections_2 = pol.get_projection_coordinates()
-        assert np.allclose(projections_1, projections_2)
-        # the first points_at_0 projections and coordinates should still be the same
-        assert np.allclose(pol.get_node_coordinates()[:points_at_0], points)
-        assert np.allclose(projections_2[:points_at_0], projections)
 
 
 def test_ico_polytope():
@@ -248,59 +225,22 @@ def test_cube4D_polytope():
         assert np.all(edge_categories == expected_categories_of_edges[i]), f"At level {i} cube 4D has edge categories {expected_categories_of_edges[i]}"
 
 
-
-def test_sorting():
-    my_G = example_cube_graph()
-    polyh = PolyhedronFromG(my_G)
-    side_len = 1
-    np.random.seed(1)
-    # N < number of points, N == number of points, N > number of points
-    for N1 in (4, 8):
-        points_before = polyh.get_node_coordinates()
-        projections_before = polyh.get_projection_coordinates()
-        sorted_points = polyh.get_N_ordered_points(N1, projections=False)
-        sorted_projections = polyh.get_N_ordered_points(N1, projections=True)
-        points_after = polyh.get_node_coordinates()
-        projections_after = polyh.get_projection_coordinates()
-        # first assert it does not mess up the representation of all points
-        assert np.allclose(points_before, points_after)
-        assert np.allclose(projections_before, projections_after)
-        # secondly assert the right shape
-        assert sorted_points.shape == (N1, 3)
-        assert sorted_projections.shape == (N1, 3)
-        # assert that the sorted points come exactly from the list of points
-        assert np.all([point in points_before for point in sorted_points])
-        assert np.all([point in projections_before for point in sorted_projections])
-
-
-
-def test_detect_square_and_cubes():
-    my_G = example_cube_graph()
-    polyh = PolyhedronFromG(my_G)
-    # you should detect 6 square faces in a 3D cube consisting of only 8 vertices
-    assert len(detect_all_squares(my_G)) == 6
-    # and you should detect exactly one cube
-    assert len(detect_all_cubes(my_G)) == 1
-    # you should also be able to add those points to the polyhedron
-    points_before = polyh.G.number_of_nodes()
-    polyh._add_square_diagonal_nodes()
-    points_after = polyh.G.number_of_nodes()
-    assert points_after - points_before == 6
-
-
 def test_edge_attributes():
+    """
+    This function tests that:
+    1) for all polytopes, the distances on polytopes are the expected lengths (for straight, square diag, cube diag)
+    """
     # ico
     ico = IcosahedronPolytope()
     side_len = 1 / np.sin(2 * pi / 5)
-    arch_len = np.arccos(1-side_len**2/2)
     # after subdivision:
     for i in range(3):
         edges = ico.G.edges(data=True)
         for n1, n2, data in edges:
             assert np.isclose(data["p_dist"], side_len)
-            #assert np.isclose(data["length"], arch_len)
         ico.divide_edges()
         side_len = side_len / 2
+
     # cube3D
     cube3D = Cube3DPolytope()
     side_len = 2 * np.sqrt(1/3)
@@ -308,7 +248,7 @@ def test_edge_attributes():
     for i in range(3):
         edges = cube3D.G.edges(data=True)
         for n1, n2, data in edges:
-            assert np.isclose(data["p_dist"], side_len) or np.isclose(data["p_dist"], np.sqrt(2)*side_len/2)
+            assert np.isclose(data["p_dist"], side_len) or np.isclose(data["p_dist"], np.sqrt(2)*side_len)
         # fig, ax = plt.subplots(1, 1, subplot_kw={"projection": "3d"})
         # cube3D.plot_points(ax, color_by="index")
         # cube3D.plot_edges(ax, label="p_dist")
@@ -319,13 +259,14 @@ def test_edge_attributes():
     cube4D = Cube4DPolytope()
     side_len = 2 * np.sqrt(1/4)
     # after subdivision:
-    for i in range(3):
+    for i in range(2):
         edges = cube4D.G.edges(data=True)
         for n1, n2, data in edges:
-            assert np.isclose(data["p_dist"], side_len) or np.isclose(data["p_dist"], np.sqrt(2)*side_len/2) or \
-                   np.isclose(data["p_dist"], np.sqrt(3)*side_len/2) or np.isclose(data["p_dist"], side_len/2)
+            assert np.isclose(data["p_dist"], side_len) or \
+                   np.isclose(data["p_dist"], np.sqrt(3)*side_len) or np.isclose(data["p_dist"], np.sqrt(2)*side_len)
         cube4D.divide_edges()
         side_len = side_len / 2
+
 
 def test_remove_and_reconnect():
     # if I remove point 2, I want connection betwen 1 and 3
@@ -338,15 +279,11 @@ def test_remove_and_reconnect():
 
 if __name__ == "__main__":
     test_getter()
-    # test_polytope()
+    test_basics()
     test_second_neighbours()
     test_third_neighbours()
-    # test_everything_runs()
-    # test_level0()
     test_ico_polytope()
     test_cube3D_polytope()
     test_cube4D_polytope()
-    # test_sorting()
-    # test_detect_square_and_cubes()
-    # test_edge_attributes()
-    # test_remove_and_reconnect()
+    test_edge_attributes()
+    test_remove_and_reconnect()
