@@ -117,6 +117,19 @@ class RepresentationCollection(ABC):
         self.__set_complexity_level(complexity)
         self.__set_style_part_2(color_style=color_style)
 
+    def create_all_plots(self):
+        """
+        E.g. for testing purposes might be useful to run all methods that a specific class offers and make sure that
+        they create a result.
+
+        This method assumes that every method beginning with make_ is a plotting function.
+        """
+        object_methods = [method_name for method_name in dir(self)
+                          if callable(getattr(self, method_name)) and method_name.startswith("make_")]
+        for method in object_methods:
+            plot_func = getattr(self, method)
+            plot_func(save=True)
+
     def _save_plot_type(self, plot_type_name: str, **saving_kwargs):
         save_ending = saving_kwargs.pop("save_ending", EXTENSION_FIGURES)
         dpi = saving_kwargs.pop("dpi", DEFAULT_DPI)

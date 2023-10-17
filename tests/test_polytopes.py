@@ -36,6 +36,46 @@ def example_cube_graph() -> nx.Graph:
     return G
 
 
+def test_getter():
+    """
+    Assert that the method get_nodes
+     1) consistently returns the same values when reconstructing the object from scratch
+     2) returns the values in the order of CI
+     3) CI is a unique, increasing integer
+    """
+    for polytope_type in [IcosahedronPolytope, ]:  #ALL_POLYTOPE_TYPES
+        polytope = polytope_type()
+        polytope.divide_edges()
+        N_nodes_1 = polytope.G.number_of_nodes()
+        # test getting CI - should return a list of indices in correct ordering (from 0 to num of nodes - 1)
+        all_ci = polytope._get_attributes_array_sorted_by_index("central_index")
+        assert np.allclose(all_ci, list(range(polytope.G.number_of_nodes())))
+        # test getting nodes and projections for two separately constructed objects
+        polytope_2 = polytope_type()
+        polytope_2.divide_edges()
+        polytope_2.divide_edges()
+
+        # all nodes/projections give same order and up to N nodes/projections too
+        for N in (None, 16):
+            for projection in (True, False):
+                if N is None:
+                    up_to = N_nodes_1
+                else:
+                    up_to = N
+                all_nodes_1 = polytope.get_nodes(N=N, projection=projection)
+                all_nodes_2 = polytope_2.get_nodes(N=N, projection=projection)
+                assert np.allclose(all_nodes_1[:up_to], all_nodes_2[:up_to])
+
+        # getters obtain results in order of the CI
+        my_N = N_nodes_1 - 2
+        my_points = polytope.get_nodes(N=my_N, projection=False)
+        for i, point in enumerate(my_points):
+            assert polytope.G.nodes[tuple(point)]["central_index"] == i
+            assert polytope_2.G.nodes[tuple(point)]["central_index"] == i
+
+
+
+
 def test_polytope():
     for polytope_type in ALL_POLYTOPE_TYPES:
         polytope = polytope_type()
@@ -106,7 +146,7 @@ def test_everything_runs():
     for polytope_type in ALL_POLYTOPE_TYPES:
         pol = polytope_type()
         pol.divide_edges()
-        all_row_norms_similar(pol.get_projection_coordinates())
+        all_row_norms_similar(pol.get_nodes(projection=True))
 
 
 def test_level0():
@@ -134,102 +174,79 @@ def test_level0():
 
 
 def test_ico_polytope():
-    #  icosahedron
+    """
+    Tests that:
+    1) the number of nodes and edges of IcosahedronPolytope are correct at levels 0, 1 and 2
+    2) the generated points are all unique
+    """
+
+    expected_num_of_points = [12, 42, 162]
+    expected_num_of_edges = [30, 60, 240]
+
     ico = IcosahedronPolytope()
-    assert ico.G.number_of_nodes() == 12, "Icosahedron should have 12 nodes"
-    assert len(ico.get_node_coordinates()) == 12, "Icosahedron should have 12 nodes"
-    assert len(ico.get_projection_coordinates()) == 12, "Icosahedron should have 12 nodes"
-    assert ico.G.number_of_edges() == 30, "Icosahedron should have 30 edges"
-
-
-    # after one division
-    ico.divide_edges()
-    # for each edge new point
-    all_rows_unique(ico.get_projection_coordinates())
-    assert ico.G.number_of_nodes() == 12 + 30, "1st division: icosahedron should have 42 nodes"
-    # each of 20 faces has 6 shared edges
-    assert ico.G.number_of_edges() == 20 * 3, "1st division: icosahedron should have 60 edges"
-    # after two divisions
-    ico.divide_edges()
-    # for each edge new point
-    all_rows_unique(ico.get_projection_coordinates())
-    # fig, ax = plt.subplots(1, 1, subplot_kw={"projection": "3d"})
-    # ico.plot_points(ax, select_faces={1, 2, 3})
-    # ico.plot_edges(ax, select_faces={1, 2, 3})
-    # plt.show()
-    assert ico.G.number_of_nodes() == 42 + 120, "2nd division: icosahedron should have 162 nodes"
-    # each of 20 faces: count edges and shared edges
-    assert ico.G.number_of_edges() == 240, "2nd division: icosahedron should have 240 edges"
+    for i in range(3):
+        if i != 0:
+            ico.divide_edges()
+        assert ico.G.number_of_nodes() == expected_num_of_points[i], f"At level {i} cube 3D should have {expected_num_of_points[i]} nodes"
+        # those points are unique
+        all_rows_unique(ico.get_nodes(projection=True))
+        assert ico.G.number_of_edges() == expected_num_of_edges[i], f"At level {i} cube 3D should have {expected_num_of_edges[i]} edges "
 
 
 def test_cube3D_polytope():
+    """
+    This test asserts that:
+    1) the number of nodes and edges of Cube3DPolytope are correct at levels 0, 1 and 2
+    2) The categories of edges (straight, diagonal) are also correct
+    3) the generated points are all unique
+    """
+    expected_num_of_points = [8, 26, 98]
+    expected_num_of_edges = [24, 96, 384]
+    expected_categories_of_edges = [[12, 12], [48, 48], [192, 192]]
+
     # cube3D
     cub = Cube3DPolytope()
-    # each of 6 faces has one whole point and 4 * 1/3 points (shared by three sides)
-    assert cub.G.number_of_nodes() == 14, "Cube 3D should have 14 nodes"
-    # those points are unique
-    all_rows_unique(cub.get_projection_coordinates())
-    # each face has the occupancy of 5 nodes
-    # normal cube has 12 edges, but we add 6*4 face diagonals
-    assert cub.G.number_of_edges() == 12 + 24, "Cube should have 36 edges"
-    # after one division
-    cub.divide_edges()
-    # for each edge new point
-    all_rows_unique(cub.get_projection_coordinates())
-    # each of 6 faces has 5 whole points + 4 * 1/3 + 4 * 1/2
-    assert cub.G.number_of_nodes() == 50, "1st division: cube should have 50 nodes"
-    # each of previous edges simply cut in half
-    assert cub.G.number_of_edges() == 72, "1st division: cube should have 72 edges"
-    # after two divisions
-    cub.divide_edges()
-    # fig, ax = plt.subplots(1, 1, subplot_kw={"projection": "3d"})
-    # cub.plot_points(ax, select_faces={1, 2, 3})
-    # cub.plot_edges(ax, select_faces={1, 2, 3})
-    # plt.show()
-    all_rows_unique(cub.get_projection_coordinates())
-    # each of 6 faces has 25 whole points + 4 * 1/3 + 12 * 1/2
-    assert cub.G.number_of_nodes() == 194, "2nd division: cube should have 194 nodes"
-    assert cub.G.number_of_edges() == 288, "2nd division: cube should have 288 edges"
-    # after 3 divisions
-    cub.divide_edges()
-    # 194 old points + 576 for each edge sub-divided = 770
-    assert cub.G.number_of_nodes() == 770, "3rd division: cube should have 770 nodes"
-    assert cub.G.number_of_edges() == 4*288, "3rd division: cube should have 1152 edges"
+    for i in range(3):
+        if i != 0:
+            cub.divide_edges()
+        assert cub.G.number_of_nodes() == expected_num_of_points[i], f"At level {i} cube 3D should have {expected_num_of_points[i]} nodes"
+        # those points are unique
+        all_rows_unique(cub.get_nodes(projection=True))
+        assert cub.G.number_of_edges() == expected_num_of_edges[i], f"At level {i} cube 3D should have {expected_num_of_edges[i]} edges "
+        edge_categories = cub._get_count_of_edge_categories()
+        assert np.all(edge_categories == expected_categories_of_edges[i]), f"At level {i} cube 3D has edge categories {expected_categories_of_edges[i]}"
 
 
 def test_cube4D_polytope():
+    """
+    This test asserts that:
+    1) the number of nodes and edges of Cube3DPolytope are correct at levels 0, 1 and 2
+    2) The categories of nodes (distance to hyperspher) are correct
+    3) The categories of edges (straight, diagonal) are also correct
+    3) the generated points are all unique
+    """
+
+    expected_num_of_points = [16, 80, 544]
+    expected_num_of_edges = [112, 848, 6688]
+    expected_categories_of_nodes = [[16], [16, 32, 24, 8], [16, 64, 32, 96, 96, 24, 64, 96, 48, 8]]
+    expected_categories_of_edges = [[32, 48, 32], [208, 384, 256], [1568, 3072, 2048]]
+
+
     cub = Cube4DPolytope()
-    assert cub.G.number_of_nodes() == 16, "Hypercube should have 16 nodes"
-    # categories of nodes
-    node_categories = cub._get_count_of_point_categories()
-    assert node_categories == [16], "At level 0 cube 4D has point categories [16]"
-    # those points are unique
-    all_rows_unique(cub.get_projection_coordinates())
-    assert cub.G.number_of_edges() == 112, "Hypercube should have 112 edges"
-    # categories of edges
-    edge_categories = cub._get_count_of_edge_categories()
-    assert np.all(edge_categories == [32, 48, 32]), "At level 0 cube 4D has edge categories [32, 48, 32]"
+    for i in range(3):
+        if i != 0:
+            cub.divide_edges()
+        assert cub.G.number_of_nodes() == expected_num_of_points[i], f"At level {i} cube 4D should have " \
+                                                                     f"{expected_num_of_points[i]} nodes"
+        # those points are unique
+        all_rows_unique(cub.get_nodes(projection=True))
+        assert cub.G.number_of_edges() == expected_num_of_edges[i], f"At level {i} cube 4D should have " \
+                                                                    f"{expected_num_of_edges[i]} edges "
+        node_categories = cub._get_count_of_point_categories()
+        assert np.all(node_categories == expected_categories_of_nodes[i]), f"At level {i} cube 4D has edge categories {expected_categories_of_edges[i]}"
+        edge_categories = cub._get_count_of_edge_categories()
+        assert np.all(edge_categories == expected_categories_of_edges[i]), f"At level {i} cube 4D has edge categories {expected_categories_of_edges[i]}"
 
-    # after one division
-    cub.divide_edges()
-    # why 80?  One point per: vertex, edge, face, cell, 16 + 32 + 24 + 8 = 80
-    assert cub.G.number_of_nodes() == 80, "1st division: hypercube should have 80 nodes"
-    node_categories = cub._get_count_of_point_categories()
-    assert np.all(node_categories == [16, 32, 24, 8]), "At level 1 cube 4D has point categories [16, 32, 24, 8]"
-    n_edges = cub.G.number_of_edges()
-    print(cub._get_count_of_edge_categories())
-    assert n_edges == 848, f"1st division: hypercube should have 848 edges, not {n_edges}"
-    edge_categories = cub._get_count_of_edge_categories()
-    assert np.all(edge_categories == [208, 384, 256]), "At level 1 cube 4D has edge categories [208, 384, 256]"
-
-    # after two divisions
-    cub.divide_edges()
-    assert cub.G.number_of_nodes() == 544, f"2nd division: hypercube should have 544 nodes, not {cub.G.number_of_nodes()}"
-    assert cub.G.number_of_edges() == 6304, f"2nd division: hypercube should have 1568 edges, not {cub.G.number_of_edges()}"
-    node_categories = cub._get_count_of_point_categories()
-    assert np.all(node_categories == [16, 64, 32, 96, 96, 24, 64, 96, 48, 8]), "At level 2 cube 4D has point categories [16, 64, 32, 96, 96, 24, 64, 96, 48, 8]"
-    edge_categories = cub._get_count_of_edge_categories()
-    assert np.all(edge_categories == [1184, 3072, 2048]), "At level 2 cube 4D has edge categories [1184, 3072, 2048]"
 
 
 def test_sorting():
@@ -320,13 +337,14 @@ def test_remove_and_reconnect():
 
 
 if __name__ == "__main__":
+    test_getter()
     # test_polytope()
-    # test_second_neighbours()
-    # test_third_neighbours()
+    test_second_neighbours()
+    test_third_neighbours()
     # test_everything_runs()
     # test_level0()
-    # test_ico_polytope()
-    # test_cube3D_polytope()
+    test_ico_polytope()
+    test_cube3D_polytope()
     test_cube4D_polytope()
     # test_sorting()
     # test_detect_square_and_cubes()
