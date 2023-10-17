@@ -147,6 +147,89 @@ class Polytope(ABC):
         else:
             return np.array([self.G.nodes[tuple(n)][attribute_name] for n in all_sorted_nodes])
 
+########################################################################################################################
+#
+#               ADJACENCY AND CLOSENESS OF POINTS
+#
+########################################################################################################################
+
+
+    def get_polytope_neighbours(self, point_index, include_opposing_neighbours=False, only_half_of_cube=False):
+        adj_matrix = self.get_polytope_adj_matrix(include_opposing_neighbours=include_opposing_neighbours,
+                                                  only_half_of_cube=only_half_of_cube)
+        # easy - if all points are in adj matrix, just read i-th line of adj matrix
+        if not only_half_of_cube:
+            return np.nonzero(adj_matrix[point_index])[0]
+        else:
+            # change indices because adj matrix is smaller
+            available_indices = self.get_half_of_hypercube(return_central_indices=True)
+            available_indices.sort()
+            if point_index in available_indices:
+                return np.nonzero(adj_matrix[available_indices.index(point_index)])[0]
+            else:
+                return []
+
+    def get_polytope_adj_matrix(self, include_opposing_neighbours=True, only_half_of_cube=True):
+        """
+        Get adjacency matrix sorted by central index. Default is to use the creation graph to get adjacency
+        relationship.
+
+        Args:
+            include_opposing_neighbours ():
+
+        Returns:
+
+        """
+        adj_matrix = nx.adjacency_matrix(self.G, nodelist=sorted(self.G.nodes(),
+                                         key=lambda n: self.G.nodes[n]['central_index'])).toarray()
+        if include_opposing_neighbours:
+            all_central_ind = [self.G.nodes[n]['central_index'] for n in self.G.nodes]
+            all_central_ind.sort()
+
+            ind2opp_index = dict()
+            for n, d in self.G.nodes(data=True):
+                ind = d["central_index"]
+                opp_ind = find_opposing_q(ind, self.G)
+                if opp_ind in all_central_ind:
+                    ind2opp_index[ind] = opp_ind
+            for i, line in enumerate(adj_matrix):
+                for j, el in enumerate(line):
+                    if el:
+                        adj_matrix[i][all_central_ind.index(ind2opp_index[j])] = True
+        if only_half_of_cube:
+            available_indices = self.get_half_of_hypercube(return_central_indices=True)
+            available_indices.sort()
+            #adj_matrix = np.where(, adj_matrix, None)
+            # Create a new array with the same shape as the original array
+            extracted_arr = np.empty_like(adj_matrix, dtype=float)
+            extracted_arr[:] = np.nan
+
+            # Extract the specified rows and columns from the original array
+            extracted_arr[available_indices, :] = adj_matrix[available_indices, :]
+            extracted_arr[:, available_indices] = adj_matrix[:, available_indices]
+            adj_matrix = extracted_arr
+
+            #adj_matrix = adj_matrix[available_indices, :]
+            #adj_matrix = adj_matrix[:, available_indices]
+
+        return adj_matrix
+
+    def get_cdist_matrix(self, only_nodes=None) -> NDArray:
+        if only_nodes is None:
+            chosen_G = self.G
+        else:
+            chosen_G = self.G.subgraph(nodes=only_nodes)
+
+        projected_nodes = sorted(chosen_G.nodes, key=lambda n: chosen_G.nodes[n]['central_index'])
+        projected_nodes = np.array([chosen_G.nodes[n]['projection'] for n in projected_nodes])
+
+        if self.d == 3:
+            method = "cos"
+        elif self.d == 4:
+            method = distance_between_quaternions
+        else:
+            raise ValueError("Must have 3 or 4 dimensions")
+        return cdist(projected_nodes, projected_nodes, method)
 
 ########################################################################################################################
 #
@@ -542,77 +625,6 @@ class Cube4DPolytope(Polytope):
             all_subpoly.append(sub_polyhedron)
         return all_subpoly
 
-
-    def get_polytope_neighbours(self, point_index, include_opposing_neighbours=False, only_half_of_cube=False):
-        adj_matrix = self.get_polytope_adj_matrix(include_opposing_neighbours=include_opposing_neighbours,
-                                                  only_half_of_cube=only_half_of_cube)
-        # easy - if all points are in adj matrix, just read i-th line of adj matrix
-        if not only_half_of_cube:
-            return np.nonzero(adj_matrix[point_index])[0]
-        else:
-            # change indices because adj matrix is smaller
-            available_indices = self.get_half_of_hypercube(return_central_indices=True)
-            available_indices.sort()
-            if point_index in available_indices:
-                return np.nonzero(adj_matrix[available_indices.index(point_index)])[0]
-            else:
-                return []
-
-    def get_polytope_adj_matrix(self, include_opposing_neighbours=True, only_half_of_cube=True):
-        """
-        Get adjacency matrix sorted by central index. Default is to use the creation graph to get adjacency
-        relationship.
-
-        Args:
-            include_opposing_neighbours ():
-
-        Returns:
-
-        """
-        adj_matrix = nx.adjacency_matrix(self.G, nodelist=sorted(self.G.nodes(),
-                                         key=lambda n: self.G.nodes[n]['central_index'])).toarray()
-        if include_opposing_neighbours:
-            all_central_ind = [self.G.nodes[n]['central_index'] for n in self.G.nodes]
-            all_central_ind.sort()
-
-            ind2opp_index = dict()
-            for n, d in self.G.nodes(data=True):
-                ind = d["central_index"]
-                opp_ind = find_opposing_q(ind, self.G)
-                if opp_ind in all_central_ind:
-                    ind2opp_index[ind] = opp_ind
-            for i, line in enumerate(adj_matrix):
-                for j, el in enumerate(line):
-                    if el:
-                        adj_matrix[i][all_central_ind.index(ind2opp_index[j])] = True
-        if only_half_of_cube:
-            available_indices = self.get_half_of_hypercube(return_central_indices=True)
-            available_indices.sort()
-            #adj_matrix = np.where(, adj_matrix, None)
-            # Create a new array with the same shape as the original array
-            extracted_arr = np.empty_like(adj_matrix, dtype=float)
-            extracted_arr[:] = np.nan
-
-            # Extract the specified rows and columns from the original array
-            extracted_arr[available_indices, :] = adj_matrix[available_indices, :]
-            extracted_arr[:, available_indices] = adj_matrix[:, available_indices]
-            adj_matrix = extracted_arr
-
-            #adj_matrix = adj_matrix[available_indices, :]
-            #adj_matrix = adj_matrix[:, available_indices]
-
-        return adj_matrix
-
-    def get_cdist_matrix(self, only_half_of_cube=True):
-        if only_half_of_cube:
-            chosen_G = self.G.subgraph(nodes=self.get_half_of_hypercube())
-        else:
-            chosen_G = self.G
-
-        projected_nodes = sorted(chosen_G.nodes, key=lambda n: chosen_G.nodes[n]['central_index'])
-        projected_nodes = np.array([chosen_G.nodes[n]['projection'] for n in projected_nodes])
-
-        return cdist(projected_nodes, projected_nodes, distance_between_quaternions)
 
 
 class IcosahedronPolytope(Polytope):

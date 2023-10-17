@@ -25,7 +25,7 @@ def get_example_pt():
 
 
 def test_polytope_plots():
-    for pol in (Cube3DPolytope(), IcosahedronPolytope()):
+    for pol in (Cube3DPolytope(), IcosahedronPolytope(), Cube4DPolytope()):
         pol.divide_edges()
         pp = PolytopePlot(pol, default_color_style="dark", default_complexity_level="empty")
         pp.create_all_plots()

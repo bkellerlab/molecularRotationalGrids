@@ -274,7 +274,8 @@ class SphereGridPlot(ArrayPlot):
 class PolytopePlot(RepresentationCollection):
 
     """
-    This class is for plotting 3D polytopes, for plotting hypercube see EightCellsPlot.
+    This class is for plotting 3D polytopes, some methods may also be suitable for hypercubes, but for them see also
+    EightCellsPlot.
     """
 
     def __init__(self, polytope: Polytope, **kwargs):
@@ -295,6 +296,31 @@ class PolytopePlot(RepresentationCollection):
                          with_labels=with_labels, labels=node_labels)
         if save:
             self._save_plot_type("graph")
+
+    def make_cdist_plot(self, ax=None, fig=None, with_labels=True, save=True, N=None):
+        """
+
+        Returns:
+
+        """
+        self._create_fig_ax(fig=fig, ax=ax)
+
+        cdistances = self.polytope.get_cdist_matrix()
+
+        vmin = 0.9 * np.min(cdistances[cdistances > 0.01])
+
+        cmap = mpl.colormaps.get_cmap('gray_r')
+        cmap.set_under("blue")
+
+        sns.heatmap(cdistances, cmap=cmap, cbar=False, ax=ax, vmin=vmin)
+        self.ax.get_xaxis().set_visible(False)
+        self.ax.axes.get_yaxis().set_visible(False)
+        self.ax.set_aspect('equal')
+        plt.tight_layout()
+
+        if save:
+            plt.savefig(PATH_OUTPUT_PLOTS + f"cdist_matrix")
+
 
     def make_neighbours_plot(self, ax: Axes3D = None, fig: Figure = None, save: bool = True, node_i: int = 0,
                              up_to: int = 2, edges=False, projection=False, animate_rot=False):
@@ -342,7 +368,6 @@ class PolytopePlot(RepresentationCollection):
             return ani
         if save:
             self._save_plot_type(f"neighbours_{node_i}")
-
 
     def make_node_plot(self, ax: Axes3D = None, fig: Figure = None, select_faces: set = None, projection: bool = False,
                        plot_edges: bool = False, plot_nodes: bool = True,
@@ -412,7 +437,8 @@ class PolytopePlot(RepresentationCollection):
         self._create_fig_ax(fig=fig, ax=ax, projection="3d")
 
         if self.polytope.d > 3:
-            raise ValueError("Plotting nodes not available for d> 3")
+            print("Plotting nodes not available for d> 3")
+            return
 
         for i, n in enumerate(nodes):
             ci = self.polytope.G.nodes[tuple(n)]["central_index"]
@@ -445,6 +471,10 @@ class PolytopePlot(RepresentationCollection):
             **kwargs: other plotting arguments
         """
 
+        if self.polytope.d > 3:
+            print("Plotting nodes not available for d> 3")
+            return
+
         all_edges = self.polytope.get_edges_of_categories(nbunch=nodes, data=True, categories=edge_categories)
 
         for edge in all_edges:
@@ -460,49 +490,6 @@ class PolytopePlot(RepresentationCollection):
                     midpoint = np.average(np.array(edge[:2]), axis=0)
                     s = edge[2][f"{label}"]
                     ax.text(*midpoint, s=f"{s:.3f}")
-
-    # def make_cell_plot(self, ax: Axes3D = None, fig: Figure = None, cell_index: int = 0, draw_edges: bool = True,
-    #                    save: bool = True, animate_rot: bool = False, plot_nodes: bool = True, projection = False):
-    #     """
-    #     Since you cannot visualise a 4D object directly, here's an option to visualise the 3D sub-cells of a 4D object.
-    #
-    #     Args:
-    #         fig: figure
-    #         ax: axis
-    #         save: whether to save fig
-    #         cell_index: index of the sub-cell to plot (in cube4D that can be 0-7)
-    #         draw_edges: use True if you want to also draw edges, False if only points
-    #     """
-    #     if self.polytope.d != 4:
-    #         print(f"Plotting cells not available for d={self.polytope.d}")
-    #         return
-    #
-    #     self._create_fig_ax(ax=ax, fig=fig, dim=3, projection="3d")
-    #     # find the points that belong to the chosen cell_index
-    #     nodes = (
-    #         node
-    #         for node, data
-    #         in self.polytope.G.nodes(data=True)
-    #         if cell_index in data.get('face')
-    #     )
-    #     subgraph = self.polytope.G.subgraph(nodes)
-    #     # find the component corresponding to the constant 4th dimension
-    #     arr_nodes = np.array(subgraph.nodes)
-    #     dim_to_keep = list(np.where(~np.all(arr_nodes == arr_nodes[0, :], axis=0))[0])
-    #     new_nodes = {old: (old[dim_to_keep[0]], old[dim_to_keep[1]], old[dim_to_keep[2]]) for old in subgraph.nodes}
-    #     subgraph_3D = nx.relabel_nodes(subgraph, new_nodes)
-    #     # create a 3D polyhedron and use its plotting functions
-    #     sub_polyhedron = PolyhedronFromG(subgraph_3D)
-    #     poly_plotter = PolytopePlot(sub_polyhedron)
-    #     poly_plotter.make_neighbours_animation(ax=self.ax, fig=self.fig, up_to=1)
-    #     #poly_plotter.make_node_plot(ax=self.ax, plot_edges=draw_edges, plot_nodes=plot_nodes, projection=projection)
-    #     self._set_axis_limits((-0.6, 0.6, -0.6, 0.6, -0.6, 0.6))
-    #     self._equalize_axes()
-    #     if save:
-    #         self._save_plot_type("cell")
-    #         return sub_polyhedron
-    #     if animate_rot:
-    #         return self._animate_figure_view(self.fig, self.ax, f"cell_rotated")
 
 
 class PanelSphereGridPlots(PanelRepresentationCollection):
@@ -829,21 +816,23 @@ if __name__ == "__main__":
     from molgri.space.fullgrid import FullGrid
     import seaborn as sns
 
-    # cube_3d = Cube3DPolytope()
-    # cube_3d.divide_edges()
-    # cube_3d.divide_edges()
-    #
-    # pp = PolytopePlot(cube_3d)
-    # pp.make_node_plot(plot_edges=True, animate_rot=False, projection=False, edge_categories=[0, 1], select_faces={0})
+    cube_3d = Cube4DPolytope()
+    cube_3d.divide_edges()
+    #cube_3d.divide_edges()
 
-    cube = Cube4DPolytope()
-    #cube.divide_edges()
-    #cube.divide_edges()
-
-
-    ecp = EightCellsPlot(cube, only_half_of_cube=True)
-    ecp.plot_eight_cells(save=False, plot_edges=True, color_by="level", label=True, edge_categories=[0])
+    pp = PolytopePlot(cube_3d)
+    #pp.make_node_plot(plot_edges=True, animate_rot=False, projection=False, edge_categories=[0, 1], select_faces={0})
+    pp.make_cdist_plot(save=False)
     plt.show()
+
+    # cube = Cube4DPolytope()
+    # #cube.divide_edges()
+    # #cube.divide_edges()
+    #
+    #
+    # ecp = EightCellsPlot(cube, only_half_of_cube=True)
+    # ecp.plot_eight_cells(save=False, plot_edges=True, color_by="level", label=True, edge_categories=[0])
+    # plt.show()
 
 
 

@@ -285,8 +285,8 @@ def test_half_hypercube():
     5) you can select N points and they are still ordered correctly
     """
     cube4D = Cube4DPolytope()
-    for i in range(2):
-        if i!=0:
+    for i in range(3):
+        if i != 0:
             cube4D.divide_edges()
 
         all_nodes = cube4D.get_nodes()

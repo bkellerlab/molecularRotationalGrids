@@ -1,10 +1,8 @@
 import numpy as np
-from scipy.constants import pi
-from scipy.spatial.transform import Rotation
 
 from molgri.space.utils import normalise_vectors
 from molgri.assertions import all_row_norms_similar, is_array_with_d_dim_r_rows_c_columns, all_row_norms_equal_k, \
-    form_square_array, form_cube, quaternion_in_array, two_sets_of_quaternions_equal
+    quaternion_in_array, two_sets_of_quaternions_equal
 
 
 def test_all_row_norms_similar():
