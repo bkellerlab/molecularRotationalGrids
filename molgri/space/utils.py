@@ -7,34 +7,10 @@ points in the molgri.space subpackage.
 from typing import Tuple
 
 import numpy as np
-from molgri.assertions import all_row_norms_equal_k, is_array_with_d_dim_r_rows_c_columns
+from molgri.assertions import all_row_norms_equal_k, is_array_with_d_dim_r_rows_c_columns, norm_per_axis
 from numpy.typing import NDArray, ArrayLike
 from scipy.constants import pi
 from scipy.spatial.transform import Rotation
-
-
-def norm_per_axis(array: NDArray, axis: int = None) -> NDArray:
-    """
-    Returns the norm of the vector or along some axis of an array.
-    Default behaviour: if axis not specified, normalise a 1D vector or normalise 2D array row-wise. If axis specified,
-    axis=0 normalises column-wise and axis=1 row-wise.
-
-    Args:
-        array: numpy array containing a vector or a set of vectors that should be normalised - per default assuming
-               every row in an array is a vector
-        axis: optionally specify along which axis the normalisation should occur
-
-    Returns:
-        an array of the same shape as the input array where each value is the norm of the corresponding
-        vector/row/column
-    """
-    if axis is None:
-        if len(array.shape) > 1:
-            axis = 1
-        else:
-            axis = 0
-    my_norm = np.linalg.norm(array, axis=axis, keepdims=True)
-    return np.repeat(my_norm, array.shape[axis], axis=axis)
 
 
 def normalise_vectors(array: NDArray, axis: int = None, length: float = 1) -> NDArray:

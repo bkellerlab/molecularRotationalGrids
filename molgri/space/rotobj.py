@@ -382,7 +382,7 @@ class FullDivCube4DRotations(SphereGridNDim):
             self.polytope.divide_edges()
 
     def _gen_grid_4D(self) -> NDArray:
-        nodes = self.polytope.select_half_of_hypercube() # sorted acc to central_index
+        nodes = self.polytope.get_half_of_hypercube() # sorted acc to central_index
         quaternions = []
         for n in nodes:
             quaternions.append(self.polytope.G.nodes[n]["projection"])

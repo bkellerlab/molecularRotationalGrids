@@ -1,13 +1,11 @@
 import networkx as nx
 import numpy as np
-import matplotlib.pyplot as plt
 from scipy.constants import pi
 
 from molgri.space.polytopes import Cube3DPolytope, IcosahedronPolytope, second_neighbours, \
-    Cube4DPolytope, third_neighbours, PolyhedronFromG, \
-    remove_and_reconnect
-from molgri.assertions import all_row_norms_similar, all_row_norms_equal_k, all_rows_unique
-from molgri.space.utils import normalise_vectors, dist_on_sphere
+    Cube4DPolytope, third_neighbours, remove_and_reconnect
+from molgri.assertions import all_row_norms_equal_k, all_rows_unique, k_is_a_row, quaternion_in_array
+from molgri.space.utils import dist_on_sphere
 
 ALL_POLYTOPE_TYPES = (Cube3DPolytope, IcosahedronPolytope, Cube4DPolytope)
 ALL_POLYHEDRON_TYPES = (Cube3DPolytope, IcosahedronPolytope)
@@ -277,13 +275,68 @@ def test_remove_and_reconnect():
     assert (1, 3) in my_G.edges and len(my_G.edges) == 1
 
 
+def test_half_hypercube():
+    """
+    This function tests that when selecting half of the hypercube nodes:
+    1) the nodes are the same that appear in full node selection
+    2) it is exactly half of the points that are selected
+    3) they are all unique quaternions
+    4) they are all close to (1, 0, 0, 0) and far from (-1, 0, 0, 0)
+    5) you can select N points and they are still ordered correctly
+    """
+    cube4D = Cube4DPolytope()
+    for i in range(2):
+        if i!=0:
+            cube4D.divide_edges()
+
+        all_nodes = cube4D.get_nodes()
+        all_projections = cube4D.get_nodes(projection=True)
+        half_nodes = cube4D.get_half_of_hypercube(projection=False)
+        # all elements of half_nodes must appear in all_nodes
+        for node in half_nodes:
+            assert k_is_a_row(all_nodes, node)
+
+        half_projections = cube4D.get_half_of_hypercube(projection=True)
+
+        # all elements of half_projections must appear in all_projections
+        for projection in half_projections:
+            assert k_is_a_row(all_projections, projection)
+
+        # it is actually half of points
+        assert len(half_nodes) == len(all_nodes) // 2
+
+        # they are unique quaternions
+        for j, q in enumerate(half_projections):
+            # no other quaternion in half-array is equal
+            other_quaternions = np.concatenate([half_projections[:j], half_projections[j+1:]])
+            assert not quaternion_in_array(q, other_quaternions)
+
+        # assert that all projections have an angle smaller than pi to the point (1, 0, 0, 0)
+        test_point = np.array([1, 0, 0, 0])
+        for hp in half_projections:
+            assert np.all(dist_on_sphere(test_point, hp) <= pi/2)
+        anti_test_point = np.array([-1, 0, 0, 0])
+        for hp in half_projections:
+            assert np.all(dist_on_sphere(anti_test_point, hp) >= pi / 2)
+
+        # you can select N points and they are still ordered correctly
+        half_N = cube4D.get_half_of_hypercube(projection=False, N=3*len(half_nodes)//4)
+        not_in_half_N = set([tuple(x) for x in half_nodes]).difference(set([tuple(x) for x in half_N]))
+        indices_within_N = [cube4D.G.nodes[tuple(n)]["central_index"] for n in half_N]
+        indices_outside_N = [cube4D.G.nodes[n]["central_index"] for n in not_in_half_N]
+        for index_within in indices_within_N:
+            assert np.all([index_within < x for x in indices_outside_N])
+
+
+
 if __name__ == "__main__":
-    test_getter()
-    test_basics()
-    test_second_neighbours()
-    test_third_neighbours()
-    test_ico_polytope()
-    test_cube3D_polytope()
-    test_cube4D_polytope()
-    test_edge_attributes()
-    test_remove_and_reconnect()
+    # test_getter()
+    # test_basics()
+    # test_second_neighbours()
+    # test_third_neighbours()
+    # test_ico_polytope()
+    # test_cube3D_polytope()
+    # test_cube4D_polytope()
+    # test_edge_attributes()
+    # test_remove_and_reconnect()
+    test_half_hypercube()

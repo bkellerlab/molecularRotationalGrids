@@ -699,7 +699,7 @@ class EightCellsPlot(MultiRepresentationCollection):
         self.cube4D = cube4D
         self.only_half_of_cube = only_half_of_cube
         if only_half_of_cube:
-            all_subpolys = cube4D.get_all_cells(include_only=cube4D.select_half_of_hypercube())
+            all_subpolys = cube4D.get_all_cells(include_only=cube4D.get_half_of_hypercube())
         else:
             all_subpolys = cube4D.get_all_cells()
         list_plots = [PolytopePlot(subpoly) for subpoly in all_subpolys]
@@ -837,11 +837,11 @@ if __name__ == "__main__":
     # pp.make_node_plot(plot_edges=True, animate_rot=False, projection=False, edge_categories=[0, 1], select_faces={0})
 
     cube = Cube4DPolytope()
-    cube.divide_edges()
-    cube.divide_edges()
+    #cube.divide_edges()
+    #cube.divide_edges()
 
 
-    ecp = EightCellsPlot(cube, only_half_of_cube=False)
+    ecp = EightCellsPlot(cube, only_half_of_cube=True)
     ecp.plot_eight_cells(save=False, plot_edges=True, color_by="level", label=True, edge_categories=[0])
     plt.show()
 

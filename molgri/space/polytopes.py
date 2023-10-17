@@ -34,7 +34,7 @@ from numpy.typing import NDArray
 from scipy.constants import pi, golden
 from scipy.spatial.distance import cdist
 
-from molgri.assertions import form_square_array, form_cube, which_row_is_k
+from molgri.assertions import which_row_is_k
 from molgri.space.utils import distance_between_quaternions, normalise_vectors, dist_on_sphere, unique_quaternion_set
 
 
@@ -97,14 +97,8 @@ class Polytope(ABC):
         Returns:
             an array of shape (N, self.d) in which every row is a point
         """
-
         # checking N
-        N_available = self.G.number_of_nodes()
-        # can't order more points than there are
-        if N is None:
-            N = N_available
-        if N > N_available:
-            raise ValueError(f"Cannot order more points than there are! N={N} > {N_available}")
+        N = self._check_N(N=N)
 
         # checking projection
         if projection:
@@ -113,8 +107,18 @@ class Polytope(ABC):
             attribute_name = "polytope_point"
 
         result = self._get_attributes_array_sorted_by_index(attribute_name)[:N]
-        assert result.shape == (N, self.d)
+        if len(result) > 0:
+            assert result.shape == (N, self.d)
         return result
+
+    def _check_N(self, N: int = None) -> int:
+        N_available = self.G.number_of_nodes()
+        # can't order more points than there are
+        if N is None:
+            N = N_available
+        if N > N_available:
+            raise ValueError(f"Cannot order more points than there are! N={N} > {N_available}")
+        return N
 
     def _get_attributes_array_sorted_by_index(self, attribute_name: str) -> NDArray:
         """
@@ -129,7 +133,9 @@ class Polytope(ABC):
         """
         # check if sorted nodes already available
         N_nodes = self.G.number_of_nodes()
-        if self.current_nodes[1] == N_nodes:
+        if N_nodes == 0:
+            return np.array([])
+        elif self.current_nodes[1] == N_nodes:
             all_sorted_nodes = self.current_nodes[0]
         else:
             all_sorted_nodes = np.array(sorted(self.G.nodes(), key=lambda n: self.G.nodes[n]['central_index']))
@@ -461,13 +467,13 @@ class Cube4DPolytope(Polytope):
 #
 ########################################################################################################################
 
-    def select_half_of_hypercube(self, return_central_indices: bool = True) -> list:
+    def get_half_of_hypercube(self, projection: bool = False, N: int = None) -> list:
         """
         Select only half of points in a hypercube polytope in such a manner that double coverage is eliminated.
 
         Args:
-            return_central_indices: if True, return the property 'central_index' of selected points.
-                                    if False, return non-projected nodes (tuples) of selected points.
+            projection: if True, return points projected on a hypersphere
+            N: if you only want to return N points, give an integer here
 
         Returns:
             a list of elements, each of them either a node in c4_polytope.G or its central_index
@@ -478,16 +484,24 @@ class Cube4DPolytope(Polytope):
 
         Points are always returned sorted in the order of increasing central_index
         """
+
         projected_points = self.get_nodes(projection=True)
         unique_projected_points = unique_quaternion_set(projected_points)
 
         all_ci = []
         for upp in unique_projected_points:
             all_ci.append(which_row_is_k(projected_points, upp)[0])
-        if return_central_indices:
-            return all_ci
-        else:
-            return self.get_nodes()[all_ci]
+        all_ci.sort()
+
+        N_available = len(all_ci)
+        # can't order more points than there are
+        if N is None:
+            N = N_available
+        if N > N_available:
+            raise ValueError(f"Cannot order more points than there are! N={N} > {N_available}")
+
+        # DO NOT use N as an argument, as you first need to select half-hypercube
+        return self.get_nodes(projection=projection)[all_ci][:N]
 
     def get_all_cells(self, include_only: ArrayLike = None) -> list[PolyhedronFromG]:
         """
@@ -503,6 +517,8 @@ class Cube4DPolytope(Polytope):
         all_subpoly = []
         if include_only is None:
             include_only = list(self.G.nodes)
+        else:
+            include_only = [tuple(x) for x in include_only]
         for cell_index in range(8):
             nodes = (
                 node
@@ -535,7 +551,7 @@ class Cube4DPolytope(Polytope):
             return np.nonzero(adj_matrix[point_index])[0]
         else:
             # change indices because adj matrix is smaller
-            available_indices = self.select_half_of_hypercube(return_central_indices=True)
+            available_indices = self.get_half_of_hypercube(return_central_indices=True)
             available_indices.sort()
             if point_index in available_indices:
                 return np.nonzero(adj_matrix[available_indices.index(point_index)])[0]
@@ -570,7 +586,7 @@ class Cube4DPolytope(Polytope):
                     if el:
                         adj_matrix[i][all_central_ind.index(ind2opp_index[j])] = True
         if only_half_of_cube:
-            available_indices = self.select_half_of_hypercube(return_central_indices=True)
+            available_indices = self.get_half_of_hypercube(return_central_indices=True)
             available_indices.sort()
             #adj_matrix = np.where(, adj_matrix, None)
             # Create a new array with the same shape as the original array
@@ -589,7 +605,7 @@ class Cube4DPolytope(Polytope):
 
     def get_cdist_matrix(self, only_half_of_cube=True):
         if only_half_of_cube:
-            chosen_G = self.G.subgraph(nodes=self.select_half_of_hypercube())
+            chosen_G = self.G.subgraph(nodes=self.get_half_of_hypercube())
         else:
             chosen_G = self.G
 

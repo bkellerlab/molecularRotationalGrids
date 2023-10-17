@@ -3,7 +3,7 @@ import numpy as np
 
 from molgri.molecules.parsers import PtParser
 from molgri.plotting.molecule_plots import TrajectoryPlot, ConvergenceMultiCollection
-from molgri.plotting.spheregrid_plots import SphereGridPlot, PolytopePlot, PanelSphereGridPlots, \
+from molgri.plotting.spheregrid_plots import EightCellsPlot, SphereGridPlot, PolytopePlot, PanelSphereGridPlots, \
     ConvergenceSphereGridPlot, PanelConvergenceSphereGridPlots
 from molgri.plotting.fullgrid_plots import FullGridPlot, ConvergenceFullGridPlot, PanelConvergenceFullGridPlots
 from molgri.plotting.other_plots import ArrayPlot
@@ -25,10 +25,16 @@ def get_example_pt():
 
 
 def test_polytope_plots():
-    for pol in (Cube3DPolytope(), Cube4DPolytope(), IcosahedronPolytope()):
+    for pol in (Cube3DPolytope(), IcosahedronPolytope()):
         pol.divide_edges()
         pp = PolytopePlot(pol, default_color_style="dark", default_complexity_level="empty")
         pp.create_all_plots()
+
+    for only_half_of_cube in (False, True):
+        cube4D = Cube4DPolytope()
+        cube4D.divide_edges()
+        ecp = EightCellsPlot(cube4D, only_half_of_cube=only_half_of_cube)
+        #ecp.create_all_plots()
 
 
 def test_spheregrid_plots(N=32, and_animations=False, Ns=MINI_NS):

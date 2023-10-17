@@ -1,8 +1,8 @@
 import numpy as np
 from scipy.constants import pi
 
-from molgri.space.utils import normalise_vectors, angle_between_vectors, dist_on_sphere, norm_per_axis, \
-    random_sphere_points
+from molgri.space.utils import normalise_vectors, angle_between_vectors, dist_on_sphere, random_sphere_points
+from molgri.assertions import norm_per_axis
 from molgri.space.analysis import vector_within_alpha, count_points_within_alpha, \
     random_axes_count_points
 from molgri.space.rotobj import SphereGridFactory
