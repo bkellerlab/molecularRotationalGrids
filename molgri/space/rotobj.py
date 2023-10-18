@@ -362,9 +362,9 @@ class Cube4DRotations(SphereGridNDim):
         self.polytope = Cube4DPolytope()
 
     def _gen_grid_4D(self):
-        while len(self.polytope.get_node_coordinates()) < self.N:
+        while len(self.polytope.get_half_of_hypercube()) < self.N:
             self.polytope.divide_edges()
-        return self.polytope.get_N_ordered_points(self.N)
+        return self.polytope.get_half_of_hypercube(N=self.N, projection=True)
 
 
 class FullDivCube4DRotations(SphereGridNDim):
@@ -382,11 +382,7 @@ class FullDivCube4DRotations(SphereGridNDim):
             self.polytope.divide_edges()
 
     def _gen_grid_4D(self) -> NDArray:
-        nodes = self.polytope.get_half_of_hypercube() # sorted acc to central_index
-        quaternions = []
-        for n in nodes:
-            quaternions.append(self.polytope.G.nodes[n]["projection"])
-        return np.array(quaternions)
+        return self.polytope.get_half_of_hypercube(projection=True)
 
 
 class IcoAndCube3DRotations(SphereGridNDim):
@@ -401,9 +397,9 @@ class IcoAndCube3DRotations(SphereGridNDim):
         "In this case, directly construct the 3D object"
 
     def _gen_grid_3D(self):
-        while len(self.polytope.get_node_coordinates()) < self.N:
+        while len(self.polytope.get_nodes()) < self.N:
             self.polytope.divide_edges()
-        ordered_points = self.polytope.get_N_ordered_points(self.N)
+        ordered_points = self.polytope.get_nodes(N=self.N, projection=True)
         return ordered_points
 
     def _gen_grid_4D(self):

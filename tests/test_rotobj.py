@@ -1,4 +1,5 @@
 import pandas as pd
+from molgri.assertions import all_row_norms_equal_k
 from tqdm import tqdm
 from scipy.constants import pi
 
@@ -11,11 +12,14 @@ import numpy as np
 USE_SAVED = False
 
 
+SELECTED_ALG = [alg for alg in GRID_ALGORITHMS if alg not in ["zero", "fulldiv"]]
+
 def test_saving_rotobj():
     """
-    Assert that after saving you get back the same grid.
+    This function tests:
+    1) after saving you get back the same grid (and therefore same statistics)
     """
-    for algo in GRID_ALGORITHMS[:-1]:
+    for algo in SELECTED_ALG:
         for N in (12, 23, 51):
             for d in (3, 4):
                 rotobj_start = SphereGridFactory.create(N=N, alg_name=algo, dimensions=d, use_saved=False)
@@ -30,30 +34,22 @@ def test_saving_rotobj():
 
 
 def test_general_grid_properties():
-    for alg in GRID_ALGORITHMS[:-1]:
+    """
+    This function tests:
+    1) each algorithm (except zero and fulldiv) is able to create grids in 3D and 4D with different num of points
+    2) the type and size of the grid is correct
+    3) grid points are normed to length 1
+    """
+
+    for alg in SELECTED_ALG:
         for number in (3, 15, 26):
             for d in (3, 4):
                 grid_obj = SphereGridFactory.create(N=number, alg_name=alg, dimensions=d, use_saved=USE_SAVED)
                 grid = grid_obj.get_grid_as_array()
                 assert isinstance(grid, np.ndarray), "Grid must be a numpy array."
-                assert grid.shape == (number, d), "Wrong grid shape."
+                assert grid.shape == (number, d), f"Wrong grid shape {grid.shape} for alg={alg}, N={number}, d={d}."
                 assert grid_obj.N == number
-
-
-def test_everything_runs():
-    for algo in GRID_ALGORITHMS[:-1]:
-        ig = SphereGridFactory.create(N=35, alg_name=algo, dimensions=4, use_saved=True)
-        ig.gen_and_time()
-        ig.save_grid()
-        ig.save_grid("txt")
-        ig = SphereGridFactory.create(N=35, alg_name=algo, dimensions=4, use_saved=True)
-        ig.gen_and_time()
-        ig.save_grid()
-        ig.save_grid("txt")
-        ig = SphereGridFactory.create(N=22, alg_name=algo, dimensions=4, use_saved=False)
-        ig.gen_and_time()
-        ig.save_grid()
-        ig.save_grid("txt")
+                all_row_norms_equal_k(grid, 1)
 
 
 def test_statistics():
@@ -74,22 +70,31 @@ def test_statistics():
 
 
 def test_ordering():
-    # TODO: figure out what's the issue
-    """Assert that, ignoring randomness, the first N-1 points of ordered grid with length N are equal to ordered grid
-    of length N-1"""
-    for name in tqdm(GRID_ALGORITHMS):
-        try:
-            for N in range(14, 111, 3):
-                for addition in (1, 7):
-                    grid_1 = SphereGridFactory.create(N=N+addition, alg_name=name, dimensions=3, use_saved=USE_SAVED)
-                    grid_1 = grid_1.get_grid_as_array()
-                    grid_2 = SphereGridFactory.create(N=N, alg_name=name, dimensions=3, use_saved=USE_SAVED)
-                    grid_2 = grid_2.get_grid_as_array()
-                    assert np.allclose(grid_1[:N], grid_2)
-        except AssertionError:
-            print(name)
-
+    """
+    This function tests for ico/cube3D in 3D and for cube4D in 4D:
+    1) if you create an object with N elements once and with N+M elements next time, the first N elements will be
+    identical
+    """
+    for name in ["ico", "cube3D"]:
+        for N in range(14, 111, 3):
+            for addition in (1, 20, 3):
+                grid_1 = SphereGridFactory.create(N=N+addition, alg_name=name, dimensions=3, use_saved=USE_SAVED)
+                grid_1 = grid_1.get_grid_as_array()
+                grid_2 = SphereGridFactory.create(N=N, alg_name=name, dimensions=3, use_saved=USE_SAVED)
+                grid_2 = grid_2.get_grid_as_array()
+                assert np.allclose(grid_1[:N], grid_2)
+    for N in range(7, 111, 3):
+        for addition in (1, 25, 4):
+            grid_1 = SphereGridFactory.create(N=N + addition, alg_name="cube4D", dimensions=4,
+                                              use_saved=USE_SAVED)
+            grid_1 = grid_1.get_grid_as_array()
+            grid_2 = SphereGridFactory.create(N=N, alg_name="cube4D", dimensions=4, use_saved=USE_SAVED)
+            grid_2 = grid_2.get_grid_as_array()
+            assert np.allclose(grid_1[:N], grid_2)
 
 
 if __name__ == "__main__":
+    test_saving_rotobj()
+    test_general_grid_properties()
+    test_statistics()
     test_ordering()
