@@ -25,7 +25,7 @@ Objects:
 
 from abc import ABC, abstractmethod
 from itertools import product, combinations
-from typing import Hashable, Iterable
+from typing import Hashable, Iterable, Type
 
 import networkx as nx
 import numpy as np
@@ -902,6 +902,22 @@ def find_opposing_q(node, G):
     return None
 
 
+def save_detailed_polytope(polytope: Type[Polytope], num_divisions):
+    poly = polytope()
+    for i in range(num_divisions):
+        poly.divide_edges()
+    if poly.d == 3:
+        my_array = poly.get_nodes(projection=True)
+    else:
+        my_array = poly.get_half_of_hypercube(projection=True)
+    np.save(f"molgri/examples/{str(poly).split()[0]}_{len(my_array)}", my_array)
+
+def save_all_detailed_polytopes():
+    save_detailed_polytope(IcosahedronPolytope, 4)
+    save_detailed_polytope(Cube3DPolytope, 4)
+    save_detailed_polytope(Cube4DPolytope, 4)
+
 if __name__ == "__main__":
-    ico = IcosahedronPolytope()
-    ico.get_nodes(N=7)
+    save_all_detailed_polytopes()
+    #ma = np.load(f"molgri/examples/Icosahedron_2.npy")
+    #print(ma.shape)

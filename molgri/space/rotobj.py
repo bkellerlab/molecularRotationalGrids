@@ -22,6 +22,8 @@ from numpy.typing import NDArray
 from scipy.constants import pi
 from scipy.sparse import coo_array
 from scipy.spatial import SphericalVoronoi
+from scipy.spatial import ConvexHull
+from scipy.spatial.distance import cdist
 from scipy.spatial.transform import Rotation
 
 from molgri.space.analysis import prepare_statistics, write_statistics
@@ -249,24 +251,57 @@ class SphereGridNDim(ABC):
 
         The division into cells will fail in case points are not unique (too close to each other)
         """
-        assert self.dimensions == 3, "Spherical voronoi cells only available for N=3"
         if self.spherical_voronoi is None:
-            try:
-                self.spherical_voronoi = SphericalVoronoi(self.get_grid_as_array(), radius=1, threshold=10**-UNIQUE_TOL)
-            except ValueError:
-                if self.print_messages:
-                    print(f"Spherical voronoi not created for {self.get_name()} due to duplicate generators")
-                self.spherical_voronoi = []
+            self.spherical_voronoi = SphericalVoronoi(self.get_grid_as_array(), radius=1, threshold=10**-UNIQUE_TOL)
         return self.spherical_voronoi
 
     @save_or_use_saved
-    def get_voronoi_areas(self):
+    def get_voronoi_areas(self, approx=False, using_detailed_grid=True) -> NDArray:
         """
         From Voronoi cells you may also calculate areas on the sphere that are closest each grid point. The order of
-        areas is the same as the order of points in self.grid.
+        areas is the same as the order of points in self.grid. In Hyperspheres, these are volumes and only the
+        approximation method is possible.
+
+        Approximations only available for Ico, Cube3D and Cube4D polytopes.
         """
-        sv = self.get_spherical_voronoi_cells()
-        return sv.calculate_areas()
+        if self.dimensions == 4 and not approx:
+            print("In 4D, only approximate calculation of Voronoi cells is possible. Proceeding numerically.")
+            approx = True
+        if self.polytope and approx:
+            all_estimated_areas = []
+            voronoi_cells = self.get_spherical_voronoi_cells()
+            all_vertices = [voronoi_cells.vertices[region] for region in voronoi_cells.regions]
+
+            # for more precision, assign detailed grid points to closest sphere points
+            if using_detailed_grid:
+
+                if self.algorithm_name == "ico":
+                    dense_points = np.load("molgri/examples/Icosahedron_2562.npy")
+                elif self.algorithm_name == "cube3D":
+                    dense_points = np.load("molgri/examples/Cube3D_1538.npy")
+                elif self.algorithm_name == "cube4D" or self.algorithm_name == "fulldiv":
+                    dense_points = np.load("molgri/examples/Cube4D_2080.npy")
+                else:
+                    raise ValueError("Wrong alg choice to estimate Voronoi areas")
+                extra_points_belongings = np.argmin(cdist(dense_points, self.get_grid_as_array(), metric="cos"), axis=1)
+
+            for point_index, point in enumerate(self.get_grid_as_array()):
+                vertices = all_vertices[point_index]
+                if using_detailed_grid:
+                    region_vertices_and_point = np.vstack([dense_points[extra_points_belongings == point_index], vertices])
+                else:
+                    region_vertices_and_point = np.vstack([point, vertices])
+                my_convex_hull = ConvexHull(region_vertices_and_point, qhull_options='QJ')
+                all_estimated_areas.append(my_convex_hull.area / 2)
+            return np.array(all_estimated_areas)
+        elif not approx:
+            sv = self.get_spherical_voronoi_cells()
+            return np.array(sv.calculate_areas())
+        else:
+            return np.array([])
+
+    def get_voronoi_adjacency(self):
+        pass # TODO
 
 
 def _select_unique_rotations(rotations):
