@@ -34,16 +34,19 @@ PATH_EXAMPLES = resource_filename("molgri", "examples/")
 # algorithms
 DEFAULT_ALGORITHM_O = "ico"
 DEFAULT_ALGORITHM_B = "cube4D"
-ZERO_ALGORITHM = "zero"
-GRID_ALGORITHMS = ("systemE", "randomE", "randomQ", "cube4D", "cube3D", "ico", "zero", "fulldiv")
-assert DEFAULT_ALGORITHM_O in GRID_ALGORITHMS and ZERO_ALGORITHM in GRID_ALGORITHMS
-FULL_GRID_ALG_NAMES = ("systematic Euler angles", "random Euler angles", "random quaternions", "4D cube grid",
-                       "3D cube grid", "icosahedron grid", "no rotation", "full division of Cube4D")
-SHORT_GRID_ALG_NAMES = ("system. E.", "random E.", "random q.", "cube 4D", "cube 3D", "icosahedron", "no rotat.",
-                        "full div.")
-assert len(GRID_ALGORITHMS) == len(FULL_GRID_ALG_NAMES) == len(SHORT_GRID_ALG_NAMES)
-NAME2PRETTY_NAME = {n: pn for n, pn in zip(GRID_ALGORITHMS, FULL_GRID_ALG_NAMES)}
-NAME2SHORT_NAME = {n: pn for n, pn in zip(GRID_ALGORITHMS, SHORT_GRID_ALG_NAMES)}
+GRID_ALGORITHMS_3D = ("randomS", "cube3D", "ico")
+GRID_ALGORITHMS_4D = ("randomQ", "cube4D", "fulldiv")
+ALL_GRID_ALGORITHMS = GRID_ALGORITHMS_3D + GRID_ALGORITHMS_4D
+assert DEFAULT_ALGORITHM_O in GRID_ALGORITHMS_3D
+assert DEFAULT_ALGORITHM_B in GRID_ALGORITHMS_4D
+FULL_GRID_ALG_NAMES = ("random points on a sphere", "3D cube grid", "icosahedron grid", "random quaternions",
+                          "4D cube grid", "full division of Cube4D")
+SHORT_GRID_ALG_NAMES = ("random S.", "cube 3D", "icosahedron", "random q.", "cube 4D", "full div.")
+assert len(ALL_GRID_ALGORITHMS) == len(FULL_GRID_ALG_NAMES) == len(SHORT_GRID_ALG_NAMES)
+NAME2PRETTY_NAME = {n: pn for n, pn in zip(ALL_GRID_ALGORITHMS, FULL_GRID_ALG_NAMES)}
+NAME2SHORT_NAME = {n: pn for n, pn in zip(ALL_GRID_ALGORITHMS, SHORT_GRID_ALG_NAMES)}
+
+# energies
 ENERGY_TYPES = ("LJ Energy [kJ/mol]", "Dis.corr. [kJ/mol]", "Coulomb [kJ/mol]",
                 "Potential [kJ/mol]")
 ENERGY_NO_UNIT = ("LJ (SR)", "Disper. corr.", "Coulomb (SR)", "Potential")
@@ -62,7 +65,7 @@ DEFAULT_NS = (10,   12,   15,   18,   23,
               30,   34,   41,   50,   62,   75,   100, 112,  137,  167,  204,
               249,  300,  370,  452,  500,  672,  819, 1000)
 
-## SIXTS
+# statistics
 DEFAULT_ALPHAS_4D = (pi / 6, 2 * pi / 6, 3 * pi / 6, 4 * pi / 6, 5 * pi / 6)
 TEXT_ALPHAS_4D = [r'$\frac{\pi}{6}$', r'$\frac{2\pi}{6}$', r'$\frac{3\pi}{6}$', r'$\frac{4\pi}{6}$',
                  r'$\frac{5\pi}{6}$']

@@ -1,4 +1,39 @@
 import os
+import subprocess
+import pytest
+
+def test_set_up_io():
+    subprocess.run("python -m molgri.scripts.set_up_io --examples", shell=True, check=True)
+
+
+def test_generate_grid():
+    # all these commands should pass with no error
+    commands = [
+        "python -m molgri.scripts.generate_grid -N 250 -d 3",
+        "python -m molgri.scripts.generate_grid -N 15 -d 4",
+        "python -m molgri.scripts.generate_grid -N 0 -d 3",
+        "python -m molgri.scripts.generate_grid -N 0 -d 4",
+        "python -m molgri.scripts.generate_grid -N 45 -d 3 --draw --animate --animate_ordering --animate_translation",
+        "python -m molgri.scripts.generate_grid -N 45 -d 4 --draw --animate --animate_ordering --animate_translation",
+        "python -m molgri.scripts.generate_grid -N 250 -d 3 --algorithm cube3D --recalculate --statistics"
+    ]
+
+    expected_error_commands = [
+        "python -m molgri.scripts.generate_grid -N 250",
+        "python -m molgri.scripts.generate_grid -N 250 -d 2",
+        "python -m molgri.scripts.generate_grid -N 250 -d 5",
+        "python -m molgri.scripts.generate_grid -d 2",
+        "python -m molgri.scripts.generate_grid -N 250 -d 4 --algorithm cube3D",
+        "python -m molgri.scripts.generate_grid -N 250 -d 3 --algorithm randomQ"
+    ]
+
+    for command in commands:
+        subprocess.run(command, shell=True, check=True)
+
+    for err_command in expected_error_commands:
+        with pytest.raises(Exception):
+            subprocess.run(err_command, shell=True, check=True)
+
 
 
 def scripts_run():

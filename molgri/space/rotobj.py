@@ -26,13 +26,19 @@ from scipy.spatial import ConvexHull
 from scipy.spatial.distance import cdist
 from scipy.spatial.transform import Rotation
 
+from molgri.assertions import which_row_is_k
 from molgri.space.analysis import prepare_statistics, write_statistics
-from molgri.space.utils import random_quaternions, standardise_quaternion_set
+from molgri.space.utils import random_quaternions, random_sphere_points, standardise_quaternion_set, \
+    unique_quaternion_set
 from molgri.constants import UNIQUE_TOL, EXTENSION_GRID_FILES, NAME2PRETTY_NAME, SMALL_NS
 from molgri.paths import PATH_OUTPUT_ROTGRIDS, PATH_OUTPUT_STAT
 from molgri.space.polytopes import Cube4DPolytope, IcosahedronPolytope, Cube3DPolytope, Polytope
 from molgri.space.rotations import grid2rotation, rotation2grid4vector
 from molgri.wrappers import time_method, save_or_use_saved, deprecated
+
+
+SPHERE_SURFACE = 4*pi
+HALF_HYPERSPHERE_SURFACE = pi**2
 
 
 class SphereGridNDim(ABC):
@@ -46,15 +52,13 @@ class SphereGridNDim(ABC):
     algorithm_name = "generic"
 
     def __init__(self, dimensions: int, N: int = None, use_saved: bool = True,
-                 print_messages: bool = False, time_generation: bool = False, filter_non_unique: bool = False):
+                 time_generation: bool = False):
         self.dimensions = dimensions
         self.N = N
         self.gen_algorithm = self.algorithm_name
         self.use_saved = use_saved
         self.time_generation = time_generation
-        self.print_messages = print_messages
         self.grid: Optional[NDArray] = None
-        self.filter_non_unique = filter_non_unique
         self.spherical_voronoi: Optional[SphericalVoronoi] = None
         self.polytope = None
 
@@ -87,54 +91,23 @@ class SphereGridNDim(ABC):
                 self.grid = self.gen_and_time()
             else:
                 self.grid = self._gen_grid()
-            if self.print_messages:
-                self._check_uniqueness()
         assert isinstance(self.grid, np.ndarray), "A grid must be a numpy array!"
-        if not self.filter_non_unique:
-            assert self.grid.shape == (self.N, self.dimensions), f"Grid not of correct shape!"
+        assert self.grid.shape == (self.N, self.dimensions), f"Grid not of correct shape!"
         assert np.allclose(np.linalg.norm(self.grid, axis=1), 1, atol=10 ** (-UNIQUE_TOL)), "A grid must have norm 1!"
         return self.grid
 
-    def _gen_grid(self) -> NDArray:
-        if self.dimensions == 4:
-            return self._gen_grid_4D()
-        elif self.dimensions == 3:
-            return self._gen_grid_3D()
-        else:
-            raise NotImplementedError(f"Generating sphere grids in {self.dimensions} not implemented!")
-
-    def _gen_grid_3D(self) -> NDArray:
-        """
-        This is the default of obtaining 3D grid by projecting on z-vector, should be overwritten for ico and cube3D
-        """
-        quaternions = self._gen_grid_4D()
-        rotations = Rotation.from_quat(quaternions)
-        points = rotation2grid4vector(rotations)
-        if self.filter_non_unique:
-            points = provide_unique(points)
-        return points
+    def get_grid_as_array(self):
+        return self.grid
 
     @abstractmethod
-    def _gen_grid_4D(self) -> NDArray:
-        pass
+    def _gen_grid(self) -> NDArray:
+        raise NotImplementedError(f"Generating sphere grids with {self.algorithm_name} was not implemented!")
 
     @time_method
     def gen_and_time(self) -> NDArray:
         """Same as generation, but prints the information about time needed. Useful for end users."""
         return self._gen_grid()
 
-    def _check_uniqueness(self):
-        """
-        Optional - check if every grid point in this grid is unique (not too close to other points). Will fail for
-        sufficiently dense grids and same algorithms.
-        """
-        as_quat = False
-        if self.dimensions == 4:
-            as_quat = True
-        unique_grid = provide_unique(self.grid, as_quat=as_quat)
-        if len(self.grid) != len(unique_grid):
-            print(f"Warning! {len(self.grid) - len(unique_grid)} grid points of "
-                  f"{self.get_name(with_dim=True)} non-unique (distance < 10^-{UNIQUE_TOL}).")
 
     ##################################################################################################################
     #                      name and path getters
@@ -173,26 +146,6 @@ class SphereGridNDim(ABC):
     #                      useful methods
     ##################################################################################################################
 
-    @save_or_use_saved
-    def get_grid_as_array(self) -> NDArray:
-        """
-        Get the sphere grid. If not yet created but N is set, will generate/load the grid automatically.
-        """
-        self.gen_grid()
-        return self.grid
-
-    @deprecated
-    def save_grid(self, extension: str = EXTENSION_GRID_FILES):
-        """
-        Deprecated - all necessary data is saved by individual methods using save_or_use_saved.
-        """
-        if extension == "txt":
-            # noinspection PyTypeChecker
-            np.savetxt(self.get_grid_path(extension=extension), self.get_grid_as_array())
-        else:
-            np.save(self.get_grid_path(extension=extension), self.get_grid_as_array())
-
-    @deprecated
     def save_uniformity_statistics(self, num_random: int = 100, alphas=None):
         """
         Deprecated - all necessary data is saved by individual methods using save_or_use_saved.
@@ -203,8 +156,7 @@ class SphereGridNDim(ABC):
         stat_data, full_data = prepare_statistics(self.get_grid_as_array(), alphas, d=self.dimensions,
                                                   num_rand_points=num_random)
         write_statistics(stat_data, full_data, short_statistics_path, statistics_path,
-                         num_random, name=self.get_name(), dimensions=self.dimensions,
-                         print_message=self.print_messages)
+                         num_random, name=self.get_name(), dimensions=self.dimensions)
 
     @save_or_use_saved
     def get_uniformity_df(self, alphas):
@@ -234,8 +186,11 @@ class SphereGridNDim(ABC):
             N_list = np.unique(N_list)
         full_df = []
         for N in N_list:
-            grid_factory = SphereGridFactory.create(alg_name=self.gen_algorithm, N=N, dimensions=self.dimensions,
-                                                    print_messages=False, time_generation=False,
+            if self.dimensions == 3:
+                grid_factory = SphereGrid3DFactory
+            else:
+                grid_factory = SphereGrid4DFactory
+            grid_factory = grid_factory.create(alg_name=self.gen_algorithm, N=N, time_generation=False,
                                                     use_saved=self.use_saved)
             df = grid_factory.get_uniformity_df(alphas=alphas)
             df["N"] = len(grid_factory.get_grid_as_array())
@@ -255,7 +210,31 @@ class SphereGridNDim(ABC):
             self.spherical_voronoi = SphericalVoronoi(self.get_grid_as_array(), radius=1, threshold=10**-UNIQUE_TOL)
         return self.spherical_voronoi
 
+    @abstractmethod
     @save_or_use_saved
+    def get_voronoi_areas(self, approx=False, using_detailed_grid=True) -> NDArray:
+        """
+        From Voronoi cells you may also calculate areas on the sphere that are closest each grid point. The order of
+        areas is the same as the order of points in self.grid. In Hyperspheres, these are volumes and only the
+        approximation method is possible.
+
+        Approximations only available for Ico, Cube3D and Cube4D polytopes.
+        """
+        pass
+
+    @abstractmethod
+    def get_voronoi_adjacency(self):
+        pass # TODO
+
+
+class SphereGrid3Dim(SphereGridNDim, ABC):
+
+    algorithm_name = "generic_3d"
+
+    def __init__(self, N: int = None, use_saved: bool = True, time_generation: bool = False):
+        super().__init__(dimensions=3, N=N, use_saved=use_saved, time_generation=time_generation)
+
+
     def get_voronoi_areas(self, approx=False, using_detailed_grid=True) -> NDArray:
         """
         From Voronoi cells you may also calculate areas on the sphere that are closest each grid point. The order of
@@ -274,13 +253,12 @@ class SphereGridNDim(ABC):
 
             # for more precision, assign detailed grid points to closest sphere points
             if using_detailed_grid:
-
                 if self.algorithm_name == "ico":
                     dense_points = np.load("molgri/examples/Icosahedron_2562.npy")
                 elif self.algorithm_name == "cube3D":
                     dense_points = np.load("molgri/examples/Cube3D_1538.npy")
                 elif self.algorithm_name == "cube4D" or self.algorithm_name == "fulldiv":
-                    dense_points = np.load("molgri/examples/Cube4D_2080.npy")
+                    dense_points = np.load("molgri/examples/Cube4D_16448.npy")
                 else:
                     raise ValueError("Wrong alg choice to estimate Voronoi areas")
                 extra_points_belongings = np.argmin(cdist(dense_points, self.get_grid_as_array(), metric="cos"), axis=1)
@@ -301,146 +279,154 @@ class SphereGridNDim(ABC):
             return np.array([])
 
     def get_voronoi_adjacency(self):
-        pass # TODO
+        pass
 
 
-def _select_unique_rotations(rotations):
-    rot_matrices = rotations.as_matrix()
-    rot_matrices = np.unique(np.round(rot_matrices, UNIQUE_TOL), axis=0)
-    return Rotation.from_matrix(rot_matrices)
+class SphereGrid4Dim(SphereGridNDim, ABC):
+    algorithm_name = "generic_4d"
+
+    def __init__(self, N: int = None, use_saved: bool = True, time_generation: bool = False):
+        super().__init__(dimensions=4, N=N, use_saved=use_saved, time_generation=time_generation)
+        self.full_hypersphere_grid = None
+
+    def get_voronoi_areas(self, approx=False, using_detailed_grid=True) -> NDArray:
+        """
+        From Voronoi cells you may also calculate areas on the sphere that are closest each grid point. The order of
+        areas is the same as the order of points in self.grid. In Hyperspheres, these are volumes and only the
+        approximation method is possible.
+
+        Approximations only available for Ico, Cube3D and Cube4D polytopes.
+        """
+        if self.dimensions == 4 and not approx:
+            print("In 4D, only approximate calculation of Voronoi cells is possible. Proceeding numerically.")
+            approx = True
+        if self.polytope and approx:
+            all_estimated_areas = []
+            voronoi_cells = self.get_spherical_voronoi_cells()
+            all_vertices = [voronoi_cells.vertices[region] for region in voronoi_cells.regions]
+
+            # for more precision, assign detailed grid points to closest sphere points
+            if using_detailed_grid:
+                if self.algorithm_name == "ico":
+                    dense_points = np.load("molgri/examples/Icosahedron_2562.npy")
+                elif self.algorithm_name == "cube3D":
+                    dense_points = np.load("molgri/examples/Cube3D_1538.npy")
+                elif self.algorithm_name == "cube4D" or self.algorithm_name == "fulldiv":
+                    dense_points = np.load("molgri/examples/Cube4D_16448.npy")
+                else:
+                    raise ValueError("Wrong alg choice to estimate Voronoi areas")
+                extra_points_belongings = np.argmin(cdist(dense_points, self.get_grid_as_array(), metric="cos"), axis=1)
+
+            for point_index, point in enumerate(self.get_grid_as_array()):
+                vertices = all_vertices[point_index]
+                if using_detailed_grid:
+                    region_vertices_and_point = np.vstack([dense_points[extra_points_belongings == point_index], vertices])
+                else:
+                    region_vertices_and_point = np.vstack([point, vertices])
+                my_convex_hull = ConvexHull(region_vertices_and_point, qhull_options='QJ')
+                all_estimated_areas.append(my_convex_hull.area / 2)
+            return np.array(all_estimated_areas)
+        elif not approx:
+            sv = self.get_spherical_voronoi_cells()
+            return np.array(sv.calculate_areas())
+        else:
+            return np.array([])
+        pass
+
+    def get_voronoi_adjacency(self):
+        pass
+
+    def get_full_hypersphere_array(self) -> NDArray:
+        return self.full_hypersphere_grid
 
 
-def provide_unique(el_array: NDArray, tol: int = UNIQUE_TOL, as_quat=False) -> NDArray:
-    """
-    Take an array of any shape in which each row is an element. Return only the elements that are unique up to
-    the tolerance.
-    # TODO: maybe you could do some sort of decomposition to determine the point of uniqueness?
-
-    Args:
-        el_array: array with M elements of any shape
-        tol: number of decimal points to consider
-        as_quat: select True if el_array is an array of quatenions and you want to consider q and -q to be non-unique
-                 (respecting double-coverage of quaternions)
-
-    Returns:
-        array with N <= M elements of el_array that are all unique
-    """
-    if as_quat:
-        assert el_array.shape[1] == 4
-        _, indices = np.unique(standardise_quaternion_set(el_array.round(tol)), axis=0, return_index=True)
-    else:
-        _, indices = np.unique(el_array.round(tol), axis=0, return_index=True)
-    return np.array([el_array[index] for index in sorted(indices)])
-
-
-class RandomQRotations(SphereGridNDim):
+class RandomQRotations(SphereGrid4Dim):
 
     algorithm_name = "randomQ"
 
-    def _gen_grid_4D(self) -> NDArray:
+    def _gen_grid(self) -> NDArray:
+        all_quaternions = random_quaternions(4*self.N)
+        # now select those that are in the upper hemisphere
+        unique_quaternions = unique_quaternion_set(all_quaternions)[:self.N]
+        max_index = which_row_is_k(all_quaternions, unique_quaternions[-1])
+        self.full_hypersphere_grid = all_quaternions[:max_index]
         return random_quaternions(self.N)
 
 
-class SystemERotations(SphereGridNDim):
+class RandomSRotations(SphereGrid3Dim):
 
-    algorithm_name = "systemE"
+    algorithm_name = "randomS"
 
-    def _gen_grid_4D(self) -> NDArray:
-        num_points = 1
-        rot_matrices = []
-        while len(rot_matrices) < self.N:
-            phis = np.linspace(0, 2 * pi, num_points)
-            thetas = np.linspace(0, 2 * pi, num_points)
-            psis = np.linspace(0, 2 * pi, num_points)
-            euler_meshgrid = np.array(np.meshgrid(*(phis, thetas, psis)), dtype=float)
-            euler_meshgrid = euler_meshgrid.reshape((3, -1)).T
-            rotations = Rotation.from_euler("ZYX", euler_meshgrid)
-            # remove non-unique rotational matrices
-            rotations = _select_unique_rotations(rotations)
-            rot_matrices = rotations.as_matrix()
-            num_points += 1
-        # maybe just shuffle rather than order
-        np.random.shuffle(rot_matrices)
-        # convert to a grid
-        rotations = Rotation.from_matrix(rot_matrices[:self.N])
-        return rotations.as_quat()
+    def _gen_grid(self) -> NDArray:
+        return random_sphere_points(self.N)
 
 
-class RandomERotations(SphereGridNDim):
+# class ZeroRotations(SphereGridNDim):
+#     algorithm_name = "zero"
+#
+#     def get_voronoi_areas(self, approx=False, using_detailed_grid=True) -> NDArray:
+#         # since only 1 point, return full area of (hyper)/sphere
+#         if self.dimensions == 3:
+#             return np.array(SPHERE_SURFACE)
+#         elif self.dimensions == 4:
+#             return np.array(HALF_HYPERSPHERE_SURFACE)
+#         else:
+#             raise ValueError(f"Need 3 or 4 dimensions to work, not {self.dimensions}")
+#
+#     def get_voronoi_adjacency(self):
+#         pass
+#
+#     def _gen_grid(self):
+#         self.N = 1
+#         rot_matrix = np.eye(3)
+#         rot_matrix = rot_matrix[np.newaxis, :]
+#         self.rotations = Rotation.from_matrix(rot_matrix)
+#         return self.rotations.as_quat()
 
-    algorithm_name = "randomE"
 
-    def _gen_grid_4D(self) -> NDArray:
-        euler_angles = 2 * pi * np.random.random((self.N, 3))
-        rotations = Rotation.from_euler("ZYX", euler_angles)
-        return rotations.as_quat()
-
-
-class ZeroRotations(SphereGridNDim):
-
-    algorithm_name = "zero"
-
-    def _gen_grid_4D(self):
-        self.N = 1
-        rot_matrix = np.eye(3)
-        rot_matrix = rot_matrix[np.newaxis, :]
-        self.rotations = Rotation.from_matrix(rot_matrix)
-        return self.rotations.as_quat()
-
-
-class Cube4DRotations(SphereGridNDim):
-
+class Cube4DRotations(SphereGrid4Dim):
     algorithm_name = "cube4D"
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.polytope = Cube4DPolytope()
 
-    def _gen_grid_4D(self):
+    def _gen_grid(self):
         while len(self.polytope.get_half_of_hypercube()) < self.N:
             self.polytope.divide_edges()
         return self.polytope.get_half_of_hypercube(N=self.N, projection=True)
 
 
-class FullDivCube4DRotations(SphereGridNDim):
-
+class FullDivCube4DRotations(SphereGrid4Dim):
     algorithm_name = "fulldiv"
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         allowed_num_of_orientations = (8, 40, 272, 2080)
-        num_b = self.N
-        if num_b not in allowed_num_of_orientations:
+        if self.N not in allowed_num_of_orientations:
             raise ValueError("Only full subdivisions of cube4D are allowed")
         self.polytope = Cube4DPolytope()
-        for i in range(allowed_num_of_orientations.index(num_b)):
+        for i in range(allowed_num_of_orientations.index(self.N)):
             self.polytope.divide_edges()
 
-    def _gen_grid_4D(self) -> NDArray:
+    def _gen_grid(self) -> NDArray:
         return self.polytope.get_half_of_hypercube(projection=True)
 
 
-class IcoAndCube3DRotations(SphereGridNDim):
-
+class IcoAndCube3DRotations(SphereGrid3Dim):
     algorithm_name: str = None
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.polytope: Polytope = None
 
     def get_z_projection_grid(self):
         "In this case, directly construct the 3D object"
 
-    def _gen_grid_3D(self):
+    def _gen_grid(self):
         while len(self.polytope.get_nodes()) < self.N:
             self.polytope.divide_edges()
         ordered_points = self.polytope.get_nodes(N=self.N, projection=True)
         return ordered_points
-
-    def _gen_grid_4D(self):
-        grid_z_arr = self._gen_grid_3D()
-        rotations = grid2rotation(grid_z_arr, grid_z_arr, grid_z_arr)
-        return rotations.as_quat()
 
 
 class IcoRotations(IcoAndCube3DRotations):
@@ -461,7 +447,7 @@ class Cube3DRotations(IcoAndCube3DRotations):
         self.polytope = Cube3DPolytope()
 
 
-class SphereGridFactory:
+class SphereGrid3DFactory:
 
     """
     This should be the only access point to all SphereGridNDim objects. Simply provide the generation algorithm name,
@@ -469,25 +455,35 @@ class SphereGridFactory:
     """
 
     @classmethod
-    def create(cls, alg_name: str, N: int, dimensions: int, **kwargs) -> SphereGridNDim:
-        if alg_name == "randomQ":
-            selected_sub_obj = RandomQRotations(N=N, dimensions=dimensions, **kwargs)
-        elif alg_name == "systemE":
-            selected_sub_obj = SystemERotations(N=N, dimensions=dimensions, **kwargs)
-        elif alg_name == "randomE":
-            selected_sub_obj = RandomERotations(N=N, dimensions=dimensions, **kwargs)
-        elif alg_name == "cube4D":
-            selected_sub_obj = Cube4DRotations(N=N, dimensions=dimensions, **kwargs)
-        elif alg_name == "zero":
-            selected_sub_obj = ZeroRotations(N=N, dimensions=dimensions, **kwargs)
+    def create(cls, alg_name: str, N: int, **kwargs) -> SphereGrid3Dim:
+        if alg_name == "randomS":
+            selected_sub_obj = RandomSRotations(N=N, **kwargs)
         elif alg_name == "ico":
-            selected_sub_obj = IcoRotations(N=N, dimensions=dimensions, **kwargs)
+            selected_sub_obj = IcoRotations(N=N, **kwargs)
         elif alg_name == "cube3D":
-            selected_sub_obj = Cube3DRotations(N=N, dimensions=dimensions, **kwargs)
-        elif alg_name == "fulldiv":
-            selected_sub_obj = FullDivCube4DRotations(N=N, dimensions=dimensions, **kwargs)
+            selected_sub_obj = Cube3DRotations(N=N, **kwargs)
         else:
             raise ValueError(f"The algorithm {alg_name} not familiar to QuaternionGridFactory.")
+        selected_sub_obj.gen_grid()
+        return selected_sub_obj
+
+class SphereGrid4DFactory:
+
+    """
+    This should be the only access point to all SphereGridNDim objects. Simply provide the generation algorithm name,
+    the number of points and dimensions as well as optional arguments. The requested object will be returned.
+    """
+
+    @classmethod
+    def create(cls, alg_name: str, N: int, **kwargs) -> SphereGridNDim:
+        if alg_name == "randomQ":
+            selected_sub_obj = RandomQRotations(N=N, **kwargs)
+        elif alg_name == "cube4D":
+            selected_sub_obj = Cube4DRotations(N=N, **kwargs)
+        elif alg_name == "fulldiv":
+            selected_sub_obj = FullDivCube4DRotations(N=N, **kwargs)
+        else:
+            raise ValueError(f"The algorithm {alg_name} not familiar to SphereGrid4DFactory.")
         selected_sub_obj.gen_grid()
         return selected_sub_obj
 
@@ -517,7 +513,10 @@ class ConvergenceSphereGridFactory:
     def create(self) -> list:
         list_sphere_grids = []
         for N in self.N_set:
-            sg = SphereGridFactory.create(self.alg_name, N, self.dimensions, use_saved=self.use_saved, **self.kwargs)
+            if self.dimensions == 3:
+                sg = SphereGrid3DFactory.create(self.alg_name, N, use_saved=self.use_saved, **self.kwargs)
+            else:
+                sg = SphereGrid4DFactory.create(self.alg_name, N, use_saved=self.use_saved, **self.kwargs)
             list_sphere_grids.append(sg)
         return list_sphere_grids
 
@@ -556,7 +555,10 @@ class ConvergenceSphereGridFactory:
             for _ in range(repeats):
                 t1 = time()
                 # cannot use saved if you are timing!
-                sg = SphereGridFactory.create(self.alg_name, N, self.dimensions, use_saved=False, **self.kwargs)
+                if self.dimensions == 3:
+                    sg = SphereGrid3DFactory.create(self.alg_name, N, use_saved=self.use_saved, **self.kwargs)
+                else:
+                    sg = SphereGrid4DFactory.create(self.alg_name, N, use_saved=self.use_saved, **self.kwargs)
                 t2 = time()
                 data.append([len(sg.get_grid_as_array()), t2 - t1])
         df = pd.DataFrame(data, columns=["N", "Time [s]"])

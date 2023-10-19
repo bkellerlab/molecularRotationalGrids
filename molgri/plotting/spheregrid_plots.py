@@ -20,14 +20,15 @@ from seaborn import color_palette
 import networkx as nx
 import matplotlib as mpl
 
-from molgri.constants import DEFAULT_ALPHAS_3D, TEXT_ALPHAS_3D, DEFAULT_ALPHAS_4D, TEXT_ALPHAS_4D, COLORS, \
-    GRID_ALGORITHMS, NAME2SHORT_NAME, DEFAULT_DPI_MULTI, DIM_LANDSCAPE, DIM_SQUARE, DEFAULT_NS
+from molgri.constants import DEFAULT_ALPHAS_3D, GRID_ALGORITHMS_3D, GRID_ALGORITHMS_4D, TEXT_ALPHAS_3D, \
+    DEFAULT_ALPHAS_4D, TEXT_ALPHAS_4D, \
+    COLORS, NAME2SHORT_NAME, DEFAULT_DPI_MULTI, DIM_LANDSCAPE, DIM_SQUARE, DEFAULT_NS
 from molgri.plotting.abstract import MultiRepresentationCollection, RepresentationCollection, \
     PanelRepresentationCollection, plot_voronoi_cells
 from molgri.space.analysis import vector_within_alpha
 from molgri.space.polytopes import Polytope, find_opposing_q, second_neighbours, third_neighbours, PolyhedronFromG, \
     Cube4DPolytope
-from molgri.space.rotobj import SphereGridNDim, SphereGridFactory, ConvergenceSphereGridFactory
+from molgri.space.rotobj import SphereGridNDim, SphereGrid3DFactory, SphereGrid4DFactory, ConvergenceSphereGridFactory
 
 
 class ArrayPlot(RepresentationCollection):
@@ -558,9 +559,15 @@ class PanelSphereGridPlots(PanelRepresentationCollection):
     def __init__(self, N_points: int, grid_dim: int, default_context: str = None, default_complexity_level: str = None,
                  default_color_style: str = None, use_saved=False, **kwargs):
         list_plots = []
-        for alg in GRID_ALGORITHMS[:-1]:
-            sphere_grid = SphereGridFactory.create(alg_name=alg, N=N_points, dimensions=grid_dim, print_messages=False,
-                                                   time_generation=False, filter_non_unique=True, use_saved=use_saved)
+        if grid_dim == 3:
+            all_alg = GRID_ALGORITHMS_3D
+            sgf = SphereGrid3DFactory
+        else:
+            all_alg = GRID_ALGORITHMS_4D
+            sgf = SphereGrid4DFactory
+        for alg in all_alg:
+            sphere_grid = sgf.create(alg_name=alg, N=N_points, dimensions=grid_dim,
+                                                   time_generation=False, use_saved=use_saved)
             sphere_plot = SphereGridPlot(sphere_grid, default_context=default_context,
                                          default_color_style=default_color_style,
                                          default_complexity_level=default_complexity_level)
