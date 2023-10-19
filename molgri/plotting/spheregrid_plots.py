@@ -829,7 +829,6 @@ class EightCellsPlot(MultiRepresentationCollection):
 
 if __name__ == "__main__":
     from molgri.space.polytopes import Cube4DPolytope, IcosahedronPolytope, Cube3DPolytope
-    from molgri.space.rotobj import SphereGridFactory
     from molgri.space.fullgrid import FullGrid
     import seaborn as sns
 

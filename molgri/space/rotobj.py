@@ -243,24 +243,21 @@ class SphereGrid3Dim(SphereGridNDim, ABC):
 
         Approximations only available for Ico, Cube3D and Cube4D polytopes.
         """
-        if self.dimensions == 4 and not approx:
-            print("In 4D, only approximate calculation of Voronoi cells is possible. Proceeding numerically.")
-            approx = True
         if self.polytope and approx:
             all_estimated_areas = []
             voronoi_cells = self.get_spherical_voronoi_cells()
             all_vertices = [voronoi_cells.vertices[region] for region in voronoi_cells.regions]
 
             # for more precision, assign detailed grid points to closest sphere points
+            # the first time, this will take a long time, but then, a saved version will be used
             if using_detailed_grid:
                 if self.algorithm_name == "ico":
-                    dense_points = np.load("molgri/examples/Icosahedron_2562.npy")
+                    dense_points = SphereGrid3DFactory.create("ico", N=2562, use_saved=True).get_grid_as_array()
                 elif self.algorithm_name == "cube3D":
-                    dense_points = np.load("molgri/examples/Cube3D_1538.npy")
-                elif self.algorithm_name == "cube4D" or self.algorithm_name == "fulldiv":
-                    dense_points = np.load("molgri/examples/Cube4D_16448.npy")
+                    dense_points = SphereGrid3DFactory.create("cube3D", N=1538, use_saved=True).get_grid_as_array()
                 else:
-                    raise ValueError("Wrong alg choice to estimate Voronoi areas")
+                    raise ValueError("Wrong algorithm choice to estimate Voronoi areas in 3D: try cube3D, ico or set "
+                                     "approx=False")
                 extra_points_belongings = np.argmin(cdist(dense_points, self.get_grid_as_array(), metric="cos"), axis=1)
 
             for point_index, point in enumerate(self.get_grid_as_array()):
@@ -289,7 +286,7 @@ class SphereGrid4Dim(SphereGridNDim, ABC):
         super().__init__(dimensions=4, N=N, use_saved=use_saved, time_generation=time_generation)
         self.full_hypersphere_grid = None
 
-    def get_voronoi_areas(self, approx=False, using_detailed_grid=True) -> NDArray:
+    def get_voronoi_areas(self, approx=True, using_detailed_grid=True) -> NDArray:
         """
         From Voronoi cells you may also calculate areas on the sphere that are closest each grid point. The order of
         areas is the same as the order of points in self.grid. In Hyperspheres, these are volumes and only the
@@ -297,41 +294,30 @@ class SphereGrid4Dim(SphereGridNDim, ABC):
 
         Approximations only available for Ico, Cube3D and Cube4D polytopes.
         """
-        if self.dimensions == 4 and not approx:
+        if not approx:
             print("In 4D, only approximate calculation of Voronoi cells is possible. Proceeding numerically.")
-            approx = True
-        if self.polytope and approx:
-            all_estimated_areas = []
-            voronoi_cells = self.get_spherical_voronoi_cells()
-            all_vertices = [voronoi_cells.vertices[region] for region in voronoi_cells.regions]
-
-            # for more precision, assign detailed grid points to closest sphere points
-            if using_detailed_grid:
-                if self.algorithm_name == "ico":
-                    dense_points = np.load("molgri/examples/Icosahedron_2562.npy")
-                elif self.algorithm_name == "cube3D":
-                    dense_points = np.load("molgri/examples/Cube3D_1538.npy")
-                elif self.algorithm_name == "cube4D" or self.algorithm_name == "fulldiv":
-                    dense_points = np.load("molgri/examples/Cube4D_16448.npy")
-                else:
-                    raise ValueError("Wrong alg choice to estimate Voronoi areas")
-                extra_points_belongings = np.argmin(cdist(dense_points, self.get_grid_as_array(), metric="cos"), axis=1)
-
-            for point_index, point in enumerate(self.get_grid_as_array()):
-                vertices = all_vertices[point_index]
-                if using_detailed_grid:
-                    region_vertices_and_point = np.vstack([dense_points[extra_points_belongings == point_index], vertices])
-                else:
-                    region_vertices_and_point = np.vstack([point, vertices])
-                my_convex_hull = ConvexHull(region_vertices_and_point, qhull_options='QJ')
-                all_estimated_areas.append(my_convex_hull.area / 2)
-            return np.array(all_estimated_areas)
-        elif not approx:
-            sv = self.get_spherical_voronoi_cells()
-            return np.array(sv.calculate_areas())
-        else:
+        if not self.polytope:
+            print("In 4D, only calculation of Voronoi cell volumes is only possible for polyhedra-based grids.")
             return np.array([])
-        pass
+
+        all_estimated_areas = []
+        voronoi_cells = self.get_spherical_voronoi_cells()
+        all_vertices = [voronoi_cells.vertices[region] for region in voronoi_cells.regions]
+
+        # for more precision, assign detailed grid points to closest sphere points
+        if using_detailed_grid:
+            dense_points = SphereGrid4DFactory.create("cube4D", N=16448, use_saved=True).get_grid_as_array()
+            extra_points_belongings = np.argmin(cdist(dense_points, self.get_grid_as_array(), metric="cos"), axis=1)
+
+        for point_index, point in enumerate(self.get_grid_as_array()):
+            vertices = all_vertices[point_index]
+            if using_detailed_grid:
+                region_vertices_and_point = np.vstack([dense_points[extra_points_belongings == point_index], vertices])
+            else:
+                region_vertices_and_point = np.vstack([point, vertices])
+            my_convex_hull = ConvexHull(region_vertices_and_point, qhull_options='QJ')
+            all_estimated_areas.append(my_convex_hull.area / 2)
+        return np.array(all_estimated_areas)
 
     def get_voronoi_adjacency(self):
         pass
@@ -345,10 +331,11 @@ class RandomQRotations(SphereGrid4Dim):
     algorithm_name = "randomQ"
 
     def _gen_grid(self) -> NDArray:
+        np.random.seed(0)
         all_quaternions = random_quaternions(4*self.N)
         # now select those that are in the upper hemisphere
         unique_quaternions = unique_quaternion_set(all_quaternions)[:self.N]
-        max_index = which_row_is_k(all_quaternions, unique_quaternions[-1])
+        max_index = which_row_is_k(all_quaternions, unique_quaternions[-1])[0]
         self.full_hypersphere_grid = all_quaternions[:max_index]
         return random_quaternions(self.N)
 
@@ -358,6 +345,7 @@ class RandomSRotations(SphereGrid3Dim):
     algorithm_name = "randomS"
 
     def _gen_grid(self) -> NDArray:
+        np.random.seed(0)
         return random_sphere_points(self.N)
 
 
@@ -439,12 +427,23 @@ class IcoRotations(IcoAndCube3DRotations):
 
 
 class Cube3DRotations(IcoAndCube3DRotations):
-
     algorithm_name = "cube3D"
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.polytope = Cube3DPolytope()
+
+
+class SphereGridFactory:
+
+    @classmethod
+    def create(cls, alg_name: str, N: int, dimensions: int, **kwargs):
+        if dimensions == 3:
+            return SphereGrid3DFactory.create(alg_name=alg_name, N=N, **kwargs)
+        elif dimensions == 4:
+            return SphereGrid4DFactory.create(alg_name=alg_name, N=N, **kwargs)
+        else:
+            raise ValueError("Cannot generate sphere grid for dimensions not in (3, 4).")
 
 
 class SphereGrid3DFactory:

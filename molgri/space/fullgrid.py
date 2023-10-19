@@ -28,11 +28,11 @@ from scipy.spatial.transform import Rotation
 from scipy.spatial import SphericalVoronoi
 from scipy.spatial.distance import cdist
 from scipy.constants import pi
-from scipy.sparse import bmat, coo_array, csc_array, diags, spdiags, bsr_array, block_diag
+from scipy.sparse import bmat, coo_array, csc_array, diags
 import pandas as pd
 
 from molgri.constants import SMALL_NS
-from molgri.space.rotobj import SphereGridFactory, SphereGridNDim
+from molgri.space.rotobj import SphereGrid3DFactory, SphereGrid4DFactory, SphereGridNDim
 from molgri.space.translations import TranslationParser
 from molgri.naming import GridNameParser
 from molgri.paths import PATH_OUTPUT_FULL_GRIDS
@@ -64,11 +64,11 @@ class FullGrid:
             filter_non_unique: remove repeating points from spherical grids so that Voronoi cells can be built
         """
         b_grid_name = GridNameParser(b_grid_name, "b")
-        self.b_rotations = SphereGridFactory.create(alg_name=b_grid_name.get_alg(), N=b_grid_name.get_N(),
+        self.b_rotations = SphereGrid4DFactory.create(alg_name=b_grid_name.get_alg(), N=b_grid_name.get_N(),
                                                     dimensions=4, use_saved=use_saved,
                                                     filter_non_unique=filter_non_unique)
         o_grid_name = GridNameParser(o_grid_name, "o")
-        self.o_rotations = SphereGridFactory.create(alg_name=o_grid_name.get_alg(), N=o_grid_name.get_N(),
+        self.o_rotations = SphereGrid3DFactory.create(alg_name=o_grid_name.get_alg(), N=o_grid_name.get_N(),
                                                     dimensions=3, use_saved=use_saved,
                                                     filter_non_unique=filter_non_unique)
         self.o_positions = self.o_rotations.get_grid_as_array()
