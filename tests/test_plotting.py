@@ -8,7 +8,7 @@ from molgri.plotting.spheregrid_plots import EightCellsPlot, SphereGridPlot, Pol
 from molgri.plotting.fullgrid_plots import FullGridPlot, ConvergenceFullGridPlot, PanelConvergenceFullGridPlots
 from molgri.plotting.other_plots import ArrayPlot
 
-from molgri.constants import GRID_ALGORITHMS, PATH_EXAMPLES, MINI_NS
+from molgri.constants import ALL_GRID_ALGORITHMS, PATH_EXAMPLES, MINI_NS
 from molgri.space.fullgrid import FullGrid, ConvergenceFullGridO
 from molgri.space.polytopes import Cube3DPolytope, Cube4DPolytope, IcosahedronPolytope
 from molgri.space.rotobj import SphereGridFactory, ConvergenceSphereGridFactory
@@ -27,7 +27,7 @@ def get_example_pt():
 def test_polytope_plots():
     for pol in (Cube3DPolytope(), IcosahedronPolytope(), Cube4DPolytope()):
         pol.divide_edges()
-        pp = PolytopePlot(pol, default_color_style="dark", default_complexity_level="empty")
+        pp = PolytopePlot(pol, default_complexity_level="empty")
         pp.create_all_plots()
 
     for only_half_of_cube in (False, True):
@@ -100,3 +100,6 @@ def test_other_plots():
                          [2, 1, 0, -13],
                          [2, 2, 2, 2]])
     ArrayPlot(my_array).make_heatmap_plot()
+
+if __name__ == "__main__":
+    test_polytope_plots()

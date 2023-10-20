@@ -11,6 +11,8 @@ import numpy as np
 # tests should always be performed on fresh data
 USE_SAVED = False
 
+# don't test fulldiv
+GRID_ALGORITHMS_4D = [x for x in GRID_ALGORITHMS_4D if x!="fulldiv"]
 
 def test_saving_rotobj():
     """

@@ -2,7 +2,7 @@
 Naming conventions are defined here.
 """
 
-from molgri.constants import GRID_ALGORITHMS, ZERO_ALGORITHM, DEFAULT_ALGORITHM_O, DEFAULT_ALGORITHM_B
+from molgri.constants import ALL_GRID_ALGORITHMS, DEFAULT_ALGORITHM_O, DEFAULT_ALGORITHM_B
 
 
 class NameParser:
@@ -43,10 +43,10 @@ class NameParser:
         split_string = self.name_string.split("_")
         candidates = []
         for fragment in split_string:
-            if fragment in GRID_ALGORITHMS:
+            if fragment in ALL_GRID_ALGORITHMS:
                 candidates.append(fragment)
             elif fragment.lower() == "none":
-                candidates.append(ZERO_ALGORITHM)
+                candidates.append(DEFAULT_ALGORITHM_O)
         # >= 2 algorithms found in the string
         if len(candidates) > 1:
             raise ValueError(f"Found two or more algorithm names in grid name {self.name_string}, can't decide.")

@@ -11,6 +11,7 @@ PanelRepresentationCollection specifically creates one sub-plot for each grid-ge
 
 from abc import ABC
 from typing import Union, List
+import os
 
 import numpy as np
 import seaborn as sns
@@ -134,7 +135,7 @@ class RepresentationCollection(ABC):
         save_ending = saving_kwargs.pop("save_ending", EXTENSION_FIGURES)
         dpi = saving_kwargs.pop("dpi", DEFAULT_DPI)
         path = paths_free_4_all([f"{self.data_name}_{plot_type_name}"], [save_ending], [self.fig_path])[0]
-        self.fig.tight_layout()
+        #self.fig.tight_layout()
         plt.savefig(path, dpi=dpi, bbox_inches='tight')
         plt.close()
 

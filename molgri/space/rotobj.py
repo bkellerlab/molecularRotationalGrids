@@ -306,7 +306,7 @@ class SphereGrid4Dim(SphereGridNDim, ABC):
 
         # for more precision, assign detailed grid points to closest sphere points
         if using_detailed_grid:
-            dense_points = SphereGrid4DFactory.create("cube4D", N=16448, use_saved=True).get_grid_as_array()
+            dense_points = SphereGrid4DFactory.create("cube4D", N=272, use_saved=True).get_grid_as_array()
             extra_points_belongings = np.argmin(cdist(dense_points, self.get_grid_as_array(), metric="cos"), axis=1)
 
         for point_index, point in enumerate(self.get_grid_as_array()):

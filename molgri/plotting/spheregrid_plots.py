@@ -29,6 +29,7 @@ from molgri.space.analysis import vector_within_alpha
 from molgri.space.polytopes import Polytope, find_opposing_q, second_neighbours, third_neighbours, PolyhedronFromG, \
     Cube4DPolytope
 from molgri.space.rotobj import SphereGridNDim, SphereGrid3DFactory, SphereGrid4DFactory, ConvergenceSphereGridFactory
+from molgri.wrappers import plot3D_method, plot_method
 
 
 class ArrayPlot(RepresentationCollection):
@@ -286,26 +287,17 @@ class PolytopePlot(RepresentationCollection):
         default_complexity_level = kwargs.pop("default_complexity_level", "half_empty")
         super().__init__(data_name, default_complexity_level=default_complexity_level, **kwargs)
 
-    def make_graph(self, ax=None, fig=None, with_labels=True, save=True):
+    @plot_method
+    def make_graph(self, with_labels=True, **kwargs):
         """
         Plot the networkx graph of self.G.
         """
-        self._create_fig_ax(fig=fig, ax=ax)
-
         node_labels = {i: tuple(np.round(i, 3)) for i in self.polytope.G.nodes}
         nx.draw_networkx(self.polytope.G, pos=nx.spring_layout(self.polytope.G, weight="p_dist"),
-                         with_labels=with_labels, labels=node_labels)
-        if save:
-            self._save_plot_type("graph")
+                         with_labels=with_labels, labels=node_labels, ax=self.ax)
 
-    def make_cdist_plot(self, ax=None, fig=None, save=True, **kwargs):
-        """
-
-        Returns:
-
-        """
-        self._create_fig_ax(fig=fig, ax=ax)
-
+    @plot_method
+    def make_cdist_plot(self, **kwargs):
         cdistances = self.polytope.get_cdist_matrix(**kwargs)
 
         vmin = 0.9 * np.min(cdistances[cdistances > 0.01])
@@ -313,16 +305,13 @@ class PolytopePlot(RepresentationCollection):
         cmap = mpl.colormaps.get_cmap('gray_r')
         cmap.set_under("blue")
 
-        sns.heatmap(cdistances, cmap=cmap, cbar=False, ax=ax, vmin=vmin)
+        sns.heatmap(cdistances, cmap=cmap, cbar=False, ax=self.ax, vmin=vmin)
         self.ax.get_xaxis().set_visible(False)
         self.ax.axes.get_yaxis().set_visible(False)
         self.ax.set_aspect('equal')
         plt.tight_layout()
 
-        if save:
-            plt.savefig(PATH_OUTPUT_PLOTS + f"cdist_matrix")
-
-    def make_decomposed_cdist_plot(self, vmax=2, ax=None, fig=None, save=True, **kwargs):
+    def decomposed_cdist_plot(self, vmax=2, ax=None, fig=None, save=True, **kwargs):
         cdist_matrix = self.polytope.get_cdist_matrix(**kwargs)
         # show components individually
         vmin = 0.9 * np.min(cdist_matrix[cdist_matrix > 1e-5])
@@ -357,10 +346,8 @@ class PolytopePlot(RepresentationCollection):
             plt.savefig(PATH_OUTPUT_PLOTS + f"cdist_matrix_decomposition")
         return decompositions
 
-
-    def plot_adj_matrix(self, ax=None, fig=None, save=True, exclude_nans=True,
-                        **kwargs):
-        self._create_fig_ax(fig=fig, ax=ax)
+    @plot_method
+    def make_adj_matrix_plot(self, exclude_nans=True, **kwargs):
         adj_matrix = self.polytope.get_polytope_adj_matrix(**kwargs).toarray()
         cmap = mpl.colormaps.get_cmap('gray')
         cmap.set_bad("green")
@@ -380,12 +367,9 @@ class PolytopePlot(RepresentationCollection):
         self.ax.set_aspect('equal')
         self.ax.set_title(f"Avg neighbours={np.average(np.sum(adj_matrix, axis=0))}")
         plt.tight_layout()
-        if save:
-            plt.savefig(PATH_OUTPUT_PLOTS+f"polytope_adj")
 
-
-    def make_neighbours_plot(self, ax: Axes3D = None, fig: Figure = None, save: bool = True, node_i: int = 0,
-                             up_to: int = 2, edges=False, projection=False, animate_rot=False):
+    @plot3D_method
+    def make_neighbours_plot(self, node_i: int = 0, up_to: int = 2, edges=False, projected=False, **kwargs):
         """
         Want to see which points count as neighbours, second- or third neighbours of a specific node? Use this plotting
         method.
@@ -399,41 +383,40 @@ class PolytopePlot(RepresentationCollection):
             up_to = 3
 
         # in black plot all nodes and straight edges
-        self.make_node_plot(ax=ax, fig=fig, save=False, color_by=None, plot_edges=edges, projection=projection)
-        self._plot_edges(ax=self.ax, fig=self.fig, save=False, edge_categories=[0])
+        self.make_node_plot(ax=self.ax, fig=self.fig, save=False, color_by=None, plot_edges=edges, projected=projected)
+        self.make_edges_plot(ax=self.ax, fig=self.fig, save=False, edge_categories=[0])
 
-        all_nodes = self.polytope.get_nodes(projection=projection)
+        all_nodes = self.polytope.get_nodes(projection=projected)
 
         # plot the selected node in red
         node = tuple(all_nodes[node_i])
-        self._plot_single_points([node,], color="red", ax=self.ax, fig=self.fig, label=True)
+        self.make_single_points_plot([node, ], color="red", ax=self.ax, fig=self.fig, label=True, save=False)
 
         # plot first neighbours
         neig = self.polytope.G.neighbors(tuple(node))
         for n in neig:
             n_index = which_row_is_k(all_nodes, n)[0]
-            self._plot_single_points([all_nodes[n_index]], color="blue", ax=self.ax, fig=self.fig, label=True)
+            self.make_single_points_plot([all_nodes[n_index]], color="blue", ax=self.ax, fig=self.fig,
+                                         label=True, save=False)
 
         # optionally plot second and third neighbours
         if up_to >= 2:
             sec_neig = second_neighbours(self.polytope.G, node)
             for n in sec_neig:
                 n_index = which_row_is_k(all_nodes, n)[0]
-                self._plot_single_points([all_nodes[n_index]], color="green", ax=self.ax, fig=self.fig, label=True)
+                self.make_single_points_plot([all_nodes[n_index]], color="green", ax=self.ax, fig=self.fig,
+                                             label=True, save=False)
         if up_to == 3:
             third_neig = third_neighbours(self.polytope.G, node)
             for n in third_neig:
                 n_index = which_row_is_k(all_nodes, n)[0]
-                self._plot_single_points([all_nodes[n_index]], color="orange", ax=self.ax, fig=self.fig, label=True)
-        if animate_rot:
-            ani = self._animate_figure_view(self.fig, self.ax)
-            return ani
-        if save:
-            self._save_plot_type(f"neighbours_{node_i}")
+                self.make_single_points_plot([all_nodes[n_index]], color="orange", ax=self.ax, fig=self.fig,
+                                             label=True, save=False)
 
-    def make_node_plot(self, ax: Axes3D = None, fig: Figure = None, select_faces: set = None, projection: bool = False,
-                       plot_edges: bool = False, plot_nodes: bool = True,
-                       color_by: str = "level", label=False, save=True, N=None, animate_rot=False, edge_categories=None):
+    @plot3D_method
+    def make_node_plot(self, select_faces: set = None, projected: bool = False, plot_edges: bool = False,
+                       plot_nodes: bool = True, color_by: str = "level", label=False, N=None, edge_categories=None,
+                       **kwargs):
         """
         Plot the points of the polytope + possible division points. Colored by level at which the point was added.
         Or: colored by index to see how sorting works. Possible to select only one or a few faces on which points
@@ -445,7 +428,7 @@ class PolytopePlot(RepresentationCollection):
             save: whether to save fig
             select_faces: a set of face numbers that can range from 0 to number of faces of the polyhedron, e.g. {0, 5}.
                           If None, all faces are shown.
-            projection: True if you want to plot the projected points, not the ones on surfaces of polytope
+            projected: True if you want to plot the projected points, not the ones on surfaces of polytope
             plot_edges: select True if you want to see connections between nodes
             color_by: "level" or "index"
         """
@@ -454,8 +437,6 @@ class PolytopePlot(RepresentationCollection):
             edge_categories = [0]
 
         nodes_poly = self.polytope.get_nodes(N=N, projection=False)
-
-        self._create_fig_ax(fig=fig, ax=ax, projection="3d")
 
         level_color = ["black", "red", "blue", "green"]
         index_palette = color_palette("coolwarm", n_colors=self.polytope.G.number_of_nodes())
@@ -475,28 +456,23 @@ class PolytopePlot(RepresentationCollection):
                         color = "black"
                     else:
                         raise ValueError(f"The argument color_by={color_by} not possible (try 'index', 'level')")
-                    self._plot_single_points([node, ], color=color, label=label, ax=self.ax,
-                                             fig=self.fig, save=False, projection=projection)
+                    self.make_single_points_plot([node, ], color=color, label=label, ax=self.ax,
+                                                 fig=self.fig, save=False, projected=projected)
         self._set_axis_limits((-0.6, 0.6, -0.6, 0.6, -0.6, 0.6))
         self._equalize_axes()
         if plot_edges:
-            self._plot_edges(nodes=[tuple(n) for n in nodes_poly], select_faces=select_faces, ax=self.ax, fig=self.fig,
-                             edge_categories=edge_categories)
-        if animate_rot:
-            ani = self._animate_figure_view(self.fig, self.ax)
-            return ani
-        if save:
-            self._save_plot_type(f"points_{color_by}")
+            self.make_edges_plot(nodes=[tuple(n) for n in nodes_poly], select_faces=select_faces, ax=self.ax, fig=self.fig,
+                                 edge_categories=edge_categories, save=False)
 
-    def _plot_single_points(self, nodes: ArrayLike, color = "black", label=True, ax: Axes3D = None, fig: Figure = None,
-                            save=False, animate_rot=False, projection=False):
+    @plot3D_method
+    def make_single_points_plot(self, nodes: ArrayLike = None, color ="black", label=True, projected=False, **kwargs):
         """
         Helper function that should be called whenever plotting any (list of) nodes.
 
         Don't plot anything (but don't return an error) if the specified node doesn't exist.
         """
-
-        self._create_fig_ax(fig=fig, ax=ax, projection="3d")
+        if nodes is None:
+            return
 
         if self.polytope.d > 3:
             print("Plotting nodes not available for d> 3")
@@ -505,7 +481,7 @@ class PolytopePlot(RepresentationCollection):
         for i, n in enumerate(nodes):
             ci = self.polytope.G.nodes[tuple(n)]["central_index"]
 
-            if projection:
+            if projected:
                 to_plot = self.polytope.G.nodes[tuple(n)]["projection"]
             else:
                 to_plot = n
@@ -514,14 +490,10 @@ class PolytopePlot(RepresentationCollection):
                 self.ax.text(*to_plot, ci)
 
         self._equalize_axes()
-        if save:
-            self._save_plot_type(f"single_points")
-        if animate_rot:
-            ani = self._animate_figure_view(self.fig, self.ax)
-            return ani
 
-    def _plot_edges(self, nodes: ArrayLike = None, select_faces=None, label=None,
-                    edge_categories=None, ax=None, fig=None, save=False, **kwargs):
+    @plot3D_method
+    def make_edges_plot(self, nodes: ArrayLike = None, select_faces=None, label=None,
+                        edge_categories=None, **kwargs):
         """
         Helper function that should be called whenever plotting any (list of) edges. Can select to display only some
         faces for clarity.
@@ -532,6 +504,8 @@ class PolytopePlot(RepresentationCollection):
             label: select the name of edge parameter if you want to display it
             **kwargs: other plotting arguments
         """
+        if nodes is None:
+            return
 
         if self.polytope.d > 3:
             print("Plotting nodes not available for d> 3")
@@ -547,11 +521,11 @@ class PolytopePlot(RepresentationCollection):
             n2_on_face = select_faces is None or len(faces_edge_2.intersection(select_faces)) > 0
             if n1_on_face and n2_on_face:  # and edge[0] in nodes and edge[1] in nodes
                 # usually you only want to plot edges used in division
-                ax.plot(*np.array(edge[:2]).T, color="black",  **kwargs)
+                self.ax.plot(*np.array(edge[:2]).T, color="black",  **kwargs)
                 if label:
                     midpoint = np.average(np.array(edge[:2]), axis=0)
                     s = edge[2][f"{label}"]
-                    ax.text(*midpoint, s=f"{s:.3f}")
+                    self.ax.text(*midpoint, s=f"{s:.3f}")
 
 
 class PanelSphereGridPlots(PanelRepresentationCollection):
@@ -786,7 +760,6 @@ class EightCellsPlot(MultiRepresentationCollection):
         neighbours_indices = self.cube4D.get_neighbours_of(node_index,
                                                            include_opposing_neighbours=include_opposing_neighbours,
                                                            only_half_of_cube=self.only_half_of_cube)
-        print(len(neighbours_indices))
         if include_opposing_neighbours:
             node = self.cube4D.get_nodes()[node_index]
             opp_node = find_opposing_q(tuple(node), self.cube4D.G)
@@ -799,28 +772,19 @@ class EightCellsPlot(MultiRepresentationCollection):
             # the node itself
             if node_index in ci2node.keys():
                 node = ci2node[node_index]
-                self.list_plots[i]._plot_single_points([tuple(node), ], "red", ax=subax, fig=self.fig)
+                self.list_plots[i].make_single_points_plot([tuple(node), ], "red", ax=subax, fig=self.fig,
+                                                           save=False)
             # the opposing node:
             if include_opposing_neighbours and opp_node_index in ci2node.keys():
                 opp_node_3d = self.list_plots[i].polytope.get_nodes_by_index([opp_node_index,])
-                self.list_plots[i]._plot_single_points(opp_node_3d, "orange", ax=subax, fig=self.fig)
+                self.list_plots[i].make_single_points_plot(opp_node_3d, "orange", ax=subax, fig=self.fig,
+                                                           save=False)
 
             # neighbours
             neighbour_nodes = self.list_plots[i].polytope.get_nodes_by_index(neighbours_indices)
 
             for ni in neighbour_nodes:
-                self.list_plots[i]._plot_single_points([tuple(ni), ], "blue", ax=subax, fig=self.fig)
-
-        # self._plot_in_color([tuple(node), ], "red", all_ax=self.all_ax, fig=self.fig)
-        # # determine neighbours
-        #
-        #
-        # neighbours_nodes = [tuple(n) for n in all_nodes[neighbours_indices]]
-        # self._plot_in_color(neighbours_nodes, "blue", all_ax=self.all_ax, fig=self.fig)
-        #
-        # if include_opposing_neighbours:
-        #     self._plot_in_color([find_opposing_q(node, self.cube4D.G), ], "orange", all_ax=self.all_ax,
-        #                         fig=self.fig)
+                self.list_plots[i].make_single_points_plot([tuple(ni), ], "blue", ax=subax, fig=self.fig, save=False)
         if animate_rot:
             return self.animate_figure_view(f"neig_{node_index}", dpi=100)
         if save:
@@ -832,25 +796,28 @@ if __name__ == "__main__":
     from molgri.space.fullgrid import FullGrid
     import seaborn as sns
 
-    # cube_3d = Cube4DPolytope()
-    # cube_3d.divide_edges()
+    cube_3d = Cube3DPolytope()
+    cube_3d.divide_edges()
+
     # #cube_3d.divide_edges()
     #
-    # pp = PolytopePlot(cube_3d)
+    pp = PolytopePlot(cube_3d)
+    pp.make_neighbours_plot(animate_rot=True)
+    plt.show()
     # #pp.make_node_plot(plot_edges=True, animate_rot=False, projection=False, edge_categories=[0, 1], select_faces={0})
     # #pp.make_cdist_plot(save=False, only_half_of_cube=True, N=10)
     # #pp.plot_adj_matrix(only_half_of_cube=True, include_opposing_neighbours=True)
     # pp.make_decomposed_cdist_plot()
     # plt.show()
 
-    cube = Cube4DPolytope()
-    #cube.divide_edges()
-    #cube.divide_edges()
-
-
-    ecp = EightCellsPlot(cube, only_half_of_cube=True)
-    ecp.make_eight_cells_neighbours_plot(0, save=False)
-    plt.show()
+    # cube = Cube4DPolytope()
+    # #cube.divide_edges()
+    # #cube.divide_edges()
+    #
+    #
+    # ecp = EightCellsPlot(cube, only_half_of_cube=True)
+    # ecp.make_eight_cells_neighbours_plot(0, save=False)
+    # plt.show()
 
 
 

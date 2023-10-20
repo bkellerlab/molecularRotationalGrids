@@ -15,20 +15,20 @@ parser = argparse.ArgumentParser()
 parser.add_argument('--examples', action='store_true',
                     help='copy example inputs')
 
+o = "output"
+d = "data"
+
 # if you introduce new IO folders, add them to next three lines, keep the order the same!
 IO_FOLDER_PURPUSES = ["rotational grids", "pseudotrajectory files", "base gro files", "plots", "animations",
                       "grid statistics", "translational grids", "full grids", "cells", "timing",
-                      "logging", "plotting data"]
-IO_FOLDER_DEFAULTS = [os.path.join("output", "data", "rot_grids"), os.path.join("output", "data", "pt_files"),
-                      "input", os.path.join("output", "figures"), os.path.join("output", "animations"),
-                      os.path.join("output", "data", "statistics_files"), os.path.join("output", "data", "trans_grids"),
-                      os.path.join("output", "data", "full_grids"), os.path.join("output", "data", "cells"),
-                      os.path.join("output", "data", "timing"), os.path.join("output", "data", "logging"),
-                      os.path.join("output", "data", "plotting")]
+                      "logging", "plotting data", "energies"]
+IO_FOLDER_DEFAULTS = [f'{o}/{d}/rot_grids/', f"{o}/{d}/pt_files", "input/", f"{o}/figures/", f"{o}/animations/",
+                      f'{o}/{d}/statistics_files/', f'{o}/{d}/trans_grids/', f'{o}/{d}/full_grids/', f'{o}/{d}/cells/',
+                      f'{o}/{d}/timing/', f'{o}/{d}/logging/', f'{o}/{d}/plotting/', "input/"]
 IO_VARIABLE_NAMES = ["PATH_OUTPUT_ROTGRIDS", "PATH_OUTPUT_PT", "PATH_INPUT_BASEGRO", "PATH_OUTPUT_PLOTS",
                      "PATH_OUTPUT_ANIS", "PATH_OUTPUT_STAT", "PATH_OUTPUT_TRANSGRIDS", "PATH_OUTPUT_FULL_GRIDS",
                      "PATH_OUTPUT_CELLS", "PATH_OUTPUT_TIMING", "PATH_OUTPUT_LOGGING",
-                     "OUTPUT_PLOTTING_DATA"]
+                     "OUTPUT_PLOTTING_DATA", "PATH_INPUT_ENERGIES"]
 
 assert len(IO_VARIABLE_NAMES) == len(IO_FOLDER_DEFAULTS) == len(IO_FOLDER_PURPUSES)
 

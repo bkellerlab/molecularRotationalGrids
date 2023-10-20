@@ -92,7 +92,7 @@ def format_name(file_name: str, num: int = None, places_num: int = 4, suffix: st
     Returns:
         full path and file name in correct format
     """
-    till_num = f"{file_path}{file_name}"
+    till_num = os.path.join(file_path, file_name)
     if num is None:
         till_ending = till_num
     else:

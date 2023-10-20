@@ -330,13 +330,13 @@ def test_half_hypercube():
 
 
 if __name__ == "__main__":
-    # test_getter()
-    # test_basics()
-    # test_second_neighbours()
-    # test_third_neighbours()
-    # test_ico_polytope()
-    # test_cube3D_polytope()
-    # test_cube4D_polytope()
-    # test_edge_attributes()
-    # test_remove_and_reconnect()
+    test_getter()
+    test_basics()
+    test_second_neighbours()
+    test_third_neighbours()
+    test_ico_polytope()
+    test_cube3D_polytope()
+    test_cube4D_polytope()
+    test_edge_attributes()
+    test_remove_and_reconnect()
     test_half_hypercube()

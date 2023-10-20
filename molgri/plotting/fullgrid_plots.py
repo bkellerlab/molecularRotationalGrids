@@ -8,7 +8,7 @@ import numpy as np
 import seaborn as sns
 from matplotlib import colors
 
-from molgri.constants import GRID_ALGORITHMS, NAME2SHORT_NAME
+from molgri.constants import ALL_GRID_ALGORITHMS, NAME2SHORT_NAME
 from molgri.plotting.abstract import RepresentationCollection, PanelRepresentationCollection, plot_voronoi_cells
 from molgri.space.fullgrid import FullGrid, ConvergenceFullGridO
 

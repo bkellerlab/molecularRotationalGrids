@@ -29,8 +29,7 @@ from typing import Hashable, Iterable, Type
 
 import networkx as nx
 import numpy as np
-from numpy._typing import ArrayLike
-from numpy.typing import NDArray
+from numpy.typing import NDArray, ArrayLike
 from scipy.constants import pi, golden
 from scipy.sparse import coo_array
 from scipy.spatial.distance import cdist
@@ -900,24 +899,3 @@ def find_opposing_q(node, G):
         if np.allclose(projected_n, opposing_projected):
             return n
     return None
-
-
-def save_detailed_polytope(polytope: Type[Polytope], num_divisions):
-    poly = polytope()
-    for i in range(num_divisions):
-        poly.divide_edges()
-    if poly.d == 3:
-        my_array = poly.get_nodes(projection=True)
-    else:
-        my_array = poly.get_half_of_hypercube(projection=True)
-    np.save(f"molgri/examples/{str(poly).split()[0]}_{len(my_array)}", my_array)
-
-def save_all_detailed_polytopes():
-    save_detailed_polytope(IcosahedronPolytope, 4)
-    save_detailed_polytope(Cube3DPolytope, 4)
-    save_detailed_polytope(Cube4DPolytope, 4)
-
-if __name__ == "__main__":
-    save_all_detailed_polytopes()
-    #ma = np.load(f"molgri/examples/Icosahedron_2.npy")
-    #print(ma.shape)
