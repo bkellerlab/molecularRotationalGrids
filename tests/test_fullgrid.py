@@ -86,7 +86,7 @@ def _visualise_fg(fg7: FullGrid):
 def get_tetrahedron_grid(visualise=False, **kwargs):
     # simplest possible example: voronoi cells need at least 4 points to be created
     # with 4 points we expect tetrahedron angles
-    fg = FullGrid(b_grid_name="zero", o_grid_name=f"cube3D_4", t_grid_name="[0.3]", **kwargs)
+    fg = FullGrid(b_grid_name="randomQ_1", o_grid_name=f"cube3D_4", t_grid_name="[0.3]", **kwargs)
     fvg = fg.get_full_voronoi_grid()
 
     if visualise:
@@ -95,7 +95,7 @@ def get_tetrahedron_grid(visualise=False, **kwargs):
 
 
 def get_icosahedron_grid(visualise=False, **kwargs):
-    my_fg = FullGrid(b_grid_name="zero", o_grid_name=f"ico_12", t_grid_name="[0.2, 0.4]", **kwargs)
+    my_fg = FullGrid(b_grid_name="1", o_grid_name=f"ico_12", t_grid_name="[0.2, 0.4]", **kwargs)
     my_fvg = my_fg.get_full_voronoi_grid()
 
     if visualise:
@@ -105,7 +105,7 @@ def get_icosahedron_grid(visualise=False, **kwargs):
 
 def test_fullgrid_voronoi_radii():
     # we expect voronoi radii to be right in-between layers of points
-    fg = FullGrid(b_grid_name="ico_7", o_grid_name=f"cube3D_15", t_grid_name="[0.3, 1, 2, 2.7, 3]", use_saved=False)
+    fg = FullGrid(b_grid_name="randomQ_7", o_grid_name=f"cube3D_15", t_grid_name="[0.3, 1, 2, 2.7, 3]", use_saved=False)
     # point radii as expected
     assert np.allclose(fg.get_radii(), [3, 10, 20, 27, 30])
     # between radii as expected; last one is same as previous distance
@@ -116,7 +116,7 @@ def test_fullgrid_voronoi_radii():
     assert np.allclose(voronoi_radii, [6.5, 15, 23.5, 28.5, 31.5])
 
     # example with only one layer
-    fg = FullGrid(b_grid_name="ico_7", o_grid_name=f"cube3D_15", t_grid_name="[0.3]")
+    fg = FullGrid(b_grid_name="randomQ_7", o_grid_name=f"cube3D_15", t_grid_name="[0.3]")
     # point radii as expected
     assert np.allclose(fg.get_radii(), [3])
     # between radii as expected; last one is same as previous distance
@@ -130,7 +130,7 @@ def test_fullgrid_voronoi_radii():
 def test_cell_assignment():
     # 1st test: the position grid points must correspond to themselves
     N_rot = 18
-    fullgrid = FullGrid(b_grid_name="ico_7", o_grid_name=f"ico_{N_rot}", t_grid_name="[1, 2, 3]", use_saved=False)
+    fullgrid = FullGrid(b_grid_name="randomQ_7", o_grid_name=f"ico_{N_rot}", t_grid_name="[1, 2, 3]", use_saved=False)
     points_local = fullgrid.get_flat_position_grid()
     num_points = len(points_local)
     assert np.all(fullgrid.point2cell_position_grid(points_local) == np.arange(0, num_points))
@@ -324,7 +324,7 @@ def test_volumes():
     assert np.allclose(real_vol[12:], ideal_vol[1])
 
     # test that volumes add up to a total volume of the largest sphere
-    full_grid = FullGrid(t_grid_name="[3, 7]", o_grid_name="ico_56", b_grid_name="cube3D_6")
+    full_grid = FullGrid(t_grid_name="[3, 7]", o_grid_name="ico_56", b_grid_name="cube4D_6")
     fvg = full_grid.get_full_voronoi_grid()
     max_radius = full_grid.get_between_radii()[-1]
     exp_total_volume = 4/3 * pi * max_radius**3
@@ -333,19 +333,20 @@ def test_volumes():
 
 
 def test_default_full_grids():
-    full_grid = FullGrid(t_grid_name="[1]", o_grid_name="zero", b_grid_name="zero")
+    full_grid = FullGrid(t_grid_name="[1]", o_grid_name="1", b_grid_name="1")
     assert np.all(full_grid.t_grid.get_trans_grid() == np.array([10]))
     assert full_grid.get_position_grid().shape == (1, 1, 3)
+    print(full_grid.get_position_grid())
     assert np.allclose(full_grid.get_position_grid(), np.array([[[0, 0, 10]]]))
     assert np.allclose(full_grid.b_rotations.rotations.as_matrix(), np.eye(3))
 
-    full_grid = FullGrid(t_grid_name="[0]", o_grid_name="None", b_grid_name="None")
+    full_grid = FullGrid(t_grid_name="[0]", o_grid_name="None_1", b_grid_name="None_1")
     assert np.all(full_grid.t_grid.get_trans_grid() == np.array([0]))
     assert full_grid.get_position_grid().shape == (1, 1, 3)
     assert np.allclose(full_grid.get_position_grid(), np.array([[[0, 0, 0]]]))
     assert np.allclose(full_grid.b_rotations.rotations.as_matrix(), np.eye(3))
 
-    full_grid = FullGrid(t_grid_name="[1, 2, 3]", o_grid_name="0", b_grid_name="0")
+    full_grid = FullGrid(t_grid_name="[1, 2, 3]", o_grid_name="ico_1", b_grid_name="cube4D_1")
     assert np.all(full_grid.t_grid.get_trans_grid() == np.array([10, 20, 30]))
     assert full_grid.get_position_grid().shape == (1, 3, 3)
     assert np.allclose(full_grid.get_position_grid(), np.array([[[0, 0, 10],
@@ -369,7 +370,7 @@ def test_default_full_grids():
 def test_position_grid():
     num_rot = 14
     num_trans = 4  # keep this number unless you change t_grid_name
-    fg = FullGrid(b_grid_name="zero", o_grid_name=f"ico_{num_rot}", t_grid_name="[0.1, 2, 2.5, 4]", use_saved=USE_SAVED)
+    fg = FullGrid(b_grid_name="1", o_grid_name=f"ico_{num_rot}", t_grid_name="[0.1, 2, 2.5, 4]", use_saved=USE_SAVED)
     ico_ = SphereGridFactory.create(N=num_rot, alg_name="ico", dimensions=3, use_saved=USE_SAVED)
     ico_grid = ico_.get_grid_as_array()
     position_grid = fg.get_position_grid()
@@ -406,20 +407,20 @@ def test_voronoi_regression():
     """
     N_o = 22
     N_t = 2
-    fg = FullGrid(b_grid_name="cube3D_16", o_grid_name=f"ico_{N_o}", t_grid_name="[2, 4]", use_saved=USE_SAVED)
+    fg = FullGrid(b_grid_name="cube4D_16", o_grid_name=f"ico_{N_o}", t_grid_name="[2, 4]", use_saved=USE_SAVED)
     fvg = fg.get_full_voronoi_grid()
     volumes = fvg.get_all_voronoi_volumes()
-    expected_vols = np.array([8027.50955706,  3769.91118431,  4712.38898038,  3769.91118431, 4712.38898038,
-                              4712.38898038,  3769.91118431,  3769.91118431])
-    print(volumes[:8])
+    expected_vols = np.array([5253.4525878,  8791.29124553, 8791.29124553, 7022.37191666, 7022.37191666,
+                              5253.4525878,  4555.04327387, 4936.70923018])
+
     assert np.allclose(volumes[:8], expected_vols)
 
     all_areas = fvg.get_all_voronoi_surfaces()
-    assert np.isclose(all_areas[13, 0], 306.05083753623484)
-    assert np.isclose(all_areas[22, 0], 802.7509557055915)
-    assert np.isclose(all_areas[11, 2], 457.7498855540331)
-    assert np.isclose(all_areas[11, 4], 249.1084615036705)
-    assert np.isclose(all_areas[41, 42], 402.99180271836235)
+    assert np.isclose(all_areas[13, 0], 0)
+    assert np.isclose(all_areas[22, 0], 525.3452587797963)
+    assert np.isclose(all_areas[11, 2], 0)
+    assert np.isclose(all_areas[11, 4],  201.5729133338661)
+    assert np.isclose(all_areas[41, 42], 0)
 
     # uncomment to visualise array
     # all_areas = all_areas.toarray(order='C')
@@ -444,18 +445,18 @@ def test_position_adjacency():
 
     # examples where I know the answers
     # one radius
-    fg = FullGrid("zero", "ico_17", "[1,]", use_saved=USE_SAVED)
+    fg = FullGrid("1", "ico_17", "[1,]", use_saved=USE_SAVED)
     my_array = fg.get_adjacency_of_position_grid().toarray()
-    my_result = np.array([[False, True, False, False, False, True, False, False, False,
-        False, True,  True, True,  False,  False,  False,  False],
-       [True, False, False,  False, False,  True,  False, True,  True,
-        True, False, False, True, True, False, False, True]])
+    my_result = np.array([[False, False,  True, False, False, False,  True,  True, False,  True, False, False,
+  False, False, False,  True, False],
+ [False, False,  True, False, False,  True, False, False,  True,  True, False,  True,
+   True, False,  True, False, False]])
     assert np.all(my_array[:2] == my_result)
 
     # two radii
-    fg = FullGrid("zero", "ico_10", "[1, 2]", use_saved=USE_SAVED)
+    fg = FullGrid("1", "ico_10", "[1, 2]", use_saved=USE_SAVED)
     my_array = fg.get_adjacency_of_position_grid()
-    adj_of_5 = [0, 6, 7, 8, 9, 15]
+    adj_of_5 = [1, 2, 4, 6, 15]
     my_result = np.zeros(len(fg.get_flat_position_grid()), dtype=bool)
     my_result[adj_of_5] = True
     assert np.all(my_array.toarray()[5] == my_result)
@@ -463,27 +464,34 @@ def test_position_adjacency():
     # three radii
     fg = FullGrid("cube4D_8", "ico_7", "linspace(1, 5, 3)", use_saved=USE_SAVED)
     my_array = fg.get_adjacency_of_position_grid().toarray()
-    #_visualise_fg(fg)
+    _visualise_fg(fg)
 
 
     # bottom-layer
-    adj_of_1 = [2, 3, 4, 6, 8]
+    adj_of_1 = [0, 2, 3, 5, 8]
     my_result = np.zeros(len(fg.get_flat_position_grid()), dtype=bool)
     my_result[adj_of_1] = True
     assert np.all(my_array[1] == my_result)
 
     # mid-layer
-    adj_of_9 = [2, 8, 11, 12, 13, 16]
+    adj_of_9 = [2, 7, 8, 12, 13, 16]
     my_result = np.zeros(len(fg.get_flat_position_grid()), dtype=bool)
     my_result[adj_of_9] = True
     assert np.all(my_array[9] == my_result)
 
     # top-layer
-    adj_of_20 = [13, 15, 16, 17, 19]
+    adj_of_20 = [13, 14, 16, 18, 19]
     my_result = np.zeros(len(fg.get_flat_position_grid()), dtype=bool)
     my_result[adj_of_20] = True
     assert np.all(my_array[20] == my_result)
 
 if __name__ == "__main__":
-    #test_voronoi_regression()
+    test_fullgrid_voronoi_radii()
+    test_cell_assignment()
+    test_distances_voronoi_centers()
+    test_division_area()
+    test_volumes()
+    test_default_full_grids()
+    test_position_grid()
+    test_voronoi_regression()
     test_position_adjacency()

@@ -12,8 +12,7 @@ import pandas as pd
 from numpy.typing import NDArray
 from scipy.constants import pi
 
-from molgri.space.utils import angle_between_vectors, random_sphere_points, random_quaternions, \
-    randomise_quaternion_set_signs
+from molgri.space.utils import angle_between_vectors, random_sphere_points, random_quaternions
 from molgri.constants import DEFAULT_ALPHAS_3D, DEFAULT_ALPHAS_4D, TEXT_ALPHAS_3D, TEXT_ALPHAS_4D
 
 
@@ -76,8 +75,6 @@ def random_quaternions_count_points(array_points: np.ndarray, alpha: float, num_
     and quaternion signs are randomised first.
     """
     central_vectors = random_quaternions(num_random_points)
-    central_vectors = randomise_quaternion_set_signs(central_vectors)
-    array_points = randomise_quaternion_set_signs(array_points)
     return _repeat_count(array_points, central_vectors, num_random_points, alpha)
 
 

@@ -248,3 +248,8 @@ def test_order_of_operations():
 if __name__ == "__main__":
     freshly_create_all_folders()
     copy_examples()
+    test_pt_len()
+    test_pt_translations()
+    test_pt_rotations_origin()
+    test_pt_rotations_body()
+    test_order_of_operations()

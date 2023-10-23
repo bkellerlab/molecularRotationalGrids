@@ -115,23 +115,17 @@ class GridNameParser(NameParser):
     def __init__(self, name_string: str, o_or_b="o"):
         super().__init__(name_string)
         # num of points 0 or 1 -> always zero algorithm; selected zero algorithm -> always num of points is 1
-        if (self.N in (1, 0)) or (self.N is None and self.algo == ZERO_ALGORITHM):
-            self.algo = ZERO_ALGORITHM
-            self.N = 1
-        # ERROR - zero algorithm but a larger number of points provided
-        elif self.algo == ZERO_ALGORITHM and self.N > 1:
-            raise ValueError(f"Zero algorithm selected but number of points {self.N}>1 in {self.name_string}.")
-        # ERROR - no points but also not zero algorithm
-        elif self.N is None and (self.algo != ZERO_ALGORITHM and self.algo is not None):
-            raise ValueError(f"An algorithm provided ({self.algo}) but not number of points in {self.name_string}")
-        # algorithm not provided but > 1 points -> default algorithm
-        elif self.algo is None and self.N > 1 and o_or_b == "o":
-            self.algo = DEFAULT_ALGORITHM_O
-        elif self.algo is None and self.N > 1 and o_or_b == "b":
-            self.algo = DEFAULT_ALGORITHM_B
         # ERROR - absolutely nothing provided
-        elif self.algo is None and self.N is None:
-            raise ValueError(f"Algorithm name and number of grid points not recognised in name {self.name_string}.")
+        if self.N is None:
+            raise ValueError(f"The number of grid points not recognised in name {self.name_string}.")
+        elif self.N <= 0:
+            raise ValueError("Cannot have 0 or negative number of points")
+        # algorithm not provided but > 1 points -> default algorithm
+        elif self.algo is None and self.N >= 1 and o_or_b == "o":
+            self.algo = DEFAULT_ALGORITHM_O
+        elif self.algo is None and self.N >= 1 and o_or_b == "b":
+            self.algo = DEFAULT_ALGORITHM_B
+
 
     def get_standard_grid_name(self) -> str:
         return f"{self.algo}_{self.N}"

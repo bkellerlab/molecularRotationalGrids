@@ -78,53 +78,6 @@ def dist_on_sphere(vector1: np.ndarray, vector2: np.ndarray) -> np.ndarray:
     return angle * norm1
 
 
-def cart2sph(x: float, y: float, z: float) -> Tuple[float, float, float]:
-    """
-    Transform an individual 3D point from cartesian to spherical coordinates.
-
-    Code obtained from Leon Wehrhan.
-    """
-    XsqPlusYsq = x ** 2 + y ** 2
-    r = np.sqrt(XsqPlusYsq + z ** 2)  # r
-    elev = np.arctan2(z, np.sqrt(XsqPlusYsq))  # theta
-    az = np.arctan2(y, x)  # phi
-    return r, elev, az
-
-
-def cart2sphA(pts: NDArray) -> NDArray:
-    """
-    Transform an array of shape (N, 3) in cartesian coordinates to an array of the same shape in spherical coordinates.
-    Can be used to create a hammer projection plot. In this case, disregard column 0 of the output and plot columns
-    1 and 2.
-
-    Code obtained from Leon Wehrhan.
-    """
-    return np.array([cart2sph(x, y, z) for x, y, z in pts])
-
-
-def standardise_quaternion_set(quaternions: NDArray, standard=np.array([1, 0, 0, 0])) -> NDArray:
-    """
-    Since quaternions double-cover rotations, standardise all quaternions in this array so that their dot product with
-    the "standard" quaternion is positive. Return the quaternion array where some elements ma have been flipped to -q.
-
-    Idea: method 2 described here: https://math.stackexchange.com/questions/3888504/component-wise-averaging-of-similar-quaternions-while-handling-quaternion-doubl
-
-    Args:
-        quaternions: array (N, 4), each row a quaternion
-        standard: a single quaternion determining which half-hypersphere to use
-    """
-    assert len(quaternions.shape) == 2 and quaternions.shape[1] == 4, "Wrong shape for quaternion array"
-    assert standard.shape == (4, ), "Wrong shape for standard quaternion"
-    # Take the dot product of q1 with all subsequent quaternions qi, for 2≤i≤N, and negate any of the subsequent
-    # quaternions whose dot product with qi is negative.
-    dot_product = standard.dot(quaternions.T)
-    standard_quat = quaternions.copy()
-    standard_quat[np.where(dot_product < 0)] = -quaternions[np.where(dot_product < 0)]
-
-    assert standard_quat.shape == quaternions.shape
-    return standard_quat
-
-
 def unique_quaternion_set(quaternions: NDArray) -> NDArray:
     """
     Select only the "upper half" of hyperspherical points (quaternions that may be repeating). How selection is done:
@@ -148,17 +101,6 @@ def unique_quaternion_set(quaternions: NDArray) -> NDArray:
                 # the point is selected
                 non_repeating_quaternions.append(projected_point)
     return np.array(non_repeating_quaternions)
-
-
-def randomise_quaternion_set_signs(quaternions: NDArray) -> NDArray:
-    """
-    Return the set of the same quaternions up to the sign of each row, which is normalised.
-    """
-    assert len(quaternions.shape) == 2 and quaternions.shape[1] == 4, "Wrong shape for quaternion array"
-    random_set = np.random.choice([-1, 1], size=(len(quaternions), 1))
-    re_signed = quaternions * random_set
-    assert re_signed.shape == quaternions.shape
-    return re_signed
 
 
 def random_sphere_points(n: int = 1000) -> NDArray:

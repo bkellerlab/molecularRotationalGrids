@@ -65,12 +65,10 @@ class FullGrid:
         """
         b_grid_name = GridNameParser(b_grid_name, "b")
         self.b_rotations = SphereGrid4DFactory.create(alg_name=b_grid_name.get_alg(), N=b_grid_name.get_N(),
-                                                    dimensions=4, use_saved=use_saved,
-                                                    filter_non_unique=filter_non_unique)
+                                                    use_saved=use_saved)
         o_grid_name = GridNameParser(o_grid_name, "o")
         self.o_rotations = SphereGrid3DFactory.create(alg_name=o_grid_name.get_alg(), N=o_grid_name.get_N(),
-                                                    dimensions=3, use_saved=use_saved,
-                                                    filter_non_unique=filter_non_unique)
+                                                    use_saved=use_saved)
         self.o_positions = self.o_rotations.get_grid_as_array()
         self.t_grid = TranslationParser(t_grid_name)
         self.use_saved = use_saved

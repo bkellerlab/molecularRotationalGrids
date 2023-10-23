@@ -16,14 +16,14 @@ def test_grid_name_parser():
         GridNameParser(name2).get_standard_grid_name()
     name3 = "15_cube3D"
     assert GridNameParser(name3).get_standard_grid_name() == "cube3D_15"
-    name4 = "zero"
-    assert GridNameParser(name4).get_standard_grid_name() == "zero_1"
-    name5 = "None"
-    assert GridNameParser(name5).get_standard_grid_name() == "zero_1"
-    name6 = "zero_0"
-    assert GridNameParser(name6).get_standard_grid_name() == "zero_1"
+    name4 = "cube3D_1"
+    assert GridNameParser(name4).get_standard_grid_name() == "cube3D_1"
+    name5 = "None_1"
+    assert GridNameParser(name5).get_standard_grid_name() == "ico_1"
+    name6 = "1"
+    assert GridNameParser(name6).get_standard_grid_name() == "ico_1"
     name7 = "1_none"
-    assert GridNameParser(name7).get_standard_grid_name() == "zero_1"
+    assert GridNameParser(name7).get_standard_grid_name() == "ico_1"
     name8 = "cube3D_ico_77"
     with pytest.raises(ValueError):
         GridNameParser(name8).get_standard_grid_name()
@@ -98,45 +98,6 @@ def test_protein_gro_file():
         assert el in organic_elements, f"{el} not correctly identified as organic element"
 
 
-def test_full_grid_name_parser():
-    # example 1
-    name_o = "ico_2"
-    name_b = "zero"
-    name_t = "[1, 2, 3]"
-    trans_grid = TranslationParser(name_t).grid_hash
-    fgnp = FullGridNameParser(f"b_{name_b}_t_{trans_grid}_o_{name_o}")
-    assert fgnp.b_grid_name == "zero_1"
-    assert fgnp.o_grid_name == "ico_2"
-    assert fgnp.t_grid_name == str(trans_grid)
-    # compare to name of Full grid
-    fg = FullGrid(b_grid_name=name_b, o_grid_name=name_o, t_grid_name=name_t)
-    print(fg.get_name(), fgnp.get_standard_full_grid_name())
-    assert fg.get_name() == fgnp.get_standard_full_grid_name()
-    # example 2
-    name_o = "None"
-    name_b = "zero"
-    name_t = "[1, 2, 3]"
-    trans_grid = TranslationParser(name_t).grid_hash
-    fgnp = FullGridNameParser(f"b_{name_b}_t_{trans_grid}_o_{name_o}")
-    assert fgnp.b_grid_name == "zero_1"
-    assert fgnp.o_grid_name == "zero_1"
-    assert fgnp.t_grid_name == str(trans_grid)
-    # compare to name of Full grid
-    fg = FullGrid(b_grid_name=name_b, o_grid_name=name_o, t_grid_name=name_t)
-    assert fg.get_name() == fgnp.get_standard_full_grid_name()
-    # example 3
-    name_o = "randomE_77"
-    name_b = "8_cube4D"
-    name_t = "[1, 2, 3]"
-    trans_grid = TranslationParser(name_t).grid_hash
-    fgnp = FullGridNameParser(f"t_{trans_grid}_b_{name_b}_o_{name_o}")
-    assert fgnp.b_grid_name == "cube4D_8"
-    assert fgnp.o_grid_name == "randomE_77"
-    assert fgnp.t_grid_name == str(trans_grid)
-    # compare to name of Full grid
-    fg = FullGrid(b_grid_name=name_b, o_grid_name=name_o, t_grid_name=name_t)
-    assert fg.get_name() == fgnp.get_standard_full_grid_name()
-
 
 def test_parsing_xyz():
     file_name = "molgri/examples/glucose.xyz"
@@ -196,3 +157,12 @@ def test_trans_parser():
     assert tp3.grid_hash == 753285640
     tp4 = TranslationParser("linspace(2, 6, 3)")
     assert tp4.grid_hash == 753285640
+
+if __name__ == "__main__":
+    test_grid_name_parser()
+    test_atom_gro_file()
+    test_water_gro_file()
+    test_protein_gro_file()
+    test_parsing_xyz()
+    test_parsing_pdb()
+    test_trans_parser()

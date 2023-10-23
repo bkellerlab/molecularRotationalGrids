@@ -54,3 +54,9 @@ def test_quaternion_sets_equal():
     quat_set_3 = np.copy(quat_set_1)
     quat_set_3[8][0] = -quat_set_1[8][0]
     assert not two_sets_of_quaternions_equal(quat_set_1, quat_set_3)
+
+if __name__ == "__main__":
+    test_all_row_norms_similar()
+    test_is_array_with_d_dim_r_rows_c_columns()
+    test_quat_in_array()
+    test_quaternion_sets_equal()

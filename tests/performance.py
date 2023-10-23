@@ -74,7 +74,7 @@ def time_pt(m1: str, m2: str, b_name: str = "50", o_name: str = "50", t_name: st
     #PtLogger(path_logger).log_set_up()
 
 
-def test_funct(one_arg, second_arg):
+def my_funct(one_arg, second_arg):
     return one_arg**2 + np.sqrt(second_arg)
 
 

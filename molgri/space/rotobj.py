@@ -28,7 +28,7 @@ from scipy.spatial.transform import Rotation
 
 from molgri.assertions import which_row_is_k
 from molgri.space.analysis import prepare_statistics, write_statistics
-from molgri.space.utils import random_quaternions, random_sphere_points, standardise_quaternion_set, \
+from molgri.space.utils import random_quaternions, random_sphere_points, \
     unique_quaternion_set
 from molgri.constants import UNIQUE_TOL, EXTENSION_GRID_FILES, NAME2PRETTY_NAME, SMALL_NS
 from molgri.paths import PATH_OUTPUT_ROTGRIDS, PATH_OUTPUT_STAT
@@ -324,6 +324,8 @@ class SphereGrid4Dim(SphereGridNDim, ABC):
 
     def get_full_hypersphere_array(self) -> NDArray:
         return self.full_hypersphere_grid
+
+
 
 
 class RandomQRotations(SphereGrid4Dim):

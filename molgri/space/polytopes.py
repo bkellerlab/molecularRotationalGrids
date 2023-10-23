@@ -37,7 +37,6 @@ from scipy.spatial.distance import cdist
 from molgri.assertions import which_row_is_k
 from molgri.space.utils import distance_between_quaternions, normalise_vectors, dist_on_sphere, unique_quaternion_set
 
-
 class Polytope(ABC):
 
     """
