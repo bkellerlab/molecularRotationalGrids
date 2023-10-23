@@ -47,7 +47,7 @@ def test_pt_len():
     # origin rot grid = body rot grid
     num_rotations = 55
     m_path = f"H2O.gro"
-    manager = PtIOManager(m_path, m_path, f"ico_{num_rotations}", f"randomE_{num_rotations}", "linspace(1, 5, 10)")
+    manager = PtIOManager(m_path, m_path, f"{num_rotations}", f"{num_rotations}", "linspace(1, 5, 10)")
     manager.construct_pt()
     end_index = manager.pt.current_frame
     num_translations = manager.full_grid.t_grid.get_N_trans()
@@ -61,7 +61,7 @@ def test_pt_len():
     num_origin = 18
     m1_path = f"H2O.gro"
     m2_path = f"NH3.gro"
-    manager = PtIOManager(m1_path, m2_path, f"cube4D_{num_origin}", f"randomQ_{num_body}", "range(1, 5, 0.5)")
+    manager = PtIOManager(m1_path, m2_path, f"{num_origin}", f"{num_body}", "range(1, 5, 0.5)")
     manager.construct_pt()
     end_index = manager.pt.current_frame
     num_translations = manager.full_grid.t_grid.get_N_trans()
@@ -77,7 +77,7 @@ def test_pt_len():
     num_body = 1
     m1_path = f"H2O.gro"
     m2_path = f"NH3.gro"
-    manager = PtIOManager(m1_path, m2_path, f"cube4D_{num_origin}", f"zero", "range(1, 5, 0.5)")
+    manager = PtIOManager(m1_path, m2_path, f"{num_origin}", f"{num_body}", "range(1, 5, 0.5)")
     manager.construct_pt()
     end_index = manager.pt.current_frame
     num_translations = manager.full_grid.t_grid.get_N_trans()
@@ -97,7 +97,7 @@ def test_pt_translations():
     """
     # on a zero rotation grids
     m_path = f"H2O.gro"
-    manager = PtIOManager(m_path, m_path, "zero", "zero", "range(1, 5, 0.5)")
+    manager = PtIOManager(m_path, m_path, "1", "1", "range(1, 5, 0.5)")
     manager.construct_pt()
     distances = manager.full_grid.t_grid.get_trans_grid()
     file_name = manager.determine_pt_name()
@@ -126,7 +126,7 @@ def test_pt_rotations_origin():
     num_rot = 12
     num_trans = 2
     m_path = f"H2O.gro"
-    manager = PtIOManager(m_path, m_path, f"ico_{num_rot}", "zero", "[1, 2]")
+    manager = PtIOManager(m_path, m_path, f"{num_rot}", "1", "[1, 2]")
     distances = manager.full_grid.t_grid.get_trans_grid()
     manager.construct_pt()
     file_name = manager.determine_pt_name()
@@ -176,7 +176,7 @@ def test_pt_rotations_body():
     # assert every uneven structure has distance 1 and every even one distance 2
     m1_path = f"H2O.gro"
     m2_path = f"NH3.gro"
-    manager = PtIOManager(m1_path, m2_path, f"zero", f"cube4D_{num_rot}", "[1, 2, 3]")
+    manager = PtIOManager(m1_path, m2_path, f"1", f"{num_rot}", "[1, 2, 3]")
     distances = manager.full_grid.t_grid.get_trans_grid()
     manager.construct_pt_and_time()
     file_name = manager.determine_pt_name()
@@ -215,7 +215,7 @@ def test_order_of_operations():
     m1_path = f"H2O.gro"
     m2_path = f"NH3.gro"
 
-    manager = PtIOManager(m1_path, m2_path, f"ico_{n_o}", f"randomQ_{n_b}", "[1, 2, 3]")
+    manager = PtIOManager(m1_path, m2_path, f"{n_o}", f"{n_b}", "[1, 2, 3]")
     manager.construct_pt()
     file_name = manager.determine_pt_name()
     len_traj = manager.pt.current_frame

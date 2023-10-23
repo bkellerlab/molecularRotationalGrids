@@ -1,9 +1,9 @@
 """
 Naming conventions are defined here.
 """
-
+import numpy as np
 from molgri.constants import (ALL_GRID_ALGORITHMS, DEFAULT_ALGORITHM_O, DEFAULT_ALGORITHM_B, ZERO_ALGORITHM_3D,
-                              ZERO_ALGORITHM_4D)
+                              ZERO_ALGORITHM_4D, GRID_ALGORITHMS_3D, GRID_ALGORITHMS_4D)
 
 
 class NameParser:
@@ -46,8 +46,6 @@ class NameParser:
         for fragment in split_string:
             if fragment in ALL_GRID_ALGORITHMS:
                 candidates.append(fragment)
-            elif fragment.lower() == "none":
-                candidates.append(DEFAULT_ALGORITHM_O)
         # >= 2 algorithms found in the string
         if len(candidates) > 1:
             raise ValueError(f"Found two or more algorithm names in grid name {self.name_string}, can't decide.")
@@ -117,21 +115,50 @@ class GridNameParser(NameParser):
         super().__init__(name_string)
         # num of points 0 or 1 -> always zero algorithm; selected zero algorithm -> always num of points is 1
         # ERROR - absolutely nothing provided
-        if self.N is None and "zero" not in self.algo:
-            raise ValueError(f"The number of grid points not recognised in name {self.name_string}.")
-        elif (self.N is None and "zero" in self.algo) or self.N == 1:
-            self.N = 1
-            if o_or_b == "o":
+        if o_or_b == "o":
+            if "zero" in name_string:
+                if self.N is None or self.N == 1:
+                    self.algo = ZERO_ALGORITHM_3D
+                    self.N = 1
+                else:
+                    raise ValueError("Zero in name but provided a number different from 1 for origin rotations")
+            elif self.algo in GRID_ALGORITHMS_3D:
+                if self.N is None:
+                    raise ValueError(f"The number of grid points not recognised in name {self.name_string}.")
+                elif self.N == 1:
+                    self.algo = ZERO_ALGORITHM_3D
+                elif self.N <= 0:
+                    raise ValueError("Cannot have 0 or negative number of points")
+                else:
+                    self.algo = self.algo
+            elif self.algo is None and self.N == 1:
                 self.algo = ZERO_ALGORITHM_3D
+            elif self.algo is None and self.N > 1:
+                self.algo = DEFAULT_ALGORITHM_O
             else:
+                raise ValueError(f"Either no number of points provided or this algorithm not available for origin rotations.")
+        else:
+            if "zero" in name_string:
+                if self.N is None or self.N == 1:
+                    self.algo = ZERO_ALGORITHM_4D
+                    self.N = 1
+                else:
+                    raise ValueError("Zero in name but provided a number different from 1 for body rotations")
+            elif self.algo in GRID_ALGORITHMS_4D:
+                if self.N is None:
+                    raise ValueError(f"The number of grid points not recognised in name {self.name_string}.")
+                elif self.N == 1:
+                    self.algo = ZERO_ALGORITHM_4D
+                elif self.N <= 0:
+                    raise ValueError("Cannot have 0 or negative number of points")
+                else:
+                    self.algo = self.algo
+            elif self.algo is None and self.N == 1:
                 self.algo = ZERO_ALGORITHM_4D
-        elif self.N <= 0:
-            raise ValueError("Cannot have 0 or negative number of points")
-        # algorithm not provided but > 1 points -> default algorithm
-        elif self.algo is None and self.N >= 1 and o_or_b == "o":
-            self.algo = DEFAULT_ALGORITHM_O
-        elif self.algo is None and self.N >= 1 and o_or_b == "b":
-            self.algo = DEFAULT_ALGORITHM_B
+            elif self.algo is None and self.N > 1:
+                self.algo = DEFAULT_ALGORITHM_B
+            else:
+                raise ValueError(f"Either no number of points provided or this algorithm not available for body rotations.")
 
 
     def get_standard_grid_name(self) -> str:

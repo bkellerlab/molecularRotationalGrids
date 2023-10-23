@@ -22,7 +22,7 @@ d = "data"
 IO_FOLDER_PURPUSES = ["rotational grids", "pseudotrajectory files", "base gro files", "plots", "animations",
                       "grid statistics", "translational grids", "full grids", "cells", "timing",
                       "logging", "plotting data", "energies"]
-IO_FOLDER_DEFAULTS = [f'{o}/{d}/rot_grids/', f"{o}/{d}/pt_files", "input/", f"{o}/figures/", f"{o}/animations/",
+IO_FOLDER_DEFAULTS = [f'{o}/{d}/rot_grids/', f"{o}/{d}/pt_files/", "input/", f"{o}/figures/", f"{o}/animations/",
                       f'{o}/{d}/statistics_files/', f'{o}/{d}/trans_grids/', f'{o}/{d}/full_grids/', f'{o}/{d}/cells/',
                       f'{o}/{d}/timing/', f'{o}/{d}/logging/', f'{o}/{d}/plotting/', "input/"]
 IO_VARIABLE_NAMES = ["PATH_OUTPUT_ROTGRIDS", "PATH_OUTPUT_PT", "PATH_INPUT_BASEGRO", "PATH_OUTPUT_PLOTS",

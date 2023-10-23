@@ -9,13 +9,12 @@ import matplotlib.pyplot as plt
 import numpy as np
 import seaborn as sns
 from matplotlib.pyplot import Figure, Axes
-from numpy._typing import ArrayLike
 
 from molgri.assertions import which_row_is_k
 from molgri.paths import PATH_OUTPUT_PLOTS
 from mpl_toolkits.mplot3d.axes3d import Axes3D
 from matplotlib.animation import FuncAnimation
-from numpy.typing import NDArray
+from numpy.typing import NDArray, ArrayLike
 from seaborn import color_palette
 import networkx as nx
 import matplotlib as mpl

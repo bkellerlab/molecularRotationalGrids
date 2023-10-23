@@ -20,7 +20,6 @@ import numpy as np
 import pandas as pd
 from numpy.typing import NDArray
 from scipy.constants import pi
-from scipy.sparse import coo_array
 from scipy.spatial import SphericalVoronoi
 from scipy.spatial import ConvexHull
 from scipy.spatial.distance import cdist

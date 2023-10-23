@@ -25,7 +25,7 @@ Objects:
 
 from abc import ABC, abstractmethod
 from itertools import product, combinations
-from typing import Hashable, Iterable, Type
+from typing import Hashable, Iterable, Type, List
 
 import networkx as nx
 import numpy as np
@@ -307,7 +307,7 @@ class Polytope(ABC):
         self.G.add_node(tuple(polytope_point), level=self.current_level,
                         face=face, projection=normalise_vectors(polytope_point))
 
-    def _add_edges_of_len(self, edge_len: float, wished_levels: list[int] = None, only_seconds: bool = True,
+    def _add_edges_of_len(self, edge_len: float, wished_levels: List[int] = None, only_seconds: bool = True,
                           only_face: bool = True):
         """
         Finds and adds all possible edges of specifies length between existing nodes (optionally only between nodes
@@ -598,7 +598,7 @@ class Cube4DPolytope(Polytope):
         # DO NOT use N as an argument, as you first need to select half-hypercube
         return self.get_nodes(projection=projection)[all_ci][:N]
 
-    def get_all_cells(self, include_only: ArrayLike = None) -> list[PolyhedronFromG]:
+    def get_all_cells(self, include_only: ArrayLike = None) -> List[PolyhedronFromG]:
         """
         Returns 8 sub-graphs belonging to individual cells of hyper-cube. These polytopes are re-labeled with 3D
         coordinates so that they can be plotted

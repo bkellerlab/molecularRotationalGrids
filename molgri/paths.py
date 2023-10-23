@@ -1,5 +1,5 @@
 PATH_OUTPUT_ROTGRIDS = 'output/data/rot_grids/'
-PATH_OUTPUT_PT = 'output/data/pt_files'
+PATH_OUTPUT_PT = 'output/data/pt_files/'
 PATH_INPUT_BASEGRO = 'input/'
 PATH_OUTPUT_PLOTS = 'output/figures/'
 PATH_OUTPUT_ANIS = 'output/animations/'

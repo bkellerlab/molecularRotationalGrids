@@ -35,16 +35,43 @@ def test_generate_grid():
         with pytest.raises(Exception):
             subprocess.run(err_command, shell=True, check=True)
 
+def test_generate_pt():
+    # all these commands should pass with no error
+    commands = [
+        'python -m molgri.scripts.generate_pt -m1 NH3 -m2 CL -o ico_15 -b 10 -t "range(1, 5, 2)" --as_dir',
+        'python -m molgri.scripts.generate_pt -m1 NA -m2 NH3 -o 15 -b randomQ_10 -t "range(1, 5, 2)"',
+        'python -m molgri.scripts.generate_pt -m1 H2O -m2 NH3 -o 5 -b zero -t "[1, 5, 10]" --recalculate',
+        'python -m molgri.scripts.generate_pt -m1 H2O -m2 H2O -o 1 -b 1 -t "linspace(0.1, 2, 5)" --extension_trajectory xyz --extension_structure xyz'
+    ]
 
+    expected_error_commands = [
+        'python -m molgri.scripts.generate_pt -m2 NH3 -o ico_15 -b 10 -t "range(1, 5, 2)"',
+        'python -m molgri.scripts.generate_pt -m1 H2O -m2 NH3 -o 15 -b zero_10 -t "range(1, 5, 2)"',
+        'python -m molgri.scripts.generate_pt -m1 H2O -m2 NH3 -o 5 -b randomS_1 -t "[1, 5, 10]"',
+        'python -m molgri.scripts.generate_pt -m1 H2O -m2 H2O -o 1 -b 1 -t "[-7]"'
+    ]
 
-def scripts_run():
-    os.system("python -m molgri.scripts.generate_pt -m1 H2O -m2 NH3 -origingrid 15 -bodygrid ico_10 -transgrid 'range(1, 5, 2)' --as_dir")
-    os.system("python -m molgri.scripts.generate_pt -m1 NH3 -m2 NH3 -origingrid cube3D_9 -bodygrid zero -transgrid 'range(1, 5, 2)' --extension_trajectory 'xyz' --extension_structure 'gro'")
-    os.system("python -m molgri.scripts.generate_energy -xvg H2O_H2O_o_ico_500_b_ico_5_t_3830884671 --p1d --p2d --p3d --animate")
-    os.system('python -m molgri.scripts.generate_energy -xvg H2O_H2O_o_ico_500_b_ico_5_t_3830884671 --p1d --p2d --p3d --convergence' )
-    os.system(
-        'python -m molgri.scripts.generate_energy -xvg H2O_H2O_o_ico_500_b_ico_5_t_3830884671.xvg --p1d --p2d --p3d --convergence')
-    os.system(
-        'python -m molgri.scripts.generate_energy -xvg H2O_H2O_o_ico_500_b_ico_5_t_3830884671.xvg --p1d --p2d --p3d')
-    os.system(
-        'python -m molgri.scripts.generate_energy -xvg H2O_H2O_o_ico_500_b_ico_5_t_3830884671 --p1d --p2d --p3d --animate --Ns_o "(50, 100, 500)"')
+    for command in commands:
+        subprocess.run(command, shell=True, check=True)
+
+    for err_command in expected_error_commands:
+        with pytest.raises(Exception):
+            print(err_command)
+            subprocess.run(err_command, shell=True, check=True)
+
+def test_generate_energy():
+
+    commands = [
+        'python -m molgri.scripts.generate_energy -xvg H2O_H2O_o_ico_500_b_ico_5_t_3830884671 --p1d --p2d --p3d --animate',
+        'python -m molgri.scripts.generate_energy -xvg H2O_H2O_o_ico_500_b_ico_5_t_3830884671 --p1d --p2d --p3d --convergence',
+        'python -m molgri.scripts.generate_energy -xvg H2O_H2O_o_ico_500_b_ico_5_t_3830884671 --p1d --p2d --p3d --Ns_o "(50, 100, 500)" --convergence'
+    ]
+
+    for command in commands:
+        subprocess.run(command, shell=True, check=True)
+
+if __name__ == "__main__":
+    test_set_up_io()
+    test_generate_grid()
+    test_generate_pt()
+    test_generate_energy()
