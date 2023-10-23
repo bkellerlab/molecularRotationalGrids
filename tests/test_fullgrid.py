@@ -333,20 +333,19 @@ def test_volumes():
 
 
 def test_default_full_grids():
-    full_grid = FullGrid(t_grid_name="[1]", o_grid_name="1", b_grid_name="1")
+    full_grid = FullGrid(t_grid_name="[1]", o_grid_name="1", b_grid_name="1", use_saved=False)
     assert np.all(full_grid.t_grid.get_trans_grid() == np.array([10]))
     assert full_grid.get_position_grid().shape == (1, 1, 3)
-    print(full_grid.get_position_grid())
     assert np.allclose(full_grid.get_position_grid(), np.array([[[0, 0, 10]]]))
     assert np.allclose(full_grid.b_rotations.rotations.as_matrix(), np.eye(3))
 
-    full_grid = FullGrid(t_grid_name="[0]", o_grid_name="None_1", b_grid_name="None_1")
+    full_grid = FullGrid(t_grid_name="[0]", o_grid_name="None_1", b_grid_name="None_1", use_saved=False)
     assert np.all(full_grid.t_grid.get_trans_grid() == np.array([0]))
     assert full_grid.get_position_grid().shape == (1, 1, 3)
     assert np.allclose(full_grid.get_position_grid(), np.array([[[0, 0, 0]]]))
     assert np.allclose(full_grid.b_rotations.rotations.as_matrix(), np.eye(3))
 
-    full_grid = FullGrid(t_grid_name="[1, 2, 3]", o_grid_name="ico_1", b_grid_name="cube4D_1")
+    full_grid = FullGrid(t_grid_name="[1, 2, 3]", o_grid_name="ico_1", b_grid_name="cube4D_1", use_saved=False)
     assert np.all(full_grid.t_grid.get_trans_grid() == np.array([10, 20, 30]))
     assert full_grid.get_position_grid().shape == (1, 3, 3)
     assert np.allclose(full_grid.get_position_grid(), np.array([[[0, 0, 10],
@@ -354,7 +353,7 @@ def test_default_full_grids():
                                                                  [0, 0, 30]]]))
     assert np.allclose(full_grid.b_rotations.rotations.as_matrix(), np.eye(3))
 
-    full_grid = FullGrid(t_grid_name="[1, 2, 3]", o_grid_name="1", b_grid_name="1")
+    full_grid = FullGrid(t_grid_name="[1, 2, 3]", o_grid_name="1", b_grid_name="1", use_saved=False)
     assert np.all(full_grid.t_grid.get_trans_grid() == np.array([10, 20, 30]))
     assert full_grid.get_position_grid().shape == (1, 3, 3)
     assert np.allclose(full_grid.get_position_grid(), np.array([[[0, 0, 10],
@@ -362,7 +361,7 @@ def test_default_full_grids():
                                                                  [0, 0, 30]]]))
     assert np.allclose(full_grid.get_body_rotations().as_matrix(), np.eye(3))
 
-    full_grid = FullGrid(t_grid_name="[1, 2, 3]", o_grid_name="3", b_grid_name="4")
+    full_grid = FullGrid(t_grid_name="[1, 2, 3]", o_grid_name="3", b_grid_name="4", use_saved=False)
     assert full_grid.get_position_grid().shape == (3, 3, 3)
     assert full_grid.b_rotations.get_grid_as_array().shape == (4, 4)
 
@@ -464,7 +463,7 @@ def test_position_adjacency():
     # three radii
     fg = FullGrid("cube4D_8", "ico_7", "linspace(1, 5, 3)", use_saved=USE_SAVED)
     my_array = fg.get_adjacency_of_position_grid().toarray()
-    _visualise_fg(fg)
+    #_visualise_fg(fg)
 
 
     # bottom-layer

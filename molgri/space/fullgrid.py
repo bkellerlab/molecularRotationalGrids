@@ -52,8 +52,7 @@ class FullGrid:
         t_grid_name: translation grid (a linear grid used to determine distances to origin)
     """
 
-    def __init__(self, b_grid_name: str, o_grid_name: str, t_grid_name: str, use_saved: bool = True,
-                 filter_non_unique: bool = False):
+    def __init__(self, b_grid_name: str, o_grid_name: str, t_grid_name: str, use_saved: bool = True):
 
         """
         Args:
@@ -61,7 +60,6 @@ class FullGrid:
             o_grid_name: of the form 'cube4D_12'
             t_grid_name: of the form '[1, 3, 4.5]'
             use_saved: try to obtain saved data if possible
-            filter_non_unique: remove repeating points from spherical grids so that Voronoi cells can be built
         """
         b_grid_name = GridNameParser(b_grid_name, "b")
         self.b_rotations = SphereGrid4DFactory.create(alg_name=b_grid_name.get_alg(), N=b_grid_name.get_N(),

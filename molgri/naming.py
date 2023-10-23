@@ -2,7 +2,8 @@
 Naming conventions are defined here.
 """
 
-from molgri.constants import ALL_GRID_ALGORITHMS, DEFAULT_ALGORITHM_O, DEFAULT_ALGORITHM_B
+from molgri.constants import (ALL_GRID_ALGORITHMS, DEFAULT_ALGORITHM_O, DEFAULT_ALGORITHM_B, ZERO_ALGORITHM_3D,
+                              ZERO_ALGORITHM_4D)
 
 
 class NameParser:
@@ -116,8 +117,14 @@ class GridNameParser(NameParser):
         super().__init__(name_string)
         # num of points 0 or 1 -> always zero algorithm; selected zero algorithm -> always num of points is 1
         # ERROR - absolutely nothing provided
-        if self.N is None:
+        if self.N is None and "zero" not in self.algo:
             raise ValueError(f"The number of grid points not recognised in name {self.name_string}.")
+        elif (self.N is None and "zero" in self.algo) or self.N == 1:
+            self.N = 1
+            if o_or_b == "o":
+                self.algo = ZERO_ALGORITHM_3D
+            else:
+                self.algo = ZERO_ALGORITHM_4D
         elif self.N <= 0:
             raise ValueError("Cannot have 0 or negative number of points")
         # algorithm not provided but > 1 points -> default algorithm

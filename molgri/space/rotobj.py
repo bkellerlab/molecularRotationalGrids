@@ -326,7 +326,21 @@ class SphereGrid4Dim(SphereGridNDim, ABC):
         return self.full_hypersphere_grid
 
 
+class ZeroRotations3D(SphereGrid3Dim):
+    algorithm_name = "zero3D"
+    def _gen_grid(self) -> NDArray:
+        self.N = 1
+        z_vec = np.array([[0, 0, 1]])
+        return z_vec
 
+class ZeroRotations4D(SphereGrid4Dim):
+    algorithm_name = "zero4D"
+    def _gen_grid(self):
+        self.N = 1
+        rot_matrix = np.eye(3)
+        rot_matrix = rot_matrix[np.newaxis, :]
+        self.rotations = Rotation.from_matrix(rot_matrix)
+        return self.rotations.as_quat()
 
 class RandomQRotations(SphereGrid4Dim):
 
@@ -463,6 +477,8 @@ class SphereGrid3DFactory:
             selected_sub_obj = IcoRotations(N=N, **kwargs)
         elif alg_name == "cube3D":
             selected_sub_obj = Cube3DRotations(N=N, **kwargs)
+        elif alg_name == "zero3D":
+            selected_sub_obj = ZeroRotations3D(N=N, **kwargs)
         else:
             raise ValueError(f"The algorithm {alg_name} not familiar to QuaternionGridFactory.")
         selected_sub_obj.gen_grid()
@@ -483,6 +499,8 @@ class SphereGrid4DFactory:
             selected_sub_obj = Cube4DRotations(N=N, **kwargs)
         elif alg_name == "fulldiv":
             selected_sub_obj = FullDivCube4DRotations(N=N, **kwargs)
+        elif alg_name == "zero4D":
+            selected_sub_obj = ZeroRotations4D(N=N, **kwargs)
         else:
             raise ValueError(f"The algorithm {alg_name} not familiar to SphereGrid4DFactory.")
         selected_sub_obj.gen_grid()

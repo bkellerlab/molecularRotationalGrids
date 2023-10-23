@@ -36,13 +36,14 @@ DEFAULT_ALGORITHM_O = "ico"
 DEFAULT_ALGORITHM_B = "cube4D"
 GRID_ALGORITHMS_3D = ("randomS", "cube3D", "ico")
 GRID_ALGORITHMS_4D = ("randomQ", "cube4D", "fulldiv")
-ZERO_ALGORITHM = "zero"
-ALL_GRID_ALGORITHMS = GRID_ALGORITHMS_3D + GRID_ALGORITHMS_4D
+ZERO_ALGORITHM_3D = "zero3D"
+ZERO_ALGORITHM_4D = "zero4D"
+ALL_GRID_ALGORITHMS = GRID_ALGORITHMS_3D + GRID_ALGORITHMS_4D + (ZERO_ALGORITHM_3D, ZERO_ALGORITHM_4D)
 assert DEFAULT_ALGORITHM_O in GRID_ALGORITHMS_3D
 assert DEFAULT_ALGORITHM_B in GRID_ALGORITHMS_4D
 FULL_GRID_ALG_NAMES = ("random points on a sphere", "3D cube grid", "icosahedron grid", "random quaternions",
-                          "4D cube grid", "full division of Cube4D")
-SHORT_GRID_ALG_NAMES = ("random S.", "cube 3D", "icosahedron", "random q.", "cube 4D", "full div.")
+                          "4D cube grid", "full division of Cube4D", "no origin rotations", "no body rotations")
+SHORT_GRID_ALG_NAMES = ("random S.", "cube 3D", "icosahedron", "random q.", "cube 4D", "full div.", "ro rot.", "no rot.")
 assert len(ALL_GRID_ALGORITHMS) == len(FULL_GRID_ALG_NAMES) == len(SHORT_GRID_ALG_NAMES)
 NAME2PRETTY_NAME = {n: pn for n, pn in zip(ALL_GRID_ALGORITHMS, FULL_GRID_ALG_NAMES)}
 NAME2SHORT_NAME = {n: pn for n, pn in zip(ALL_GRID_ALGORITHMS, SHORT_GRID_ALG_NAMES)}
