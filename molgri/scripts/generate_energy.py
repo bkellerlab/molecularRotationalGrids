@@ -87,11 +87,11 @@ def run_generate_energy():
     else:
         plotting_obj = TrajectoryPlot(traj)
         if my_args.p1d:
-            plotting_obj.make_energy_violin_plot(energy_type=my_args.label)
+            plotting_obj.plot_energy_violin(energy_type=my_args.label)
         if my_args.p2d:
-            plotting_obj.make_energy_COM_plot(energy_type=my_args.label, projection="hammer")
+            plotting_obj.plot_energy_COM(energy_type=my_args.label, projection="hammer")
         if my_args.p3d:
-            plotting_obj.make_energy_COM_plot(energy_type=my_args.label, projection="3d", animate_rot=my_args.animate)
+            plotting_obj.plot_energy_COM(energy_type=my_args.label, projection="3d", animate_rot=my_args.animate)
 
     if my_args.animate and not my_args.p3d:
         print("Warning! No animation possible since no 3D plot is constructed. Use --p3d --animate if you "

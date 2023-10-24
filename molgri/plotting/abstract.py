@@ -21,6 +21,7 @@ from matplotlib.pyplot import Figure
 from matplotlib.axes import Axes
 from mpl_toolkits.mplot3d.axes3d import Axes3D
 from mpl_toolkits.mplot3d.art3d import Poly3DCollection
+from numpy._typing import NDArray
 from numpy.typing import NDArray
 from IPython import display
 from scipy.spatial import geometric_slerp
@@ -29,6 +30,7 @@ from molgri.constants import DIM_SQUARE, DEFAULT_DPI, EXTENSION_FIGURES, DEFAULT
 from molgri.logfiles import paths_free_4_all
 from molgri.paths import PATH_OUTPUT_PLOTS, PATH_OUTPUT_ANIS
 from molgri.space.utils import normalise_vectors
+from molgri.wrappers import plot3D_method
 
 
 def _set_style_and_context(context: str = None, color_style: str = None):
@@ -118,7 +120,7 @@ class RepresentationCollection(ABC):
         self.__set_complexity_level(complexity)
         self.__set_style_part_2(color_style=color_style)
 
-    def create_all_plots(self, **kwargs):
+    def create_all_plots(self, and_animations=False, **kwargs):
         """
         E.g. for testing purposes might be useful to run all methods that a specific class offers and make sure that
         they create a result.
@@ -126,7 +128,14 @@ class RepresentationCollection(ABC):
         This method assumes that every method beginning with make_ is a plotting function.
         """
         object_methods = [method_name for method_name in dir(self)
-                          if callable(getattr(self, method_name)) and method_name.startswith("make_")]
+                          if callable(getattr(self, method_name)) and method_name.startswith("plot_")]
+        ani_methods = [method_name for method_name in dir(self)
+                          if callable(getattr(self, method_name)) and method_name.startswith("animate_")]
+        if and_animations:
+            for ani_method in ani_methods:
+                plot_func = getattr(self, ani_method)
+                plot_func(**kwargs)
+            kwargs["animate_rot"] = True
         for method in object_methods:
             plot_func = getattr(self, method)
             plot_func(**kwargs)
@@ -445,3 +454,104 @@ def plot_voronoi_cells(sv, ax, plot_vertex_points=True, colors=None):
             polygon = Poly3DCollection([sv.vertices[region]], alpha=0.5)
             polygon.set_color(colors[i])
             ax.add_collection3d(polygon)
+
+
+class ArrayPlot(RepresentationCollection):
+    """
+    This subclass has an array of 2-, 3- or 4D points as the basis and implements methods to scatter, display and
+    animate those points.
+    """
+
+    def __init__(self, data_name: str, my_array: NDArray, **kwargs):
+        super().__init__(data_name, **kwargs)
+        self.my_array = my_array
+
+    @plot3D_method
+    def plot_grid(self, c=None):
+        """Plot the 3D grid plot, for 4D the 4th dimension plotted as color. It always has limits (-1, 1) and equalized
+        figure size"""
+
+        # use color for 4th dimension only if there are 4 dimensions (and nothing else specified)
+        if c is None:
+            if self.my_array.shape[1] <= 3:
+                c = "black"
+            else:
+                c = self.my_array[:, 3].T
+        self.ax.scatter(*self.my_array[:, :3].T, c=c, s=30)
+
+        if self.my_array.shape[1] > 2:
+            self.ax.view_init(elev=10, azim=30)
+        self._set_axis_limits()
+        self._equalize_axes()
+
+    def animate_ordering(self):
+        """
+        Animate how the points are ordered in the array.
+        """
+        self.plot_grid(save=True)
+        sc = self.ax.collections[0]
+
+        def update(i):
+            current_colors = np.concatenate([facecolors_before[:i], all_white[i:]])
+            sc.set_facecolors(current_colors)
+            sc.set_edgecolors(current_colors)
+            return sc,
+
+        facecolors_before = sc.get_facecolors()
+        shape_colors = facecolors_before.shape
+        all_white = np.zeros(shape_colors)
+
+        self.ax.view_init(elev=10, azim=30)
+        ani = FuncAnimation(self.fig, func=update, frames=len(facecolors_before), interval=100, repeat=False)
+        fps_factor = np.min([len(facecolors_before), 20])
+        self._save_animation_type(ani, "order", fps=len(facecolors_before) // fps_factor)
+        return ani
+
+    def animate_translation(self, fig: plt.Figure = None, ax=None, save=True, **kwargs):
+        """
+        Animate how a N-dim object looks like by scattering N-1 dimensions and representing the Nth dimension as time.
+        """
+
+        dimension = self.my_array.shape[1] - 1
+
+        if dimension == 3:
+            projection = "3d"
+        else:
+            projection = None
+
+        self._create_fig_ax(fig=fig, ax=ax, projection=projection)
+        # sort by the value of the specific dimension you are looking at
+        ind = np.argsort(self.my_array[:, -1])
+        points_3D = self.my_array[ind]
+        # map the 4th dimension into values 0-1
+        alphas = points_3D[:, -1].T
+        alphas = (alphas - np.min(alphas)) / np.ptp(alphas)
+
+        # plot the lower-dimensional scatterplot
+        all_points = []
+        for i, line in enumerate(points_3D):
+            all_points.append(self.ax.scatter(*line[:-1], color="black", alpha=1))
+
+        self._set_axis_limits((-1, 1) * dimension)
+        self._equalize_axes()
+
+        if len(self.my_array) < 20:
+            step = 1
+        elif len(self.my_array) < 100:
+            step = 5
+        else:
+            step = 20
+
+        def animate(frame):
+            # plot current point
+            current_time = alphas[frame * step]
+            for i, p in enumerate(all_points):
+                new_alpha = np.max([0, 1 - np.abs(alphas[i] - current_time) * 20])
+                p.set_alpha(new_alpha)
+            return self.ax,
+
+        anim = FuncAnimation(self.fig, animate, frames=len(self.my_array) // step,
+                             interval=100)  # , frames=180, interval=50
+        if save:
+            self._save_animation_type(anim, "trans", fps=len(self.my_array) // step // 2, **kwargs)
+        return anim

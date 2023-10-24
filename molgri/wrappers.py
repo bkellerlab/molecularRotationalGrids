@@ -118,7 +118,7 @@ def plot_method(my_method):
     @wraps(my_method)
     def decorated(*args, **kwargs) -> None:
         split_name = my_method.__name__.split("_")
-        assert split_name[0] == "make", "Name of the method not starting with make_, maybe not a plotting method?"
+        assert split_name[0] == "plot", "Name of the method not starting with make_, maybe not a plotting method?"
         self = args[0]
         fig: Figure = kwargs.pop("fig", None)
         ax: Axes = kwargs.pop("ax", None)
@@ -144,7 +144,7 @@ def plot3D_method(my_method):
     @wraps(my_method)
     def decorated(*args, **kwargs) -> Optional[FuncAnimation]:
         split_name = my_method.__name__.split("_")
-        assert split_name[0] == "make", "Name of the method not starting with make_, maybe not a plotting method?"
+        assert split_name[0] == "plot", "Name of the method not starting with make_, maybe not a plotting method?"
         self = args[0]
         fig: Figure = kwargs.pop("fig", None)
         ax: Axes3D = kwargs.pop("ax", None)

@@ -14,6 +14,7 @@ from molgri.constants import ENERGY2SHORT
 from molgri.molecules.parsers import ParsedTrajectory
 from molgri.plotting.abstract import RepresentationCollection, MultiRepresentationCollection
 from molgri.plotting.fullgrid_plots import FullGridPlot
+from molgri.wrappers import plot_method, plot3D_method
 
 
 class TrajectoryPlot(RepresentationCollection):
@@ -42,19 +43,17 @@ class TrajectoryPlot(RepresentationCollection):
     def get_possible_title(self):
         return f"N={self.N_used}"
 
-    def make_COM_plot(self, ax=None, fig=None, save=True, atom_selection=None, projection="3d", animate_rot=False,
-                      fg = None):
-        self._create_fig_ax(ax=ax, fig=fig, projection=projection)
+    @plot3D_method
+    def plot_COM(self, atom_selection=None, fg = None, projection="3d"):
         # if a pseudotrajectory, default setting is to plot COM or r_molecule
         atom_selection = self._default_atom_selection(atom_selection)
 
         # filter out unique COMs
-        coms, _ = self.parsed_trajectory.get_unique_com_till_N(N=self.N_used, atom_selection=atom_selection,
-                                                               energy_type=None)
+        coms, _ = self.parsed_trajectory.get_unique_com_till_N(N=self.N_used, atom_selection=atom_selection)
         if fg and projection == "3d":
             fgp = FullGridPlot(fg)
-            fgp.make_full_voronoi_plot(ax=self.ax, fig=self.fig, animate_rot=False, plot_vertex_points=False,
-                                       save=False, numbered=False)
+            fgp.plot_position_voronoi(ax=self.ax, fig=self.fig, animate_rot=False, plot_vertex_points=False,
+                                      save=False, numbered=False)
             _, c = self.parsed_trajectory.assign_coms_2_grid_points(full_grid=fg, atom_selection=atom_selection,
                                                                  coms=coms)
             cmap="Spectral"
@@ -64,16 +63,9 @@ class TrajectoryPlot(RepresentationCollection):
         # plot data
         self._make_scatter_plot(projection, coms.T, c=c, cmap=cmap)
 
-        if save:
-            self._save_plot_type(f"com_{projection}")
-
-        if animate_rot and projection == "3d":
-            return self._animate_figure_view(self.fig, self.ax, f"com_rotated")
-
-    def make_energy_COM_plot(self, ax=None, fig=None, save=True, atom_selection=None, projection="3d",
-                             animate_rot=False, energy_type="Potential", vmin=None, vmax=None,
-                             lowest_k = None, highest_j = None):
-        self._create_fig_ax(ax=ax, fig=fig, projection=projection)
+    @plot3D_method
+    def plot_energy_COM(self, atom_selection=None, projection="3d", energy_type="Potential", vmin=None, vmax=None,
+                        lowest_k = None, highest_j = None):
         atom_selection = self._default_atom_selection(atom_selection)
 
         coms, energies = self.parsed_trajectory.get_unique_com_till_N(N=self.N_used, energy_type=energy_type,
@@ -95,36 +87,14 @@ class TrajectoryPlot(RepresentationCollection):
             save_name = f"energies_{ENERGY2SHORT[energy_type]}"
         except KeyError:
             save_name = "energies"
-        if save:
-            self.fig.colorbar(sc, ax=self.ax)
-            self._save_plot_type(f"{save_name}_{projection}")
+        self.fig.colorbar(sc, ax=self.ax)
 
-        if animate_rot and projection == "3d":
-            self._animate_figure_view(self.fig, self.ax, f"{save_name}_rotated")
-
-    def make_molecule_plot(self):
-        pass
-
-    # kwargs are strictly necessary!
-    def make_energy_violin_plot(self, ax=None, fig=None, save=True, energy_type: str = "Potential", **kwargs):
-        self._create_fig_ax(ax=ax, fig=fig)
+    @plot_method
+    def plot_energy_violin(self, energy_type: str = "Potential"):
         coms, energies = self.parsed_trajectory.get_unique_com_till_N(N=self.N_used, energy_type=energy_type)
         sns.violinplot(energies, ax=self.ax, scale="count", inner="stick", cut=0)
         self.ax.set_xticklabels([])
-        #self.ax.set_xlabel("N")
         self.ax.set_ylabel(f"{energy_type} [kJ/mol]")
-
-        save_name = f"violin_energies_{ENERGY2SHORT[energy_type]}"
-        if save:
-            self._save_plot_type(save_name)
-
-    def create_all_plots(self, and_animations=False):
-        self.make_COM_plot(projection="3d", animate_rot=and_animations)
-        self.make_COM_plot(projection="hammer")
-        for energy_type in self.parsed_trajectory.energies.labels:
-            self.make_energy_COM_plot(projection="3d", animate_rot=and_animations, energy_type=energy_type)
-            self.make_energy_COM_plot(projection="hammer", energy_type=energy_type)
-            self.make_energy_violin_plot(energy_type=energy_type)
 
 
 class ConvergenceMultiCollection(MultiRepresentationCollection):
@@ -218,3 +188,8 @@ class ConvergenceMultiCollection(MultiRepresentationCollection):
         for energy_type in energy_types:
             for dim in (1, 2, 3):
                 self.make_all_energy_plots(dim, energy_type=energy_type)
+
+if __name__ == "__main__":
+    from molgri.molecules._load_examples import load_example_pt
+    pt = load_example_pt()
+    TrajectoryPlot(pt).create_all_plots(and_animations=True)

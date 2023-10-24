@@ -67,23 +67,22 @@ def run_generate_grid():
     if my_args.animate or my_args.animate_ordering:
         my_args.draw = True
     if my_args.draw:
-        sgp.make_grid_plot()
+        sgp.plot_grid(animate_rot=my_args.animate)
         print(f"Grid drawn and figure saved to {sgp.fig_path}.")
         if my_args.animate:
-            sgp.make_rot_animation()
             print(f"Animation of the grid saved to {sgp.ani_path}")
         if my_args.animate_ordering:
-            sgp.make_ordering_animation()
+            sgp.animate_ordering()
             print(f"Animation of the grid ordering saved to {sgp.ani_path}")
         if my_args.animate_translation:
-            sgp.make_trans_animation()
+            sgp.animate_translation()
             print(f"Animation of the grid sliding through the last dimension saved to {sgp.ani_path}")
     if my_args.statistics:
         my_rotations.save_uniformity_statistics()
         print(f"A statistics file describing the grid {grid_name} was saved to {my_rotations.get_statistics_path('csv')}.")
-        sgp.make_uniformity_plot()
+        sgp.plot_uniformity()
         print(f"A violin plot showing the uniformity of {grid_name} saved to {sgp.fig_path}.")
-        sgp.make_convergence_plot()
+        sgp.plot_convergence()
         print(f"A convergence plot with number of points between 3 and {my_args.N} saved to {sgp.fig_path}.")
 
 

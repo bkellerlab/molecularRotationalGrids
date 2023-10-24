@@ -9,17 +9,23 @@ import seaborn as sns
 from matplotlib import colors
 
 from molgri.constants import ALL_GRID_ALGORITHMS, NAME2SHORT_NAME
-from molgri.plotting.abstract import RepresentationCollection, PanelRepresentationCollection, plot_voronoi_cells
+from molgri.plotting.abstract import (RepresentationCollection, PanelRepresentationCollection, plot_voronoi_cells,
+                                      ArrayPlot)
 from molgri.space.fullgrid import FullGrid, ConvergenceFullGridO
+from molgri.wrappers import plot_method, plot3D_method
 
+class FullGridPlot(ArrayPlot):
 
-class FullGridPlot(RepresentationCollection):
+    """
+    Plotting centered around FullGrid.
+    """
 
-    def __init__(self, full_grid: FullGrid, *args, **kwargs):
+    def __init__(self, full_grid: FullGrid, **kwargs):
         self.full_grid = full_grid
         self.full_voronoi_grid = full_grid.get_full_voronoi_grid()
         data_name = self.full_grid.get_name()
-        super().__init__(data_name, *args, **kwargs)
+        my_array = self.full_grid.get_flat_position_grid()
+        super().__init__(data_name, my_array, **kwargs)
 
     def get_possible_title(self, algs = True, N_points = False):
         name = ""
@@ -37,10 +43,8 @@ class FullGridPlot(RepresentationCollection):
             name += N_name
         return name
 
-    def make_position_plot(self, ax=None, fig=None, save=True, animate_rot=False, numbered: bool = False,
-                           c="black", projection="3d"):
-        self._create_fig_ax(fig=fig, ax=ax, projection=projection)
-
+    @plot3D_method
+    def plot_positions(self, numbered: bool = False, c="black"):
         points = self.full_grid.get_flat_position_grid()
         cmap = "bwr"
         norm = colors.TwoSlopeNorm(vcenter=0)
@@ -50,19 +54,12 @@ class FullGridPlot(RepresentationCollection):
             for i, point in enumerate(points):
                 self.ax.text(*point, s=f"{i}")
 
-        if projection == "3d":
-            self.ax.view_init(elev=10, azim=30)
-            self._set_axis_limits()
-            self._equalize_axes()
+        self.ax.view_init(elev=10, azim=30)
+        self._set_axis_limits()
+        self._equalize_axes()
 
-        if save:
-            self._save_plot_type(f"position_{projection}")
-        if animate_rot:
-            return self._animate_figure_view(self.fig, self.ax, f"position_rotated")
-
-    def make_full_voronoi_plot(self, ax=None, fig=None, save=True, animate_rot=False, plot_vertex_points=True,
-                               numbered: bool = False, colors=None):
-        self._create_fig_ax(fig=fig, ax=ax, projection="3d")
+    @plot3D_method
+    def plot_position_voronoi(self, plot_vertex_points=True, numbered: bool = False, colors=None):
 
         origin = np.zeros((3,))
 
@@ -88,34 +85,16 @@ class FullGridPlot(RepresentationCollection):
         self._set_axis_limits()
         self._equalize_axes()
 
-        if save:
-            self._save_plot_type("full_voronoi")
-        if animate_rot:
-            return self._animate_figure_view(self.fig, self.ax, f"full_voronoi_rotated")
-
-    def make_point_vertices_plot(self, point_index: int, ax=None, fig=None, save=True, animate_rot=False,
-                                 which="all"):
-        self.make_full_voronoi_plot(ax=ax, fig=fig, save=False, plot_vertex_points=False)
-        self.make_position_plot(save=False, numbered=True, ax=self.ax, fig=self.fig)
+    @plot3D_method
+    def plot_position_vertices(self, point_index: int = 0, which="all"):
+        self.plot_position_voronoi(ax=self.ax, fig=self.fig, save=False, plot_vertex_points=False)
+        self.plot_positions(save=False, numbered=True, ax=self.ax, fig=self.fig)
 
         try:
             vertices = self.full_voronoi_grid.find_voronoi_vertices_of_point(point_index, which=which)
             self.ax.scatter(*vertices.T, color="red")
         except AttributeError:
             pass
-
-        save_name = f"vertices_of_{point_index}"
-        if save:
-            self._save_plot_type(save_name)
-        if animate_rot:
-            return self._animate_figure_view(self.fig, self.ax, save_name)
-
-    def create_all_plots(self, and_animations=False):
-        self.make_position_plot(numbered=True, animate_rot=and_animations)
-        self.make_position_plot(numbered=False, animate_rot=and_animations)
-        self.make_full_voronoi_plot(plot_vertex_points=True, animate_rot=and_animations)
-        self.make_full_voronoi_plot(plot_vertex_points=False, animate_rot=and_animations)
-        self.make_point_vertices_plot(0, animate_rot=and_animations)
 
 
 class ConvergenceFullGridPlot(RepresentationCollection):
@@ -156,7 +135,7 @@ class PanelConvergenceFullGridPlots(PanelRepresentationCollection):
 
     def __init__(self, t_grid_name: str, b_grid_name: str = "zero", N_set: list = None, **kwargs):
         list_plots = []
-        for alg in GRID_ALGORITHMS[:-1]:
+        for alg in ALL_GRID_ALGORITHMS[:-1]:
             conv_sphere_grid = ConvergenceFullGridO(o_alg_name=alg, N_set=N_set, b_grid_name=b_grid_name,
                                                     t_grid_name=t_grid_name, filter_non_unique=True, **kwargs)
             sphere_plot = ConvergenceFullGridPlot(conv_sphere_grid)
@@ -178,24 +157,8 @@ if __name__ == "__main__":
 
     n_o = 50
     fg = FullGrid(f"zero", f"cube3D_{n_o}", "[0.1,]", use_saved=False)
-    colors = ["white"] * len(fg.get_flat_position_grid())
-    vor_adj = fg.get_adjacency_of_position_grid().toarray()
-    dist_adj = fg.get_poly_dist_adjacency()
-    poly_adj = fg.get_polyhedron_adjacency(o_grid=True).toarray()
-    # cdis = cdist(fg.o_positions, fg.o_positions, "cos")
-    # print(cdis)
-    # wished = (8, 9, 10)
-
-    # dist_neig = ((dist_adj[0] | poly_adj[0]) == 1)
-    point_index = 12
-
-    # for el in wished:
-    #    colors[el] = "green"
-
-    for i, trug in enumerate(poly_adj[point_index]):
-        if trug:
-            colors[i] = "green"
-    colors[point_index] = "blue"
 
     fgp = FullGridPlot(fg)
-    ani = fgp.make_full_voronoi_plot(save=True, animate_rot=True, numbered=True, colors=colors)
+    fgp.plot_position_vertices(animate_rot=True)
+    fgp.animate_translation()
+    fgp.animate_ordering()

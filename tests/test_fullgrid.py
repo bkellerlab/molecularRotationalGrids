@@ -78,8 +78,8 @@ class IdealIcosahedron(IdealPolyhedron):
 
 def _visualise_fg(fg7: FullGrid):
     fgp7 = FullGridPlot(fg7)
-    fgp7.make_position_plot(numbered=True, save=False)
-    fgp7.make_full_voronoi_plot(ax=fgp7.ax, fig=fgp7.fig, save=False, plot_vertex_points=True)
+    fgp7.plot_positions(numbered=True, save=False)
+    fgp7.plot_position_voronoi(ax=fgp7.ax, fig=fgp7.fig, save=False, plot_vertex_points=True)
     plt.show()
 
 
