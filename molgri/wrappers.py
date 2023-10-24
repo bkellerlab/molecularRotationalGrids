@@ -123,6 +123,10 @@ def plot_method(my_method):
         fig: Figure = kwargs.pop("fig", None)
         ax: Axes = kwargs.pop("ax", None)
         save: bool = kwargs.pop("save", True)
+        # for 2D plots, ignore animate_rot and projection arguments if they occur
+        kwargs.pop("animate_rot", None)
+        kwargs.pop("projection", None)
+
         self._create_fig_ax(fig=fig, ax=ax)
         my_method(*args, **kwargs)
         if save:
