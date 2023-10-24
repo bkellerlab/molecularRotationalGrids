@@ -108,6 +108,7 @@ def deprecated(my_method):
 
     return decorated
 
+
 def plot_method(my_method):
     """
     Mark functions or methods that make a complete plot with 2D axes. The wrapper:
@@ -151,6 +152,7 @@ def plot3D_method(my_method):
         save: bool = kwargs.pop("save", True)
         animate_rot: bool = kwargs.pop("animate_rot", False)
         projection: str = kwargs.pop("projection", "3d")
+
         self._create_fig_ax(fig=fig, ax=ax, projection=projection)
         my_method(*args, **kwargs)
 

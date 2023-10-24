@@ -90,7 +90,7 @@ class TransitionModel(ABC):
             **kwargs: named arguments to forward to eigs()
         Returns:
             (eigenval, eigenvec) a tuple of eigenvalues and eigenvectors, first num_eigv given for all tau-s
-            Eigenval is of shape (num_tau, num_eigenv), eigenvec of shape (num_tau, num_cells, num_eigenv)
+            Eigenval is of shape (num_tau, num_columns), eigenvec of shape (num_tau, num_cells, num_columns)
         """
         all_tms = self.get_transitions_matrix()
         all_eigenval = np.zeros((self.num_tau, num_eigenv))

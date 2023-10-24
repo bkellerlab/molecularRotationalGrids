@@ -7,6 +7,7 @@ cells and their areas. A lot of convergence and uniformity testing.
 
 import matplotlib.pyplot as plt
 import numpy as np
+import seaborn as sns
 
 from molgri.assertions import which_row_is_k
 from molgri.paths import PATH_OUTPUT_PLOTS

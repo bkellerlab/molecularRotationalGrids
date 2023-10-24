@@ -105,17 +105,18 @@ class RepresentationCollection(ABC):
         context = creation_kwargs.pop("context", self.context)
         complexity = creation_kwargs.pop("complexity", self.complexity_level)
         color_style = creation_kwargs.pop("color_style", self.color_style)
-        figsize = creation_kwargs.pop("figsize", self.figsize)
+        num_rows = creation_kwargs.pop("num_rows", 1)
+        num_columns = creation_kwargs.pop("num_columns", 1)
+        figsize = creation_kwargs.pop("figsize", (num_rows*DIM_SQUARE[0], num_columns * DIM_SQUARE[0]))
         projection = creation_kwargs.pop("projection", None)
 
+
         _set_style_and_context(context=context, color_style=color_style)
-        if fig is None:
-            self.fig = plt.figure(figsize=figsize)
+        if ax is None or fig is None:
+            self.fig, self.ax = plt.subplots(num_rows, num_columns, subplot_kw={"projection": projection},
+                                             figsize=figsize)
         else:
             self.fig = fig
-        if ax is None:
-            self.ax = self.fig.add_subplot(111, projection=projection)
-        else:
             self.ax = ax
         self.__set_complexity_level(complexity)
         self.__set_style_part_2(color_style=color_style)

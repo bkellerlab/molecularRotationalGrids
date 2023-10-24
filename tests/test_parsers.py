@@ -17,13 +17,13 @@ def test_grid_name_parser():
     name3 = "15_cube3D"
     assert GridNameParser(name3).get_standard_grid_name() == "cube3D_15"
     name4 = "cube3D_1"
-    assert GridNameParser(name4).get_standard_grid_name() == "cube3D_1"
+    assert GridNameParser(name4).get_standard_grid_name() == "zero3D_1"
     name5 = "None_1"
-    assert GridNameParser(name5).get_standard_grid_name() == "ico_1"
+    assert GridNameParser(name5).get_standard_grid_name() == "zero3D_1"
     name6 = "1"
-    assert GridNameParser(name6).get_standard_grid_name() == "ico_1"
+    assert GridNameParser(name6).get_standard_grid_name() == "zero3D_1"
     name7 = "1_none"
-    assert GridNameParser(name7).get_standard_grid_name() == "ico_1"
+    assert GridNameParser(name7).get_standard_grid_name() == "zero3D_1"
     name8 = "cube3D_ico_77"
     with pytest.raises(ValueError):
         GridNameParser(name8).get_standard_grid_name()

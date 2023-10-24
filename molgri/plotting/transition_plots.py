@@ -95,21 +95,14 @@ class TransitionPlot(RepresentationCollection):
         self.ax.hlines(0, 0, 1, color="black")
         self.ax.set_ylabel(f"Eigenvalues")
         self.ax.axes.get_xaxis().set_visible(False)
-        
-    #TODO
-    def make_eigenvectors_plot(self, ax=None, fig=None, save=True, num_eigenv: int = 5, projection="3d"):
-        """
-        Visualize the energy surface and the first num (default=3) eigenvectors
-        """
 
-        self.fig, self.ax = plt.subplots(1, num_eigenv, subplot_kw={"projection": projection},
-                                         figsize=(DIM_SQUARE[0], num_eigenv*DIM_SQUARE[0]))
-
+    def plot_eigenvectors(self, num_eigenvectors: int = 5, projection="3d"):
+        """
+        Visualize the energy surface and the first num (default=5) eigenvectors
+        """
+        self._create_fig_ax(num_columns=num_eigenvectors, projection=projection)
         for i, subax in enumerate(self.ax.ravel()):
             self.plot_one_eigenvector(i, ax=subax, fig=self.fig, projection=projection, save=False)
-
-        if save:
-            self._save_plot_type(f"eigenvectors_{projection}")
 
     @plot3D_method
     def plot_one_eigenvector(self, eigenvec_index: int = 1):
@@ -133,23 +126,23 @@ if __name__ == "__main__":
     USE_SAVED = False
 
     # TRANSITION MATRIX
-    # parsed_sim = load_simulation_data()
-    # # define some full grid to assign to
-    # full_grid = FullGrid(t_grid_name="linspace(3, 13, 4)", o_grid_name="ico_20", b_grid_name="zero")
-    #
-    # combined_sim = SimulationHistogram(parsed_sim, full_grid)
-    # msm = MSM(combined_sim, use_saved=True)
-    # tp_msm = TransitionPlot(msm, default_context="talk")
-    # tp_msm.create_all_plots()
+    parsed_sim = load_simulation_data()
+    # define some full grid to assign to
+    full_grid = FullGrid(t_grid_name="linspace(3, 13, 4)", o_grid_name="ico_20", b_grid_name="zero")
+
+    combined_sim = SimulationHistogram(parsed_sim, full_grid)
+    msm = MSM(combined_sim, use_saved=True)
+    tp_msm = TransitionPlot(msm, default_context="talk")
+    tp_msm.create_all_plots()
 
     #
     # # RATE MATRIX
-    molgri_pt = load_molgri_data()
-    full_grid_m = FullGrid(t_grid_name="linspace(0.8, 1.5, 1)", o_grid_name="ico_5", b_grid_name="zero")
-    #full_grid_m = FullGrid(t_grid_name="linspace(0.8, 1.5, 10)", o_grid_name="ico_50", b_grid_name="zero")
-    combined_molgri = SimulationHistogram(molgri_pt, full_grid_m)
-    sqra = SQRA(combined_molgri, energy_type="Potential Energy", use_saved=USE_SAVED)
-    tp_sqra = TransitionPlot(sqra, default_context="talk")
-
-    print(sqra.get_transitions_matrix())
-    tp_sqra.create_all_plots()
+    # molgri_pt = load_molgri_data()
+    # full_grid_m = FullGrid(t_grid_name="linspace(0.8, 1.5, 1)", o_grid_name="ico_5", b_grid_name="zero")
+    # #full_grid_m = FullGrid(t_grid_name="linspace(0.8, 1.5, 10)", o_grid_name="ico_50", b_grid_name="zero")
+    # combined_molgri = SimulationHistogram(molgri_pt, full_grid_m)
+    # sqra = SQRA(combined_molgri, energy_type="Potential Energy", use_saved=USE_SAVED)
+    # tp_sqra = TransitionPlot(sqra, default_context="talk")
+    #
+    # print(sqra.get_transitions_matrix())
+    # tp_sqra.create_all_plots()

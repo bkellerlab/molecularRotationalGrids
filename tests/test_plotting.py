@@ -1,6 +1,5 @@
-from molgri.plotting.transition_plots import TransitionPlot
-from molgri.molecules.transitions import SQRA, MSM, SimulationHistogram
-from molgri.molecules._load_examples import load_molgri_data, load_simulation_data, load_example_pt
+
+from molgri.molecules._load_examples import load_example_pt
 from molgri.plotting.molecule_plots import TrajectoryPlot, ConvergenceMultiCollection
 from molgri.plotting.spheregrid_plots import EightCellsPlot, SphereGridPlot, PolytopePlot, PanelSphereGridPlots, \
     ConvergenceSphereGridPlot, PanelConvergenceSphereGridPlots
@@ -71,25 +70,27 @@ def test_fullgrid_plots(N=12, and_animations=False, N_set=MINI_NS):
     # PanelConvergenceFullGridPlots(t_grid_name=t_grid_name, N_set=N_set, use_saved=False).make_all_voronoi_volume_plots()
 
 
-def test_transition_plots(and_animations=False):
-    # rate matrix example
-    # doesn't work currently but that's more of data issue
-
-    # molgri_pt = load_molgri_data()
-    # full_grid_m = FullGrid(t_grid_name="linspace(0.8, 1.5, 10)", o_grid_name="ico_50", b_grid_name="zero")
-    # combined_molgri = SimulationHistogram(molgri_pt, full_grid_m)
-    # sqra = SQRA(combined_molgri, energy_type="Potential Energy", use_saved=False)
-    # tp_sqra = TransitionPlot(sqra, default_context="talk")
-    # tp_sqra.create_all_plots(and_animations=True)
-
-    # MSM example
-    parsed_sim = load_simulation_data()
-    # define some full grid to assign to
-    full_grid = FullGrid(t_grid_name="linspace(3, 13, 4)", o_grid_name="ico_20", b_grid_name="zero")
-    combined_sim = SimulationHistogram(parsed_sim, full_grid)
-    msm = MSM(combined_sim, use_saved=True)
-    tp_msm = TransitionPlot(msm, default_context="talk")
-    tp_msm.create_all_plots(and_animations=and_animations)
+# def test_transition_plots(and_animations=False):
+#     # TODO: need to do this with small, local examples
+#
+#     # rate matrix example
+#     # doesn't work currently but that's more of data issue
+#
+#     # molgri_pt = load_molgri_data()
+#     # full_grid_m = FullGrid(t_grid_name="linspace(0.8, 1.5, 10)", o_grid_name="ico_50", b_grid_name="zero")
+#     # combined_molgri = SimulationHistogram(molgri_pt, full_grid_m)
+#     # sqra = SQRA(combined_molgri, energy_type="Potential Energy", use_saved=False)
+#     # tp_sqra = TransitionPlot(sqra, default_context="talk")
+#     # tp_sqra.create_all_plots(and_animations=True)
+#
+#     # MSM example
+#     # parsed_sim = load_simulation_data()
+#     # # define some full grid to assign to
+#     # full_grid = FullGrid(t_grid_name="linspace(3, 13, 4)", o_grid_name="ico_20", b_grid_name="zero")
+#     # combined_sim = SimulationHistogram(parsed_sim, full_grid)
+#     # msm = MSM(combined_sim, use_saved=True)
+#     # tp_msm = TransitionPlot(msm, default_context="talk")
+#     # tp_msm.create_all_plots(and_animations=and_animations)
 
 
 def test_trajectory_plots(and_animations=False):
@@ -107,5 +108,4 @@ if __name__ == "__main__":
     # test_polytope_plots(and_animations=and_animations)
     # test_spheregrid_plots(and_animations=and_animations)
     # test_fullgrid_plots(and_animations=and_animations)
-    # test_transition_plots(and_animations=and_animations)
     # test_trajectory_plots(and_animations=and_animations)
