@@ -276,9 +276,11 @@ class MultiRepresentationCollection(ABC):
             self.all_ax = all_ax
         for ax, subplot in zip(self.all_ax.ravel(), self.list_plots):
             plot_func = getattr(subplot, plotting_method)
-            plot_func(fig=self.fig, ax=ax, save=False, **plotting_kwargs)
+            save = plotting_kwargs.pop("save", False)
+            output = plot_func(fig=self.fig, ax=ax, save=save, **plotting_kwargs)
         if remove_midlabels:
             self.__remove_midlabels()
+        return output
 
     def __create_fig_ax(self, all_ax=None, sharex="all", sharey="all", projection=None, figsize=None):
         if figsize is None:
@@ -389,6 +391,20 @@ class MultiRepresentationCollection(ABC):
         anim = FuncAnimation(self.fig, animate, frames=180, interval=50)
         self.save_multianimation(anim, plot_type=plot_type, dpi=dpi)
         return anim
+
+    def create_all_plots(self, and_animations=False, **kwargs):
+        object_methods = [method_name for method_name in dir(self)
+                          if callable(getattr(self, method_name)) and method_name.startswith("make_all_")]
+        ani_methods = [method_name for method_name in dir(self)
+                          if callable(getattr(self, method_name)) and method_name.startswith("animate_all_")]
+        if and_animations:
+            for ani_method in ani_methods:
+                plot_func = getattr(self, ani_method)
+                plot_func(**kwargs)
+            kwargs["animate_rot"] = True
+        for method in object_methods:
+            plot_func = getattr(self, method)
+            plot_func(**kwargs)
 
     def add_colorbar(self, **cbar_kwargs):
         orientation = cbar_kwargs.pop("orientation", "vertical")

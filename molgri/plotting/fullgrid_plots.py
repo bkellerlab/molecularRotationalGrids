@@ -11,7 +11,8 @@ from matplotlib import colors
 from molgri.constants import NAME2SHORT_NAME
 from molgri.plotting.abstract import (RepresentationCollection, plot_voronoi_cells, ArrayPlot)
 from molgri.space.fullgrid import FullGrid, ConvergenceFullGridO
-from molgri.wrappers import plot3D_method
+from molgri.wrappers import plot3D_method, plot_method
+
 
 class FullGridPlot(ArrayPlot):
 
@@ -107,10 +108,8 @@ class ConvergenceFullGridPlot(RepresentationCollection):
         split_name = full_name.split("_")
         return NAME2SHORT_NAME[split_name[2]]
 
-    def make_voronoi_volume_conv_plot(self, ax=None, fig=None, save=True):
-
-        self._create_fig_ax(fig=fig, ax=ax)
-
+    @plot_method
+    def plot_voronoi_volumes(self):
         try:
             voronoi_df = self.convergence_full_grid.get_voronoi_volumes()
 
@@ -124,10 +123,7 @@ class ConvergenceFullGridPlot(RepresentationCollection):
                 sns.scatterplot(data=filtered_df, x="N", y="ideal volume", color="black", marker="x", ax=self.ax)
         except AttributeError:
             pass
-
-        if save:
-            self.ax.set_xscale("log")
-            self._save_plot_type("voronoi_volume_conv")
+        self.ax.set_xscale("log")
 
 
 if __name__ == "__main__":
@@ -136,7 +132,5 @@ if __name__ == "__main__":
     n_o = 50
     fg = FullGrid(f"zero", f"cube3D_{n_o}", "[0.1,]", use_saved=False)
 
-    fgp = FullGridPlot(fg)
-    fgp.plot_position_vertices(animate_rot=True)
-    fgp.animate_translation()
-    fgp.animate_ordering()
+    cgrid = ConvergenceFullGridO("zero", "[0.1, 0.2]", "ico", MINI_NS)
+    ConvergenceFullGridPlot(cgrid).create_all_plots()

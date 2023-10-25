@@ -1,17 +1,15 @@
 
 from molgri.molecules._load_examples import load_example_pt
-from molgri.plotting.molecule_plots import TrajectoryPlot, ConvergenceMultiCollection
+from molgri.plotting.molecule_plots import ConvergenceMultiCollectionPlot, TrajectoryPlot
 from molgri.plotting.spheregrid_plots import EightCellsPlot, SphereGridPlot, PolytopePlot, PanelSphereGridPlots, \
-    ConvergenceSphereGridPlot, PanelConvergenceSphereGridPlots
-from molgri.plotting.fullgrid_plots import FullGridPlot, ConvergenceFullGridPlot, PanelConvergenceFullGridPlots
+    ConvergenceSphereGridPlot
+from molgri.plotting.fullgrid_plots import FullGridPlot, ConvergenceFullGridPlot
 from molgri.constants import (DEFAULT_ALGORITHM_B, DEFAULT_ALGORITHM_O, MINI_NS, GRID_ALGORITHMS_3D,
                               GRID_ALGORITHMS_4D)
 from molgri.space.fullgrid import FullGrid, ConvergenceFullGridO
 from molgri.space.polytopes import Cube3DPolytope, Cube4DPolytope, IcosahedronPolytope
 from molgri.space.rotobj import ConvergenceSphereGridFactory, SphereGrid3DFactory, \
     SphereGrid4DFactory
-
-
 
 
 
@@ -25,7 +23,7 @@ def test_polytope_plots(and_animations=False):
         cube4D = Cube4DPolytope()
         cube4D.divide_edges()
         ecp = EightCellsPlot(cube4D, only_half_of_cube=only_half_of_cube)
-        #ecp.create_all_plots()
+        ecp.create_all_plots()
 
 
 def test_spheregrid_plots(N=32, and_animations=False, Ns=MINI_NS):
@@ -43,19 +41,19 @@ def test_spheregrid_plots(N=32, and_animations=False, Ns=MINI_NS):
                                          use_saved=False)
         SphereGridPlot(sgf).create_all_plots(and_animations=and_animations)
 
-    # # convergence plotting
-    # csg = ConvergenceSphereGridFactory(alg, dim, N_set=Ns)
-    # csgp = ConvergenceSphereGridPlot(csg)
-    # csgp.make_voronoi_area_conv_plot()
-    # csgp.make_spheregrid_time_plot()
-    # # panel plots
-    # for dim in (3, 4):
-    #     psgp = PanelSphereGridPlots(N, grid_dim=dim, default_context="talk")
-    #     psgp.create_all_plots(and_animations=and_animations)
-    #     pcsgp = PanelConvergenceSphereGridPlots(dim, N_set=Ns)
-    #     pcsgp.make_all_voronoi_area_plots()
-    #     pcsgp.make_all_spheregrid_time_plots()
+    # panel plots
+    psgp = PanelSphereGridPlots(N, 3)
+    psgp.create_all_plots()
+    psgp = PanelSphereGridPlots(N, 4)
+    psgp.create_all_plots()
 
+    # convergence plots
+    csg = ConvergenceSphereGridFactory("ico", 3, N_set=Ns)
+    psgp = ConvergenceSphereGridPlot(csg)
+    psgp.create_all_plots()
+    csg2 = ConvergenceSphereGridFactory("cube4D", 4, N_set=Ns)
+    psgp2 = ConvergenceSphereGridPlot(csg2)
+    psgp2.create_all_plots()
 
 
 def test_fullgrid_plots(N=12, and_animations=False, N_set=MINI_NS):
@@ -64,10 +62,8 @@ def test_fullgrid_plots(N=12, and_animations=False, N_set=MINI_NS):
     fgp = FullGridPlot(fg)
     fgp.create_all_plots(and_animations=and_animations)
 
-    #     cfgo = ConvergenceFullGridO(b_grid_name=b_grid_name, t_grid_name=t_grid_name, o_alg_name=alg, N_set=N_set)
-    #     ConvergenceFullGridPlot(cfgo).make_voronoi_volume_conv_plot()
-    # # panel plot
-    # PanelConvergenceFullGridPlots(t_grid_name=t_grid_name, N_set=N_set, use_saved=False).make_all_voronoi_volume_plots()
+    cgrid = ConvergenceFullGridO("zero", "[0.1, 0.2]", "ico", MINI_NS)
+    ConvergenceFullGridPlot(cgrid).create_all_plots()
 
 
 # def test_transition_plots(and_animations=False):
@@ -98,9 +94,7 @@ def test_trajectory_plots(and_animations=False):
     pt = load_example_pt()
     TrajectoryPlot(pt).create_all_plots(and_animations=and_animations)
     # # default Ns
-    # ConvergenceMultiCollection(pt).create_all_plots(and_animations=False)
-    # # user-defined Ns
-    # ConvergenceMultiCollection(pt, N_set=(10, 20, 50)).create_all_plots(and_animations=False)
+    ConvergenceMultiCollectionPlot(pt, MINI_NS).create_all_plots()
 
 
 if __name__ == "__main__":

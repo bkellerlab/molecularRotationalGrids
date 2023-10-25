@@ -4,6 +4,7 @@ Plotting SphereGridNDim and Polytope-based objects.
 Visualising 3D with 3D and hammer plots and 4D with translation animation and cell plots. Plotting spherical Voronoi
 cells and their areas. A lot of convergence and uniformity testing.
 """
+from typing import List
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -23,7 +24,8 @@ from molgri.plotting.abstract import (ArrayPlot, MultiRepresentationCollection, 
                                       plot_voronoi_cells)
 from molgri.space.analysis import vector_within_alpha
 from molgri.space.polytopes import Polytope, find_opposing_q, second_neighbours, third_neighbours, Cube4DPolytope
-from molgri.space.rotobj import SphereGridNDim, SphereGrid3DFactory, SphereGrid4DFactory, ConvergenceSphereGridFactory
+from molgri.space.rotobj import SphereGridFactory, SphereGridNDim, SphereGrid3DFactory, SphereGrid4DFactory, \
+    ConvergenceSphereGridFactory
 from molgri.wrappers import plot3D_method, plot_method
 
 
@@ -382,33 +384,35 @@ class PanelSphereGridPlots(MultiRepresentationCollection):
     def __init__(self, N_points: int, grid_dim: int, default_context: str = None, default_complexity_level: str = None,
                  default_color_style: str = None, use_saved=False, **kwargs):
         list_plots = []
+        self.grid_dim = grid_dim
         if grid_dim == 3:
             all_alg = GRID_ALGORITHMS_3D
-            sgf = SphereGrid3DFactory
         else:
-            all_alg = GRID_ALGORITHMS_4D
-            sgf = SphereGrid4DFactory
+            all_alg = GRID_ALGORITHMS_4D[:-1]
+        n_rows = 1
+        n_columns = len(all_alg)
         for alg in all_alg:
-            sphere_grid = sgf.create(alg_name=alg, N=N_points, dimensions=grid_dim,
+            sphere_grid = SphereGridFactory.create(alg_name=alg, N=N_points, dimensions=grid_dim,
                                                    time_generation=False, use_saved=use_saved)
             sphere_plot = SphereGridPlot(sphere_grid, default_context=default_context,
                                          default_color_style=default_color_style,
                                          default_complexity_level=default_complexity_level)
             list_plots.append(sphere_plot)
         data_name = f"all_{N_points}_{grid_dim}d"
-        super().__init__(data_name, list_plots, **kwargs)
+        super().__init__(data_name, list_plots, n_rows=n_rows, n_columns=n_columns, **kwargs)
 
-    def make_all_grid_plots(self, animate_rot=False, animate_trans=False):
-        self._make_plot_for_all("make_grid_plot", projection="3d")
+    def make_all_grid_plots(self, animate_rot=False):
+        self._make_plot_for_all("plot_grid", projection="3d")
         self.add_titles(list_titles=[subplot.get_possible_title() for subplot in self.list_plots],
                         pad=-14)
+        ani=None
         if animate_rot:
-            return self.animate_figure_view("grid", dpi=100)
-        if animate_trans:
-            self._make_plot_for_all("make_trans_animation", projection="3d")
+            ani = self.animate_figure_view("grid", dpi=100)
         self._save_multiplot("grid", dpi=100)
+        if ani is not None:
+            return ani
 
-    def make_all_trans_animations(self, fig: plt.Figure = None, ax=None, save=True, **kwargs):
+    def make_all_trans_animations(self, save=True):
 
         all_points = []
         for plot in self.list_plots:
@@ -441,16 +445,16 @@ class PanelSphereGridPlots(MultiRepresentationCollection):
         # plot the lower-dimensional scatterplot
         plotted_points = []
         for ax, points3D in zip(np.ravel(self.all_ax), all_points_3D):
-            ax.set_box_aspect(aspect=[1, 1, 1])
+            ax.set_box_aspect(aspect=1)
             sub_plotted_points = []
             for line in points3D:
                 sub_plotted_points.append(ax.scatter(*line[:-1], color="black", alpha=1))
             plotted_points.append(sub_plotted_points)
 
-        self.all_ax[0, 0].set_xlim(-1, 1)
-        self.all_ax[0, 0].set_ylim(-1, 1)
+        self.all_ax[0].set_xlim(-1, 1)
+        self.all_ax[0].set_ylim(-1, 1)
         if dimension == 3:
-            self.all_ax[0, 0].set_zlim(-1, 1)
+            self.all_ax[0].set_zlim(-1, 1)
         self.unify_axis_limits()
         for ax in np.ravel(self.all_ax):
             ax.set_xticks([])
@@ -484,22 +488,17 @@ class PanelSphereGridPlots(MultiRepresentationCollection):
         return anim
 
     def make_all_convergence_plots(self):
-        self._make_plot_for_all("make_convergence_plot")
+        self._make_plot_for_all("plot_convergence")
         self.add_titles(list_titles=[subplot.get_possible_title() for subplot in self.list_plots])
         self.set_log_scale()
         self.unify_axis_limits()
         self._save_multiplot("convergence")
 
     def make_all_uniformity_plots(self):
-        self._make_plot_for_all("make_uniformity_plot")
+        self._make_plot_for_all("plot_uniformity")
         self.add_titles(list_titles=[subplot.get_possible_title() for subplot in self.list_plots])
         self.unify_axis_limits()
         self._save_multiplot("uniformity")
-
-    def create_all_plots(self, and_animations=False):
-        self.make_all_grid_plots(animate_rot=and_animations)
-        self.make_all_convergence_plots()
-        self.make_all_uniformity_plots()
 
 
 class ConvergenceSphereGridPlot(RepresentationCollection):
@@ -513,13 +512,8 @@ class ConvergenceSphereGridPlot(RepresentationCollection):
         split_name = full_name.split("_")
         return NAME2SHORT_NAME[split_name[1]]
 
-    def make_voronoi_area_conv_plot(self, ax=None, fig=None, save=True):
-        if self.convergence_sph_grid.dimensions != 3:
-            print(f"make_voronoi_area_conv_plot available only for 3D systems")
-            return
-
-        self._create_fig_ax(fig=fig, ax=ax)
-
+    @plot_method
+    def plot_voronoi_convergence(self):
         try:
             voronoi_df = self.convergence_sph_grid.get_spherical_voronoi_areas()
             sns.lineplot(data=voronoi_df, x="N", y="sph. Voronoi cell area", errorbar="sd", ax=self.ax)
@@ -529,18 +523,13 @@ class ConvergenceSphereGridPlot(RepresentationCollection):
         except AttributeError:
             pass
 
-        if save:
-            self.ax.set_xscale("log")
-            self._save_plot_type("voronoi_area_conv")
+        self.ax.set_xscale("log")
 
-    def make_spheregrid_time_plot(self, ax=None, fig=None, save=True):
-        self._create_fig_ax(fig=fig, ax=ax)
+    @plot_method
+    def plot_spheregrid_time(self):
         time_df = self.convergence_sph_grid.get_generation_times()
-
         sns.lineplot(time_df, x="N", y="Time [s]", ax=self.ax)
 
-        if save:
-            self._save_plot_type("spheregrid_time")
 
 
 class EightCellsPlot(MultiRepresentationCollection):
@@ -552,16 +541,16 @@ class EightCellsPlot(MultiRepresentationCollection):
             all_subpolys = cube4D.get_all_cells(include_only=cube4D.get_half_of_hypercube())
         else:
             all_subpolys = cube4D.get_all_cells()
-        list_plots = [PolytopePlot(subpoly) for subpoly in all_subpolys]
+        list_plots: List[PolytopePlot] = [PolytopePlot(subpoly) for subpoly in all_subpolys]
         super().__init__(data_name=f"eight_cells_{cube4D.current_level}_{only_half_of_cube}",
                          list_plots=list_plots, n_rows=2, n_columns=4)
 
-    def make_eight_cells_plot(self, animate_rot=False, save=True, **kwargs):
+    def make_all_eight_cells(self, animate_rot=False, save=True, **kwargs):
         if "color_by" not in kwargs.keys():
             kwargs["color_by"] = None
         if "plot_edges" not in kwargs.keys():
             kwargs["plot_edges"] = True
-        self._make_plot_for_all("make_node_plot", projection="3d", plotting_kwargs=kwargs)
+        self._make_plot_for_all("plot_nodes", projection="3d", plotting_kwargs=kwargs)
         if animate_rot:
             return self.animate_figure_view("points", dpi=100)
         if save:
@@ -572,12 +561,9 @@ class EightCellsPlot(MultiRepresentationCollection):
                                 plotting_kwargs={"nodes": nodes, "color": color, "label": True},
                                 projection="3d", **kwargs)
 
-    def make_eight_cells_neighbours_plot(self, node_index: int = 15, save=True, animate_rot=False,
-                                         include_opposing_neighbours=True):
+    def make_all_8cell_neighbours(self, node_index: int = 15, save=True, animate_rot=False,
+                                  include_opposing_neighbours=True):
 
-        print(len(self.cube4D.get_neighbours_of(node_index,
-                                                           include_opposing_neighbours=False,
-                                                           only_half_of_cube=self.only_half_of_cube)))
         neighbours_indices = self.cube4D.get_neighbours_of(node_index,
                                                            include_opposing_neighbours=include_opposing_neighbours,
                                                            only_half_of_cube=self.only_half_of_cube)
@@ -586,26 +572,26 @@ class EightCellsPlot(MultiRepresentationCollection):
             opp_node = find_opposing_q(tuple(node), self.cube4D.G)
             opp_node_index = self.cube4D.G.nodes[opp_node]["central_index"]
 
-        self.make_eight_cells_plot(save=False, plot_edges=True, edge_categories=[0])
+        self.make_all_eight_cells(save=False, plot_edges=True, edge_categories=[0])
 
         for i, subax in enumerate(self.all_ax.ravel()):
             ci2node = {d["central_index"]:n for n, d in self.list_plots[i].polytope.G.nodes(data=True)}
             # the node itself
             if node_index in ci2node.keys():
                 node = ci2node[node_index]
-                self.list_plots[i].make_single_points([tuple(node), ], "red", ax=subax, fig=self.fig,
+                self.list_plots[i].plot_single_points([tuple(node), ], "red", ax=subax, fig=self.fig,
                                                       save=False)
             # the opposing node:
             if include_opposing_neighbours and opp_node_index in ci2node.keys():
                 opp_node_3d = self.list_plots[i].polytope.get_nodes_by_index([opp_node_index,])
-                self.list_plots[i].make_single_points(opp_node_3d, "orange", ax=subax, fig=self.fig,
+                self.list_plots[i].plot_single_points(opp_node_3d, "orange", ax=subax, fig=self.fig,
                                                       save=False)
 
             # neighbours
             neighbour_nodes = self.list_plots[i].polytope.get_nodes_by_index(neighbours_indices)
 
             for ni in neighbour_nodes:
-                self.list_plots[i].make_single_points([tuple(ni), ], "blue", ax=subax, fig=self.fig, save=False)
+                self.list_plots[i].plot_single_points([tuple(ni), ], "blue", ax=subax, fig=self.fig, save=False)
         if animate_rot:
             return self.animate_figure_view(f"neig_{node_index}", dpi=100)
         if save:
@@ -613,12 +599,10 @@ class EightCellsPlot(MultiRepresentationCollection):
 
 
 if __name__ == "__main__":
-
-
-    my_sphere = SphereGrid3DFactory.create("ico", 30)
-    my_pp_plot = PolytopePlot(my_sphere.polytope)
-    my_pp_plot.plot_decomposed_cdist()
-    plt.show()
+    c4 = Cube4DPolytope()
+    c4.divide_edges()
+    ecp = EightCellsPlot(c4, False)
+    ecp.create_all_plots()
 
 
 

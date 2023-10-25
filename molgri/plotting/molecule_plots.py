@@ -44,7 +44,7 @@ class TrajectoryPlot(RepresentationCollection):
         return f"N={self.N_used}"
 
     @plot3D_method
-    def plot_COM(self, atom_selection=None, fg = None, projection="3d"):
+    def plot_COM(self, atom_selection=None, fg = None, projection="3d", **kwargs):
         # if a pseudotrajectory, default setting is to plot COM or r_molecule
         atom_selection = self._default_atom_selection(atom_selection)
 
@@ -65,7 +65,7 @@ class TrajectoryPlot(RepresentationCollection):
 
     @plot3D_method
     def plot_energy_COM(self, atom_selection=None, projection="3d", energy_type="Potential", vmin=None, vmax=None,
-                        lowest_k = None, highest_j = None):
+                        lowest_k = None, highest_j = None, **kwargs):
         atom_selection = self._default_atom_selection(atom_selection)
 
         coms, energies = self.parsed_trajectory.get_unique_com_till_N(N=self.N_used, energy_type=energy_type,
@@ -90,14 +90,14 @@ class TrajectoryPlot(RepresentationCollection):
         self.fig.colorbar(sc, ax=self.ax)
 
     @plot_method
-    def plot_energy_violin(self, energy_type: str = "Potential"):
+    def plot_energy_violin(self, energy_type: str = "Potential", **kwargs):
         coms, energies = self.parsed_trajectory.get_unique_com_till_N(N=self.N_used, energy_type=energy_type)
         sns.violinplot(energies, ax=self.ax, scale="count", inner="stick", cut=0)
         self.ax.set_xticklabels([])
         self.ax.set_ylabel(f"{energy_type} [kJ/mol]")
 
 
-class ConvergenceMultiCollection(MultiRepresentationCollection):
+class ConvergenceMultiCollectionPlot(MultiRepresentationCollection):
 
     def __init__(self, parsed_trajectory: ParsedTrajectory, N_set: tuple = None):
         data_name = f"convergence_{parsed_trajectory.get_name()}"
@@ -113,7 +113,7 @@ class ConvergenceMultiCollection(MultiRepresentationCollection):
 
     def make_all_COM_3d_plots(self, animate_rot=False, save=True):
 
-        self._make_plot_for_all("make_COM_plot", projection="3d", remove_midlabels=False,
+        self._make_plot_for_all("plot_COM", projection="3d", remove_midlabels=False,
                                 creation_kwargs={"sharex": False, "sharey": False},
                                 plotting_kwargs={"projection": "3d"})
 
@@ -127,7 +127,7 @@ class ConvergenceMultiCollection(MultiRepresentationCollection):
             self._save_multiplot(f"COM_3d")
 
     def make_all_COM_hammer_plots(self, save=True):
-        self._make_plot_for_all("make_COM_plot", projection="hammer", remove_midlabels=False,
+        self._make_plot_for_all("plot_COM", projection="hammer", remove_midlabels=False,
                                 creation_kwargs={"sharex": False, "sharey": False},
                                 plotting_kwargs={"projection": "hammer"})
 
@@ -144,17 +144,17 @@ class ConvergenceMultiCollection(MultiRepresentationCollection):
         vmin = np.min(all_energies)
         if dim == 3:
             projection = "3d"
-            method = "make_energy_COM_plot"
+            method = "plot_COM"
             sharey = False
             pad = -14
         elif dim == 2:
             projection = "hammer"
-            method = "make_energy_COM_plot"
+            method = "plot_energy_COM"
             sharey = False
             pad = 0
         elif dim == 1:
             projection = None
-            method = "make_energy_violin_plot"
+            method = "plot_energy_violin"
             sharey = True
             pad = 0
         else:
@@ -181,7 +181,8 @@ class ConvergenceMultiCollection(MultiRepresentationCollection):
         if save:
             self._save_multiplot(f"energy_{dim}d")
 
-    def create_all_plots(self, and_animations=False):
+    def create_all_plots(self, and_animations=False, **kwargs):
+        # keep this one since we have parameters in function
         self.make_all_COM_3d_plots(animate_rot=and_animations)
         self.make_all_COM_hammer_plots()
         energy_types = self.list_plots[0].parsed_trajectory.energies.labels
@@ -191,5 +192,6 @@ class ConvergenceMultiCollection(MultiRepresentationCollection):
 
 if __name__ == "__main__":
     from molgri.molecules._load_examples import load_example_pt
+    from molgri.constants import MINI_NS
     pt = load_example_pt()
-    TrajectoryPlot(pt).create_all_plots(and_animations=True)
+    ConvergenceMultiCollection(pt, MINI_NS).create_all_plots()
