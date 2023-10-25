@@ -8,11 +8,10 @@ import numpy as np
 import seaborn as sns
 from matplotlib import colors
 
-from molgri.constants import ALL_GRID_ALGORITHMS, NAME2SHORT_NAME
-from molgri.plotting.abstract import (RepresentationCollection, PanelRepresentationCollection, plot_voronoi_cells,
-                                      ArrayPlot)
+from molgri.constants import NAME2SHORT_NAME
+from molgri.plotting.abstract import (RepresentationCollection, plot_voronoi_cells, ArrayPlot)
 from molgri.space.fullgrid import FullGrid, ConvergenceFullGridO
-from molgri.wrappers import plot_method, plot3D_method
+from molgri.wrappers import plot3D_method
 
 class FullGridPlot(ArrayPlot):
 
@@ -129,27 +128,6 @@ class ConvergenceFullGridPlot(RepresentationCollection):
         if save:
             self.ax.set_xscale("log")
             self._save_plot_type("voronoi_volume_conv")
-
-
-class PanelConvergenceFullGridPlots(PanelRepresentationCollection):
-
-    def __init__(self, t_grid_name: str, b_grid_name: str = "zero", N_set: list = None, **kwargs):
-        list_plots = []
-        for alg in ALL_GRID_ALGORITHMS[:-1]:
-            conv_sphere_grid = ConvergenceFullGridO(o_alg_name=alg, N_set=N_set, b_grid_name=b_grid_name,
-                                                    t_grid_name=t_grid_name, filter_non_unique=True, **kwargs)
-            sphere_plot = ConvergenceFullGridPlot(conv_sphere_grid)
-            list_plots.append(sphere_plot)
-        data_name = f"all_convergence_{list_plots[0].convergence_full_grid.get_name()}"
-        super().__init__(data_name, list_plots)
-
-    def make_all_voronoi_volume_plots(self, save=True):
-        self._make_plot_for_all("make_voronoi_volume_conv_plot")
-        self.add_titles(list_titles=[subplot.get_possible_title() for subplot in self.list_plots])
-        self.set_log_scale(x_axis=True, y_axis=False)
-        self.unify_axis_limits()
-        if save:
-            self._save_multiplot("voronoi_volume")
 
 
 if __name__ == "__main__":

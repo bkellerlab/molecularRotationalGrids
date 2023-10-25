@@ -17,12 +17,10 @@ from seaborn import color_palette
 import networkx as nx
 import matplotlib as mpl
 
-from molgri.constants import ALL_GRID_ALGORITHMS, DEFAULT_ALPHAS_3D, GRID_ALGORITHMS_3D, GRID_ALGORITHMS_4D, \
-    TEXT_ALPHAS_3D, \
-    DEFAULT_ALPHAS_4D, TEXT_ALPHAS_4D, \
-    COLORS, NAME2SHORT_NAME, DIM_SQUARE
-from molgri.plotting.abstract import ArrayPlot, MultiRepresentationCollection, RepresentationCollection, \
-    PanelRepresentationCollection, plot_voronoi_cells
+from molgri.constants import DEFAULT_ALPHAS_3D, GRID_ALGORITHMS_3D, GRID_ALGORITHMS_4D, TEXT_ALPHAS_3D, \
+    DEFAULT_ALPHAS_4D, TEXT_ALPHAS_4D, COLORS, NAME2SHORT_NAME, DIM_SQUARE
+from molgri.plotting.abstract import (ArrayPlot, MultiRepresentationCollection, RepresentationCollection,
+                                      plot_voronoi_cells)
 from molgri.space.analysis import vector_within_alpha
 from molgri.space.polytopes import Polytope, find_opposing_q, second_neighbours, third_neighbours, Cube4DPolytope
 from molgri.space.rotobj import SphereGridNDim, SphereGrid3DFactory, SphereGrid4DFactory, ConvergenceSphereGridFactory
@@ -379,7 +377,7 @@ class PolytopePlot(RepresentationCollection):
                     self.ax.text(*midpoint, s=f"{s:.3f}")
 
 
-class PanelSphereGridPlots(PanelRepresentationCollection):
+class PanelSphereGridPlots(MultiRepresentationCollection):
 
     def __init__(self, N_points: int, grid_dim: int, default_context: str = None, default_complexity_level: str = None,
                  default_color_style: str = None, use_saved=False, **kwargs):
@@ -543,34 +541,6 @@ class ConvergenceSphereGridPlot(RepresentationCollection):
 
         if save:
             self._save_plot_type("spheregrid_time")
-
-
-class PanelConvergenceSphereGridPlots(PanelRepresentationCollection):
-
-    def __init__(self, dim=3, N_set: list = None, **kwargs):
-        list_plots = []
-        for alg in ALL_GRID_ALGORITHMS[:-2]:
-            conv_sphere_grid = ConvergenceSphereGridFactory(alg_name=alg, N_set=N_set, dimensions=dim,
-                                                            filter_non_unique=True, **kwargs)
-            sphere_plot = ConvergenceSphereGridPlot(conv_sphere_grid)
-            list_plots.append(sphere_plot)
-        data_name = f"all_convergence_{dim}d"
-        super().__init__(data_name, list_plots)
-
-    def make_all_voronoi_area_plots(self, save=True):
-        self._make_plot_for_all("make_voronoi_area_conv_plot")
-        self.add_titles(list_titles=[subplot.get_possible_title() for subplot in self.list_plots])
-        self.set_log_scale(x_axis=True, y_axis=False)
-        self.unify_axis_limits()
-        if save:
-            self._save_multiplot("voronoi_area")
-
-    def make_all_spheregrid_time_plots(self, save=True):
-        self._make_plot_for_all("make_spheregrid_time_plot")
-        self.add_titles(list_titles=[subplot.get_possible_title() for subplot in self.list_plots])
-        self.unify_axis_limits()
-        if save:
-            self._save_multiplot("spheregrid_times")
 
 
 class EightCellsPlot(MultiRepresentationCollection):

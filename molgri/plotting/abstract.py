@@ -11,7 +11,6 @@ PanelRepresentationCollection specifically creates one sub-plot for each grid-ge
 
 from abc import ABC
 from typing import Union, List
-import os
 
 import numpy as np
 import seaborn as sns
@@ -21,7 +20,6 @@ from matplotlib.pyplot import Figure
 from matplotlib.axes import Axes
 from mpl_toolkits.mplot3d.axes3d import Axes3D
 from mpl_toolkits.mplot3d.art3d import Poly3DCollection
-from numpy._typing import NDArray
 from numpy.typing import NDArray
 from IPython import display
 from scipy.spatial import geometric_slerp
@@ -413,18 +411,6 @@ class MultiRepresentationCollection(ABC):
         #     cax.yaxis.set_label_position('left')
         # if cbar_label:
         #     cbar.set_label(cbar_label)
-
-
-class PanelRepresentationCollection(MultiRepresentationCollection):
-
-    def __init__(self, data_name, list_plots: List[RepresentationCollection], landscape=True, figsize=None):
-        if landscape:
-            n_rows = 2
-            n_columns = 3
-        else:
-            n_rows = 3
-            n_columns = 2
-        super().__init__(data_name, list_plots, n_columns=n_columns, n_rows=n_rows, figsize=figsize)
 
 
 def show_anim_in_jupyter(anim):

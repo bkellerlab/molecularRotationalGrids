@@ -6,13 +6,11 @@ A collection of methods to visualise the SqRA or MSM objects.
 
 import numpy as np
 import seaborn as sns
-import matplotlib.pyplot as plt
 import matplotlib.colors as colors
 
 from molgri.plotting.abstract import RepresentationCollection
 from molgri.molecules.transitions import TransitionModel
 from molgri.plotting.fullgrid_plots import FullGridPlot
-from molgri.constants import DIM_SQUARE
 from molgri.wrappers import plot3D_method, plot_method
 
 
