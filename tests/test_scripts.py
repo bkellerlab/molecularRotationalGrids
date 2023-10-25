@@ -8,6 +8,7 @@ def test_set_up_io():
 
 
 def test_generate_grid():
+    test_set_up_io()
     # all these commands should pass with no error
     commands = [
         "python -m molgri.scripts.generate_grid -N 250 -d 3",
@@ -29,13 +30,14 @@ def test_generate_grid():
     ]
 
     for command in commands:
-        subprocess.run(command, shell=True, check=True)
+        print(subprocess.run(command, shell=True, check=True))
 
     for err_command in expected_error_commands:
         with pytest.raises(Exception):
             subprocess.run(err_command, shell=True, check=True)
 
 def test_generate_pt():
+    test_set_up_io()
     # all these commands should pass with no error
     commands = [
         'python -m molgri.scripts.generate_pt -m1 NH3 -m2 CL -o ico_15 -b 10 -t "range(1, 5, 2)" --as_dir',
@@ -52,14 +54,14 @@ def test_generate_pt():
     ]
 
     for command in commands:
-        subprocess.run(command, shell=True, check=True)
+        print(subprocess.run(command, shell=True, check=True))
 
     for err_command in expected_error_commands:
         with pytest.raises(Exception):
-            print(err_command)
             subprocess.run(err_command, shell=True, check=True)
 
 def test_generate_energy():
+    test_set_up_io()
 
     commands = [
         'python -m molgri.scripts.generate_energy -xvg H2O_H2O_o_ico_500_b_ico_5_t_3830884671 --p1d --p2d --p3d --animate',
@@ -68,7 +70,7 @@ def test_generate_energy():
     ]
 
     for command in commands:
-        subprocess.run(command, shell=True, check=True)
+        print(subprocess.run(command, shell=True, check=True))
 
 if __name__ == "__main__":
     test_set_up_io()

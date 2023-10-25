@@ -161,7 +161,7 @@ class PolytopePlot(RepresentationCollection):
         self.ax.set_aspect('equal')
         plt.tight_layout()
 
-    def decomposed_cdist(self, vmax=2, ax=None, fig=None, save=True, **kwargs):
+    def plot_decomposed_cdist(self, vmax=2, save=True, **kwargs):
         cdist_matrix = self.polytope.get_cdist_matrix(**kwargs)
         # show components individually
         vmin = 0.9 * np.min(cdist_matrix[cdist_matrix > 1e-5])
@@ -170,17 +170,20 @@ class PolytopePlot(RepresentationCollection):
         individual_values = sorted([x for x in individual_values if vmin < x < vmax])
         num_values = len(individual_values)
 
-        if num_values > 5 and ax is None:
-            fig, ax = plt.subplots(2, num_values // 2 + 1, figsize=(10 * (num_values // 2 + 1), 20))
-        elif ax is None:
-            fig, ax = plt.subplots(1, num_values, figsize=(10 * num_values, 10))
+        if num_values > 5:
+            num_columns = num_values // 2 + 1
+            num_rows = 2
+        else:
+            num_columns = num_values
+            num_rows = 1
+        self._create_fig_ax(num_columns=num_columns, num_rows=num_rows)
 
         cum_num_neig = np.zeros(len(cdist_matrix))
 
         decompositions = []
 
         for i, value in enumerate(individual_values):
-            subax = ax.ravel()[i]
+            subax = self.ax.ravel()[i]
             mask = np.isclose(cdist_matrix, value)
             sns.heatmap(mask, ax=subax, cmap="Reds", cbar=False)
             decompositions.append(mask)
@@ -193,7 +196,7 @@ class PolytopePlot(RepresentationCollection):
                             fontsize=20)
         plt.tight_layout()
         if save:
-            plt.savefig(PATH_OUTPUT_PLOTS + f"cdist_matrix_decomposition")
+            plt.savefig(PATH_OUTPUT_PLOTS + f"decomposed_cdist")
         return decompositions
 
     @plot_method
@@ -640,12 +643,11 @@ class EightCellsPlot(MultiRepresentationCollection):
 
 
 if __name__ == "__main__":
-    import seaborn as sns
+
 
     my_sphere = SphereGrid3DFactory.create("ico", 30)
-    my_sphere_plot = SphereGridPlot(my_sphere)
-    my_sphere_plot.make_grid(save=False)
-    my_sphere_plot.plot_voronoi(save=False)
+    my_pp_plot = PolytopePlot(my_sphere.polytope)
+    my_pp_plot.plot_decomposed_cdist()
     plt.show()
 
 

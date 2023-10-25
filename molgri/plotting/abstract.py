@@ -110,7 +110,6 @@ class RepresentationCollection(ABC):
         figsize = creation_kwargs.pop("figsize", (num_rows*DIM_SQUARE[0], num_columns * DIM_SQUARE[0]))
         projection = creation_kwargs.pop("projection", None)
 
-
         _set_style_and_context(context=context, color_style=color_style)
         if ax is None or fig is None:
             self.fig, self.ax = plt.subplots(num_rows, num_columns, subplot_kw={"projection": projection},
