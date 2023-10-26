@@ -1,9 +1,9 @@
 import pandas as pd
-from molgri.assertions import all_row_norms_equal_k
+from molgri.assertions import all_row_norms_equal_k, which_row_is_k
 from tqdm import tqdm
 from scipy.constants import pi
 
-from molgri.space.rotobj import SphereGridFactory
+from molgri.space.rotobj import SphereGrid3DFactory, SphereGridFactory
 from molgri.constants import GRID_ALGORITHMS_3D, GRID_ALGORITHMS_4D, DEFAULT_ALPHAS_3D
 
 import numpy as np
@@ -143,9 +143,36 @@ def test_voronoi_areas():
     #                      return_counts=True))
     # TODO: check that groups of volumes = groups of points
 
+def test_voronoi_properties_regression():
+    """
+    This function tests that for 3D points on the sphere:
+    1) the size of voronoi cells, border areas and distances between centers is as expected from visual inspection
+    2) the neigbouring relations are as expected from visual inspection
+    """
+    sphere = SphereGrid3DFactory.create("ico", 20, use_saved=False)
+    # if you wanna visualize it, uncomment
+    from molgri.plotting.spheregrid_plots import SphereGridPlot
+    import matplotlib.pyplot as plt
+    sg = SphereGridPlot(sphere)
+    sg.plot_grid(save=False, labels=True)
+    sg.plot_voronoi(ax=sg.ax, fig=sg.fig, save=True, labels=True, animate_rot=True)
+    # plt.show()
+    # test_adjacency
+    adj_sphere = sphere.get_voronoi_adjacency().toarray()
+    print(sphere.get_spherical_voronoi_cells().vertices[26])
+    print(sphere.get_spherical_voronoi_cells().vertices[27])
+    visual_neigh_of_0 = [2, 6, 7, 9, 15]
+    visual_neigh_of_3 = [4, 7, 8, 10, 11, 18, 19]
+    visual_neigh_of_19 = [3, 7, 8, 14]
+    assert visual_neigh_of_0 == np.nonzero(adj_sphere[0])[0]
+    assert visual_neigh_of_3 == np.nonzero(adj_sphere[3])[0]
+    assert visual_neigh_of_19 == np.nonzero(adj_sphere[19])[0]
+
+
 if __name__ == "__main__":
-    test_saving_rotobj()
-    test_general_grid_properties()
-    test_statistics()
-    test_ordering()
-    test_voronoi_areas()
+    # test_saving_rotobj()
+    # test_general_grid_properties()
+    # test_statistics()
+    # test_ordering()
+    # test_voronoi_areas()
+    test_voronoi_properties_regression()

@@ -445,12 +445,15 @@ def show_anim_in_jupyter(anim):
     plt.close()
 
 
-def plot_voronoi_cells(sv, ax, plot_vertex_points=True, colors=None):
+def plot_voronoi_cells(sv, ax, plot_vertex_points=True, colors=None, labels=False):
     sv.sort_vertices_of_regions()
     t_vals = np.linspace(0, 1, 2000)
     # plot Voronoi vertices
     if plot_vertex_points:
         ax.scatter(sv.vertices[:, 0], sv.vertices[:, 1], sv.vertices[:, 2], c='g')
+        if labels:
+            for i, line in enumerate(sv.vertices):
+                ax.text(*line[:3], i, c='g')
     # indicate Voronoi regions (as Euclidean polygons)
     for i, region in enumerate(sv.regions):
         n = len(region)

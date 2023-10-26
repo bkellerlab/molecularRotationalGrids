@@ -111,14 +111,14 @@ class SphereGridPlot(ArrayPlot):
         self.ax.set_yscale("log")
 
     @plot3D_method
-    def plot_voronoi(self):
+    def plot_voronoi(self, labels=False):
         if self.sphere_grid.dimensions != 3:
             print("make_spherical_voronoi_plot only implemented for 3D grids")
             return
 
         try:
             sv = self.sphere_grid.get_spherical_voronoi_cells()
-            plot_voronoi_cells(sv, self.ax)
+            plot_voronoi_cells(sv, self.ax, labels=labels)
         except AttributeError:
             pass
 

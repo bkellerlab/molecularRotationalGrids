@@ -211,6 +211,30 @@ class SphereGridNDim(ABC):
             self.spherical_voronoi = SphericalVoronoi(self.get_grid_as_array(), radius=1, threshold=10**-UNIQUE_TOL)
         return self.spherical_voronoi
 
+    def _get_reduced_sv_vertices(self) -> NDArray:
+        original_vertices = self.get_spherical_voronoi_cells().vertices
+        indexes = np.unique(original_vertices, axis=0, return_index=True)[1]
+        return np.array([original_vertices[index] for index in sorted(indexes)])
+
+    def _get_reduced_sv_regions(self):
+        original_vertices = self.get_spherical_voronoi_cells().vertices
+        new_vertices = self._get_reduced_sv_vertices()
+
+        old_index2new_index = dict()
+        for original_i, original_point in enumerate(original_vertices):
+            new_index_opt = which_row_is_k(new_vertices, original_point)
+            assert len(new_index_opt) == 1
+            old_index2new_index[original_i] = new_index_opt[0]
+
+        old_regions = self.spherical_voronoi.regions
+        new_regions = []
+        for region in old_regions:
+            new_region = [old_index2new_index[oi] for oi in region]
+            new_regions.append(new_region)
+
+        return new_regions
+
+
     @abstractmethod
     @save_or_use_saved
     def get_cell_volumes(self, approx=False, using_detailed_grid=True) -> NDArray:
@@ -300,7 +324,9 @@ class SphereGrid3Dim(SphereGridNDim, ABC):
         return self._calculate_N_N_array(property="border_len")
 
     def _calculate_N_N_array(self, property="adjacency"):
-        sv = self.get_spherical_voronoi_cells()
+        #sv = self.get_spherical_voronoi_cells()
+        reduced_vertices = self._get_reduced_sv_vertices()
+        reduced_regions = self._get_reduced_sv_regions()
         N = self.get_N()
         points = self.get_grid_as_array()
         # prepare for adjacency matrix
@@ -308,10 +334,10 @@ class SphereGrid3Dim(SphereGridNDim, ABC):
         columns = []
         elements = []
 
-        for index_tuple in combinations(list(range(len(sv.regions))), 2):
+        for index_tuple in combinations(list(range(len(reduced_regions))), 2):
 
-            set_1 = set(sv.regions[index_tuple[0]])
-            set_2 = set(sv.regions[index_tuple[1]])
+            set_1 = set(reduced_regions[index_tuple[0]])
+            set_2 = set(reduced_regions[index_tuple[1]])
 
             if len(set_1.intersection(set_2)) == 2:
                 rows.extend([index_tuple[0], index_tuple[1]])
@@ -326,8 +352,8 @@ class SphereGrid3Dim(SphereGridNDim, ABC):
                 elif property == "border_len":
                     # here the points are the voronoi indices that both cells share
                     indices_border = list(set_1.intersection(set_2))
-                    v1 = sv.vertices[indices_border[0]]
-                    v2 = sv.vertices[indices_border[1]]
+                    v1 = reduced_vertices[indices_border[0]]
+                    v2 = reduced_vertices[indices_border[1]]
                     dist = dist_on_sphere(v1, v2)[0]
                     elements.extend([dist, dist])
                 else:
