@@ -9,7 +9,7 @@ import numpy as np
 from molgri.paths import PATH_INPUT_ENERGIES, PATH_OUTPUT_PT
 from molgri.scripts.set_up_io import freshly_create_all_folders
 
-from molgri.plotting.molecule_plots import TrajectoryPlot, ConvergenceMultiCollection
+from molgri.plotting.molecule_plots import TrajectoryPlot, ConvergenceMultiCollectionPlot
 from molgri.molecules.parsers import FileParser
 
 import warnings
@@ -77,7 +77,7 @@ def run_generate_energy():
     traj = fp.get_parsed_trajectory()
 
     if my_args.convergence:
-        plotting_collection = ConvergenceMultiCollection(traj, N_set=Ns)
+        plotting_collection = ConvergenceMultiCollectionPlot(traj, N_set=Ns)
         if my_args.p1d:
             plotting_collection.make_all_energy_plots(dim=1, energy_type=my_args.label)
         if my_args.p2d:

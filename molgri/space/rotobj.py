@@ -13,6 +13,7 @@ Connected to:
 
 import os
 from abc import ABC, abstractmethod
+from itertools import combinations
 from time import time
 from typing import Optional
 
@@ -20,6 +21,7 @@ import numpy as np
 import pandas as pd
 from numpy.typing import NDArray
 from scipy.constants import pi
+from scipy.sparse import coo_array
 from scipy.spatial import SphericalVoronoi
 from scipy.spatial import ConvexHull
 from scipy.spatial.distance import cdist
@@ -28,7 +30,7 @@ from scipy.spatial.transform import Rotation
 from molgri.assertions import which_row_is_k
 from molgri.space.analysis import prepare_statistics, write_statistics
 from molgri.space.utils import random_quaternions, random_sphere_points, \
-    unique_quaternion_set
+    unique_quaternion_set, dist_on_sphere
 from molgri.constants import UNIQUE_TOL, EXTENSION_GRID_FILES, NAME2PRETTY_NAME, SMALL_NS
 from molgri.paths import PATH_OUTPUT_ROTGRIDS, PATH_OUTPUT_STAT
 from molgri.space.polytopes import Cube4DPolytope, IcosahedronPolytope, Cube3DPolytope, Polytope
@@ -211,7 +213,7 @@ class SphereGridNDim(ABC):
 
     @abstractmethod
     @save_or_use_saved
-    def get_voronoi_areas(self, approx=False, using_detailed_grid=True) -> NDArray:
+    def get_cell_volumes(self, approx=False, using_detailed_grid=True) -> NDArray:
         """
         From Voronoi cells you may also calculate areas on the sphere that are closest each grid point. The order of
         areas is the same as the order of points in self.grid. In Hyperspheres, these are volumes and only the
@@ -234,7 +236,7 @@ class SphereGrid3Dim(SphereGridNDim, ABC):
         super().__init__(dimensions=3, N=N, use_saved=use_saved, time_generation=time_generation)
 
 
-    def get_voronoi_areas(self, approx=False, using_detailed_grid=True) -> NDArray:
+    def get_cell_volumes(self, approx=False, using_detailed_grid=True) -> NDArray:
         """
         From Voronoi cells you may also calculate areas on the sphere that are closest each grid point. The order of
         areas is the same as the order of points in self.grid. In Hyperspheres, these are volumes and only the
@@ -274,8 +276,63 @@ class SphereGrid3Dim(SphereGridNDim, ABC):
         else:
             return np.array([])
 
-    def get_voronoi_adjacency(self):
-        pass
+    def get_voronoi_adjacency(self) -> coo_array:
+        return self._calculate_N_N_array(property="adjacency")
+
+    def get_center_distances(self) -> coo_array:
+        """
+        For points that are Voronoi neighbours, calculate the distance between them and save them in a sparse NxN
+        format.
+
+        Returns:
+
+        """
+        return self._calculate_N_N_array(property="center_distances")
+
+    def get_cell_borders(self) -> coo_array:
+        """
+        For points that are Voronoi neighbours, calculate the distance between them and save them in a sparse NxN
+        format.
+
+        Returns:
+
+        """
+        return self._calculate_N_N_array(property="border_len")
+
+    def _calculate_N_N_array(self, property="adjacency"):
+        sv = self.get_spherical_voronoi_cells()
+        N = self.get_N()
+        points = self.get_grid_as_array()
+        # prepare for adjacency matrix
+        rows = []
+        columns = []
+        elements = []
+
+        for index_tuple in combinations(list(range(len(sv.regions))), 2):
+
+            set_1 = set(sv.regions[index_tuple[0]])
+            set_2 = set(sv.regions[index_tuple[1]])
+
+            if len(set_1.intersection(set_2)) == 2:
+                rows.extend([index_tuple[0], index_tuple[1]])
+                columns.extend([index_tuple[1], index_tuple[0]])
+                if property == "adjacency":
+                    elements.extend([True, True])
+                elif property == "center_distances":
+                    v1 = points[index_tuple[0]]
+                    v2 = points[index_tuple[1]]
+                    dist = dist_on_sphere(v1, v2)[0]
+                    elements.extend([dist, dist])
+                elif property == "border_len":
+                    # here the points are the voronoi indices that both cells share
+                    indices_border = list(set_1.intersection(set_2))
+                    v1 = sv.vertices[indices_border[0]]
+                    v2 = sv.vertices[indices_border[1]]
+                    dist = dist_on_sphere(v1, v2)[0]
+                    elements.extend([dist, dist])
+                else:
+                    raise ValueError(f"Didn't understand the argument property={property}.")
+        return coo_array((elements, (rows, columns)), shape=(N, N))
 
 
 class SphereGrid4Dim(SphereGridNDim, ABC):
@@ -285,7 +342,7 @@ class SphereGrid4Dim(SphereGridNDim, ABC):
         super().__init__(dimensions=4, N=N, use_saved=use_saved, time_generation=time_generation)
         self.full_hypersphere_grid = None
 
-    def get_voronoi_areas(self, approx=True, using_detailed_grid=True) -> NDArray:
+    def get_cell_volumes(self, approx=True, using_detailed_grid=True) -> NDArray:
         """
         From Voronoi cells you may also calculate areas on the sphere that are closest each grid point. The order of
         areas is the same as the order of points in self.grid. In Hyperspheres, these are volumes and only the
@@ -554,7 +611,7 @@ class ConvergenceSphereGridFactory:
             real_N = len(sg.get_grid_as_array())
             ideal_area = 4*pi/real_N
             try:
-                real_areas = sg.get_voronoi_areas()
+                real_areas = sg.get_cell_volumes()
             except ValueError:
                 real_areas = [np.NaN] * real_N
             for area in real_areas:

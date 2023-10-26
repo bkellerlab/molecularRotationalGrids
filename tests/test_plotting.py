@@ -98,8 +98,8 @@ def test_trajectory_plots(and_animations=False):
 
 
 if __name__ == "__main__":
-    and_animations=True
-    # test_polytope_plots(and_animations=and_animations)
-    # test_spheregrid_plots(and_animations=and_animations)
-    # test_fullgrid_plots(and_animations=and_animations)
-    # test_trajectory_plots(and_animations=and_animations)
+    and_animations = False
+    test_polytope_plots(and_animations=and_animations)
+    test_spheregrid_plots(and_animations=and_animations)
+    test_fullgrid_plots(and_animations=and_animations)
+    test_trajectory_plots(and_animations=and_animations)

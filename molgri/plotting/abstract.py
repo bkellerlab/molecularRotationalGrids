@@ -155,13 +155,21 @@ class RepresentationCollection(ABC):
 
     def __set_complexity_level(self, complexity_level: str):
         if complexity_level == "empty" or complexity_level == "half_empty":
-            self.ax.set_xticks([])
-            self.ax.set_yticks([])
-            if isinstance(self.ax, Axes3D):
-                self.ax.set_zticks([])
-
-            if complexity_level == "empty":
-                self.ax.axis('off')
+            if isinstance(self.ax, np.ndarray):
+                for subax in self.ax.ravel():
+                    subax.set_xticks([])
+                    subax.set_yticks([])
+                    if isinstance(subax, Axes3D):
+                        subax.set_zticks([])
+                    if complexity_level == "empty":
+                        subax.axis('off')
+            else:
+                self.ax.set_xticks([])
+                self.ax.set_yticks([])
+                if isinstance(self.ax, Axes3D):
+                    self.ax.set_zticks([])
+                if complexity_level == "empty":
+                    self.ax.axis('off')
 
     def __set_style_part_2(self, color_style: str):
         color = (0.5, 0.5, 0.5, 0.7)
@@ -469,7 +477,7 @@ class ArrayPlot(RepresentationCollection):
         self.my_array = my_array
 
     @plot3D_method
-    def plot_grid(self, c=None):
+    def plot_grid(self, c=None, labels=False):
         """Plot the 3D grid plot, for 4D the 4th dimension plotted as color. It always has limits (-1, 1) and equalized
         figure size"""
 
@@ -480,7 +488,14 @@ class ArrayPlot(RepresentationCollection):
             else:
                 c = self.my_array[:, 3].T
         self.ax.scatter(*self.my_array[:, :3].T, c=c, s=30)
-
+        # if not a polytope, the label will be the line index in array; else the central index
+        if labels:
+            for i, el in enumerate(self.my_array):
+                self.ax.text(*el[:3], i)
+        # elif labels and self.sphere_grid.polytope:
+        #     projection2ci
+        #     for el in self.my_array:
+        #         self.ax.text(*el[:3], self.sphere_grid.polytope.G.nodes[tuple(el)]["central_index"])
         if self.my_array.shape[1] > 2:
             self.ax.view_init(elev=10, azim=30)
         self._set_axis_limits()

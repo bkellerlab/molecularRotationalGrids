@@ -695,7 +695,6 @@ class Cube4DPolytope(Polytope):
 
             if point_index in available_is:
                 adj_ind = np.nonzero(adj_matrix[available_is.index(point_index)])[0]
-                print(adj_ind)
 
                 real_ind = []
 

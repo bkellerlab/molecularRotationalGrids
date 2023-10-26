@@ -106,7 +106,7 @@ def test_voronoi_areas():
     for name in GRID_ALGORITHMS_3D:
         try:
             my_grid = SphereGridFactory.create(N=45, alg_name=name, dimensions=3, use_saved=USE_SAVED)
-            my_areas = my_grid.get_voronoi_areas()
+            my_areas = my_grid.get_cell_volumes()
             # Voronoi areas can be calculated for all algorithms, they have the right length, are + and add up to 4pi
             assert len(my_areas) == 45
             assert np.all(my_areas > 0)
@@ -117,8 +117,8 @@ def test_voronoi_areas():
     for name in ["ico", "cube3D"]:
         for N in (62, 114):
             my_grid = SphereGridFactory.create(N=N, alg_name=name, dimensions=3, use_saved=USE_SAVED)
-            exact_areas = my_grid.get_voronoi_areas(approx=False)
-            approx_areas = my_grid.get_voronoi_areas(approx=True, using_detailed_grid=True)
+            exact_areas = my_grid.get_cell_volumes(approx=False)
+            approx_areas = my_grid.get_cell_volumes(approx=True, using_detailed_grid=True)
             # for cube3D and ico, approximate areas are close to exact areas
             assert np.allclose(exact_areas, approx_areas, atol=1e-2, rtol=0.1)
             # each surface individually should be somewhat close to theoretical
@@ -127,7 +127,7 @@ def test_voronoi_areas():
             # sum of approximate areas also close to theoretical
             assert np.isclose(np.sum(approx_areas), sphere_surface, atol=0.1, rtol=0.1)
             # even if not using detailed grid, the values should be somewhat close
-            not_detailed = my_grid.get_voronoi_areas(approx=True, using_detailed_grid=False)
+            not_detailed = my_grid.get_cell_volumes(approx=True, using_detailed_grid=False)
             assert np.allclose(not_detailed, exact_areas, atol=0.1, rtol=0.1)
 
     # for N in (40, 272):

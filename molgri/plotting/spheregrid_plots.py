@@ -91,7 +91,11 @@ class SphereGridPlot(ArrayPlot):
         """
         df = self.sphere_grid.get_uniformity_df(alphas=self.alphas)
         sns.violinplot(x=df["alphas"], y=df["coverages"], ax=self.ax, palette=COLORS, linewidth=1, scale="count", cut=0)
-        self.ax.set_xticklabels(self.alphas_text)
+        try:
+            self.ax.set_xticklabels(self.alphas_text)
+        except ValueError:
+            # not the right number of tick labels, no big issue
+            pass
 
     @plot_method
     def plot_convergence(self):
@@ -120,6 +124,29 @@ class SphereGridPlot(ArrayPlot):
 
         self.ax.view_init(elev=10, azim=30)
         self._set_axis_limits()
+        self._equalize_axes()
+
+    @plot_method
+    def plot_cell_volumes(self, approx=False, using_detailed_grid=True):
+        voronoi_adjacency = self.sphere_grid.get_cell_volumes(approx=approx, using_detailed_grid=using_detailed_grid)
+        sns.violinplot(voronoi_adjacency, ax=self.ax)
+
+    @plot_method
+    def plot_adjacency_array(self):
+        adjacency_matrix = self.sphere_grid.get_voronoi_adjacency().toarray()
+        sns.heatmap(adjacency_matrix, cmap="gray", ax=self.ax)
+        self._equalize_axes()
+
+    @plot_method
+    def plot_cell_border_array(self):
+        center_distances_array = self.sphere_grid.get_cell_borders().toarray()
+        sns.heatmap(center_distances_array, cmap="gray", ax=self.ax)
+        self._equalize_axes()
+
+    @plot_method
+    def plot_center_distances_array(self):
+        center_distances_array = self.sphere_grid.get_center_distances().toarray()
+        sns.heatmap(center_distances_array, cmap="gray", ax=self.ax)
         self._equalize_axes()
 
 
@@ -445,7 +472,7 @@ class PanelSphereGridPlots(MultiRepresentationCollection):
         # plot the lower-dimensional scatterplot
         plotted_points = []
         for ax, points3D in zip(np.ravel(self.all_ax), all_points_3D):
-            ax.set_box_aspect(aspect=1)
+            ax.set_box_aspect(aspect=[1, 1, 1])
             sub_plotted_points = []
             for line in points3D:
                 sub_plotted_points.append(ax.scatter(*line[:-1], color="black", alpha=1))
@@ -599,10 +626,12 @@ class EightCellsPlot(MultiRepresentationCollection):
 
 
 if __name__ == "__main__":
-    c4 = Cube4DPolytope()
-    c4.divide_edges()
-    ecp = EightCellsPlot(c4, False)
-    ecp.create_all_plots()
+    sphere = SphereGrid3DFactory.create("ico", 20)
+    sg = SphereGridPlot(sphere)
+    #sg.plot_grid(save=False, labels=True)
+    sg.plot_cell_border_array()
+    #sg.plot_adjacency_array()
+
 
 
 
