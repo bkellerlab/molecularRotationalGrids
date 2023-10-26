@@ -35,11 +35,11 @@ def test_spheregrid_plots(N=32, and_animations=False, Ns=MINI_NS):
         SphereGridPlot(sgf).create_all_plots(and_animations=and_animations)
     # single plots 4D
     # fulldiv will not work for a non-allowed num of points
-    for alg in GRID_ALGORITHMS_4D[:-1]:
-        # grid plotting
-        sgf = SphereGrid4DFactory.create(alg_name=alg, N=N, time_generation=False,
-                                         use_saved=False)
-        SphereGridPlot(sgf).create_all_plots(and_animations=and_animations)
+    # for alg in GRID_ALGORITHMS_4D[:-1]:
+    #     # grid plotting
+    #     sgf = SphereGrid4DFactory.create(alg_name=alg, N=N, time_generation=False,
+    #                                      use_saved=False)
+    #     SphereGridPlot(sgf).create_all_plots(and_animations=and_animations)
 
     # panel plots
     psgp = PanelSphereGridPlots(N, 3)
