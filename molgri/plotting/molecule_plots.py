@@ -189,9 +189,3 @@ class ConvergenceMultiCollectionPlot(MultiRepresentationCollection):
         for energy_type in energy_types:
             for dim in (1, 2, 3):
                 self.make_all_energy_plots(dim, energy_type=energy_type)
-
-if __name__ == "__main__":
-    from molgri.molecules._load_examples import load_example_pt
-    from molgri.constants import MINI_NS
-    pt = load_example_pt()
-    ConvergenceMultiCollection(pt, MINI_NS).create_all_plots()
