@@ -103,6 +103,18 @@ def unique_quaternion_set(quaternions: NDArray) -> NDArray:
     return np.array(non_repeating_quaternions)
 
 
+def find_inverse_quaternion(q: NDArray) -> NDArray:
+    assert q.shape == (4,)
+    new_q = []
+    for i in range(1, 5):
+        if np.allclose(q[:i], 0):
+            new_q.append(0)
+        else:
+            new_q.append(-q[i-1])
+            new_q.extend(q[i:])
+            break
+    return np.array(new_q)
+
 def random_sphere_points(n: int = 1000) -> NDArray:
     """
     Create n points that are truly randomly distributed across the sphere.

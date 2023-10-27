@@ -297,12 +297,14 @@ def test_voronoi_visual_inspection():
     assert np.all(1 < long_distances)
     assert np.all(long_distances < 1.2)
 
-
+def test_full_and_half_hypersphere():
+    pass
 
 if __name__ == "__main__":
     # test_saving_rotobj()
     # test_general_grid_properties()
     # test_statistics()
     # test_ordering()
-    test_voronoi_exact_divisions()
+    # test_voronoi_exact_divisions()
     # test_voronoi_visual_inspection()
+    test_full_and_half_hypersphere()

@@ -421,7 +421,15 @@ class SphereGrid4Dim(SphereGridNDim, ABC):
     def get_voronoi_adjacency(self):
         pass
 
+
     def get_full_hypersphere_array(self) -> NDArray:
+        """
+        This is a longer array that includes an exactly opposite point for every point
+        Returns:
+
+        """
+        if self.full_hypersphere_grid is None:
+            pass
         return self.full_hypersphere_grid
 
 

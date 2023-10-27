@@ -625,13 +625,17 @@ class EightCellsPlot(MultiRepresentationCollection):
 
 
 if __name__ == "__main__":
-    hypersphere = SphereGrid4DFactory.create("cube4D", 64)
+    # full divisions would be 8, 40, 272
+    hypersphere = SphereGrid4DFactory.create("cube4D", 8)
+    polytope = hypersphere.polytope
     sg = SphereGridPlot(hypersphere)
-    sg.plot_grid(animate_rot=True)
-    #sg.plot_grid(save=False, labels=True)
-    #sg.plot_cell_border_array()
-    #sg.plot_adjacency_array()
+    #sg.plot_grid(animate_rot=True)
 
+    print(len(hypersphere.get_grid_as_array()), len(hypersphere.get_full_hypersphere_array()))
+
+
+    ecp = EightCellsPlot(polytope)
+    ecp.make_all_eight_cells(animate_rot=True)
 
 
 

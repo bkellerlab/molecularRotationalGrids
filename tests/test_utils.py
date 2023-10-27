@@ -1,7 +1,8 @@
 import os
 import numpy as np
 
-from molgri.space.utils import (distance_between_quaternions, normalise_vectors, random_quaternions,
+from molgri.space.utils import (distance_between_quaternions, find_inverse_quaternion, normalise_vectors,
+                                random_quaternions,
                                 angle_between_vectors, dist_on_sphere)
 from molgri.logfiles import find_first_free_index
 from scipy.constants import pi
@@ -170,6 +171,28 @@ def test_angle_between():
     assert np.isclose(angle_between_vectors(vec5, vec6)[1, 0], manual_angle_10)
     assert np.isclose(angle_between_vectors(vec5, vec6)[1, 1], manual_angle_11)
 
+def test_find_inverse_quaternion():
+    q1 = np.array([1, 22, 3, 4])
+    i_q1 = np.array([-1, 22, 3, 4])
+    assert np.allclose(find_inverse_quaternion(q1), i_q1)
+    q2 = np.array([-2, 3, 3, 0])
+    i_q2 = np.array([2, 3, 3, 0])
+    assert np.allclose(find_inverse_quaternion(q2), i_q2)
+    q3 = np.array([0, -3, 3, -4])
+    i_q3 = np.array([0, 3, 3, -4])
+    assert np.allclose(find_inverse_quaternion(q3), i_q3), f"{find_inverse_quaternion(q3)}!={i_q3}"
+    q4 = np.array([0, 0, 3, -4])
+    i_q4 = np.array([0, 0, -3, -4])
+    assert np.allclose(find_inverse_quaternion(q4), i_q4), f"{find_inverse_quaternion(q4)}!={i_q4}"
+    q5 = np.array([0, 0, 0, -4])
+    i_q5 = np.array([0, 0, 0, 4])
+    assert np.allclose(find_inverse_quaternion(q5), i_q5), f"{find_inverse_quaternion(q5)}!={i_q5}"
+    q6 = np.array([0, 0, 2, 0])
+    i_q6 = np.array([0, 0, -2, 0])
+    assert np.allclose(find_inverse_quaternion(q6), i_q6), f"{find_inverse_quaternion(q6)}!={i_q6}"
+    q7 = np.array([0, 0, 0, 0])
+    i_q7 = np.array([0, 0, 0, 0])
+    assert np.allclose(find_inverse_quaternion(q7), i_q7), f"{find_inverse_quaternion(q7)}!={i_q7}"
 
 
 if __name__ == "__main__":
@@ -179,3 +202,4 @@ if __name__ == "__main__":
     test_unit_dist_on_sphere()
     test_unit_vector()
     test_angle_between()
+    test_find_inverse_quaternion()
