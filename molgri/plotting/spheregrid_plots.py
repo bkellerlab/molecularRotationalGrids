@@ -625,10 +625,11 @@ class EightCellsPlot(MultiRepresentationCollection):
 
 
 if __name__ == "__main__":
-    sphere = SphereGrid3DFactory.create("ico", 20)
-    sg = SphereGridPlot(sphere)
+    hypersphere = SphereGrid4DFactory.create("cube4D", 64)
+    sg = SphereGridPlot(hypersphere)
+    sg.plot_grid(animate_rot=True)
     #sg.plot_grid(save=False, labels=True)
-    sg.plot_cell_border_array()
+    #sg.plot_cell_border_array()
     #sg.plot_adjacency_array()
 
 
