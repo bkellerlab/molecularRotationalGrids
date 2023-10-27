@@ -1,12 +1,12 @@
 import pandas as pd
-from molgri.assertions import all_row_norms_equal_k, which_row_is_k
-from tqdm import tqdm
+import numpy as np
 from scipy.constants import pi
+from scipy.linalg import issymmetric
 
 from molgri.space.rotobj import SphereGrid3DFactory, SphereGridFactory
 from molgri.constants import GRID_ALGORITHMS_3D, GRID_ALGORITHMS_4D, DEFAULT_ALPHAS_3D
+from molgri.assertions import all_row_norms_equal_k, which_row_is_k
 
-import numpy as np
 
 # tests should always be performed on fresh data
 USE_SAVED = False
@@ -92,7 +92,7 @@ def test_ordering():
             assert np.allclose(grid_1[:N], grid_2)
 
 
-def test_voronoi_areas():
+def test_voronoi_exact_divisions():
     """
     This function tests that:
     1) Voronoi areas can be calculated for all algorithms (except zero)
@@ -111,24 +111,55 @@ def test_voronoi_areas():
             assert len(my_areas) == 45
             assert np.all(my_areas > 0)
             assert np.isclose(np.sum(my_areas), sphere_surface)
+            # compare border len and dist between points with polytope side len
+
         except ValueError:
             print(f"Duplicate generator issue for {name}.")
 
-    for name in ["ico", "cube3D"]:
-        for N in (62, 114):
-            my_grid = SphereGridFactory.create(N=N, alg_name=name, dimensions=3, use_saved=USE_SAVED)
-            exact_areas = my_grid.get_cell_volumes(approx=False)
-            approx_areas = my_grid.get_cell_volumes(approx=True, using_detailed_grid=True)
-            # for cube3D and ico, approximate areas are close to exact areas
-            assert np.allclose(exact_areas, approx_areas, atol=1e-2, rtol=0.1)
-            # each surface individually should be somewhat close to theoretical
-            theo_area = sphere_surface / N
-            assert np.isclose(np.average(approx_areas), theo_area, atol=0.01, rtol=0.1)
-            # sum of approximate areas also close to theoretical
-            assert np.isclose(np.sum(approx_areas), sphere_surface, atol=0.1, rtol=0.1)
-            # even if not using detailed grid, the values should be somewhat close
-            not_detailed = my_grid.get_cell_volumes(approx=True, using_detailed_grid=False)
-            assert np.allclose(not_detailed, exact_areas, atol=0.1, rtol=0.1)
+
+    # exact divisions of cube3D: 8, 26, 98
+    for i, N in enumerate([8, 26, 98]):
+        my_grid = SphereGrid3DFactory.create("cube3D", N, use_saved=False)
+        # if you wanna visualize it, uncomment
+        # from molgri.plotting.spheregrid_plots import SphereGridPlot
+        # import matplotlib.pyplot as plt
+        # sg = SphereGridPlot(my_grid)
+        # sg.plot_grid(save=False, labels=True)
+        # sg.plot_voronoi(ax=sg.ax, fig=sg.fig, save=True, labels=False, animate_rot=True)
+        # plt.show()
+
+        # areas
+        # each surface individually should be somewhat close to theoretical
+        theo_area = sphere_surface / N
+        exact_areas = my_grid.get_cell_volumes(approx=False)
+        approx_areas = my_grid.get_cell_volumes(approx=True, using_detailed_grid=True)
+        # approximate areas are close to exact areas
+        assert np.allclose(exact_areas, approx_areas, atol=1e-2, rtol=0.1)
+        assert np.isclose(np.average(approx_areas), theo_area, atol=0.01, rtol=0.1)
+        # sum of approximate areas also close to theoretical
+        assert np.isclose(np.sum(approx_areas), sphere_surface, atol=0.1, rtol=0.1)
+        # even if not using detailed grid, the values should be somewhat close
+        not_detailed = my_grid.get_cell_volumes(approx=True, using_detailed_grid=False)
+        # all are reasonably close to each other
+        assert np.std(approx_areas) < 0.08
+        assert np.std(not_detailed) < 0.08
+        # no super weird values
+        assert np.all(approx_areas < 2)
+        assert np.all(approx_areas > 0.05)
+        assert np.all(not_detailed < 2)
+        assert np.all(not_detailed > 0.05)
+
+
+        # lengths between neighbouring points
+        # real len will be a bit longer than side_len because they are curved
+        nonzero_dist = my_grid.get_center_distances().data
+        side_len = 2 * np.sqrt(1/3) /(2**i)
+        curvature_factor = 1.066
+        real_dist, real_count = np.unique(np.round(nonzero_dist, 3), return_counts=True)
+        print(side_len*curvature_factor, side_len*curvature_factor*np.sqrt(2), real_dist)
+        if i==0:
+            assert np.isclose(side_len*curvature_factor, real_dist[0], atol=0.001)
+        #print(np.any()
 
     # for N in (40, 272):
     #     my_grid = SphereGridFactory.create(N=N, alg_name="fulldiv", dimensions=4, use_saved=USE_SAVED)
@@ -143,30 +174,100 @@ def test_voronoi_areas():
     #                      return_counts=True))
     # TODO: check that groups of volumes = groups of points
 
-def test_voronoi_properties_regression():
+
+def test_voronoi_visual_inspection():
     """
     This function tests that for 3D points on the sphere:
     1) the size of voronoi cells, border areas and distances between centers is as expected from visual inspection
     2) the neigbouring relations are as expected from visual inspection
+    3) default function for calculating areas gives values that sum up well
+
+    This doesn't test different ways of calculating areas, or compare with polytope distances; see
+    test_voronoi_exact_divisions
     """
     sphere = SphereGrid3DFactory.create("ico", 20, use_saved=False)
     # if you wanna visualize it, uncomment
-    from molgri.plotting.spheregrid_plots import SphereGridPlot
-    import matplotlib.pyplot as plt
-    sg = SphereGridPlot(sphere)
-    sg.plot_grid(save=False, labels=True)
-    sg.plot_voronoi(ax=sg.ax, fig=sg.fig, save=True, labels=True, animate_rot=True)
+    # from molgri.plotting.spheregrid_plots import SphereGridPlot
+    # import matplotlib.pyplot as plt
+    # sg = SphereGridPlot(sphere)
+    # sg.plot_grid(save=False, labels=True)
+    # sg.plot_voronoi(ax=sg.ax, fig=sg.fig, save=False, labels=True, animate_rot=False)
     # plt.show()
+
     # test_adjacency
     adj_sphere = sphere.get_voronoi_adjacency().toarray()
-    print(sphere.get_spherical_voronoi_cells().vertices[26])
-    print(sphere.get_spherical_voronoi_cells().vertices[27])
     visual_neigh_of_0 = [2, 6, 7, 9, 15]
     visual_neigh_of_3 = [4, 7, 8, 10, 11, 18, 19]
     visual_neigh_of_19 = [3, 7, 8, 14]
-    assert visual_neigh_of_0 == np.nonzero(adj_sphere[0])[0]
-    assert visual_neigh_of_3 == np.nonzero(adj_sphere[3])[0]
-    assert visual_neigh_of_19 == np.nonzero(adj_sphere[19])[0]
+    assert np.all(visual_neigh_of_0 == np.nonzero(adj_sphere[0])[0])
+    assert np.all(visual_neigh_of_3 == np.nonzero(adj_sphere[3])[0])
+    assert np.all(visual_neigh_of_19 == np.nonzero(adj_sphere[19])[0])
+
+    # test areas
+    # visual_intuition:
+    # small areas: 5, 12, 13, 14, 15, 16, 17, 19
+    # large areas: 0, 1, 2, 3, 9, 11
+    # sum of areas: 4pi
+    areas = sphere.get_cell_volumes()
+    expected_largest = areas[2]
+    expected_smallest = areas[17]
+    expected_small = areas[[5, 12, 13, 14, 15, 16, 17, 19]]
+    expected_large = areas[[0, 1, 2, 3, 9, 11]]
+    assert np.all([x > y for x in expected_large for y in expected_small])
+    assert np.isclose(np.sum(areas), 4*pi)
+    # the largest one is almost  like there would be only one division
+    assert np.all(expected_largest >= areas)
+    assert np.isclose(expected_largest, 4*pi/12, atol=4e-2, rtol=1e-3)
+    # the smallest one ist't negative or zero or sth weird like that
+    assert np.all(expected_smallest <= areas)
+    assert expected_smallest > 0.2
+
+    # test border lengths
+    # visual intuition:
+    # expected_long: [13, 15], [18, 7], [0, 2]
+    # expected short: [4, 10], [7, 0], [5, 4], [14, 1]
+    # no border: [4, 4], [0, 17], [14, 7], [16, 12]
+    borders_sparse = sphere.get_cell_borders()
+    # the smallest one in sparse ist't negative or zero or sth weird like that
+    assert np.min(borders_sparse.data) > 0.1
+    borders = borders_sparse.toarray()
+    assert issymmetric(borders)
+    # visually, an average border is about 10% of a full circle
+    avg_len = borders_sparse.sum()/borders_sparse.count_nonzero()
+    assert np.isclose(avg_len, 2*pi/10, atol=0.02, rtol=0.05)
+    long_borders = np.array([borders[coo[0]][coo[1]] for coo in [(13, 5), (18, 7), (0, 2)]])
+    short_borders = np.array([borders[coo[0]][coo[1]]for coo in [[4, 10], [7, 0], [5, 4], [14, 1]]])
+    no_borders = np.array([borders[coo[0]][coo[1]] for coo in [[4, 4], [0, 17], [14, 7], [16, 12]]])
+    assert np.allclose(no_borders, 0)
+    assert np.all([x > y for x in long_borders for y in short_borders])
+    assert np.all(0.1 < short_borders)
+    assert np.all(short_borders < 0.5)
+    assert np.all(0.7 < long_borders)
+    assert np.all(long_borders < 1)
+
+    # test lengths between points
+    # visual intuition:
+    # expected_long: [1, 5], [7, 0], [0, 2], [4, 5]
+    # expected short: [17, 10], [6, 16], [18, 10], [18, 15]
+    # no border: [7, 15], [6, 5], [15, 15], [18, 0]
+    distances_sparse = sphere.get_center_distances()
+    assert np.min(distances_sparse.data) > 0.4
+    # the smallest one in sparse ist't negative or zero or sth weird like that
+    distances = distances_sparse.toarray()
+    assert issymmetric(distances)
+    # visually, an average border is about 1/7 of a full circle
+    avg_len = distances_sparse.sum()/distances_sparse.count_nonzero()
+    assert np.isclose(avg_len, 2*pi/7, atol=0.02, rtol=0.05)
+    long_distances = np.array([distances[coo[0]][coo[1]] for coo in [[1, 5], [7, 0], [0, 2], [4, 5]]])
+    short_distances = np.array([distances[coo[0]][coo[1]]for coo in [[17, 10], [6, 16], [18, 10], [18, 15]]])
+    no_distances = np.array([distances[coo[0]][coo[1]] for coo in [[7, 15], [6, 5], [15, 15], [18, 0]]])
+    assert np.allclose(no_distances, 0)
+    assert np.all([x > y for x in long_distances for y in short_distances])
+    assert np.all(0.5 < short_distances)
+    assert np.all(short_distances < 0.65)
+    assert np.all(1 < long_distances)
+    assert np.all(long_distances < 1.2)
+
 
 
 if __name__ == "__main__":
@@ -174,5 +275,5 @@ if __name__ == "__main__":
     # test_general_grid_properties()
     # test_statistics()
     # test_ordering()
-    # test_voronoi_areas()
-    test_voronoi_properties_regression()
+    test_voronoi_exact_divisions()
+    # test_voronoi_visual_inspection()
