@@ -3,10 +3,9 @@ import numpy as np
 from scipy.constants import pi
 from scipy.linalg import issymmetric
 
-from molgri.space.rotobj import SphereGrid3DFactory, SphereGridFactory
+from molgri.space.rotobj import SphereGrid3DFactory, SphereGrid4DFactory, SphereGridFactory
 from molgri.constants import GRID_ALGORITHMS_3D, GRID_ALGORITHMS_4D, DEFAULT_ALPHAS_3D
-from molgri.assertions import all_row_norms_equal_k, which_row_is_k
-
+from molgri.space.utils import all_row_norms_equal_k, two_sets_of_quaternions_equal, which_row_is_k
 
 # tests should always be performed on fresh data
 USE_SAVED = False
@@ -298,7 +297,16 @@ def test_voronoi_visual_inspection():
     assert np.all(long_distances < 1.2)
 
 def test_full_and_half_hypersphere():
-    pass
+    for alg in ["cube4D", "randomQ"]:
+        for N in [8, 15, 73]:
+            hypersphere = SphereGrid4DFactory.create(alg, N, use_saved=False)
+            half_grid = hypersphere.get_grid_as_array()
+            full_grid = hypersphere.get_full_hypersphere_array()
+            assert np.allclose(full_grid[:N], half_grid), f"{alg}, {full_grid[:N]}, {half_grid}"
+            assert two_sets_of_quaternions_equal(full_grid[:N], full_grid[N:])
+            # no repeating rows in first and second half
+            for el in full_grid[:N]:
+                assert len(np.nonzero(np.all(np.isclose(el, full_grid[N:]), axis=1))[0])==0
 
 if __name__ == "__main__":
     # test_saving_rotobj()

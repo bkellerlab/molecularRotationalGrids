@@ -10,7 +10,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import seaborn as sns
 
-from molgri.assertions import which_row_is_k
+from molgri.space.utils import which_row_is_k
 from molgri.paths import PATH_OUTPUT_PLOTS
 from matplotlib.animation import FuncAnimation
 from numpy.typing import NDArray, ArrayLike

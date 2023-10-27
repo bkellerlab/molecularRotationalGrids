@@ -4,8 +4,7 @@ from scipy.constants import pi
 
 from molgri.space.polytopes import Cube3DPolytope, IcosahedronPolytope, second_neighbours, \
     Cube4DPolytope, third_neighbours, remove_and_reconnect
-from molgri.assertions import all_row_norms_equal_k, all_rows_unique, k_is_a_row, quaternion_in_array
-from molgri.space.utils import dist_on_sphere
+from molgri.space.utils import all_row_norms_equal_k, all_rows_unique, dist_on_sphere, k_is_a_row, quaternion_in_array
 
 ALL_POLYTOPE_TYPES = (Cube3DPolytope, IcosahedronPolytope, Cube4DPolytope)
 ALL_POLYHEDRON_TYPES = (Cube3DPolytope, IcosahedronPolytope)

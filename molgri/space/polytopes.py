@@ -34,8 +34,9 @@ from scipy.constants import pi, golden
 from scipy.sparse import coo_array
 from scipy.spatial.distance import cdist
 
-from molgri.assertions import which_row_is_k
-from molgri.space.utils import distance_between_quaternions, normalise_vectors, dist_on_sphere, unique_quaternion_set
+from molgri.space.utils import distance_between_quaternions, normalise_vectors, dist_on_sphere, unique_quaternion_set, \
+    which_row_is_k
+
 
 class Polytope(ABC):
 

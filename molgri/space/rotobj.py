@@ -27,10 +27,9 @@ from scipy.spatial import ConvexHull
 from scipy.spatial.distance import cdist
 from scipy.spatial.transform import Rotation
 
-from molgri.assertions import which_row_is_k
 from molgri.space.analysis import prepare_statistics, write_statistics
-from molgri.space.utils import random_quaternions, random_sphere_points, \
-    unique_quaternion_set, dist_on_sphere
+from molgri.space.utils import find_inverse_quaternion, random_quaternions, random_sphere_points, \
+    unique_quaternion_set, dist_on_sphere, which_row_is_k
 from molgri.constants import UNIQUE_TOL, EXTENSION_GRID_FILES, NAME2PRETTY_NAME, SMALL_NS
 from molgri.paths import PATH_OUTPUT_ROTGRIDS, PATH_OUTPUT_STAT
 from molgri.space.polytopes import Cube4DPolytope, IcosahedronPolytope, Cube3DPolytope, Polytope
@@ -421,7 +420,6 @@ class SphereGrid4Dim(SphereGridNDim, ABC):
     def get_voronoi_adjacency(self):
         pass
 
-
     def get_full_hypersphere_array(self) -> NDArray:
         """
         This is a longer array that includes an exactly opposite point for every point
@@ -429,7 +427,13 @@ class SphereGrid4Dim(SphereGridNDim, ABC):
 
         """
         if self.full_hypersphere_grid is None:
-            pass
+            half_grid = self.get_grid_as_array()
+            N = self.get_N()
+            self.full_hypersphere_grid = np.zeros((2*N, 4))
+            self.full_hypersphere_grid[:N] = half_grid
+            for i in range(N):
+                inverse_q = find_inverse_quaternion(half_grid[i])
+                self.full_hypersphere_grid[N+i] = inverse_q
         return self.full_hypersphere_grid
 
 
@@ -472,9 +476,7 @@ class RandomQRotations(SphereGrid4Dim):
         all_quaternions = random_quaternions(4*self.N)
         # now select those that are in the upper hemisphere
         unique_quaternions = unique_quaternion_set(all_quaternions)[:self.N]
-        max_index = which_row_is_k(all_quaternions, unique_quaternions[-1])[0]
-        self.full_hypersphere_grid = all_quaternions[:max_index]
-        return random_quaternions(self.N)
+        return unique_quaternions
 
 
 class RandomSRotations(SphereGrid3Dim):
@@ -613,7 +615,7 @@ class SphereGrid4DFactory:
     """
 
     @classmethod
-    def create(cls, alg_name: str, N: int, **kwargs) -> SphereGridNDim:
+    def create(cls, alg_name: str, N: int, **kwargs) -> SphereGrid4Dim:
         if alg_name == "randomQ":
             selected_sub_obj = RandomQRotations(N=N, **kwargs)
         elif alg_name == "cube4D":

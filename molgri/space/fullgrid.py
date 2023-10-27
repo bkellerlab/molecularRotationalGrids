@@ -36,8 +36,7 @@ from molgri.space.rotobj import SphereGrid3DFactory, SphereGrid4DFactory, Sphere
 from molgri.space.translations import TranslationParser
 from molgri.naming import GridNameParser
 from molgri.paths import PATH_OUTPUT_FULL_GRIDS
-from molgri.space.utils import normalise_vectors, angle_between_vectors
-from molgri.assertions import norm_per_axis
+from molgri.space.utils import norm_per_axis, normalise_vectors, angle_between_vectors
 from molgri.wrappers import save_or_use_saved, deprecated
 
 
