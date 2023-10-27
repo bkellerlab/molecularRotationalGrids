@@ -156,10 +156,39 @@ def test_voronoi_exact_divisions():
         side_len = 2 * np.sqrt(1/3) /(2**i)
         curvature_factor = 1.066
         real_dist, real_count = np.unique(np.round(nonzero_dist, 3), return_counts=True)
-        print(side_len*curvature_factor, side_len*curvature_factor*np.sqrt(2), real_dist)
-        if i==0:
+        if i == 0:
             assert np.isclose(side_len*curvature_factor, real_dist[0], atol=0.001)
-        #print(np.any()
+        if i == 1:
+            # one big circle of 8 elements in the middle
+            array_dist = my_grid.get_center_distances().toarray()
+            big_circle_el = [array_dist[17][25], array_dist[25][22], array_dist[22][8], array_dist[8][11],
+                             array_dist[11][23], array_dist[23][15], array_dist[15][19], array_dist[19][17]]
+            assert np.allclose(big_circle_el, 2*pi/8)
+            # straight and diagonal elements
+            straight_19_neig = [array_dist[19][17], array_dist[19][9], array_dist[19][15], array_dist[19][14]]
+            diag_19_neig = [array_dist[19][5], array_dist[19][0], array_dist[19][3], array_dist[19][4]]
+            assert np.allclose(straight_19_neig, 2*pi/8)
+            assert np.allclose(diag_19_neig, 0.9553166181245093)
+        else:
+            assert np.any(np.isclose(side_len*curvature_factor, real_dist, atol=0.002))
+
+
+        # lengths of border areas
+        nonzero_borders = my_grid.get_cell_borders().data
+        borders = my_grid.get_cell_borders().toarray()
+
+        if i==0:
+            # borders are always quaters of the big circle
+            border_len = 2*pi / 4
+            assert np.allclose(nonzero_borders, border_len)
+        elif i==1:
+            # should be close to 1/8 of the big circle, but there are some tiny diag areas too
+            diag_borders_19 = [borders[19][4], borders[19][5], borders[19][0], borders[19][3]]
+            straight_borders_19 = [borders[19][17], borders[19][15], borders[19][14], borders[19][9]]
+            assert np.allclose(diag_borders_19,  0.12089407013591315)
+            assert np.allclose(straight_borders_19, 0.5712296571729331)
+            triangle_borders_4 = [borders[4][20], borders[4][9], borders[4][17]]
+            assert np.allclose(triangle_borders_4, 0.75195171)
 
     # for N in (40, 272):
     #     my_grid = SphereGridFactory.create(N=N, alg_name="fulldiv", dimensions=4, use_saved=USE_SAVED)

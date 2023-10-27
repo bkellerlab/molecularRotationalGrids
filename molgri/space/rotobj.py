@@ -234,7 +234,6 @@ class SphereGridNDim(ABC):
 
         return new_regions
 
-
     @abstractmethod
     @save_or_use_saved
     def get_cell_volumes(self, approx=False, using_detailed_grid=True) -> NDArray:
@@ -248,8 +247,26 @@ class SphereGridNDim(ABC):
         pass
 
     @abstractmethod
-    def get_voronoi_adjacency(self):
-        pass # TODO
+    @save_or_use_saved
+    def get_voronoi_adjacency(self) -> coo_array:
+        pass
+
+    @abstractmethod
+    @save_or_use_saved
+    def get_cell_borders(self) -> coo_array:
+        """
+        From Voronoi cells you may also calculate areas on the sphere that are closest each grid point. The order of
+        areas is the same as the order of points in self.grid. In Hyperspheres, these are volumes and only the
+        approximation method is possible.
+
+        Approximations only available for Ico, Cube3D and Cube4D polytopes.
+        """
+        pass
+
+    @abstractmethod
+    @save_or_use_saved
+    def get_center_distances(self) -> coo_array:
+        pass
 
 
 class SphereGrid3Dim(SphereGridNDim, ABC):

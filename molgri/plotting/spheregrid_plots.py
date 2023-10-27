@@ -472,7 +472,6 @@ class PanelSphereGridPlots(MultiRepresentationCollection):
         # plot the lower-dimensional scatterplot
         plotted_points = []
         for ax, points3D in zip(np.ravel(self.all_ax), all_points_3D):
-            ax.set_box_aspect(aspect=[1, 1, 1])
             sub_plotted_points = []
             for line in points3D:
                 sub_plotted_points.append(ax.scatter(*line[:-1], color="black", alpha=1))
