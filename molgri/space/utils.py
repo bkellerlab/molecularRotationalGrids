@@ -131,21 +131,21 @@ def find_inverse_quaternion(q: NDArray) -> NDArray:
     return -q
 
 
-def q_in_upper_hypersphere(q: NDArray) -> bool:
+def q_in_upper_sphere(q: NDArray) -> bool:
     """
-    Determine whether q in the upper part of the hypersphere. This will be true if the first non-zero element of
-    the quaternion is positive.
+    Determine whether q in the upper part of the (hyper)sphere. This will be true if the first non-zero element of
+    the vector/quaternion is positive.
 
-    The point (0, 0, 0, 0) is defined to be in the bottom hemisphere.
+    The point of all zeros is defined to be in the bottom hemisphere.
 
     Args:
-        q: a quaternion to be tested
+        q: a vector/quaternion to be tested
 
     Returns:
 
     """
-    assert q.shape == (4,)
-    for i in range(4):
+    assert len(q.shape) == 1
+    for i, q_i in enumerate(q):
         if np.allclose(q[:i], 0) and q[i] > 0:
             return True
     return False

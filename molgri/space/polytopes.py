@@ -35,7 +35,7 @@ from scipy.sparse import coo_array
 from scipy.spatial.distance import cdist
 
 from molgri.space.utils import (distance_between_quaternions, normalise_vectors, dist_on_sphere,
-                                hemisphere_quaternion_set, which_row_is_k, q_in_upper_hypersphere)
+                                hemisphere_quaternion_set, which_row_is_k, q_in_upper_sphere)
 
 
 class Polytope(ABC):
@@ -582,7 +582,7 @@ class Cube4DPolytope(Polytope):
         """
 
         projected_points = self.get_nodes(projection=True)
-        unique_projected_points = [p for p in projected_points if q_in_upper_hypersphere(p)]
+        unique_projected_points = [p for p in projected_points if q_in_upper_sphere(p)]
 
         all_ci = []
         for upp in unique_projected_points:

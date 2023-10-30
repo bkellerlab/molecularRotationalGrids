@@ -6,7 +6,7 @@ from molgri.space.utils import (all_row_norms_equal_k, all_row_norms_similar, di
                                 is_array_with_d_dim_r_rows_c_columns, normalise_vectors,
                                 quaternion_in_array, random_quaternions,
                                 angle_between_vectors, dist_on_sphere, two_sets_of_quaternions_equal,
-                                q_in_upper_hypersphere)
+                                q_in_upper_sphere)
 from molgri.logfiles import find_first_free_index
 from scipy.constants import pi
 
@@ -176,37 +176,37 @@ def test_angle_between():
 
 def test_find_inverse_quaternion():
     q1 = np.array([1, 22, 3, 4])
-    assert q_in_upper_hypersphere(q1)
+    assert q_in_upper_sphere(q1)
     i_q1 = np.array([-1, -22, -3, -4])
     assert np.allclose(find_inverse_quaternion(q1), i_q1)
 
     q2 = np.array([-2, 3, 3, 0])
-    assert not q_in_upper_hypersphere(q2)
+    assert not q_in_upper_sphere(q2)
     i_q2 = np.array([2, -3, -3, 0])
     assert np.allclose(find_inverse_quaternion(q2), i_q2)
 
     q3 = np.array([0, -3, 3, -4])
-    assert not q_in_upper_hypersphere(q3)
+    assert not q_in_upper_sphere(q3)
     i_q3 = np.array([0, 3, -3, 4])
     assert np.allclose(find_inverse_quaternion(q3), i_q3), f"{find_inverse_quaternion(q3)}!={i_q3}"
 
     q4 = np.array([0, 0, 3, -4])
-    assert q_in_upper_hypersphere(q4)
+    assert q_in_upper_sphere(q4)
     i_q4 = np.array([0, 0, -3, 4])
     assert np.allclose(find_inverse_quaternion(q4), i_q4), f"{find_inverse_quaternion(q4)}!={i_q4}"
 
     q5 = np.array([0, 0, 0, -4])
-    assert not q_in_upper_hypersphere(q5)
+    assert not q_in_upper_sphere(q5)
     i_q5 = np.array([0, 0, 0, 4])
     assert np.allclose(find_inverse_quaternion(q5), i_q5), f"{find_inverse_quaternion(q5)}!={i_q5}"
 
     q6 = np.array([0, 0, 2, 0])
-    assert q_in_upper_hypersphere(q6)
+    assert q_in_upper_sphere(q6)
     i_q6 = np.array([0, 0, -2, 0])
     assert np.allclose(find_inverse_quaternion(q6), i_q6), f"{find_inverse_quaternion(q6)}!={i_q6}"
 
     q7 = np.array([0, 0, 0, 0])
-    assert not q_in_upper_hypersphere(q7)
+    assert not q_in_upper_sphere(q7)
     i_q7 = np.array([0, 0, 0, 0])
     assert np.allclose(find_inverse_quaternion(q7), i_q7), f"{find_inverse_quaternion(q7)}!={i_q7}"
 

@@ -111,14 +111,14 @@ class SphereGridPlot(ArrayPlot):
         self.ax.set_yscale("log")
 
     @plot3D_method
-    def plot_voronoi(self, labels=False, **kwargs):
+    def plot_voronoi(self, labels=False, points=True, **kwargs):
         # if self.sphere_grid.dimensions != 3:
         #     print("make_spherical_voronoi_plot only implemented for 3D grids")
         #     return
 
         try:
             sv = self.sphere_grid.get_spherical_voronoi_cells(**kwargs)
-            plot_voronoi_cells(sv, self.ax, labels=labels)
+            plot_voronoi_cells(sv, self.ax, labels=labels, points=points)
         except AttributeError:
             pass
 
@@ -625,10 +625,10 @@ class EightCellsPlot(MultiRepresentationCollection):
 
 
 if __name__ == "__main__":
-    # sphere = SphereGrid3DFactory.create("cube3D", 40, use_saved=False)
-    # sg = SphereGridPlot(sphere)
-    # sg.plot_grid(save=False)
-    # sg.plot_voronoi(only_half_of_cube=True, ax=sg.ax, fig=sg.fig)
+    sphere = SphereGrid3DFactory.create("cube3D", 40, use_saved=False)
+    sg = SphereGridPlot(sphere)
+    sg.plot_voronoi(only_upper=True, ax=sg.ax, fig=sg.fig, animate_rot=True)
+    print(len(sphere.get_spherical_voronoi_cells(only_upper=True).points))
 
 
     # full divisions would be 8, 40, 272
@@ -637,7 +637,7 @@ if __name__ == "__main__":
     # polytope = hypersphere.polytope
     sg = SphereGridPlot(hypersphere)
     sg.plot_grid(save=False)
-    sg.plot_voronoi(only_half_of_cube=True, ax=sg.ax, fig=sg.fig)
+    sg.plot_voronoi(only_upper=True, ax=sg.ax, fig=sg.fig)
     #
     # #print(len(hypersphere.get_grid_as_array()), len(hypersphere.get_full_hypersphere_array()))
     #

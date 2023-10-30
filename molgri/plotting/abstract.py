@@ -445,9 +445,11 @@ def show_anim_in_jupyter(anim):
     plt.close()
 
 
-def plot_voronoi_cells(sv, ax, plot_vertex_points=True, colors=None, labels=False):
-    sv.sort_vertices_of_regions()
+def plot_voronoi_cells(sv, ax, plot_vertex_points=True, colors=None, labels=False, points=False):
     t_vals = np.linspace(0, 1, 2000)
+    # plot centers of voronoi cells
+    if points:
+        ax.scatter(sv.points[:, 0], sv.points[:, 1], sv.points[:, 2], c='black')
     # plot Voronoi vertices
     if plot_vertex_points:
         ax.scatter(sv.vertices[:, 0], sv.vertices[:, 1], sv.vertices[:, 2], c='g')
@@ -455,18 +457,22 @@ def plot_voronoi_cells(sv, ax, plot_vertex_points=True, colors=None, labels=Fals
             for i, line in enumerate(sv.vertices):
                 ax.text(*line[:3], i, c='g')
     # indicate Voronoi regions (as Euclidean polygons)
-    for i, region in enumerate(sv.regions):
-        n = len(region)
-        for j in range(n):
-            start = sv.vertices[region][j]
-            end = sv.vertices[region][(j + 1) % n]
-            norm = np.linalg.norm(start)
-            result = geometric_slerp(normalise_vectors(start), normalise_vectors(end), t_vals)
-            ax.plot(norm * result[..., 0], norm * result[..., 1], norm * result[..., 2], c='k')
-        if colors:
-            polygon = Poly3DCollection([sv.vertices[region]], alpha=0.5)
-            polygon.set_color(colors[i])
-            ax.add_collection3d(polygon)
+    try:
+        sv.sort_vertices_of_regions()
+        for i, region in enumerate(sv.regions):
+            n = len(region)
+            for j in range(n):
+                start = sv.vertices[region][j]
+                end = sv.vertices[region][(j + 1) % n]
+                norm = np.linalg.norm(start)
+                result = geometric_slerp(normalise_vectors(start), normalise_vectors(end), t_vals)
+                ax.plot(norm * result[..., 0], norm * result[..., 1], norm * result[..., 2], c='k')
+            if colors:
+                polygon = Poly3DCollection([sv.vertices[region]], alpha=0.5)
+                polygon.set_color(colors[i])
+                ax.add_collection3d(polygon)
+    except TypeError:
+        pass
 
 
 class ArrayPlot(RepresentationCollection):

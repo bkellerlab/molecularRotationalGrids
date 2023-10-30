@@ -30,7 +30,7 @@ from scipy.spatial.transform import Rotation
 
 from molgri.space.analysis import prepare_statistics, write_statistics
 from molgri.space.utils import find_inverse_quaternion, random_quaternions, random_sphere_points, \
-    hemisphere_quaternion_set, dist_on_sphere, which_row_is_k
+    hemisphere_quaternion_set, dist_on_sphere, which_row_is_k, q_in_upper_sphere
 from molgri.constants import UNIQUE_TOL, EXTENSION_GRID_FILES, NAME2PRETTY_NAME, SMALL_NS
 from molgri.paths import PATH_OUTPUT_ROTGRIDS, PATH_OUTPUT_STAT
 from molgri.space.polytopes import Cube4DPolytope, IcosahedronPolytope, Cube3DPolytope, Polytope
@@ -200,7 +200,7 @@ class SphereGridNDim(ABC):
         return full_df
 
     @save_or_use_saved
-    def get_spherical_voronoi_cells(self, only_half_of_cube=False):
+    def get_spherical_voronoi_cells(self, only_upper=False):
         """
         A spherical grid (in 3D) can be used as a basis for a spherical Voronoi grid. In this case, each grid point is
         used as a center of a Voronoi cell. The spherical Voronoi cells also have the radius 1.
@@ -212,21 +212,25 @@ class SphereGridNDim(ABC):
             self.spherical_voronoi = SphericalVoronoi(self.get_full_hypersphere_array(),
                                                       radius=1, threshold=1e-6)
 
-        if only_half_of_cube:
+        if only_upper:
             if self.dimensions == 3:
                 print(f"Warning! Did you intentionally select only half-sphere for a normal (not hyper-)sphere?")
             # select only the points, vertices and regions occuring in the first half of
             # self.get_full_hypersphere_array(), since these are the points in the upper hemisphere
             modified_sv = copy(self.spherical_voronoi)
-            # intentionally not using self.get_N() so we can use this in 3D for testing
-            half_len = len(self.spherical_voronoi.points) // 2
-            modified_sv.points = modified_sv.points[:half_len]
-            modified_sv.regions = modified_sv.regions[:half_len]
+            # determine allowed points and corresponding regions
+            upper_points = [point for point in modified_sv.points if q_in_upper_sphere(point)]
+            selected_indices = []
+            for up in upper_points:
+                selected_indices.append(which_row_is_k(modified_sv.points, up)[0])
+            modified_sv.points = np.array([modified_sv.points[i] for i in selected_indices])
+            modified_sv.regions = [modified_sv.regions[i] for i in selected_indices]
+
             # for vertices, only keep those that are still in regions
             occuring_indices = np.unique([x for sublist in modified_sv.regions for x in sublist])
             occuring_indices_full = np.unique([x for sublist in self.spherical_voronoi.regions for x in sublist])
-            new_vertices = []
-
+            new_vertices = [v for i, v in enumerate(modified_sv.vertices) if i in occuring_indices]
+            # now re-label regions
             print(len(occuring_indices), len(occuring_indices_full))
             # TODO
             return modified_sv
