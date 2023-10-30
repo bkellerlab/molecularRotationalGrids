@@ -111,13 +111,13 @@ class SphereGridPlot(ArrayPlot):
         self.ax.set_yscale("log")
 
     @plot3D_method
-    def plot_voronoi(self, labels=False):
-        if self.sphere_grid.dimensions != 3:
-            print("make_spherical_voronoi_plot only implemented for 3D grids")
-            return
+    def plot_voronoi(self, labels=False, **kwargs):
+        # if self.sphere_grid.dimensions != 3:
+        #     print("make_spherical_voronoi_plot only implemented for 3D grids")
+        #     return
 
         try:
-            sv = self.sphere_grid.get_spherical_voronoi_cells()
+            sv = self.sphere_grid.get_spherical_voronoi_cells(**kwargs)
             plot_voronoi_cells(sv, self.ax, labels=labels)
         except AttributeError:
             pass
@@ -625,17 +625,26 @@ class EightCellsPlot(MultiRepresentationCollection):
 
 
 if __name__ == "__main__":
+    # sphere = SphereGrid3DFactory.create("cube3D", 40, use_saved=False)
+    # sg = SphereGridPlot(sphere)
+    # sg.plot_grid(save=False)
+    # sg.plot_voronoi(only_half_of_cube=True, ax=sg.ax, fig=sg.fig)
+
+
     # full divisions would be 8, 40, 272
-    hypersphere = SphereGrid4DFactory.create("cube4D", 8)
-    polytope = hypersphere.polytope
+    hypersphere = SphereGrid4DFactory.create("cube4D", 40, use_saved=False)
+    #print(hypersphere.get_full_hypersphere_array()[0:5], hypersphere.get_full_hypersphere_array()[40:45])
+    # polytope = hypersphere.polytope
     sg = SphereGridPlot(hypersphere)
-    #sg.plot_grid(animate_rot=True)
-
-    print(len(hypersphere.get_grid_as_array()), len(hypersphere.get_full_hypersphere_array()))
-
-
-    ecp = EightCellsPlot(polytope)
-    ecp.make_all_eight_cells(animate_rot=True)
+    sg.plot_grid(save=False)
+    sg.plot_voronoi(only_half_of_cube=True, ax=sg.ax, fig=sg.fig)
+    #
+    # #print(len(hypersphere.get_grid_as_array()), len(hypersphere.get_full_hypersphere_array()))
+    #
+    #
+    # ecp = EightCellsPlot(polytope, only_half_of_cube=False)
+    # #ecp.make_all_eight_cells(animate_rot=False, label=True)
+    # ecp.make_all_8cell_neighbours(0)
 
 
 

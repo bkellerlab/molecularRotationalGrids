@@ -308,6 +308,14 @@ def test_full_and_half_hypersphere():
             for el in full_grid[:N]:
                 assert len(np.nonzero(np.all(np.isclose(el, full_grid[N:]), axis=1))[0])==0
 
+
+def test_hypersphere_adj():
+    # the % of neighbours must be the same whether using all points or half points & opposing neighbours
+    for alg in ["cube4D", "randomQ"]:
+        for N in [8, 15, 73]:
+            hypersphere = SphereGrid4DFactory.create(alg, N, use_saved=False)
+            hypersphere.get_voronoi_adjacency()
+
 if __name__ == "__main__":
     # test_saving_rotobj()
     # test_general_grid_properties()

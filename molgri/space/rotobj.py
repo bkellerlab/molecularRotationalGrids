@@ -13,6 +13,7 @@ Connected to:
 
 import os
 from abc import ABC, abstractmethod
+from copy import copy
 from itertools import combinations
 from time import time
 from typing import Optional
@@ -199,16 +200,38 @@ class SphereGridNDim(ABC):
         return full_df
 
     @save_or_use_saved
-    def get_spherical_voronoi_cells(self):
+    def get_spherical_voronoi_cells(self, only_half_of_cube=False):
         """
         A spherical grid (in 3D) can be used as a basis for a spherical Voronoi grid. In this case, each grid point is
         used as a center of a Voronoi cell. The spherical Voronoi cells also have the radius 1.
 
         The division into cells will fail in case points are not unique (too close to each other)
         """
+        # create for entire hypersphere
         if self.spherical_voronoi is None:
-            self.spherical_voronoi = SphericalVoronoi(self.get_grid_as_array(), radius=1, threshold=10**-UNIQUE_TOL)
-        return self.spherical_voronoi
+            self.spherical_voronoi = SphericalVoronoi(self.get_full_hypersphere_array(),
+                                                      radius=1, threshold=1e-6)
+
+        if only_half_of_cube:
+            if self.dimensions == 3:
+                print(f"Warning! Did you intentionally select only half-sphere for a normal (not hyper-)sphere?")
+            # select only the points, vertices and regions occuring in the first half of
+            # self.get_full_hypersphere_array(), since these are the points in the upper hemisphere
+            modified_sv = copy(self.spherical_voronoi)
+            # intentionally not using self.get_N() so we can use this in 3D for testing
+            half_len = len(self.spherical_voronoi.points) // 2
+            modified_sv.points = modified_sv.points[:half_len]
+            modified_sv.regions = modified_sv.regions[:half_len]
+            # for vertices, only keep those that are still in regions
+            occuring_indices = np.unique([x for sublist in modified_sv.regions for x in sublist])
+            occuring_indices_full = np.unique([x for sublist in self.spherical_voronoi.regions for x in sublist])
+            new_vertices = []
+
+            print(len(occuring_indices), len(occuring_indices_full))
+            # TODO
+            return modified_sv
+        else:
+            return self.spherical_voronoi
 
     def _get_reduced_sv_vertices(self) -> NDArray:
         original_vertices = self.get_spherical_voronoi_cells().vertices
@@ -247,7 +270,7 @@ class SphereGridNDim(ABC):
 
     @abstractmethod
     @save_or_use_saved
-    def get_voronoi_adjacency(self) -> coo_array:
+    def get_voronoi_adjacency(self, **kwargs) -> coo_array:
         pass
 
     @abstractmethod
@@ -267,6 +290,10 @@ class SphereGridNDim(ABC):
     def get_center_distances(self) -> coo_array:
         pass
 
+    def get_full_hypersphere_array(self) -> NDArray:
+        # for 3D no special function needed
+        return self.get_grid_as_array()
+
 
 class SphereGrid3Dim(SphereGridNDim, ABC):
 
@@ -274,7 +301,6 @@ class SphereGrid3Dim(SphereGridNDim, ABC):
 
     def __init__(self, N: int = None, use_saved: bool = True, time_generation: bool = False):
         super().__init__(dimensions=3, N=N, use_saved=use_saved, time_generation=time_generation)
-
 
     def get_cell_volumes(self, approx=False, using_detailed_grid=True) -> NDArray:
         """
@@ -316,7 +342,7 @@ class SphereGrid3Dim(SphereGridNDim, ABC):
         else:
             return np.array([])
 
-    def get_voronoi_adjacency(self) -> coo_array:
+    def get_voronoi_adjacency(self, **kwargs) -> coo_array:
         return self._calculate_N_N_array(property="adjacency")
 
     def get_center_distances(self) -> coo_array:
@@ -382,7 +408,6 @@ class SphereGrid4Dim(SphereGridNDim, ABC):
 
     def __init__(self, N: int = None, use_saved: bool = True, time_generation: bool = False):
         super().__init__(dimensions=4, N=N, use_saved=use_saved, time_generation=time_generation)
-        self.full_hypersphere_grid = None
 
     def get_cell_volumes(self, approx=True, using_detailed_grid=True) -> NDArray:
         """
@@ -417,7 +442,7 @@ class SphereGrid4Dim(SphereGridNDim, ABC):
             all_estimated_areas.append(my_convex_hull.area / 2)
         return np.array(all_estimated_areas)
 
-    def get_voronoi_adjacency(self):
+    def get_voronoi_adjacency(self, only_half_of_cube=True, include_opposing_neighbours=True):
         pass
 
     def get_full_hypersphere_array(self) -> NDArray:
@@ -426,15 +451,15 @@ class SphereGrid4Dim(SphereGridNDim, ABC):
         Returns:
 
         """
-        if self.full_hypersphere_grid is None:
-            half_grid = self.get_grid_as_array()
-            N = self.get_N()
-            self.full_hypersphere_grid = np.zeros((2*N, 4))
-            self.full_hypersphere_grid[:N] = half_grid
-            for i in range(N):
-                inverse_q = find_inverse_quaternion(half_grid[i])
-                self.full_hypersphere_grid[N+i] = inverse_q
-        return self.full_hypersphere_grid
+        half_grid = self.get_grid_as_array()
+        N = self.get_N()
+        full_hypersphere_grid = np.zeros((2*N, 4))
+        full_hypersphere_grid[:N] = half_grid
+        for i in range(N):
+            inverse_q = find_inverse_quaternion(half_grid[i])
+            full_hypersphere_grid[N+i] = inverse_q
+        print(len(np.unique(full_hypersphere_grid[N:], axis=0)), len(np.unique(full_hypersphere_grid[:N], axis=0)))
+        return full_hypersphere_grid
 
 
     def get_cell_borders(self) -> coo_array:
@@ -449,6 +474,43 @@ class SphereGrid4Dim(SphereGridNDim, ABC):
 
     def get_center_distances(self) -> coo_array:
         pass
+
+    def _calculate_N_N_array(self, property="adjacency", only_half_of_cube=True, include_opposing_neighbours=True):
+        #sv = self.get_spherical_voronoi_cells()
+        reduced_vertices = self._get_reduced_sv_vertices()
+        reduced_regions = self._get_reduced_sv_regions()
+        N = self.get_N()
+        points = self.get_grid_as_array()
+        # prepare for adjacency matrix
+        rows = []
+        columns = []
+        elements = []
+
+        for index_tuple in combinations(list(range(len(reduced_regions))), 2):
+
+            set_1 = set(reduced_regions[index_tuple[0]])
+            set_2 = set(reduced_regions[index_tuple[1]])
+
+            if len(set_1.intersection(set_2)) == 2:
+                rows.extend([index_tuple[0], index_tuple[1]])
+                columns.extend([index_tuple[1], index_tuple[0]])
+                if property == "adjacency":
+                    elements.extend([True, True])
+                elif property == "center_distances":
+                    v1 = points[index_tuple[0]]
+                    v2 = points[index_tuple[1]]
+                    dist = dist_on_sphere(v1, v2)[0]
+                    elements.extend([dist, dist])
+                elif property == "border_len":
+                    # here the points are the voronoi indices that both cells share
+                    indices_border = list(set_1.intersection(set_2))
+                    v1 = reduced_vertices[indices_border[0]]
+                    v2 = reduced_vertices[indices_border[1]]
+                    dist = dist_on_sphere(v1, v2)[0]
+                    elements.extend([dist, dist])
+                else:
+                    raise ValueError(f"Didn't understand the argument property={property}.")
+        return coo_array((elements, (rows, columns)), shape=(N, N))
 
 
 class ZeroRotations3D(SphereGrid3Dim):
@@ -473,9 +535,9 @@ class RandomQRotations(SphereGrid4Dim):
 
     def _gen_grid(self) -> NDArray:
         np.random.seed(0)
-        all_quaternions = random_quaternions(4*self.N)
+        all_quaternions = random_quaternions(self.N)
         # now select those that are in the upper hemisphere
-        unique_quaternions = hemisphere_quaternion_set(all_quaternions)[:self.N]
+        unique_quaternions = hemisphere_quaternion_set(all_quaternions)
         return unique_quaternions
 
 
