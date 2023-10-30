@@ -29,7 +29,7 @@ from scipy.spatial.transform import Rotation
 
 from molgri.space.analysis import prepare_statistics, write_statistics
 from molgri.space.utils import find_inverse_quaternion, random_quaternions, random_sphere_points, \
-    unique_quaternion_set, dist_on_sphere, which_row_is_k
+    hemisphere_quaternion_set, dist_on_sphere, which_row_is_k
 from molgri.constants import UNIQUE_TOL, EXTENSION_GRID_FILES, NAME2PRETTY_NAME, SMALL_NS
 from molgri.paths import PATH_OUTPUT_ROTGRIDS, PATH_OUTPUT_STAT
 from molgri.space.polytopes import Cube4DPolytope, IcosahedronPolytope, Cube3DPolytope, Polytope
@@ -475,7 +475,7 @@ class RandomQRotations(SphereGrid4Dim):
         np.random.seed(0)
         all_quaternions = random_quaternions(4*self.N)
         # now select those that are in the upper hemisphere
-        unique_quaternions = unique_quaternion_set(all_quaternions)[:self.N]
+        unique_quaternions = hemisphere_quaternion_set(all_quaternions)[:self.N]
         return unique_quaternions
 
 

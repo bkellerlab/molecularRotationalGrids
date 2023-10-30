@@ -80,42 +80,75 @@ def dist_on_sphere(vector1: np.ndarray, vector2: np.ndarray) -> np.ndarray:
     return angle * norm1
 
 
-def unique_quaternion_set(quaternions: NDArray) -> NDArray:
+def hemisphere_quaternion_set(quaternions: NDArray, upper=True) -> NDArray:
     """
-    Select only the "upper half" of hyperspherical points (quaternions that may be repeating). How selection is done:
-    select a list of all quaternions that have non-negative first coordinate.
-    Among the nodes with first coordinate equal zero, select only the ones with non-negative second coordinate etc.
+    Select only the "upper half"/"bottom half" of hyperspherical points (quaternions that may be repeating).
+    How selection is done:
+    for all points select either q or -q, depending which is in the right hemisphere
 
     Args:
         quaternions: array (N, 4), each row a quaternion
+        upper: if True, select the upper hemisphere, that is, demand that the first non-zero coordinate is positive
 
     Returns:
         quaternions: array (M <= N, 4), each row a quaternion different from all other ones
     """
     # test input
-    all_row_norms_equal_k(quaternions, 1)
     is_array_with_d_dim_r_rows_c_columns(quaternions, d=2, c=4)
 
     non_repeating_quaternions = []
-    for i in range(4):
-        for projected_point in quaternions:
+    for projected_point in quaternions:
+        for i in range(4):
+            # if this if-sentence is True, the point is in the upper hemisphere
             if np.allclose(projected_point[:i], 0) and projected_point[i] > 0:
                 # the point is selected
+                if upper:
+                    non_repeating_quaternions.append(projected_point)
+                else:
+                    non_repeating_quaternions.append(find_inverse_quaternion(projected_point))
+                break
+        # if the loop didn't break, the point was not in upper hemisphere
+        else:
+            if upper:
+                non_repeating_quaternions.append(find_inverse_quaternion(projected_point))
+            else:
                 non_repeating_quaternions.append(projected_point)
+
     return np.array(non_repeating_quaternions)
 
 
 def find_inverse_quaternion(q: NDArray) -> NDArray:
+    """
+    Inverse quaternion -q = (-q0, -q1, -q2, -q3) is the quaternion that represents the same rotation as q.
+
+    Args:
+        q: a quaternion of shape (4,) whose inverse is needed
+
+    Returns:
+        another quaternion of shape (4,) with all coordinates inversed
+    """
     assert q.shape == (4,)
-    new_q = []
-    for i in range(1, 5):
-        if np.allclose(q[:i], 0):
-            new_q.append(0)
-        else:
-            new_q.append(-q[i-1])
-            new_q.extend(q[i:])
-            break
-    return np.array(new_q)
+    return -q
+
+
+def q_in_upper_hypersphere(q: NDArray) -> bool:
+    """
+    Determine whether q in the upper part of the hypersphere. This will be true if the first non-zero element of
+    the quaternion is positive.
+
+    The point (0, 0, 0, 0) is defined to be in the bottom hemisphere.
+
+    Args:
+        q: a quaternion to be tested
+
+    Returns:
+
+    """
+    assert q.shape == (4,)
+    for i in range(4):
+        if np.allclose(q[:i], 0) and q[i] > 0:
+            return True
+    return False
 
 def random_sphere_points(n: int = 1000) -> NDArray:
     """
