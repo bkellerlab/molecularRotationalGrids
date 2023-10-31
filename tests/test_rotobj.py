@@ -4,7 +4,7 @@ from scipy.constants import pi
 from scipy.linalg import issymmetric
 
 from molgri.space.rotobj import SphereGrid3DFactory, SphereGrid4DFactory, SphereGridFactory
-from molgri.constants import GRID_ALGORITHMS_3D, GRID_ALGORITHMS_4D, DEFAULT_ALPHAS_3D
+from molgri.constants import DEFAULT_ALGORITHM_B, GRID_ALGORITHMS_3D, GRID_ALGORITHMS_4D, DEFAULT_ALPHAS_3D
 from molgri.space.utils import all_row_norms_equal_k, two_sets_of_quaternions_equal, which_row_is_k
 
 # tests should always be performed on fresh data
@@ -203,11 +203,11 @@ def test_voronoi_exact_divisions():
     # TODO: check that groups of volumes = groups of points
 
 
-def test_voronoi_visual_inspection():
+def test_3D_voronoi_visual_inspection():
     """
     This function tests that for 3D points on the sphere:
     1) the size of voronoi cells, border areas and distances between centers is as expected from visual inspection
-    2) the neigbouring relations are as expected from visual inspection
+    2) the neighbouring relations are as expected from visual inspection
     3) default function for calculating areas gives values that sum up well
 
     This doesn't test different ways of calculating areas, or compare with polytope distances; see
@@ -215,12 +215,11 @@ def test_voronoi_visual_inspection():
     """
     sphere = SphereGrid3DFactory.create("ico", 20, use_saved=False)
     # if you wanna visualize it, uncomment
-    # from molgri.plotting.spheregrid_plots import SphereGridPlot
-    # import matplotlib.pyplot as plt
-    # sg = SphereGridPlot(sphere)
-    # sg.plot_grid(save=False, labels=True)
-    # sg.plot_voronoi(ax=sg.ax, fig=sg.fig, save=False, labels=True, animate_rot=False)
-    # plt.show()
+    from molgri.plotting.spheregrid_plots import SphereGridPlot
+    import matplotlib.pyplot as plt
+    sg = SphereGridPlot(sphere)
+    sg.plot_voronoi(ax=sg.ax, fig=sg.fig, save=False, labels=True, animate_rot=False)
+    plt.show()
 
     # test_adjacency
     adj_sphere = sphere.get_voronoi_adjacency().toarray()
@@ -241,8 +240,10 @@ def test_voronoi_visual_inspection():
     expected_smallest = areas[17]
     expected_small = areas[[5, 12, 13, 14, 15, 16, 17, 19]]
     expected_large = areas[[0, 1, 2, 3, 9, 11]]
+    #expected_small = areas[[12, 14, 15, 17]]
+    #expected_large = areas[[0, 1, 2, 3, 4]]
     assert np.all([x > y for x in expected_large for y in expected_small])
-    assert np.isclose(np.sum(areas), 4*pi)
+    assert np.isclose(np.sum(areas), 4*pi), f"{np.sum(areas)}!={4*pi}"
     # the largest one is almost  like there would be only one division
     assert np.all(expected_largest >= areas)
     assert np.isclose(expected_largest, 4*pi/12, atol=4e-2, rtol=1e-3)
@@ -296,17 +297,74 @@ def test_voronoi_visual_inspection():
     assert np.all(1 < long_distances)
     assert np.all(long_distances < 1.2)
 
+
+def test_4Dvoronoi():
+    """
+    This function tests that for 4D points on the sphere:
+    1) the size of voronoi cells, border areas and distances between centers are reasonable and don't have huge
+    deviations
+    2) the neighbouring relations are as expected from visual inspection (for cube4D)
+    3) default function for calculating areas gives values that sum up well for full and half hyperspheres
+    """
+    # 8, 40, 250
+    for N in [40, ]:
+        hypersphere = SphereGrid4DFactory.create(DEFAULT_ALGORITHM_B, N, use_saved=False)
+        # uncomment for plotting
+        # from molgri.plotting.spheregrid_plots import EightCellsPlot, SphereGridPlot
+        # sp = SphereGridPlot(hypersphere)
+        # sp.plot_adjacency_array()
+        # sp.plot_center_distances_array(only_upper=False)
+        # sp.plot_cdist_array(only_upper=False)
+        #sp.plot_center_distances_array()
+        #ep = EightCellsPlot(hypersphere.polytope, only_half_of_cube=False)
+        #ep.make_all_8cell_neighbours(node_index=15, animate_rot=False)
+        adj_array = hypersphere.get_voronoi_adjacency(only_upper=False, include_opposing_neighbours=False).toarray()
+        print(np.nansum(adj_array, axis=0)/len(adj_array))
+        adj_array3 = hypersphere.get_voronoi_adjacency(only_upper=True, include_opposing_neighbours=True).toarray()
+        print(np.nansum(adj_array3, axis=0)/len(adj_array))
+
+
+
+
 def test_full_and_half_hypersphere():
+    """
+    This function tests:
+    1) for 4D grids, get_grid returns a all q on upper and then symmetric -q on bottom side of the hypersphere
+    2) only upper volumes are the right elements of all volumes
+    Returns:
+
+    """
     for alg in ["cube4D", "randomQ"]:
         for N in [8, 15, 73]:
             hypersphere = SphereGrid4DFactory.create(alg, N, use_saved=False)
-            half_grid = hypersphere.get_grid_as_array()
-            full_grid = hypersphere.get_full_hypersphere_array()
+            half_grid = hypersphere.get_grid_as_array(only_upper=True)
+            full_grid = hypersphere.get_grid_as_array(only_upper=False)
             assert np.allclose(full_grid[:N], half_grid), f"{alg}, {full_grid[:N]}, {half_grid}"
+            assert np.allclose(full_grid[N:], -half_grid), f"{alg}, {full_grid[:N]}, {half_grid}"
             assert two_sets_of_quaternions_equal(full_grid[:N], full_grid[N:])
             # no repeating rows in first and second half
             for el in full_grid[:N]:
                 assert len(np.nonzero(np.all(np.isclose(el, full_grid[N:]), axis=1))[0])==0
+            # volumes
+            all_volumes = hypersphere.get_cell_volumes(approx=True, only_upper=False)
+            half_volumes = hypersphere.get_cell_volumes(approx=True, only_upper=True)
+            # first half of all_volumes are exactly the half_volumes
+            assert 2*len(half_volumes) == len(all_volumes)
+            assert np.allclose(all_volumes[:len(half_volumes)], half_volumes)
+            # second half of all_volumes are also at least approx the same
+            assert np.allclose(all_volumes[len(half_volumes):], half_volumes, atol=0.3, rtol=0.05)
+            # sum is approx half of the hypersphere (with enough points):
+            if N > 10:
+                assert np.isclose(np.sum(half_volumes), pi**2, atol=0.6, rtol=0.1), f"{np.sum(half_volumes)}!={pi**2}"
+    # test the 3d example
+
+    # plot the example
+    # sphere = SphereGrid3DFactory.create("cube3D", 10, use_saved=False)
+    # from molgri.plotting.spheregrid_plots import SphereGridPlot
+    # import matplotlib.pyplot as plt
+    # sg = SphereGridPlot(sphere)
+    # sg.plot_voronoi(only_upper=True, ax=sg.ax, fig=sg.fig, save=False, labels=True, borders=True, points=True)
+    # plt.show()
 
 
 def test_hypersphere_adj():
@@ -322,5 +380,6 @@ if __name__ == "__main__":
     # test_statistics()
     # test_ordering()
     # test_voronoi_exact_divisions()
-    # test_voronoi_visual_inspection()
-    test_full_and_half_hypersphere()
+    # test_4Dvoronoi()
+    test_3D_voronoi_visual_inspection()
+    # test_full_and_half_hypersphere()

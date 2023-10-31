@@ -29,13 +29,13 @@ from scipy.spatial.distance import cdist
 from scipy.spatial.transform import Rotation
 
 from molgri.space.analysis import prepare_statistics, write_statistics
-from molgri.space.utils import find_inverse_quaternion, random_quaternions, random_sphere_points, \
+from molgri.space.utils import distance_between_quaternions, find_inverse_quaternion, random_quaternions, \
+    random_sphere_points, \
     hemisphere_quaternion_set, dist_on_sphere, which_row_is_k, q_in_upper_sphere
 from molgri.constants import UNIQUE_TOL, EXTENSION_GRID_FILES, NAME2PRETTY_NAME, SMALL_NS
 from molgri.paths import PATH_OUTPUT_ROTGRIDS, PATH_OUTPUT_STAT
-from molgri.space.polytopes import Cube4DPolytope, IcosahedronPolytope, Cube3DPolytope, Polytope
-from molgri.space.rotations import grid2rotation, rotation2grid4vector
-from molgri.wrappers import time_method, save_or_use_saved, deprecated
+from molgri.space.polytopes import Cube4DPolytope, IcosahedronPolytope, Cube3DPolytope
+from molgri.wrappers import time_method, save_or_use_saved
 
 
 SPHERE_SURFACE = 4*pi
@@ -93,12 +93,28 @@ class SphereGridNDim(ABC):
             else:
                 self.grid = self._gen_grid()
         assert isinstance(self.grid, np.ndarray), "A grid must be a numpy array!"
-        assert self.grid.shape == (self.N, self.dimensions), f"Grid not of correct shape!"
+        if self.dimensions == 3:
+            assert self.grid.shape == (self.N, self.dimensions), f"3D Grid not of correct shape!"
+        elif self.dimensions == 4:
+            assert self.grid.shape == (2*self.N, self.dimensions), f"4D Grid (double coverage) not of correct shape!"
         assert np.allclose(np.linalg.norm(self.grid, axis=1), 1, atol=10 ** (-UNIQUE_TOL)), "A grid must have norm 1!"
         return self.grid
 
-    def get_grid_as_array(self):
-        return self.grid
+    def get_grid_as_array(self, only_upper: bool = False) -> NDArray:
+        """
+        Get a numpy array in which every row is a point on a (hyper)(half)sphere.
+
+        Args:
+            only_upper (bool): if True will only return (roughly) half of the points, namely those whose first
+            non-zero component is positive
+
+        Returns:
+            an array of points
+        """
+        if only_upper:
+            return self.grid[self.get_upper_indices()]
+        else:
+            return self.grid
 
     @abstractmethod
     def _gen_grid(self) -> NDArray:
@@ -200,7 +216,7 @@ class SphereGridNDim(ABC):
         return full_df
 
     @save_or_use_saved
-    def get_spherical_voronoi_cells(self, only_upper=False):
+    def get_spherical_voronoi_cells(self):
         """
         A spherical grid (in 3D) can be used as a basis for a spherical Voronoi grid. In this case, each grid point is
         used as a center of a Voronoi cell. The spherical Voronoi cells also have the radius 1.
@@ -208,95 +224,199 @@ class SphereGridNDim(ABC):
         The division into cells will fail in case points are not unique (too close to each other)
         """
         # create for entire hypersphere
-        if self.spherical_voronoi is None:
-            self.spherical_voronoi = SphericalVoronoi(self.get_full_hypersphere_array(),
-                                                      radius=1, threshold=1e-6)
+        return SphericalVoronoi(self.get_grid_as_array(only_upper=False),
+                                                      radius=1, threshold=10**-UNIQUE_TOL)
+
+    def get_upper_indices(self):
+        """
+        Get only the indices of full hypersphere array
+        Returns:
+
+        """
+        upper_indices = [i for i, point in enumerate(self.get_grid_as_array(only_upper=False)) if q_in_upper_sphere(
+            point)]
+        return sorted(upper_indices)
+
+    def get_sv_regions(self, only_upper=False):
+        all_regions = self.get_spherical_voronoi_cells().regions
+        if not only_upper:
+            return all_regions
+        else:
+            return [region for i, region in enumerate(all_regions) if i in self.get_upper_indices()]
+
+    def get_sv_vertices(self, only_upper=False):
+        all_vertices = self.get_spherical_voronoi_cells().vertices
+        if not only_upper:
+            return all_vertices
+        else:
+            flattened_upper_regions = [x for sublist in self.get_sv_regions(only_upper=True) for x in sublist]
+            allowed_vertices = np.unique(flattened_upper_regions)
+            return np.array([vertex for i, vertex in enumerate(all_vertices) if i in allowed_vertices])
+
+
+    @save_or_use_saved
+    def get_cell_volumes(self, approx=False, using_detailed_grid=True, only_upper=False) -> NDArray:
+        """
+        From Voronoi cells you may also calculate areas on the sphere that are closest each grid point. The order of
+        areas is the same as the order of points in self.grid. In Hyperspheres, these are volumes and only the
+        approximation method is possible.
+
+        Approximations only available for Ico, Cube3D and Cube4D polytopes.
+
+        If only upper, the calculation will be done for all but only the results at upper indices will be returned.
+        """
+        output_array = np.array([])
+        if not approx and self.dimensions == 4:
+            print("In 4D, only approximate calculation of Voronoi cells is possible. Proceeding numerically.")
+            approx =True
+
+        if not approx and self.dimensions == 3:
+            sv = self.get_spherical_voronoi_cells()
+            output_array = np.array(sv.calculate_areas())
+        elif approx:
+            all_estimated_areas = []
+            voronoi_cells = self.get_spherical_voronoi_cells()
+            all_vertices = [voronoi_cells.vertices[region] for region in voronoi_cells.regions]
+
+            # for more precision, assign detailed grid points to closest sphere points
+            # the first time, this will take a long time, but then, a saved version will be used
+            if using_detailed_grid:
+                if self.dimensions == 3:
+                    dense_points = SphereGrid3DFactory.create("ico", N=2562, use_saved=True).get_grid_as_array(
+                        only_upper=False)
+                elif self.dimensions == 4:
+                    dense_points = SphereGrid4DFactory.create("cube4D", N=272, use_saved=True).get_grid_as_array(
+                        only_upper=False)
+                else:
+                    raise ValueError("Dimensions must be 3 or 4")
+                extra_points_belongings = np.argmin(cdist(dense_points, self.get_grid_as_array(only_upper=False),
+                                                          metric="cos"), axis=1)
+
+            for point_index, point in enumerate(self.get_grid_as_array(only_upper=False)):
+                vertices = all_vertices[point_index]
+                if using_detailed_grid:
+                    region_vertices_and_point = np.vstack(
+                        [dense_points[extra_points_belongings == point_index], vertices])
+                else:
+                    region_vertices_and_point = np.vstack([point, vertices])
+                my_convex_hull = ConvexHull(region_vertices_and_point, qhull_options='QJ')
+                all_estimated_areas.append(my_convex_hull.area / 2)
+            output_array = np.array(all_estimated_areas)
+        else:
+            print(f"Calculation and/or estimation of volume not possible. Returning None.")
+            return
 
         if only_upper:
-            if self.dimensions == 3:
-                print(f"Warning! Did you intentionally select only half-sphere for a normal (not hyper-)sphere?")
-            # select only the points, vertices and regions occuring in the first half of
-            # self.get_full_hypersphere_array(), since these are the points in the upper hemisphere
-            modified_sv = copy(self.spherical_voronoi)
-            # determine allowed points and corresponding regions
-            upper_points = [point for point in modified_sv.points if q_in_upper_sphere(point)]
-            selected_indices = []
-            for up in upper_points:
-                selected_indices.append(which_row_is_k(modified_sv.points, up)[0])
-            modified_sv.points = np.array([modified_sv.points[i] for i in selected_indices])
-            modified_sv.regions = [modified_sv.regions[i] for i in selected_indices]
-
-            # for vertices, only keep those that are still in regions
-            occuring_indices = np.unique([x for sublist in modified_sv.regions for x in sublist])
-            occuring_indices_full = np.unique([x for sublist in self.spherical_voronoi.regions for x in sublist])
-            new_vertices = [v for i, v in enumerate(modified_sv.vertices) if i in occuring_indices]
-            # now re-label regions
-            print(len(occuring_indices), len(occuring_indices_full))
-            # TODO
-            return modified_sv
+            return output_array[self.get_upper_indices()]
         else:
-            return self.spherical_voronoi
+            return output_array
 
-    def _get_reduced_sv_vertices(self) -> NDArray:
-        original_vertices = self.get_spherical_voronoi_cells().vertices
-        indexes = np.unique(original_vertices, axis=0, return_index=True)[1]
-        return np.array([original_vertices[index] for index in sorted(indexes)])
+    def get_voronoi_adjacency(self, only_upper=False, include_opposing_neighbours=False) -> coo_array:
+        return self._calculate_N_N_array(property="adjacency", only_upper=only_upper,
+                                         include_opposing_neighbours=include_opposing_neighbours)
 
-    def _get_reduced_sv_regions(self):
-        original_vertices = self.get_spherical_voronoi_cells().vertices
-        new_vertices = self._get_reduced_sv_vertices()
-
-        old_index2new_index = dict()
-        for original_i, original_point in enumerate(original_vertices):
-            new_index_opt = which_row_is_k(new_vertices, original_point)
-            assert len(new_index_opt) == 1
-            old_index2new_index[original_i] = new_index_opt[0]
-
-        old_regions = self.spherical_voronoi.regions
-        new_regions = []
-        for region in old_regions:
-            new_region = [old_index2new_index[oi] for oi in region]
-            new_regions.append(new_region)
-
-        return new_regions
-
-    @abstractmethod
-    @save_or_use_saved
-    def get_cell_volumes(self, approx=False, using_detailed_grid=True) -> NDArray:
+    def get_center_distances(self, only_upper=False, include_opposing_neighbours=False) -> coo_array:
         """
-        From Voronoi cells you may also calculate areas on the sphere that are closest each grid point. The order of
-        areas is the same as the order of points in self.grid. In Hyperspheres, these are volumes and only the
-        approximation method is possible.
+        For points that are Voronoi neighbours, calculate the distance between them and save them in a sparse NxN
+        format.
 
-        Approximations only available for Ico, Cube3D and Cube4D polytopes.
+        Returns:
+
         """
-        pass
+        return self._calculate_N_N_array(property="center_distances", only_upper=only_upper,
+                                         include_opposing_neighbours=include_opposing_neighbours)
 
-    @abstractmethod
-    @save_or_use_saved
-    def get_voronoi_adjacency(self, **kwargs) -> coo_array:
-        pass
-
-    @abstractmethod
-    @save_or_use_saved
-    def get_cell_borders(self) -> coo_array:
+    def get_cell_borders(self, only_upper=False, include_opposing_neighbours=False) -> coo_array:
         """
-        From Voronoi cells you may also calculate areas on the sphere that are closest each grid point. The order of
-        areas is the same as the order of points in self.grid. In Hyperspheres, these are volumes and only the
-        approximation method is possible.
+        For points that are Voronoi neighbours, calculate the distance between them and save them in a sparse NxN
+        format.
 
-        Approximations only available for Ico, Cube3D and Cube4D polytopes.
+        Returns:
+
         """
-        pass
+        return self._calculate_N_N_array(property="border_len", only_upper=only_upper,
+                                         include_opposing_neighbours=include_opposing_neighbours)
 
-    @abstractmethod
-    @save_or_use_saved
-    def get_center_distances(self) -> coo_array:
-        pass
+    def _calculate_N_N_array(self, property="adjacency", only_upper=False, include_opposing_neighbours=False):
+        #sv = self.get_spherical_voronoi_cells()
+        reduced_sv = get_reduced_sv(self.get_spherical_voronoi_cells())
+        reduced_vertices = reduced_sv.vertices
+        reduced_regions = reduced_sv.regions
+        if self.dimensions == 3:
+            N = self.get_N()
+        else:
+            N = 2*self.get_N()
+        points = self.get_grid_as_array(only_upper=False)
+        # prepare for adjacency matrix
+        rows = []
+        columns = []
+        elements = []
 
-    def get_full_hypersphere_array(self) -> NDArray:
-        # for 3D no special function needed
-        return self.get_grid_as_array()
+        for index_tuple in combinations(list(range(len(reduced_regions))), 2):
+
+            set_1 = set(reduced_regions[index_tuple[0]])
+            set_2 = set(reduced_regions[index_tuple[1]])
+
+            if len(set_1.intersection(set_2)) >= self.dimensions - 1:
+                rows.extend([index_tuple[0], index_tuple[1]])
+                columns.extend([index_tuple[1], index_tuple[0]])
+                if property == "adjacency":
+                    elements.extend([True, True])
+                elif property == "center_distances":
+                    v1 = points[index_tuple[0]]
+                    v2 = points[index_tuple[1]]
+                    if self.dimensions == 3:
+                        dist = dist_on_sphere(v1, v2)[0]
+                    else:
+                        dist = distance_between_quaternions(v1, v2)
+                    elements.extend([dist, dist])
+                elif property == "border_len":
+                    # here the points are the voronoi indices that both cells share
+                    indices_border = list(set_1.intersection(set_2))
+                    v1 = reduced_vertices[indices_border[0]]
+                    v2 = reduced_vertices[indices_border[1]]
+                    dist = dist_on_sphere(v1, v2)[0]
+                    elements.extend([dist, dist])
+                else:
+                    raise ValueError(f"Didn't understand the argument property={property}.")
+
+        # TODO: here deal with only_upper, include_opposing_neighbours
+        adj_matrix = coo_array((elements, (rows, columns)), shape=(N, N)).toarray() # todo: avoid non-sparse
+        if include_opposing_neighbours:
+
+            all_grid = self.get_grid_as_array(only_upper=False)
+            ind2opp_index = dict()
+            for d, n in enumerate(all_grid):
+                inverse_el = find_inverse_quaternion(n)
+                opp_ind = which_row_is_k(all_grid, inverse_el)
+                if opp_ind:
+                    ind2opp_index[d] = opp_ind[0]
+            for i, line in enumerate(adj_matrix):
+                for j, el in enumerate(line):
+                    if el and j in ind2opp_index.keys():
+                        adj_matrix[i][ind2opp_index[j]] = adj_matrix[i][j]
+        if only_upper:
+            available_indices = self.get_upper_indices()
+            # Create a new array with the same shape as the original array
+            extracted_arr = np.empty_like(adj_matrix, dtype=float)
+            extracted_arr[:] = np.nan
+
+            # Extract the specified rows and columns from the original array
+            extracted_arr[available_indices, :] = adj_matrix[available_indices, :]
+            extracted_arr[:, available_indices] = adj_matrix[:, available_indices]
+            adj_matrix = extracted_arr
+
+            # exclude nans
+            valid_rows = np.all(~np.isnan(adj_matrix), axis=1)
+            valid_columns = np.all(~np.isnan(adj_matrix), axis=0)
+
+            # Extract the valid rows and columns from the original array
+            extracted_arr = adj_matrix[valid_rows, :]
+            extracted_arr = extracted_arr[:, valid_columns]
+            adj_matrix = extracted_arr
+            N = N//2
+
+        return coo_array(adj_matrix, shape=(N, N))
 
 
 class SphereGrid3Dim(SphereGridNDim, ABC):
@@ -306,215 +426,28 @@ class SphereGrid3Dim(SphereGridNDim, ABC):
     def __init__(self, N: int = None, use_saved: bool = True, time_generation: bool = False):
         super().__init__(dimensions=3, N=N, use_saved=use_saved, time_generation=time_generation)
 
-    def get_cell_volumes(self, approx=False, using_detailed_grid=True) -> NDArray:
-        """
-        From Voronoi cells you may also calculate areas on the sphere that are closest each grid point. The order of
-        areas is the same as the order of points in self.grid. In Hyperspheres, these are volumes and only the
-        approximation method is possible.
-
-        Approximations only available for Ico, Cube3D and Cube4D polytopes.
-        """
-        if self.polytope and approx:
-            all_estimated_areas = []
-            voronoi_cells = self.get_spherical_voronoi_cells()
-            all_vertices = [voronoi_cells.vertices[region] for region in voronoi_cells.regions]
-
-            # for more precision, assign detailed grid points to closest sphere points
-            # the first time, this will take a long time, but then, a saved version will be used
-            if using_detailed_grid:
-                if self.algorithm_name == "ico":
-                    dense_points = SphereGrid3DFactory.create("ico", N=2562, use_saved=True).get_grid_as_array()
-                elif self.algorithm_name == "cube3D":
-                    dense_points = SphereGrid3DFactory.create("cube3D", N=1538, use_saved=True).get_grid_as_array()
-                else:
-                    raise ValueError("Wrong algorithm choice to estimate Voronoi areas in 3D: try cube3D, ico or set "
-                                     "approx=False")
-                extra_points_belongings = np.argmin(cdist(dense_points, self.get_grid_as_array(), metric="cos"), axis=1)
-
-            for point_index, point in enumerate(self.get_grid_as_array()):
-                vertices = all_vertices[point_index]
-                if using_detailed_grid:
-                    region_vertices_and_point = np.vstack([dense_points[extra_points_belongings == point_index], vertices])
-                else:
-                    region_vertices_and_point = np.vstack([point, vertices])
-                my_convex_hull = ConvexHull(region_vertices_and_point, qhull_options='QJ')
-                all_estimated_areas.append(my_convex_hull.area / 2)
-            return np.array(all_estimated_areas)
-        elif not approx:
-            sv = self.get_spherical_voronoi_cells()
-            return np.array(sv.calculate_areas())
-        else:
-            return np.array([])
-
-    def get_voronoi_adjacency(self, **kwargs) -> coo_array:
-        return self._calculate_N_N_array(property="adjacency")
-
-    def get_center_distances(self) -> coo_array:
-        """
-        For points that are Voronoi neighbours, calculate the distance between them and save them in a sparse NxN
-        format.
-
-        Returns:
-
-        """
-        return self._calculate_N_N_array(property="center_distances")
-
-    def get_cell_borders(self) -> coo_array:
-        """
-        For points that are Voronoi neighbours, calculate the distance between them and save them in a sparse NxN
-        format.
-
-        Returns:
-
-        """
-        return self._calculate_N_N_array(property="border_len")
-
-    def _calculate_N_N_array(self, property="adjacency"):
-        #sv = self.get_spherical_voronoi_cells()
-        reduced_vertices = self._get_reduced_sv_vertices()
-        reduced_regions = self._get_reduced_sv_regions()
-        N = self.get_N()
-        points = self.get_grid_as_array()
-        # prepare for adjacency matrix
-        rows = []
-        columns = []
-        elements = []
-
-        for index_tuple in combinations(list(range(len(reduced_regions))), 2):
-
-            set_1 = set(reduced_regions[index_tuple[0]])
-            set_2 = set(reduced_regions[index_tuple[1]])
-
-            if len(set_1.intersection(set_2)) == 2:
-                rows.extend([index_tuple[0], index_tuple[1]])
-                columns.extend([index_tuple[1], index_tuple[0]])
-                if property == "adjacency":
-                    elements.extend([True, True])
-                elif property == "center_distances":
-                    v1 = points[index_tuple[0]]
-                    v2 = points[index_tuple[1]]
-                    dist = dist_on_sphere(v1, v2)[0]
-                    elements.extend([dist, dist])
-                elif property == "border_len":
-                    # here the points are the voronoi indices that both cells share
-                    indices_border = list(set_1.intersection(set_2))
-                    v1 = reduced_vertices[indices_border[0]]
-                    v2 = reduced_vertices[indices_border[1]]
-                    dist = dist_on_sphere(v1, v2)[0]
-                    elements.extend([dist, dist])
-                else:
-                    raise ValueError(f"Didn't understand the argument property={property}.")
-        return coo_array((elements, (rows, columns)), shape=(N, N))
-
-
 class SphereGrid4Dim(SphereGridNDim, ABC):
     algorithm_name = "generic_4d"
 
     def __init__(self, N: int = None, use_saved: bool = True, time_generation: bool = False):
         super().__init__(dimensions=4, N=N, use_saved=use_saved, time_generation=time_generation)
 
-    def get_cell_volumes(self, approx=True, using_detailed_grid=True) -> NDArray:
-        """
-        From Voronoi cells you may also calculate areas on the sphere that are closest each grid point. The order of
-        areas is the same as the order of points in self.grid. In Hyperspheres, these are volumes and only the
-        approximation method is possible.
-
-        Approximations only available for Ico, Cube3D and Cube4D polytopes.
-        """
-        if not approx:
-            print("In 4D, only approximate calculation of Voronoi cells is possible. Proceeding numerically.")
-        if not self.polytope:
-            print("In 4D, only calculation of Voronoi cell volumes is only possible for polyhedra-based grids.")
-            return np.array([])
-
-        all_estimated_areas = []
-        voronoi_cells = self.get_spherical_voronoi_cells()
-        all_vertices = [voronoi_cells.vertices[region] for region in voronoi_cells.regions]
-
-        # for more precision, assign detailed grid points to closest sphere points
-        if using_detailed_grid:
-            dense_points = SphereGrid4DFactory.create("cube4D", N=272, use_saved=True).get_grid_as_array()
-            extra_points_belongings = np.argmin(cdist(dense_points, self.get_grid_as_array(), metric="cos"), axis=1)
-
-        for point_index, point in enumerate(self.get_grid_as_array()):
-            vertices = all_vertices[point_index]
-            if using_detailed_grid:
-                region_vertices_and_point = np.vstack([dense_points[extra_points_belongings == point_index], vertices])
-            else:
-                region_vertices_and_point = np.vstack([point, vertices])
-            my_convex_hull = ConvexHull(region_vertices_and_point, qhull_options='QJ')
-            all_estimated_areas.append(my_convex_hull.area / 2)
-        return np.array(all_estimated_areas)
-
-    def get_voronoi_adjacency(self, only_half_of_cube=True, include_opposing_neighbours=True):
-        pass
-
-    def get_full_hypersphere_array(self) -> NDArray:
-        """
-        This is a longer array that includes an exactly opposite point for every point
-        Returns:
-
-        """
-        half_grid = self.get_grid_as_array()
-        N = self.get_N()
-        full_hypersphere_grid = np.zeros((2*N, 4))
+    def _gen_grid(self) -> NDArray:
+        half_grid = self.grid
+        N = self.N
+        full_hypersphere_grid = np.zeros((2 * N, 4))
         full_hypersphere_grid[:N] = half_grid
         for i in range(N):
             inverse_q = find_inverse_quaternion(half_grid[i])
-            full_hypersphere_grid[N+i] = inverse_q
-        print(len(np.unique(full_hypersphere_grid[N:], axis=0)), len(np.unique(full_hypersphere_grid[:N], axis=0)))
-        return full_hypersphere_grid
+            full_hypersphere_grid[N + i] = inverse_q
+        self.grid = full_hypersphere_grid
+        return self.grid
 
-
-    def get_cell_borders(self) -> coo_array:
+    def get_grid_as_array(self, only_upper: bool = True) -> NDArray:
         """
-        From Voronoi cells you may also calculate areas on the sphere that are closest each grid point. The order of
-        areas is the same as the order of points in self.grid. In Hyperspheres, these are volumes and only the
-        approximation method is possible.
-
-        Approximations only available for Ico, Cube3D and Cube4D polytopes.
+        Same as above, only changing the default value.
         """
-        pass
-
-    def get_center_distances(self) -> coo_array:
-        pass
-
-    def _calculate_N_N_array(self, property="adjacency", only_half_of_cube=True, include_opposing_neighbours=True):
-        #sv = self.get_spherical_voronoi_cells()
-        reduced_vertices = self._get_reduced_sv_vertices()
-        reduced_regions = self._get_reduced_sv_regions()
-        N = self.get_N()
-        points = self.get_grid_as_array()
-        # prepare for adjacency matrix
-        rows = []
-        columns = []
-        elements = []
-
-        for index_tuple in combinations(list(range(len(reduced_regions))), 2):
-
-            set_1 = set(reduced_regions[index_tuple[0]])
-            set_2 = set(reduced_regions[index_tuple[1]])
-
-            if len(set_1.intersection(set_2)) == 2:
-                rows.extend([index_tuple[0], index_tuple[1]])
-                columns.extend([index_tuple[1], index_tuple[0]])
-                if property == "adjacency":
-                    elements.extend([True, True])
-                elif property == "center_distances":
-                    v1 = points[index_tuple[0]]
-                    v2 = points[index_tuple[1]]
-                    dist = dist_on_sphere(v1, v2)[0]
-                    elements.extend([dist, dist])
-                elif property == "border_len":
-                    # here the points are the voronoi indices that both cells share
-                    indices_border = list(set_1.intersection(set_2))
-                    v1 = reduced_vertices[indices_border[0]]
-                    v2 = reduced_vertices[indices_border[1]]
-                    dist = dist_on_sphere(v1, v2)[0]
-                    elements.extend([dist, dist])
-                else:
-                    raise ValueError(f"Didn't understand the argument property={property}.")
-        return coo_array((elements, (rows, columns)), shape=(N, N))
+        return super(SphereGrid4Dim, self).get_grid_as_array(only_upper=only_upper)
 
 
 class ZeroRotations3D(SphereGrid3Dim):
@@ -526,12 +459,14 @@ class ZeroRotations3D(SphereGrid3Dim):
 
 class ZeroRotations4D(SphereGrid4Dim):
     algorithm_name = "zero4D"
+
     def _gen_grid(self):
         self.N = 1
         rot_matrix = np.eye(3)
         rot_matrix = rot_matrix[np.newaxis, :]
         self.rotations = Rotation.from_matrix(rot_matrix)
-        return self.rotations.as_quat()
+        self.grid = self.rotations.as_quat()
+        return super()._gen_grid()
 
 class RandomQRotations(SphereGrid4Dim):
 
@@ -541,8 +476,8 @@ class RandomQRotations(SphereGrid4Dim):
         np.random.seed(0)
         all_quaternions = random_quaternions(self.N)
         # now select those that are in the upper hemisphere
-        unique_quaternions = hemisphere_quaternion_set(all_quaternions)
-        return unique_quaternions
+        self.grid = hemisphere_quaternion_set(all_quaternions)
+        return super()._gen_grid()
 
 
 class RandomSRotations(SphereGrid3Dim):
@@ -587,7 +522,8 @@ class Cube4DRotations(SphereGrid4Dim):
     def _gen_grid(self):
         while len(self.polytope.get_half_of_hypercube()) < self.N:
             self.polytope.divide_edges()
-        return self.polytope.get_half_of_hypercube(N=self.N, projection=True)
+        self.grid = self.polytope.get_half_of_hypercube(N=self.N, projection=True)
+        return super()._gen_grid()
 
 
 class FullDivCube4DRotations(SphereGrid4Dim):
@@ -603,7 +539,8 @@ class FullDivCube4DRotations(SphereGrid4Dim):
             self.polytope.divide_edges()
 
     def _gen_grid(self) -> NDArray:
-        return self.polytope.get_half_of_hypercube(projection=True)
+        self.grid = self.polytope.get_half_of_hypercube(projection=True)
+        return super()._gen_grid()
 
 
 class IcoAndCube3DRotations(SphereGrid3Dim):
@@ -773,3 +710,20 @@ class ConvergenceSphereGridFactory:
         return df
 
 
+def get_reduced_sv(sv: SphericalVoronoi) -> SphericalVoronoi:
+    new_sv = copy(sv)
+    # points will stay the same
+
+    # vertices
+    original_vertices = sv.vertices
+    indexes = np.unique(original_vertices, axis=0, return_index=True)[1]
+    new_sv.vertices = np.array([original_vertices[index] for index in sorted(indexes)])
+
+    # regions
+    old2new = {old_i: which_row_is_k(new_sv.vertices, old)[0] for old_i, old in enumerate(original_vertices)}
+    new_regions = copy(sv.regions)
+    for i, region in enumerate(sv.regions):
+        for j, el in enumerate(region):
+            new_regions[i][j] = old2new[el]
+    new_sv.regions = new_regions
+    return new_sv

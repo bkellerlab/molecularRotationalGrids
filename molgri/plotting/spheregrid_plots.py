@@ -4,13 +4,17 @@ Plotting SphereGridNDim and Polytope-based objects.
 Visualising 3D with 3D and hammer plots and 4D with translation animation and cell plots. Plotting spherical Voronoi
 cells and their areas. A lot of convergence and uniformity testing.
 """
+from copy import copy
 from typing import List
 
 import matplotlib.pyplot as plt
 import numpy as np
 import seaborn as sns
+from mpl_toolkits.mplot3d.art3d import Poly3DCollection
+from scipy.spatial import geometric_slerp
+from scipy.spatial.distance import cdist
 
-from molgri.space.utils import which_row_is_k
+from molgri.space.utils import distance_between_quaternions, normalise_vectors, which_row_is_k
 from molgri.paths import PATH_OUTPUT_PLOTS
 from matplotlib.animation import FuncAnimation
 from numpy.typing import NDArray, ArrayLike
@@ -111,24 +115,51 @@ class SphereGridPlot(ArrayPlot):
         self.ax.set_yscale("log")
 
     @plot3D_method
-    def plot_voronoi(self, labels=False, points=True, **kwargs):
-        # if self.sphere_grid.dimensions != 3:
-        #     print("make_spherical_voronoi_plot only implemented for 3D grids")
-        #     return
-
-        try:
-            sv = self.sphere_grid.get_spherical_voronoi_cells(**kwargs)
-            plot_voronoi_cells(sv, self.ax, labels=labels, points=points)
-        except AttributeError:
-            pass
+    def plot_voronoi(self, only_upper=False, labels=False, points=True, vertices=True, borders=True, polygons=False):
+        sv = self.sphere_grid.get_spherical_voronoi_cells()
+        my_upper = self.sphere_grid.get_upper_indices()
+        my_points = self.sphere_grid.get_grid_as_array(only_upper=only_upper)
+        my_vertices = self.sphere_grid.get_sv_vertices(only_upper=only_upper)
+        t_vals = np.linspace(0, 1, 2000)
+        # plot centers of voronoi cells
+        if points:
+            self.ax.scatter(my_points[:, 0], my_points[:, 1], my_points[:, 2], c='black')
+            if labels:
+                for i, line in enumerate(my_points):
+                    text = which_row_is_k(sv.points, line)
+                    self.ax.text(*line[:3], text, c='black')
+        # plot Voronoi vertices
+        if vertices:
+            self.ax.scatter(my_vertices[:, 0], my_vertices[:, 1], my_vertices[:, 2], c='g')
+            if labels:
+                for i, line in enumerate(my_vertices):
+                    text = which_row_is_k(sv.vertices, line)
+                    self.ax.text(*line[:3], text, c='g')
+        # indicate Voronoi regions (as Euclidean polygons)
+        if borders:
+            sv.sort_vertices_of_regions()
+            for i, region in enumerate(sv.regions):
+                if i in my_upper or not only_upper:
+                    n = len(region)
+                    for j in range(n):
+                        start = sv.vertices[region][j]
+                        end = sv.vertices[region][(j + 1) % n]
+                        norm = np.linalg.norm(start)
+                        result = geometric_slerp(normalise_vectors(start), normalise_vectors(end), t_vals)
+                        self.ax.plot(norm * result[..., 0], norm * result[..., 1], norm * result[..., 2], c='k')
+                    if polygons:
+                        polygon = Poly3DCollection([sv.vertices[region]], alpha=0.5)
+                        #polygon.set_color(colors[i])
+                        self.ax.add_collection3d(polygon)
 
         self.ax.view_init(elev=10, azim=30)
         self._set_axis_limits()
         self._equalize_axes()
 
     @plot_method
-    def plot_cell_volumes(self, approx=False, using_detailed_grid=True):
-        voronoi_adjacency = self.sphere_grid.get_cell_volumes(approx=approx, using_detailed_grid=using_detailed_grid)
+    def plot_cell_volumes(self, approx=False, using_detailed_grid=True, only_upper=False):
+        voronoi_adjacency = self.sphere_grid.get_cell_volumes(approx=approx, using_detailed_grid=using_detailed_grid,
+                                                              only_upper=only_upper)
         sns.violinplot(voronoi_adjacency, ax=self.ax)
 
     @plot_method
@@ -144,9 +175,24 @@ class SphereGridPlot(ArrayPlot):
         self._equalize_axes()
 
     @plot_method
-    def plot_center_distances_array(self):
-        center_distances_array = self.sphere_grid.get_center_distances().toarray()
-        sns.heatmap(center_distances_array, cmap="gray", ax=self.ax)
+    def plot_center_distances_array(self, only_upper=False):
+        center_distances_array = self.sphere_grid.get_center_distances(only_upper=only_upper).toarray()
+        sns.heatmap(center_distances_array, cmap="plasma", ax=self.ax)
+        self._equalize_axes()
+
+    @plot_method
+    def plot_cdist_array(self, only_upper=False):
+        # TODO: all distances (not only neighbours)
+        grid = self.sphere_grid.get_grid_as_array(only_upper=only_upper)
+        vmax = self.sphere_grid.get_center_distances(only_upper=only_upper).max()
+        if self.sphere_grid.dimensions == 3:
+            metric="cos"
+        else:
+            metric = distance_between_quaternions
+        cmap = copy(plt.cm.get_cmap('plasma'))
+        cmap.set_over("black")
+        center_distances_array = cdist(grid, grid, metric=metric)
+        sns.heatmap(center_distances_array, cmap=cmap, ax=self.ax, vmax=vmax)
         self._equalize_axes()
 
 
@@ -625,19 +671,20 @@ class EightCellsPlot(MultiRepresentationCollection):
 
 
 if __name__ == "__main__":
-    sphere = SphereGrid3DFactory.create("cube3D", 40, use_saved=False)
+    sphere = SphereGrid3DFactory.create("cube3D", 65, use_saved=False)
     sg = SphereGridPlot(sphere)
-    sg.plot_voronoi(only_upper=True, ax=sg.ax, fig=sg.fig, animate_rot=True)
-    print(len(sphere.get_spherical_voronoi_cells(only_upper=True).points))
+    #sg.plot_voronoi(only_upper=False, ax=sg.ax, fig=sg.fig, animate_rot=True, polygons=True)
+    sg.plot_cdist_array()
+    sg.plot_center_distances_array()
 
 
     # full divisions would be 8, 40, 272
-    hypersphere = SphereGrid4DFactory.create("cube4D", 40, use_saved=False)
-    #print(hypersphere.get_full_hypersphere_array()[0:5], hypersphere.get_full_hypersphere_array()[40:45])
-    # polytope = hypersphere.polytope
-    sg = SphereGridPlot(hypersphere)
-    sg.plot_grid(save=False)
-    sg.plot_voronoi(only_upper=True, ax=sg.ax, fig=sg.fig)
+    # hypersphere = SphereGrid4DFactory.create("cube4D", 40, use_saved=False)
+    # #print(hypersphere.get_full_hypersphere_array()[0:5], hypersphere.get_full_hypersphere_array()[40:45])
+    # # polytope = hypersphere.polytope
+    # sg = SphereGridPlot(hypersphere)
+    # sg.plot_grid(save=False)
+    # sg.plot_voronoi(only_upper=True, ax=sg.ax, fig=sg.fig)
     #
     # #print(len(hypersphere.get_grid_as_array()), len(hypersphere.get_full_hypersphere_array()))
     #
