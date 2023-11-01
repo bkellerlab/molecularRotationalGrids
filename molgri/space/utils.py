@@ -380,3 +380,23 @@ def points4D_2_8cells(point_array:NDArray) -> tuple:
         output[coo+4].extend(without_coo[pos_rows].tolist())
         output_indices[coo+4].extend(pos_rows)
     return output, output_indices
+
+
+def exclude_nans(arr: NDArray) -> NDArray:
+    """
+    Take an input array and output another array in which all rows and columns that exclusively consist of nans are
+    removed.
+
+    Args:
+        arr (NDArray): a 2D numpy array that may or may not have some rows/columns that ar all nans
+
+    Returns:
+        a 2D numpy array that has no rows/columns that ar all nans
+    """
+    valid_rows = np.all(~np.isnan(arr), axis=1)
+    valid_columns = np.all(~np.isnan(arr), axis=0)
+
+    # Extract the valid rows and columns from the original array
+    extracted_arr = arr[valid_rows, :]
+    extracted_arr = extracted_arr[:, valid_columns]
+    return extracted_arr

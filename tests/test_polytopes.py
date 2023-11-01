@@ -12,7 +12,7 @@ ALL_POLYHEDRON_TYPES = (Cube3DPolytope, IcosahedronPolytope)
 
 def example_cube_graph() -> nx.Graph:
     """
-    Simple cube graph with 8 nodes numbered 1-8, each being connected to exactly 3 other nodes.
+    Simple cube graph with 8 nodes labels 1-8, each being connected to exactly 3 other nodes.
     """
     G = nx.Graph([(1, 2), (1, 4), (1, 5), (2, 3), (3, 4), (2, 6), (3, 7), (4, 8), (5, 6), (6, 7), (7, 8), (5, 8)])
 

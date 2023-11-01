@@ -10,7 +10,7 @@ import matplotlib.colors as colors
 
 from molgri.plotting.abstract import RepresentationCollection
 from molgri.molecules.transitions import TransitionModel
-from molgri.plotting.fullgrid_plots import FullGridPlot
+from molgri.plotting.fullgrid_plots import PositionGridPlot
 from molgri.wrappers import plot3D_method, plot_method
 
 
@@ -110,7 +110,7 @@ class TransitionPlot(RepresentationCollection):
         eigenvecs = eigenvecs[0]  # values for the first tau
         eigenvecs = eigenvecs.T
 
-        fgp = FullGridPlot(self.transition_obj.sim_hist.full_grid, default_complexity_level="half_empty")
+        fgp = PositionGridPlot(self.transition_obj.sim_hist.full_grid, default_complexity_level="half_empty")
         fgp.plot_position_voronoi(ax=self.ax, fig=self.fig, plot_vertex_points=False, save=False)
         fgp.plot_positions(ax=self.ax, fig=self.fig, save=False, c=eigenvecs[eigenvec_index], animate_rot=False)
         self.ax.set_title(f"Eigenv. {eigenvec_index}")

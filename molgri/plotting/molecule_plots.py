@@ -13,7 +13,7 @@ import seaborn as sns
 from molgri.constants import ENERGY2SHORT
 from molgri.molecules.parsers import ParsedTrajectory
 from molgri.plotting.abstract import RepresentationCollection, MultiRepresentationCollection
-from molgri.plotting.fullgrid_plots import FullGridPlot
+from molgri.plotting.fullgrid_plots import PositionGridPlot
 from molgri.wrappers import plot_method, plot3D_method
 
 
@@ -51,7 +51,7 @@ class TrajectoryPlot(RepresentationCollection):
         # filter out unique COMs
         coms, _ = self.parsed_trajectory.get_unique_com_till_N(N=self.N_used, atom_selection=atom_selection)
         if fg and projection == "3d":
-            fgp = FullGridPlot(fg)
+            fgp = PositionGridPlot(fg)
             fgp.plot_position_voronoi(ax=self.ax, fig=self.fig, animate_rot=False, plot_vertex_points=False,
                                       save=False, numbered=False)
             _, c = self.parsed_trajectory.assign_coms_2_grid_points(full_grid=fg, atom_selection=atom_selection,

@@ -14,7 +14,7 @@ from molgri.space.fullgrid import FullGrid, ConvergenceFullGridO
 from molgri.wrappers import plot3D_method, plot_method
 
 
-class FullGridPlot(ArrayPlot):
+class PositionGridPlot(ArrayPlot):
 
     """
     Plotting centered around FullGrid.
@@ -22,21 +22,21 @@ class FullGridPlot(ArrayPlot):
 
     def __init__(self, full_grid: FullGrid, **kwargs):
         self.full_grid = full_grid
-        self.full_voronoi_grid = full_grid.get_full_voronoi_grid()
+        self.position_grid = full_grid.position_grid
         data_name = self.full_grid.get_name()
-        my_array = self.full_grid.get_flat_position_grid()
+        my_array = self.full_grid.position_grid.get_flat_position_grid()
         super().__init__(data_name, my_array, **kwargs)
 
     def get_possible_title(self, algs = True, N_points = False):
         name = ""
         if algs:
-            o_name = NAME2SHORT_NAME[self.full_grid.o_rotations.algorithm_name]
+            o_name = NAME2SHORT_NAME[self.position_grid.o_rotations.algorithm_name]
             b_name = NAME2SHORT_NAME[self.full_grid.b_rotations.algorithm_name]
             name += f"o = {o_name}, b = {b_name}"
         if N_points:
-            N_o = self.full_grid.o_rotations.N
+            N_o = self.position_grid.o_rotations.N
             N_b = self.full_grid.b_rotations.N
-            N_t = self.full_grid.t_grid.get_N_trans()
+            N_t = self.position_grid.t_grid.get_N_trans()
             N_name = f"N_o = {N_o}, N_b = {N_b}, N_t = {N_t}"
             if len(name) > 0:
                 N_name = f"; {N_name}"
@@ -44,13 +44,13 @@ class FullGridPlot(ArrayPlot):
         return name
 
     @plot3D_method
-    def plot_positions(self, numbered: bool = False, c="black"):
-        points = self.full_grid.get_flat_position_grid()
+    def plot_positions(self, labels: bool = False, c="black"):
+        points = self.position_grid.get_flat_position_grid()
         cmap = "bwr"
         norm = colors.TwoSlopeNorm(vcenter=0)
         self.ax.scatter(*points.T, c=c, cmap=cmap, norm=norm)
 
-        if numbered:
+        if labels:
             for i, point in enumerate(points):
                 self.ax.text(*point, s=f"{i}")
 
@@ -64,12 +64,12 @@ class FullGridPlot(ArrayPlot):
         origin = np.zeros((3,))
 
         if numbered:
-            points = self.full_grid.get_flat_position_grid()
+            points = self.position_grid.get_flat_position_grid()
             for i, point in enumerate(points):
                 self.ax.text(*point, s=f"{i}")
 
         try:
-            voronoi_disc = self.full_voronoi_grid.get_voronoi_discretisation()
+            voronoi_disc = self.position_grid.get_position_voronoi()
 
             for i, sv in enumerate(voronoi_disc):
                 plot_voronoi_cells(sv, self.ax, plot_vertex_points=plot_vertex_points, colors=colors)
@@ -88,7 +88,7 @@ class FullGridPlot(ArrayPlot):
     @plot3D_method
     def plot_position_vertices(self, point_index: int = 0, which="all"):
         self.plot_position_voronoi(ax=self.ax, fig=self.fig, save=False, plot_vertex_points=False)
-        self.plot_positions(save=False, numbered=True, ax=self.ax, fig=self.fig)
+        self.plot_positions(save=False, labels=True, ax=self.ax, fig=self.fig)
 
         try:
             vertices = self.full_voronoi_grid.find_voronoi_vertices_of_point(point_index, which=which)

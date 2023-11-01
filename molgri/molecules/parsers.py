@@ -529,10 +529,10 @@ if __name__ == "__main__":
     # sns.scatterplot(x=assignments, y=energies.squeeze(), ax=plt.gca().twinx())
     # plt.show()
     # from molgri.plotting.molecule_plots import TrajectoryPlot
-    # from molgri.plotting.fullgrid_plots import FullGridPlot
+    # from molgri.plotting.fullgrid_plots import PositionGridPlot
     # tp = TrajectoryPlot(parsed_trajectory)
     # #tp.make_COM_plot(atom_selection="segid B", animate_rot=True)
     # tp.make_energy_COM_plot(atom_selection="segid B", animate_rot=False, energy_type="Potential Energy",
     #                         projection="3d", save=False)
-    # fg = FullGridPlot(fg)
+    # fg = PositionGridPlot(fg)
     # fg.make_full_voronoi_plot(ax=tp.ax, fig=tp.fig, animate_rot=True, plot_vertex_points=False)
