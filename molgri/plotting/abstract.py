@@ -10,6 +10,7 @@ PanelRepresentationCollection specifically creates one sub-plot for each grid-ge
 """
 
 from abc import ABC
+from copy import copy
 from typing import Union, List
 
 import numpy as np
@@ -191,7 +192,13 @@ class RepresentationCollection(ABC):
         Makes x, y, (z) axis equally longs and if limits given, enforces them on all axes.
         If you also use set_axis_limits, this should be run afterwards!
         """
-        if isinstance(self.ax, Axes3D):
+        if isinstance(self.ax, np.ndarray):
+            all_axes = copy(self.ax)
+            for subax in np.ravel(all_axes):
+                self.ax = subax
+                self._equalize_axes()
+            self.ax = all_axes
+        elif isinstance(self.ax, Axes3D):
             # because ax.set_aspect('equal') does not work for 3D axes
             self.ax.set_box_aspect(aspect=[1, 1, 1])
             x_lim, y_lim, z_lim = self.ax.get_xlim3d(), self.ax.get_ylim3d(), self.ax.get_zlim3d()
@@ -212,6 +219,13 @@ class RepresentationCollection(ABC):
         Args:
             limits: a tuple including all 4 or 6 limits
         """
+        if isinstance(self.ax, np.ndarray):
+            all_axes = copy(self.ax)
+            for subax in np.ravel(all_axes):
+                self.ax = subax
+                self._set_axis_limits(limits=limits)
+            self.ax = all_axes
+            return
         if limits is None:
             limits = self.axes_limits
         assert len(limits) == 4 or len(limits) == 6, "Wrong number of limit values"

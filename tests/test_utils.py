@@ -4,7 +4,7 @@ import numpy as np
 from molgri.space.utils import (all_row_norms_equal_k, all_row_norms_similar, distance_between_quaternions,
                                 find_inverse_quaternion, hemisphere_quaternion_set,
                                 is_array_with_d_dim_r_rows_c_columns, normalise_vectors,
-                                quaternion_in_array, random_quaternions,
+                                points4D_2_8cells, quaternion_in_array, random_quaternions,
                                 angle_between_vectors, dist_on_sphere, two_sets_of_quaternions_equal,
                                 q_in_upper_sphere)
 from molgri.logfiles import find_first_free_index
@@ -270,6 +270,11 @@ def test_quaternion_sets_equal():
     assert not two_sets_of_quaternions_equal(quat_set_1, quat_set_3)
 
 
+def test_8cells():
+    my_array = np.array([[2, 3, 5, 6], [-1, 2, 5, -2], [2, 3, 0, -1]])
+    my_array = normalise_vectors(my_array)
+    points4D_2_8cells(my_array)
+
 
 if __name__ == "__main__":
     test_find_first_free_index()
@@ -283,3 +288,4 @@ if __name__ == "__main__":
     test_is_array_with_d_dim_r_rows_c_columns()
     test_quat_in_array()
     test_quaternion_sets_equal()
+    test_8cells()

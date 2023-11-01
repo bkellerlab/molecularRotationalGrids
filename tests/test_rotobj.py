@@ -215,11 +215,11 @@ def test_3D_voronoi_visual_inspection():
     """
     sphere = SphereGrid3DFactory.create("ico", 20, use_saved=False)
     # if you wanna visualize it, uncomment
-    from molgri.plotting.spheregrid_plots import SphereGridPlot
-    import matplotlib.pyplot as plt
-    sg = SphereGridPlot(sphere)
-    sg.plot_voronoi(ax=sg.ax, fig=sg.fig, save=False, labels=True, animate_rot=False)
-    plt.show()
+    # from molgri.plotting.spheregrid_plots import SphereGridPlot
+    # import matplotlib.pyplot as plt
+    # sg = SphereGridPlot(sphere)
+    # sg.plot_voronoi(ax=sg.ax, fig=sg.fig, save=False, labels=True, animate_rot=False)
+    # plt.show()
 
     # test_adjacency
     adj_sphere = sphere.get_voronoi_adjacency().toarray()
@@ -240,8 +240,6 @@ def test_3D_voronoi_visual_inspection():
     expected_smallest = areas[17]
     expected_small = areas[[5, 12, 13, 14, 15, 16, 17, 19]]
     expected_large = areas[[0, 1, 2, 3, 9, 11]]
-    #expected_small = areas[[12, 14, 15, 17]]
-    #expected_large = areas[[0, 1, 2, 3, 4]]
     assert np.all([x > y for x in expected_large for y in expected_small])
     assert np.isclose(np.sum(areas), 4*pi), f"{np.sum(areas)}!={4*pi}"
     # the largest one is almost  like there would be only one division
@@ -307,21 +305,24 @@ def test_4Dvoronoi():
     3) default function for calculating areas gives values that sum up well for full and half hyperspheres
     """
     # 8, 40, 250
-    for N in [40, ]:
+    for N in [8, ]:  #40, 250
         hypersphere = SphereGrid4DFactory.create(DEFAULT_ALGORITHM_B, N, use_saved=False)
         # uncomment for plotting
-        # from molgri.plotting.spheregrid_plots import EightCellsPlot, SphereGridPlot
-        # sp = SphereGridPlot(hypersphere)
+        from molgri.plotting.spheregrid_plots import EightCellsPlot, SphereGridPlot
+        sp = SphereGridPlot(hypersphere)
+        # sp.plot_voronoi(points=True, vertices=True, borders=False, animate_rot=True)
         # sp.plot_adjacency_array()
         # sp.plot_center_distances_array(only_upper=False)
         # sp.plot_cdist_array(only_upper=False)
         #sp.plot_center_distances_array()
-        #ep = EightCellsPlot(hypersphere.polytope, only_half_of_cube=False)
-        #ep.make_all_8cell_neighbours(node_index=15, animate_rot=False)
+        ep = EightCellsPlot(hypersphere.polytope, only_half_of_cube=False)
+        ep.make_all_8cell_neighbours(node_index=15, animate_rot=False)
         adj_array = hypersphere.get_voronoi_adjacency(only_upper=False, include_opposing_neighbours=False).toarray()
-        print(np.nansum(adj_array, axis=0)/len(adj_array))
+        print(adj_array.astype(int))
+        avg_neigh1 = np.mean(np.nansum(adj_array, axis=0))
         adj_array3 = hypersphere.get_voronoi_adjacency(only_upper=True, include_opposing_neighbours=True).toarray()
-        print(np.nansum(adj_array3, axis=0)/len(adj_array))
+        avg_neigh3 = np.mean(np.nansum(adj_array3, axis=0))
+        assert np.isclose(avg_neigh1, avg_neigh3, atol=0.2, rtol=0.01)
 
 
 
@@ -380,6 +381,6 @@ if __name__ == "__main__":
     # test_statistics()
     # test_ordering()
     # test_voronoi_exact_divisions()
-    # test_4Dvoronoi()
+    test_4Dvoronoi()
     test_3D_voronoi_visual_inspection()
     # test_full_and_half_hypersphere()

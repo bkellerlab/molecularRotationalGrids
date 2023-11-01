@@ -14,7 +14,8 @@ from mpl_toolkits.mplot3d.art3d import Poly3DCollection
 from scipy.spatial import geometric_slerp
 from scipy.spatial.distance import cdist
 
-from molgri.space.utils import distance_between_quaternions, normalise_vectors, which_row_is_k
+from molgri.space.utils import distance_between_quaternions, find_inverse_quaternion, normalise_vectors, \
+    points4D_2_8cells, which_row_is_k
 from molgri.paths import PATH_OUTPUT_PLOTS
 from matplotlib.animation import FuncAnimation
 from numpy.typing import NDArray, ArrayLike
@@ -194,6 +195,64 @@ class SphereGridPlot(ArrayPlot):
         center_distances_array = cdist(grid, grid, metric=metric)
         sns.heatmap(center_distances_array, cmap=cmap, ax=self.ax, vmax=vmax)
         self._equalize_axes()
+
+    def _plot_8cells(self, points_4D: NDArray, labels=True, color="black", alpha: float = 1.0):
+        eight_lists, eight_indices = points4D_2_8cells(points_4D)
+
+        for i, subplot in enumerate(self.ax.ravel()):
+            if eight_lists[i]:
+                subplot.scatter(*np.array(eight_lists[i]).T, color=color, alpha=alpha)
+                if labels:
+                    for j, el in enumerate(eight_lists[i]):
+                        subplot.text(*el, f"{eight_indices[i][j]}")
+        self._set_axis_limits((-1, 1, -1, 1, -1, 1))
+        self._equalize_axes()
+
+    @plot_method
+    def plot_8comp(self, only_upper=False, labels=True):
+        if self.sphere_grid.dimensions != 4:
+            print("Function only available for hypersphere grids")
+            return
+        self._create_fig_ax(num_columns=4, num_rows=2, projection="3d", figsize=(20, 10),
+                            complexity="half_empty")
+        points = self.sphere_grid.get_grid_as_array(only_upper=only_upper)
+        self._plot_8cells(points, labels=labels, color="black", alpha=1)
+
+    @plot_method
+    def plot_8comp_neighbours(self, point_index: int = 0, only_upper=False, labels=True,
+                              include_opposing_neighbours=True):
+        if self.sphere_grid.dimensions != 4:
+            print("Function only available for hypersphere grids")
+            return
+        self._create_fig_ax(num_columns=4, num_rows=2, projection="3d", figsize=(20, 10),
+                            complexity="half_empty")
+        points = self.sphere_grid.get_grid_as_array(only_upper=only_upper)
+        self._plot_8cells(points, labels=labels, color="black", alpha=0.5)
+        # the point itself
+        self._plot_8cells(np.array([points[point_index],]), labels=False, color="red")
+        # neighbours
+        neighbours = self.sphere_grid.get_voronoi_adjacency(only_upper=only_upper,
+                                                            include_opposing_neighbours=include_opposing_neighbours).toarray()
+        self._plot_8cells(points[np.nonzero(neighbours[point_index])[0]], labels=False, color="blue")
+        # opposite point
+        if include_opposing_neighbours:
+            opp_index = which_row_is_k(points, find_inverse_quaternion(points[point_index]))
+            if len(opp_index) == 1:
+                self._plot_8cells(np.array([points[opp_index[0]],]), labels=False, color="orange")
+
+    @plot_method
+    def plot_8comp_voronoi(self, points = True, vertices=True, only_upper=False, labels=True):
+        if self.sphere_grid.dimensions != 4:
+            print("Function only available for hypersphere grids")
+            return
+        self._create_fig_ax(num_columns=4, num_rows=2, projection="3d", figsize=(20, 10),
+                            complexity="half_empty")
+        if points:
+            points = self.sphere_grid.get_grid_as_array(only_upper=only_upper)
+            self._plot_8cells(points, labels=labels, color="black", alpha=1)
+        if vertices:
+            vertices = self.sphere_grid.get_sv_vertices(only_upper=only_upper)
+            self._plot_8cells(vertices, labels=labels, color="green", alpha=1)
 
 
 class PolytopePlot(RepresentationCollection):
@@ -671,12 +730,14 @@ class EightCellsPlot(MultiRepresentationCollection):
 
 
 if __name__ == "__main__":
-    sphere = SphereGrid3DFactory.create("cube3D", 65, use_saved=False)
+    sphere = SphereGrid4DFactory.create("cube4D", 60, use_saved=False)
     sg = SphereGridPlot(sphere)
     #sg.plot_voronoi(only_upper=False, ax=sg.ax, fig=sg.fig, animate_rot=True, polygons=True)
-    sg.plot_cdist_array()
-    sg.plot_center_distances_array()
-
+    #sg.plot_cdist_array()
+    #sg.plot_center_distances_array()
+    sg.plot_8comp_voronoi(only_upper=False, save=False, labels=False)
+    plt.show()
+    #sg.plot_8comp_neighbours(only_upper=True)
 
     # full divisions would be 8, 40, 272
     # hypersphere = SphereGrid4DFactory.create("cube4D", 40, use_saved=False)

@@ -287,6 +287,7 @@ def is_array_with_d_dim_r_rows_c_columns(my_array: NDArray, d: int = None, r: in
         assert my_array.shape[0] == r, f"The number of rows is not r: {my_array.shape[0]}=!={r}"
     if c is not None:
         assert my_array.shape[1] == c, f"The number of columns is not c: {my_array.shape[1]}=!={c}"
+    return True
 
 
 def all_rows_unique(my_array: NDArray, tol: int = UNIQUE_TOL):
@@ -347,3 +348,35 @@ def norm_per_axis(array: NDArray, axis: int = None) -> NDArray:
             axis = 0
     my_norm = np.linalg.norm(array, axis=axis, keepdims=True)
     return np.repeat(my_norm, array.shape[axis], axis=axis)
+
+
+def points4D_2_8cells(point_array:NDArray) -> tuple:
+    """
+    Take one array of shape (N, 4) where every row is (q_i0, q_i1, q_i2, q_i3) as input and return a list of 8
+    sublists, each sublist containing a (possibly zero) number of 3D coordinates and arranged so:
+    - sublist 0 has all points with q_i0 <= 0
+    - sublist 1 has all points with q_i1 <= 0
+    ...
+    - sublist 6 has all points with q_i2 >= 0
+    - sublist 7 has all points with q_i3 >= 0
+
+    The sublist-defining coordinate is removed so that contents of sublists are 3-dimensional.
+    Args:
+        point_array ():
+
+    Returns:
+
+    """
+    assert is_array_with_d_dim_r_rows_c_columns(point_array, d=2, c=4)
+    output = [[] for _ in range(8)]
+    output_indices = [[] for _ in range(8)] # needs to be created since we delete one component
+    for coo in range(4):
+        # skipping the coo column in each row
+        without_coo = np.concatenate((point_array[:, :coo], point_array[:, coo+1:]), axis=1)
+        neg_rows = np.nonzero(point_array[:, coo]<0)[0]
+        output_indices[coo].extend(neg_rows)
+        output[coo].extend(without_coo[neg_rows].tolist())
+        pos_rows = np.nonzero(point_array[:, coo] >= 0)[0]
+        output[coo+4].extend(without_coo[pos_rows].tolist())
+        output_indices[coo+4].extend(pos_rows)
+    return output, output_indices
