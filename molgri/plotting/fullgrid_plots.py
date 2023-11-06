@@ -14,7 +14,7 @@ from molgri.space.fullgrid import FullGrid, ConvergenceFullGridO
 from molgri.wrappers import plot3D_method, plot_method
 
 
-class PositionGridPlot(ArrayPlot):
+class FullGridPlot(ArrayPlot):
 
     """
     Plotting centered around FullGrid.
@@ -22,10 +22,14 @@ class PositionGridPlot(ArrayPlot):
 
     def __init__(self, full_grid: FullGrid, **kwargs):
         self.full_grid = full_grid
-        self.position_grid = full_grid.position_grid
         data_name = self.full_grid.get_name()
-        my_array = self.full_grid.position_grid.get_flat_position_grid()
+        my_array = self.full_grid.position_grid.get_position_grid_as_array()
         super().__init__(data_name, my_array, **kwargs)
+
+    def __getattr__(self, name):
+        """ Enable forwarding methods to self.position_grid, so that from FullGrid you can access all properties and
+         methods of PositionGrid too."""
+        return getattr(self.full_grid, name)
 
     def get_possible_title(self, algs = True, N_points = False):
         name = ""
@@ -45,7 +49,7 @@ class PositionGridPlot(ArrayPlot):
 
     @plot3D_method
     def plot_positions(self, labels: bool = False, c="black"):
-        points = self.position_grid.get_flat_position_grid()
+        points = self.position_grid.get_position_grid_as_array()
         cmap = "bwr"
         norm = colors.TwoSlopeNorm(vcenter=0)
         self.ax.scatter(*points.T, c=c, cmap=cmap, norm=norm)
@@ -64,12 +68,12 @@ class PositionGridPlot(ArrayPlot):
         origin = np.zeros((3,))
 
         if numbered:
-            points = self.position_grid.get_flat_position_grid()
+            points = self.get_position_grid_as_array()
             for i, point in enumerate(points):
                 self.ax.text(*point, s=f"{i}")
 
         try:
-            voronoi_disc = self.position_grid.get_position_voronoi()
+            voronoi_disc = self.get_position_voronoi()
 
             for i, sv in enumerate(voronoi_disc):
                 plot_voronoi_cells(sv, self.ax, plot_vertex_points=plot_vertex_points, colors=colors)
@@ -85,16 +89,19 @@ class PositionGridPlot(ArrayPlot):
         self._set_axis_limits()
         self._equalize_axes()
 
-    @plot3D_method
-    def plot_position_vertices(self, point_index: int = 0, which="all"):
-        self.plot_position_voronoi(ax=self.ax, fig=self.fig, save=False, plot_vertex_points=False)
-        self.plot_positions(save=False, labels=True, ax=self.ax, fig=self.fig)
+    @plot_method
+    def plot_position_volumes(self):
+        all_volumes = self.get_all_position_volumes()
+        self.ax.scatter(all_volumes)
 
-        try:
-            vertices = self.full_voronoi_grid.find_voronoi_vertices_of_point(point_index, which=which)
-            self.ax.scatter(*vertices.T, color="red")
-        except AttributeError:
-            pass
+    def _plot_position_N_N(self, my_array = None, **kwargs):
+        sns.heatmap(my_array, cmap="gray", ax=self.ax, **kwargs)
+        self._equalize_axes()
+
+    @plot_method
+    def plot_position_adjacency(self):
+        my_array = self.get_adjacency_of_position_grid().toarray()
+        self._plot_position_N_N(my_array, cbar=False)
 
 
 class ConvergenceFullGridPlot(RepresentationCollection):
@@ -129,8 +136,6 @@ class ConvergenceFullGridPlot(RepresentationCollection):
 if __name__ == "__main__":
     from molgri.constants import SMALL_NS, DEFAULT_NS, MINI_NS
 
-    n_o = 50
-    fg = FullGrid(f"zero", f"cube3D_{n_o}", "[0.1,]", use_saved=False)
-
-    cgrid = ConvergenceFullGridO("zero", "[0.1, 0.2]", "ico", MINI_NS)
-    ConvergenceFullGridPlot(cgrid).create_all_plots()
+    fg = FullGrid("12", "20", "[0.1, 0.2]", use_saved=False)
+    fgp = FullGridPlot(full_grid=fg)
+    fgp.create_all_plots()

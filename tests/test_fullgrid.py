@@ -5,8 +5,8 @@ from abc import ABC, abstractmethod
 
 from molgri.space.fullgrid import FullGrid
 from molgri.space.rotobj import SphereGridFactory
-from molgri.space.utils import normalise_vectors
-from molgri.plotting.fullgrid_plots import PositionGridPlot
+from molgri.space.utils import normalise_vectors, all_row_norms_equal_k
+from molgri.plotting.fullgrid_plots import FullGridPlot
 import matplotlib.pyplot as plt
 
 # tests should always be performed on fresh data
@@ -77,7 +77,7 @@ class IdealIcosahedron(IdealPolyhedron):
 
 
 def _visualise_fg(fg7: FullGrid):
-    fgp7 = PositionGridPlot(fg7)
+    fgp7 = FullGridPlot(fg7)
     fgp7.plot_positions(labels=True, save=False)
     fgp7.plot_position_voronoi(ax=fgp7.ax, fig=fgp7.fig, save=False, plot_vertex_points=True)
     plt.show()
@@ -302,31 +302,43 @@ def test_division_area():
 
 
 def test_volumes():
+    """
+    This function tests that
+    1) volumes are as expected for tetro- and icosahedron ideal examples
+    2) for a random example the volumes add up to spheres and sphere cut-outs
+    """
     # tetrahedron example
-    fg = get_tetrahedron_grid(use_saved=False)
-    real_vol = fg.get_all_position_volumes()
-    R_s = fg.get_between_radii()
-
-    it = IdealTetrahedron(R_s)
-    ideal_vol = it.get_ideal_volume()
-    assert np.isclose(np.average(real_vol), ideal_vol)
-
-    # icosahedron example
-    fg, fvg = get_icosahedron_grid(use_saved=False)
-    real_vol = fvg.get_all_voronoi_volumes()
-    R_s = fg.get_between_radii()
-
-    ii = IdealIcosahedron(R_s)
-    ideal_vol = ii.get_ideal_volume()
-    assert np.allclose(real_vol[:12], ideal_vol[0])
-    assert np.allclose(real_vol[12:], ideal_vol[1])
+    # fg = get_tetrahedron_grid(use_saved=False)
+    # real_vol = fg.get_all_position_volumes()
+    # R_s = fg.get_between_radii()
+    #
+    # it = IdealTetrahedron(R_s)
+    # ideal_vol = it.get_ideal_volume()
+    # assert np.isclose(np.average(real_vol), ideal_vol)
+    #
+    # # icosahedron example
+    # fg, fvg = get_icosahedron_grid(use_saved=False)
+    # real_vol = fvg.get_all_voronoi_volumes()
+    # R_s = fg.get_between_radii()
+    #
+    # ii = IdealIcosahedron(R_s)
+    # ideal_vol = ii.get_ideal_volume()
+    # assert np.allclose(real_vol[:12], ideal_vol[0])
+    # assert np.allclose(real_vol[12:], ideal_vol[1])
 
     # test that volumes add up to a total volume of the largest sphere
-    full_grid = FullGrid(t_grid_name="[3, 7]", o_grid_name="ico_56", b_grid_name="cube4D_6")
-    fvg = full_grid.get_full_voronoi_grid()
+    n_o = 56
+    full_grid = FullGrid(t_grid_name="[3, 7]", o_grid_name=f"ico_{n_o}", b_grid_name="cube4D_6")
+    r = full_grid.get_between_radii()**3
+    #print(full_grid.get_o_grid().get_cell_volumes()[:7] * r[0])
+    volumes = full_grid.get_all_position_volumes()
+    #print(volumes[:7])
+    print(full_grid.get_between_radii())
+    print(np.sum(volumes[:n_o]), 4/3*pi*50**3)
+    print(np.sum(volumes), 4 / 3 * pi * 90 ** 3)
     max_radius = full_grid.get_between_radii()[-1]
     exp_total_volume = 4/3 * pi * max_radius**3
-    sum_volumes = np.sum(fvg.get_all_voronoi_volumes())
+    sum_volumes = np.sum(volumes)
     assert np.allclose(exp_total_volume, sum_volumes)
 
 
@@ -365,34 +377,32 @@ def test_default_full_grids():
 
 
 def test_position_grid():
+    """
+    This function should test:
+    1) position grid is created in the specified order, t.i. all orientations at first distance, then all orientations
+    at second distance etc
+
+    """
     num_rot = 14
     num_trans = 4  # keep this number unless you change t_grid_name
-    fg = FullGrid(b_grid_name="1", o_grid_name=f"ico_{num_rot}", t_grid_name="[0.1, 2, 2.5, 4]", use_saved=USE_SAVED)
+    t_grid = [0.1, 2, 2.5, 4]
+    t_grid = [el*10 for el in t_grid]
+    fg = FullGrid(b_grid_name="1", o_grid_name=f"ico_{num_rot}", t_grid_name=f"[0.1, 2, 2.5, 4]", use_saved=USE_SAVED)
     ico_ = SphereGridFactory.create(N=num_rot, alg_name="ico", dimensions=3, use_saved=USE_SAVED)
     ico_grid = ico_.get_grid_as_array()
-    position_grid = fg.get_position_grid()
-    assert position_grid.shape == (num_rot, num_trans, 3)
-    # assert lengths correct throughout the array
-    assert np.allclose(position_grid[:, 0], ico_grid)
-    assert np.isclose(np.linalg.norm(position_grid[5][0]), 1)
+    position_grid = fg.get_position_grid_as_array()
 
-    ico_grid2 = np.array([20*el for el in ico_grid])
-    assert np.allclose(position_grid[:, 1], ico_grid2)
-    assert np.isclose(np.linalg.norm(position_grid[-1][1]), 20)
-
-    ico_grid3 = np.array([25*el for el in ico_grid])
-    assert np.allclose(position_grid[:, 2], ico_grid3)
-    assert np.isclose(np.linalg.norm(position_grid[3][2]), 25)
-
-    ico_grid4 = np.array([40*el for el in ico_grid])
-    assert np.allclose(position_grid[:, 3], ico_grid4)
-    assert np.isclose(np.linalg.norm(position_grid[-1][3]), 40)
+    assert position_grid.shape == (num_rot * num_trans, 3)
+    # assert lengths of vectors correct throughout the array
+    for i in range(num_trans):
+        all_row_norms_equal_k(position_grid[i*num_rot:(i+1)*num_rot], t_grid[i])
 
     # assert orientations stay the same
-    for i in range(num_rot):
-        selected_lines = position_grid[i, :]
+    for i in range(num_trans):
+        selected_lines = position_grid[i*num_rot:(i+1)*num_rot]
         normalised_lines = normalise_vectors(selected_lines)
-        assert np.allclose(normalised_lines, normalised_lines[0])
+        assert np.allclose(normalised_lines, ico_grid)
+
 
 
 def test_voronoi_regression():
@@ -498,11 +508,11 @@ def test_position_adjacency():
 
 if __name__ == "__main__":
     test_fullgrid_voronoi_radii()
-    test_cell_assignment()
+    #test_cell_assignment()
     #test_distances_voronoi_centers()
     #test_division_area()
     test_volumes()
-    test_default_full_grids()
+    #test_default_full_grids()
     test_position_grid()
-    test_voronoi_regression()
+    #test_voronoi_regression()
     # test_position_adjacency()

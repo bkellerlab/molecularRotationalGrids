@@ -67,6 +67,11 @@ class FullGrid:
                                           use_saved=use_saved)
         self.use_saved = use_saved
 
+    def __getattr__(self, name):
+        """ Enable forwarding methods to self.position_grid, so that from FullGrid you can access all properties and
+         methods of PositionGrid too."""
+        return getattr(self.position_grid, name)
+
     def __len__(self):
         """The length of the full grid is a product of lengths of all sub-grids"""
         return self.b_rotations.get_N() * len(self.get_position_grid())
@@ -95,7 +100,7 @@ class FullGrid:
 
         # WARNING! NOT CURRENTLY THE SAME AS PT!!!!!!!!!1
         result = np.full((len(self), 7), np.nan)
-        position_grid = self.position_grid.get_flat_position_grid()
+        position_grid = self.position_grid.get_position_grid_as_array()
         quaternions = self.b_rotations.get_grid_as_array(only_upper=True)
         current_index = 0
         for o_rot in position_grid:
@@ -264,13 +269,21 @@ class PositionGrid:
         """
         n_t = len(t_property)
         n_o = len(o_property)
-        # todo: tile if dimension > 1, else repeat
-        tiled_o = np.tile(o_property, reps=(n_t, 1))
-        tiled_t = np.repeat(t_property, n_o)[:, np.newaxis]
-        return tiled_o * tiled_t
+
+        # eg coordinates
+        if len(o_property.shape) > 1:
+            tiled_o = np.tile(o_property, reps=(n_t, 1))
+            tiled_t = np.repeat(t_property, n_o)[:, np.newaxis]
+            result = tiled_o * tiled_t
+        else:
+            tiled_o = np.tile(o_property, reps=n_t)
+            tiled_t = np.repeat(t_property, n_o)[np.newaxis, :]
+            result = (tiled_o * tiled_t)[0]
+        assert len(result) == n_o*n_t
+        return result
 
     @save_or_use_saved
-    def get_flat_position_grid(self) -> NDArray:
+    def get_position_grid_as_array(self) -> NDArray:
         """
         Get a position grid that is not structured layer-by-layer but is simply a 2D array of shape (N_t*N_o, 3) where
         N_t is the length of translation grid and N_o the length of orientation grid.
@@ -279,9 +292,13 @@ class PositionGrid:
                                          t_property=self.get_t_grid().get_trans_grid())
 
     def get_all_position_volumes(self) -> NDArray:
-
-        cumulative_volumes = self._t_and_o_2_positions(o_property=self.get_o_grid().get_cell_volumes(),
-                                         t_property=self.get_between_radii())
+        # o grid has the option to get size of areas -> need to be divided by 3 and multiplied with radius^3 to get
+        # volumes in the first shell, later shells need previous shells subtracted
+        radius_above = self.get_between_radii()
+        radius_below = np.concatenate(([0, ], radius_above[:-1]))
+        area = self.get_o_grid().get_cell_volumes()
+        cumulative_volumes = (self._t_and_o_2_positions(o_property=area/3, t_property=radius_above**3) -
+                              self._t_and_o_2_positions(o_property=area/3, t_property=radius_below**3))
         return cumulative_volumes
 
 
@@ -296,7 +313,7 @@ class PositionGrid:
             a diagonally-symmetric boolean sparse matrix where entries are True if neighbours and False otherwise
 
         """
-        flat_pos_grid = self.get_flat_position_grid()
+        flat_pos_grid = self.get_position_grid_as_array()
         n_points = len(flat_pos_grid)  # equals n_o*n_t
         n_o = self.o_rotations.get_N()
         n_t = self.t_grid.get_N_trans()
@@ -717,9 +734,10 @@ if __name__ == "__main__":
     n_o = 7
     n_b = 40
     fg = FullGrid(f"fulldiv_{n_b}", f"ico_{n_o}", "linspace(1, 5, 4)", use_saved=False)
-    pg = fg.position_grid
 
-    print(pg.get_all_position_volumes())
+    print(fg.get_name())
+    print(fg.get_position_grid())
+    print(fg.get_adjacency_of_orientation_grid())
 
     # position_adjacency = fg.get_adjacency_of_position_grid().toarray()
     # orientation_adjacency = fg.get_adjacency_of_orientation_grid().toarray()

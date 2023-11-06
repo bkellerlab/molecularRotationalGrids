@@ -3,7 +3,7 @@ from molgri.molecules._load_examples import load_example_pt
 from molgri.plotting.molecule_plots import ConvergenceMultiCollectionPlot, TrajectoryPlot
 from molgri.plotting.spheregrid_plots import EightCellsPlot, SphereGridPlot, PolytopePlot, PanelSphereGridPlots, \
     ConvergenceSphereGridPlot
-from molgri.plotting.fullgrid_plots import PositionGridPlot, ConvergenceFullGridPlot
+from molgri.plotting.fullgrid_plots import FullGridPlot, ConvergenceFullGridPlot
 from molgri.constants import (DEFAULT_ALGORITHM_B, DEFAULT_ALGORITHM_O, MINI_NS, GRID_ALGORITHMS_3D,
                               GRID_ALGORITHMS_4D)
 from molgri.space.fullgrid import FullGrid, ConvergenceFullGridO
@@ -59,7 +59,7 @@ def test_spheregrid_plots(N=32, and_animations=False, Ns=MINI_NS):
 def test_fullgrid_plots(N=12, and_animations=False, N_set=MINI_NS):
     # just set up one example
     fg = FullGrid(f"{DEFAULT_ALGORITHM_B}_{N}", f"{DEFAULT_ALGORITHM_O}_{N}", "[0.1, 0.2, 0.3]", use_saved=False)
-    fgp = PositionGridPlot(fg)
+    fgp = FullGridPlot(fg)
     fgp.create_all_plots(and_animations=and_animations)
 
     cgrid = ConvergenceFullGridO("zero", "[0.1, 0.2]", "ico", MINI_NS)
