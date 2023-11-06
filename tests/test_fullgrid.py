@@ -162,7 +162,7 @@ def test_cell_assignment():
 def test_distances_voronoi_centers():
     # tetrahedron
     fg = get_tetrahedron_grid(visualise=False, use_saved=False)
-    all_dist = fvg.get_all_distances_between_centers_as_numpy()
+    all_dist = fg.get_all_distances_between_centers_as_numpy()
     rs = fg.get_radii()
     ideal_angle = IdealTetrahedron(rs).get_vertex_center_vertex_angle()
     ideal_dist = rs[0]*ideal_angle
@@ -215,7 +215,7 @@ def test_distances_voronoi_centers():
 
 
 def test_division_area():
-    fg, fvg = get_tetrahedron_grid(visualise=False, use_saved=False)
+    fg = get_tetrahedron_grid(visualise=False, use_saved=False)
     # what we expect:
     # 1) all points are neighbours (in the same layer)
     # 2) all points share a division surface that approx equals R^2*alpha/2
@@ -224,22 +224,12 @@ def test_division_area():
     expected_surface = IdealTetrahedron(R).get_ideal_sideways_area()[0]
 
     # calculated all at once
-    all_areas = fvg.get_all_voronoi_surfaces()
+    all_areas = fg.get_borders_of_position_grid()
     all_areas = all_areas.toarray(order='C')
 
-    all_div_areas = []
-    for i in range(4):
-        for j in range(i+1, 4):
-            division_area = fvg.get_division_area(i, j)
-            all_div_areas.append(division_area)
-            assert np.isclose(division_area, all_areas[i, j])
-            assert np.isclose(division_area, all_areas[j, i])
-    # because all should be neighbours
-    assert None not in all_div_areas
-    all_div_areas = np.array(all_div_areas)
     # on average should be right area
-    assert np.allclose(np.average(all_div_areas)/R, expected_surface/R, rtol=0.01, atol=0.1)
-    rel_errors = np.abs(all_div_areas - expected_surface) / expected_surface * 100
+    assert np.allclose(np.average(all_areas[np.nonzero(all_areas)])/R, expected_surface/R, rtol=0.01, atol=0.1)
+    rel_errors = np.abs(all_areas - expected_surface) / expected_surface * 100
     print(f"Relative errors in tetrahedron surfaces: {np.round(rel_errors, 2)}")
 
     # uncomment to visualise array
@@ -248,17 +238,20 @@ def test_division_area():
 
     # the next example is with 12 points in form of an icosahedron and two layers
 
-    fug2, fvg2 = get_icosahedron_grid(visualise=False, use_saved=False)
+    fug2 = get_icosahedron_grid(visualise=False, use_saved=False)
 
     R_s = fug2.get_between_radii()
     ii = IdealIcosahedron(R_s)
     areas_sideways = ii.get_ideal_sideways_area()
     areas_above = ii.get_ideal_sphere_area()
 
+    border_areas = fug2.get_borders_of_position_grid().toarray()
+    #print(border_areas)
+
     # points 0 and 12, 1 and 13 ... right above each other
     real_areas_above = []
     for i in range(0, 12):
-        real_areas_above.append(fvg2.get_division_area(i, i+12))
+        real_areas_above.append(border_areas[i][i+12])
     real_areas_above = np.array(real_areas_above)
     assert np.allclose(real_areas_above, areas_above[0])
 
@@ -266,10 +259,12 @@ def test_division_area():
     # now let's see some sideways areas
     for i in range(12):
         for j in range(12):
-            area = fvg2.get_division_area(i, j, print_message=False)
-            if area is not None:
+            area = border_areas[i][j]
+            if not np.isclose(area, areas_above[0]) and not np.isclose(area, 0):
                 real_areas_first_level.append(area)
     real_areas_first_level = np.array(real_areas_first_level)
+    print(real_areas_first_level, areas_sideways)
+    print(pi*R_s[0]**2/6)
     assert np.allclose(real_areas_first_level, areas_sideways[0])
 
     # uncomment to visualise array
@@ -308,71 +303,75 @@ def test_volumes():
     2) for a random example the volumes add up to spheres and sphere cut-outs
     """
     # tetrahedron example
-    # fg = get_tetrahedron_grid(use_saved=False)
-    # real_vol = fg.get_all_position_volumes()
-    # R_s = fg.get_between_radii()
-    #
-    # it = IdealTetrahedron(R_s)
-    # ideal_vol = it.get_ideal_volume()
-    # assert np.isclose(np.average(real_vol), ideal_vol)
-    #
-    # # icosahedron example
-    # fg, fvg = get_icosahedron_grid(use_saved=False)
-    # real_vol = fvg.get_all_voronoi_volumes()
-    # R_s = fg.get_between_radii()
-    #
-    # ii = IdealIcosahedron(R_s)
-    # ideal_vol = ii.get_ideal_volume()
-    # assert np.allclose(real_vol[:12], ideal_vol[0])
-    # assert np.allclose(real_vol[12:], ideal_vol[1])
+    fg = get_tetrahedron_grid(use_saved=False)
+    real_vol = fg.get_all_position_volumes()
+    R_s = fg.get_between_radii()
+
+    it = IdealTetrahedron(R_s)
+    ideal_vol = it.get_ideal_volume()
+    assert np.isclose(np.average(real_vol), ideal_vol)
+
+    # icosahedron example
+    fg = get_icosahedron_grid(use_saved=False)
+    real_vol = fg.get_all_position_volumes()
+    R_s = fg.get_between_radii()
+
+    ii = IdealIcosahedron(R_s)
+    ideal_vol = ii.get_ideal_volume()
+    assert np.allclose(real_vol[:12], ideal_vol[0])
+    assert np.allclose(real_vol[12:], ideal_vol[1])
 
     # test that volumes add up to a total volume of the largest sphere
     n_o = 56
     full_grid = FullGrid(t_grid_name="[3, 7]", o_grid_name=f"ico_{n_o}", b_grid_name="cube4D_6")
-    r = full_grid.get_between_radii()**3
-    #print(full_grid.get_o_grid().get_cell_volumes()[:7] * r[0])
     volumes = full_grid.get_all_position_volumes()
-    #print(volumes[:7])
-    print(full_grid.get_between_radii())
-    print(np.sum(volumes[:n_o]), 4/3*pi*50**3)
-    print(np.sum(volumes), 4 / 3 * pi * 90 ** 3)
-    max_radius = full_grid.get_between_radii()[-1]
-    exp_total_volume = 4/3 * pi * max_radius**3
-    sum_volumes = np.sum(volumes)
-    assert np.allclose(exp_total_volume, sum_volumes)
+    # assert the first shell sums up correctly
+    assert np.isclose(np.sum(volumes[:n_o]), 4/3*pi*50**3)
+    # assert first + second shell also sum up correctly
+    assert np.isclose(np.sum(volumes), 4 / 3 * pi * 90 ** 3)
 
 
 def test_default_full_grids():
+    """
+    This function tests:
+    1) if no alg names are used, default algorithms are used
+    2) position grids, b_grids and full_grids are of correct shape (order not tested)
+    """
     full_grid = FullGrid(t_grid_name="[1]", o_grid_name="1", b_grid_name="1", use_saved=False)
     assert np.all(full_grid.t_grid.get_trans_grid() == np.array([10]))
-    assert full_grid.get_position_grid().shape == (1, 1, 3)
-    assert np.allclose(full_grid.get_position_grid(), np.array([[[0, 0, 10]]]))
+    assert full_grid.get_position_grid_as_array().shape == (1, 3)
+    assert full_grid.get_full_grid_as_array().shape == (1, 7)
+    assert np.allclose(full_grid.get_position_grid_as_array(), np.array([[[0, 0, 10]]]))
     assert np.allclose(full_grid.b_rotations.rotations.as_matrix(), np.eye(3))
 
     full_grid = FullGrid(t_grid_name="[0]", o_grid_name="None_1", b_grid_name="None_1", use_saved=False)
     assert np.all(full_grid.t_grid.get_trans_grid() == np.array([0]))
-    assert full_grid.get_position_grid().shape == (1, 1, 3)
-    assert np.allclose(full_grid.get_position_grid(), np.array([[[0, 0, 0]]]))
+    assert full_grid.get_position_grid_as_array().shape == (1, 3)
+    assert full_grid.get_full_grid_as_array().shape == (1, 7)
+    assert np.allclose(full_grid.get_position_grid_as_array(), np.array([[[0, 0, 0]]]))
     assert np.allclose(full_grid.b_rotations.rotations.as_matrix(), np.eye(3))
 
     full_grid = FullGrid(t_grid_name="[1, 2, 3]", o_grid_name="ico_1", b_grid_name="cube4D_1", use_saved=False)
     assert np.all(full_grid.t_grid.get_trans_grid() == np.array([10, 20, 30]))
-    assert full_grid.get_position_grid().shape == (1, 3, 3)
-    assert np.allclose(full_grid.get_position_grid(), np.array([[[0, 0, 10],
+    assert full_grid.get_position_grid_as_array().shape == (3, 3)
+    assert full_grid.get_full_grid_as_array().shape == (3, 7)
+    assert np.allclose(full_grid.get_position_grid_as_array(), np.array([[[0, 0, 10],
                                                                  [0, 0, 20],
                                                                  [0, 0, 30]]]))
     assert np.allclose(full_grid.b_rotations.rotations.as_matrix(), np.eye(3))
 
     full_grid = FullGrid(t_grid_name="[1, 2, 3]", o_grid_name="1", b_grid_name="1", use_saved=False)
     assert np.all(full_grid.t_grid.get_trans_grid() == np.array([10, 20, 30]))
-    assert full_grid.get_position_grid().shape == (1, 3, 3)
-    assert np.allclose(full_grid.get_position_grid(), np.array([[[0, 0, 10],
+    assert full_grid.get_position_grid_as_array().shape == (3, 3)
+    assert full_grid.get_full_grid_as_array().shape == (3, 7)
+    assert np.allclose(full_grid.get_position_grid_as_array(), np.array([[[0, 0, 10],
                                                                  [0, 0, 20],
                                                                  [0, 0, 30]]]))
     assert np.allclose(full_grid.get_body_rotations().as_matrix(), np.eye(3))
 
     full_grid = FullGrid(t_grid_name="[1, 2, 3]", o_grid_name="3", b_grid_name="4", use_saved=False)
-    assert full_grid.get_position_grid().shape == (3, 3, 3)
+    assert full_grid.get_position_grid_as_array().shape == (9, 3)
+    assert full_grid.get_full_grid_as_array().shape == (4 * 9, 7)
     assert full_grid.b_rotations.get_grid_as_array().shape == (4, 4)
 
 
@@ -439,9 +438,9 @@ def test_position_adjacency():
     # mini examples that you can calculate by hand
     fg = FullGrid(b_grid_name="randomQ_15", o_grid_name="ico_4", t_grid_name="[0.1, 0.2]", use_saved=USE_SAVED)
     # visualize
-    # from molgri.plotting.fullgrid_plots import PositionGridPlot
+    # from molgri.plotting.fullgrid_plots import FullGridPlot
     # import matplotlib.pyplot as plt
-    # fgp = PositionGridPlot(fg)
+    # fgp = FullGridPlot(fg)
     # fgp.plot_positions(save=False, labels=True)
     # fgp.plot_position_voronoi(ax=fgp.ax, fig=fgp.fig, save=False)
     # plt.show()
@@ -472,37 +471,36 @@ def test_position_adjacency():
     fg = FullGrid("1", "ico_10", "[1, 2]", use_saved=USE_SAVED)
     my_array = fg.get_adjacency_of_position_grid()
     adj_of_5 = [1, 2, 4, 6, 15]
-    my_result = np.zeros(len(fg.get_flat_position_grid()), dtype=bool)
+    my_result = np.zeros(len(fg.get_position_grid_as_array()), dtype=bool)
     my_result[adj_of_5] = True
     assert np.all(my_array.toarray()[5] == my_result)
 
     # three radii
     fg = FullGrid("cube4D_8", "ico_7", "linspace(1, 5, 3)", use_saved=USE_SAVED)
-    # from molgri.plotting.fullgrid_plots import PositionGridPlot
+    # from molgri.plotting.fullgrid_plots import FullGridPlot
     # import matplotlib.pyplot as plt
-    # fgp = PositionGridPlot(fg)
+    # fgp = FullGridPlot(fg)
     # fgp.plot_positions(save=False, labels=True)
     # fgp.plot_position_voronoi(ax=fgp.ax, fig=fgp.fig, save=False)
     # plt.show()
     my_array = fg.get_adjacency_of_position_grid().toarray()
     #_visualise_fg(fg)
 
-
     # bottom-layer
     adj_of_1 = [0, 2, 3, 5, 8]
-    my_result = np.zeros(len(fg.get_flat_position_grid()), dtype=bool)
+    my_result = np.zeros(len(fg.get_position_grid()), dtype=bool)
     my_result[adj_of_1] = True
     assert np.all(my_array[1] == my_result)
 
     # mid-layer
     adj_of_9 = [2, 7, 8, 12, 13, 16]
-    my_result = np.zeros(len(fg.get_flat_position_grid()), dtype=bool)
+    my_result = np.zeros(len(fg.get_position_grid()), dtype=bool)
     my_result[adj_of_9] = True
     assert np.all(my_array[9] == my_result)
 
     # top-layer
     adj_of_20 = [13, 14, 16, 18, 19]
-    my_result = np.zeros(len(fg.get_flat_position_grid()), dtype=bool)
+    my_result = np.zeros(len(fg.get_position_grid()), dtype=bool)
     my_result[adj_of_20] = True
     assert np.all(my_array[20] == my_result)
 
@@ -510,9 +508,9 @@ if __name__ == "__main__":
     test_fullgrid_voronoi_radii()
     #test_cell_assignment()
     #test_distances_voronoi_centers()
-    #test_division_area()
+    test_division_area()
     test_volumes()
-    #test_default_full_grids()
+    test_default_full_grids()
     test_position_grid()
     #test_voronoi_regression()
-    # test_position_adjacency()
+    test_position_adjacency()

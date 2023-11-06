@@ -338,7 +338,6 @@ class SphereGridNDim(ABC):
                                          include_opposing_neighbours=include_opposing_neighbours)
 
     def _calculate_N_N_array(self, property="adjacency", only_upper=False, include_opposing_neighbours=False):
-        #sv = self.get_spherical_voronoi_cells()
         reduced_sv = get_reduced_sv(self.get_spherical_voronoi_cells())
         reduced_vertices = reduced_sv.vertices
         reduced_regions = reduced_sv.regions

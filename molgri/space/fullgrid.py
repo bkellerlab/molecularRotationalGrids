@@ -92,7 +92,7 @@ class FullGrid:
         return Rotation.from_quat(self.b_rotations.get_grid_as_array())
 
     @save_or_use_saved
-    def get_flat_full_grid(self) -> NDArray:
+    def get_full_grid_as_array(self) -> NDArray:
         """
         Return an array of shape (n_t*n_o_n_b, 7) where for every sequential step of pt, the first 3 coordinates
         describe the position in position space, the last four give the orientation in a form of a quaternion.
@@ -155,7 +155,7 @@ class FullGrid:
         return valid_points, indices.astype(int)
 
     def get_full_adjacency(self):
-        full_sequence = self.get_flat_full_grid()
+        full_sequence = self.get_full_grid_as_array()
         n_total = len(full_sequence)
         n_o = self.o_rotations.get_N()
         n_b = self.b_rotations.get_N()
@@ -301,6 +301,80 @@ class PositionGrid:
                               self._t_and_o_2_positions(o_property=area/3, t_property=radius_below**3))
         return cumulative_volumes
 
+    def _get_N_N_position_array(self, property="adjacency"):
+        flat_pos_grid = self.get_position_grid_as_array()
+        n_points = len(flat_pos_grid)  # equals n_o*n_t
+        n_o = self.o_rotations.get_N()
+        n_t = self.t_grid.get_N_trans()
+
+        # First you have neighbours that occur from being at subsequent radii and the same ray
+        # Since the position grid has all orientations at first r, then all at second r ... the points i and i+n_o will
+        # always be neighbours, so we need the off-diagonals by n_o and -n_o
+        # Most points have two neighbours this way, first and last layer have only one
+
+        if property == "adjacency":
+            my_diags = (True,)
+            my_dtype = bool
+            # within a layer
+            neig = self.o_rotations.get_voronoi_adjacency(only_upper=False, include_opposing_neighbours=False).toarray()
+            multiply = np.ones(n_t)
+        elif property == "border":
+            my_diags  = []
+            radius_1_areas = self.o_rotations.get_cell_volumes()
+            # last layer doesn't have a border up
+            for layer_i, radius in enumerate(self.get_between_radii()[:-1]):
+                my_diags.extend(radius_1_areas * radius**2)  # todo: test
+            my_dtype = float
+            # within a layer -> this is the arch above
+            neig = self.o_rotations.get_center_distances(only_upper=False, include_opposing_neighbours=False).toarray()
+            multiply = self.get_between_radii() ** 2 / 2
+            print(multiply)
+        elif property == "distance":
+            # n_o elements will have the same distance
+            increments = self.t_grid.get_increments()
+            print(increments)
+            my_diags = self._t_and_o_2_positions(np.ones(len(self.o_rotations)), increments) # todo: test
+            my_dtype = float
+        else:
+            raise ValueError(f"Not recognised argument property={property}")
+
+        same_ray_neighbours = diags(my_diags, offsets=n_o, shape=(n_points, n_points), dtype=my_dtype,
+                                          format="coo")
+        same_ray_neighbours += diags(my_diags, offsets=-n_o, shape=(n_points, n_points), dtype=my_dtype,
+                                          format="coo")
+
+        # Now we also want neighbours on the same level based on Voronoi discretisation
+        # We first focus on the first n_o points since the set-up repeats at every radius
+
+        # can't create Voronoi grid with <= 4 points, but then they are just all neighbours (except with itself)
+        # if n_o <= 4:
+        #     neig = np.ones((n_o, n_o), dtype=my_dtype) ^ np.eye(n_o, dtype=my_dtype)
+        # else:
+        # neig = self.o_rotations.get_voronoi_adjacency(only_upper=False, include_opposing_neighbours=False).toarray()
+
+        # in case there are several translation distances, the array neig repeats along the diagonal n_t times
+        if n_t > 1:
+            my_blocks = [neig]
+            my_blocks.extend([None,] * n_t)
+            my_blocks = my_blocks * n_t
+            my_blocks = my_blocks[:-n_t]
+            my_blocks = np.array(my_blocks, dtype=object)
+            my_blocks = my_blocks.reshape(n_t, n_t)
+            same_radius_neighbours = bmat(my_blocks, dtype=float)
+
+            #print(same_radius_neighbours.row, same_radius_neighbours.data)
+
+            for ind_n_t in range(n_t):
+                smallest_row = ind_n_t*n_o <= same_radius_neighbours.row
+                largest_row = same_radius_neighbours.row < (ind_n_t+1)*n_o
+                smallest_column = ind_n_t * n_o <= same_radius_neighbours.col
+                largest_column = same_radius_neighbours.col < (ind_n_t + 1) * n_o
+                mask = smallest_row & largest_row & smallest_column & largest_column
+                same_radius_neighbours.data[mask] *= multiply[ind_n_t]
+        else:
+            same_radius_neighbours = coo_array(neig) * multiply
+        all_neighbours = same_ray_neighbours + same_radius_neighbours
+        return all_neighbours
 
     def get_adjacency_of_position_grid(self) -> coo_array:
         """
@@ -313,49 +387,10 @@ class PositionGrid:
             a diagonally-symmetric boolean sparse matrix where entries are True if neighbours and False otherwise
 
         """
-        flat_pos_grid = self.get_position_grid_as_array()
-        n_points = len(flat_pos_grid)  # equals n_o*n_t
-        n_o = self.o_rotations.get_N()
-        n_t = self.t_grid.get_N_trans()
-        # First you have neighbours that occur from being at subsequent radii and the same ray
-        # Since the position grid has all orientations at first r, then all at second r ... the points i and i+n_o will
-        # always be neighbours, so we need the off-diagonals by n_o and -n_o
-        # Most points have two neighbours this way, first and last layer have only one
+        return self._get_N_N_position_array(property="adjacency")
 
-        same_ray_neighbours = diags((True,), offsets=n_o, shape=(n_points, n_points), dtype=bool,
-                                          format="coo")
-        same_ray_neighbours += diags((True,), offsets=-n_o, shape=(n_points, n_points), dtype=bool,
-                                          format="coo")
-
-        # Now we also want neighbours on the same level based on Voronoi discretisation
-        # We first focus on the first n_o points since the set-up repeats at every radius
-
-        # can't create Voronoi grid with <= 4 points, but then they are just all neighbours (except with itself)
-        if n_o <= 4:
-            neig = np.ones((n_o, n_o), dtype=bool) ^ np.eye(n_o, dtype=bool)
-        else:
-            o_voronoi = self.o_rotations.get_voronoi_adjacency(only_upper=False,
-                                                               include_opposing_neighbours=False).toarray()
-
-            neig = np.zeros((n_o, n_o), dtype=bool)
-            for i in range(n_o):
-                for j in range(n_o):
-                    are_neighbours = o_voronoi[i][j]
-                    neig[i][j] = are_neighbours
-                    neig[j][i] = are_neighbours
-        # in case there are several translation distances, the array neig repeats along the diagonal n_t times
-        if n_t > 1:
-            my_blocks = [neig]
-            my_blocks.extend([None,] * n_t)
-            my_blocks = my_blocks * n_t
-            my_blocks = my_blocks[:-n_t]
-            my_blocks = np.array(my_blocks, dtype=object)
-            my_blocks = my_blocks.reshape(n_t, n_t)
-            same_radius_neighbours = bmat(my_blocks, dtype=float)
-        else:
-            same_radius_neighbours = coo_array(neig)
-        all_neighbours = same_ray_neighbours + same_radius_neighbours
-        return all_neighbours
+    def get_borders_of_position_grid(self) -> coo_array:
+        return self._get_N_N_position_array(property="border")
 
     def _change_voronoi_radius(self, sv: SphericalVoronoi, new_radius: float) -> SphericalVoronoi:
         """

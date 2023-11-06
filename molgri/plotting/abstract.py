@@ -479,7 +479,6 @@ def plot_voronoi_cells(sv, ax, plot_vertex_points=True, colors=None, labels=Fals
                 for j in range(n):
                     start = sv.vertices[region][j]
                     end = sv.vertices[region][(j + 1) % n]
-                    print(j, (j + 1) % n)
                     norm = np.linalg.norm(start)
                     result = geometric_slerp(normalise_vectors(start), normalise_vectors(end), t_vals)
                     ax.plot(norm * result[..., 0], norm * result[..., 1], norm * result[..., 2], c='k')
