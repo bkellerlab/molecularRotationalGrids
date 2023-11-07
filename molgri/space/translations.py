@@ -84,12 +84,7 @@ class TranslationParser(object):
             self.trans_grid = np.array([10, 10.5, 11.2])
             self.get_increments() -> np.array([10, 0.5, 0.7])
         """
-        increment_grid = [self.trans_grid[0]]
-        for start, stop in zip(self.trans_grid, self.trans_grid[1:]):
-            increment_grid.append(stop-start)
-        increment_grid = np.array(increment_grid)
-        assert np.all(increment_grid > 0), "Negative or zero increments in translation grid make no sense!"
-        return increment_grid
+        return get_increments(self.get_trans_grid())
 
     def _read_within_brackets(self) -> tuple:
         """
@@ -100,3 +95,48 @@ class TranslationParser(object):
         if isinstance(str_in_brackets, numbers.Number):
             str_in_brackets = tuple((str_in_brackets,))
         return str_in_brackets
+
+
+def get_increments(my_array: NDArray) -> NDArray:
+    """
+    Get an array where each element represents an increment needed to get to the next radius.
+
+    Example:
+        my_grid = np.array([10, 10.5, 11.2])
+        get_increments(my_grid) -> np.array([10, 0.5, 0.7])
+    """
+    increment_grid = [my_array[0]]
+    for start, stop in zip(my_array, my_array[1:]):
+        increment_grid.append(stop-start)
+    increment_grid = np.array(increment_grid)
+    assert np.all(increment_grid > 0), "Negative or zero increments in translation grid make no sense!"
+    return increment_grid
+
+
+def get_between_radii(my_array: NDArray, include_zero=False) -> NDArray:
+    """
+    Get the radii at which Voronoi cells of the position grid should be positioned. This should be right in-between
+    two orientation point layers (except the first layer that is fully encapsulated by the first voronoi layer
+    and the last one that is above the last one so that the last layer of points is right in-between the two last
+    Voronoi cells
+
+    Returns:
+        an array of distances, same length as the self.get_radii array but with all distances larger than the
+        corresponding point radii
+    """
+    # get increments to each radius, remove first one and add an extra one at the end with same distance as
+    # second-to-last one
+    increments = list(get_increments(my_array))
+    if len(increments) > 1:
+        increments.pop(0)
+        increments.append(increments[-1])
+        increments = np.array(increments)
+        increments = increments / 2
+    else:
+        increments = np.array(increments)
+
+    between_radii = my_array + increments
+
+    if include_zero:
+        between_radii = np.concatenate([[0,], between_radii])
+    return between_radii

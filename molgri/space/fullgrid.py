@@ -18,26 +18,22 @@ Objects:
  - ConvergenceFullGridO provides plotting data by creating a range of FullGrids with different N of o_grid points
 """
 from __future__ import annotations
-from copy import copy
-from typing import Callable, Tuple, Optional
+from typing import Tuple
 
-import networkx as nx
 import numpy as np
 from numpy.typing import NDArray
 from scipy.spatial.transform import Rotation
-from scipy.spatial import SphericalVoronoi
-from scipy.spatial.distance import cdist
 from scipy.constants import pi
-from scipy.sparse import bmat, coo_array, csc_array, diags
+from scipy.sparse import bmat, coo_array, diags
 import pandas as pd
 
 from molgri.constants import SMALL_NS
-from molgri.space.rotobj import SphereGrid3DFactory, SphereGrid3Dim, SphereGrid4DFactory, SphereGridNDim
+from molgri.space.rotobj import SphereGrid3DFactory, SphereGrid3Dim, SphereGrid4DFactory
 from molgri.space.translations import TranslationParser
 from molgri.naming import GridNameParser
-from molgri.paths import PATH_OUTPUT_FULL_GRIDS
-from molgri.space.utils import norm_per_axis, normalise_vectors, angle_between_vectors
-from molgri.wrappers import save_or_use_saved, deprecated
+from molgri.space.utils import norm_per_axis, angle_between_vectors
+from molgri.space.voronoi import PositionVoronoi
+from molgri.wrappers import save_or_use_saved
 
 
 class FullGrid:
@@ -229,66 +225,13 @@ class PositionGrid:
         """
         return self.t_grid.get_trans_grid()
 
-    def get_between_radii(self) -> NDArray:
-        """
-        Get the radii at which Voronoi cells of the position grid should be positioned. This should be right in-between
-        two orientation point layers (except the first layer that is fully encapsulated by the first voronoi layer
-        and the last one that is above the last one so that the last layer of points is right in-between the two last
-        Voronoi cells
-
-        Returns:
-            an array of distances, same length as the self.get_radii array but with all distances larger than the
-            corresponding point radii
-        """
-        radii = self.get_radii()
-
-        # get increments to each radius, remove first one and add an extra one at the end with same distance as
-        # second-to-last one
-        increments = list(self.t_grid.get_increments())
-        if len(increments) > 1:
-            increments.pop(0)
-            increments.append(increments[-1])
-            increments = np.array(increments)
-            increments = increments / 2
-        else:
-            increments = np.array(increments)
-
-        between_radii = radii + increments
-        return between_radii
-
-    def _t_and_o_2_positions(self, o_property, t_property):
-        """
-        Helper function to systematically combine t_grid and o_grid. Outputs an array of len n_o*n_t, can have shape
-        1 or higher depending on the property
-
-        Args:
-            property ():
-
-        Returns:
-
-        """
-        n_t = len(t_property)
-        n_o = len(o_property)
-
-        # eg coordinates
-        if len(o_property.shape) > 1:
-            tiled_o = np.tile(o_property, reps=(n_t, 1))
-            tiled_t = np.repeat(t_property, n_o)[:, np.newaxis]
-            result = tiled_o * tiled_t
-        else:
-            tiled_o = np.tile(o_property, reps=n_t)
-            tiled_t = np.repeat(t_property, n_o)[np.newaxis, :]
-            result = (tiled_o * tiled_t)[0]
-        assert len(result) == n_o*n_t
-        return result
-
     @save_or_use_saved
     def get_position_grid_as_array(self) -> NDArray:
         """
         Get a position grid that is not structured layer-by-layer but is simply a 2D array of shape (N_t*N_o, 3) where
         N_t is the length of translation grid and N_o the length of orientation grid.
         """
-        return self._t_and_o_2_positions(o_property=self.get_o_grid().get_grid_as_array(only_upper=False),
+        return _t_and_o_2_positions(o_property=self.get_o_grid().get_grid_as_array(only_upper=False),
                                          t_property=self.get_t_grid().get_trans_grid())
 
     def get_all_position_volumes(self) -> NDArray:
@@ -297,9 +240,17 @@ class PositionGrid:
         radius_above = self.get_between_radii()
         radius_below = np.concatenate(([0, ], radius_above[:-1]))
         area = self.get_o_grid().get_cell_volumes()
-        cumulative_volumes = (self._t_and_o_2_positions(o_property=area/3, t_property=radius_above**3) -
-                              self._t_and_o_2_positions(o_property=area/3, t_property=radius_below**3))
+        cumulative_volumes = (_t_and_o_2_positions(o_property=area/3, t_property=radius_above**3) -
+                              _t_and_o_2_positions(o_property=area/3, t_property=radius_below**3))
         return cumulative_volumes
+
+    def _get_shared_vertex_indices(self):
+        """
+        This returns a (sparse) matrix in which every element is a set of voronoi vertices that are shared between
+        cells in the given row and column.
+        """
+        adjacency = self.get_adjacency_of_position_grid()
+
 
     def _get_N_N_position_array(self, property="adjacency"):
         flat_pos_grid = self.get_position_grid_as_array()
@@ -333,7 +284,7 @@ class PositionGrid:
             # n_o elements will have the same distance
             increments = self.t_grid.get_increments()
             print(increments)
-            my_diags = self._t_and_o_2_positions(np.ones(len(self.o_rotations)), increments) # todo: test
+            my_diags = _t_and_o_2_positions(np.ones(len(self.o_rotations)), increments) # todo: test
             my_dtype = float
         else:
             raise ValueError(f"Not recognised argument property={property}")
@@ -392,23 +343,9 @@ class PositionGrid:
     def get_borders_of_position_grid(self) -> coo_array:
         return self._get_N_N_position_array(property="border")
 
-    def _change_voronoi_radius(self, sv: SphericalVoronoi, new_radius: float) -> SphericalVoronoi:
-        """
-        This is a helper function. Since a FullGrid consists of several layers of spheres in which the points are at
-        exactly same places (just at different radii), it makes sense not to recalculate, but just to scale the radius,
-        vertices and points out of which the SphericalVoronoi consists to a new radius.
-        """
-        sv.radius = new_radius
-        sv.vertices = normalise_vectors(sv.vertices, length=new_radius)
-        sv.points = normalise_vectors(sv.points, length=new_radius)
-        # important that it's a copy!
-        return copy(sv)
-
     def get_position_voronoi(self):
-        unit_sph_voronoi = self.o_rotations.get_spherical_voronoi_cells()
-        between_radii = self.get_between_radii()
-        all_sv = [self._change_voronoi_radius(unit_sph_voronoi, r) for r in between_radii]
-        return all_sv
+        my_sv = PositionVoronoi(self.o_positions, self.t_grid.get_trans_grid())
+        return my_sv
 
 
 #
@@ -760,12 +697,36 @@ class ConvergenceFullGridO:
         df = pd.DataFrame(data, columns=["N", "layer", "ideal volume", "Voronoi cell volume"])
         return df
 
-if __name__ == "__main__":
-    import matplotlib.pyplot as plt
-    from molgri.plotting.spheregrid_plots import PolytopePlot, SphereGridPlot
-    from molgri.space.polytopes import PolyhedronFromG
-    import seaborn as sns
+def _t_and_o_2_positions(o_property, t_property):
+    """
+    Helper function to systematically combine t_grid and o_grid. Outputs an array of len n_o*n_t, can have shape
+    1 or higher depending on the property
 
+    Args:
+        property ():
+
+    Returns:
+
+    """
+    n_t = len(t_property)
+    n_o = len(o_property)
+
+    # eg coordinates
+    if len(o_property.shape) > 1:
+        tiled_o = np.tile(o_property, reps=(n_t, 1))
+        tiled_t = np.repeat(t_property, n_o)[:, np.newaxis]
+        result = tiled_o * tiled_t
+    else:
+        tiled_o = np.tile(o_property, reps=n_t)
+        tiled_t = np.repeat(t_property, n_o)[np.newaxis, :]
+        result = (tiled_o * tiled_t)[0]
+    assert len(result) == n_o*n_t
+    return result
+
+
+
+
+if __name__ == "__main__":
     n_o = 7
     n_b = 40
     fg = FullGrid(f"fulldiv_{n_b}", f"ico_{n_o}", "linspace(1, 5, 4)", use_saved=False)

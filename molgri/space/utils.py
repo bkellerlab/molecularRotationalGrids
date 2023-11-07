@@ -30,7 +30,7 @@ def normalise_vectors(array: NDArray, axis: int = None, length: float = 1) -> ND
     Returns:
         an array of the same shape as the input array where vectors are normalised, now all have length 'length'
     """
-    assert length > 0, "Length of a vector cannot be negative"
+    assert length >= 0, "Length of a vector cannot be negative"
     my_norm = norm_per_axis(array=array, axis=axis)
     return length * np.divide(array, my_norm)
 

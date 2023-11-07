@@ -4,6 +4,7 @@ from scipy.constants import pi
 from abc import ABC, abstractmethod
 
 from molgri.space.fullgrid import FullGrid
+from molgri.space.voronoi import PositionVoronoi
 from molgri.space.rotobj import SphereGridFactory
 from molgri.space.utils import normalise_vectors, all_row_norms_equal_k
 from molgri.plotting.fullgrid_plots import FullGridPlot
@@ -504,13 +505,49 @@ def test_position_adjacency():
     my_result[adj_of_20] = True
     assert np.all(my_array[20] == my_result)
 
+def test_position_grid_voronoi():
+    """
+    This function tests that PositionVoronoi:
+    1) creates the same list of layered points as PositionGrid
+    2) creates the corresponding voronoi vertices
+    """
+    n_o = 7
+    fg = FullGrid("20", f"{n_o}", "[0.1, 0.2, 0.3]", use_saved=False)
+    expected_between = [0, 1.5, 2.5, 3.5]
+    n_t = 3
+    # from molgri.plotting.fullgrid_plots import FullGridPlot
+    # import matplotlib.pyplot as plt
+    # fg = FullGridPlot(fg)
+    # fg.plot_position_voronoi(plot_vertex_points=True, numbered=True, save=False)
+    # plt.show()
+
+    pv = fg.get_position_voronoi()
+    all_voronoi_centers = pv.get_all_voronoi_centers()
+    # right shape of voronoi centers
+    assert np.shape(all_voronoi_centers) == (n_o * n_t, 3)
+    # right position of voronoi centers (exactly where poisition grid is)
+    assert np.allclose(all_voronoi_centers, fg.get_position_grid_as_array())
+
+    # right position of voronoi vertices (scaled to radii between layers, otherwise same as unit sv)
+    unit_sv = fg.o_rotations.get_spherical_voronoi_cells()
+    all_voronoi_vertices = pv.get_all_voronoi_vertices()
+    num_per_layer = len(unit_sv.vertices)
+    for ind, eb in enumerate(expected_between):
+        a_layer_of_vertices = all_voronoi_vertices[ind*num_per_layer:(ind+1)*num_per_layer]
+        expected_scaled_vertices = eb*unit_sv.vertices
+        assert np.allclose(a_layer_of_vertices, expected_scaled_vertices)
+
+    print(pv.get_all_voronoi_regions())
+
+
 if __name__ == "__main__":
-    test_fullgrid_voronoi_radii()
+    #test_fullgrid_voronoi_radii()
     #test_cell_assignment()
     #test_distances_voronoi_centers()
-    test_division_area()
-    test_volumes()
-    test_default_full_grids()
-    test_position_grid()
+    #test_division_area()
+    #test_volumes()
+    #test_default_full_grids()
+    #test_position_grid()
     #test_voronoi_regression()
-    test_position_adjacency()
+    #test_position_adjacency()
+    test_position_grid_voronoi()
