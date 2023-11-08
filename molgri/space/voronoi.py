@@ -5,7 +5,7 @@ Building up on scipy objects Voronoi and SphericalVoronoi
 from abc import ABC, abstractmethod
 from copy import copy
 from itertools import combinations
-from typing import List, Tuple
+from typing import List, Optional, Tuple
 
 import numpy as np
 from numpy.typing import NDArray
@@ -14,12 +14,9 @@ from scipy.spatial import SphericalVoronoi, ConvexHull
 from scipy.spatial.distance import cdist
 
 from molgri.constants import UNIQUE_TOL
-from molgri.space.rotobj import SphereGrid3DFactory, SphereGrid4DFactory
 from molgri.space.translations import get_between_radii
-from molgri.space.utils import dist_on_sphere, distance_between_quaternions, find_inverse_quaternion, k_is_a_row, \
-    normalise_vectors, \
-    q_in_upper_sphere, \
-    which_row_is_k
+from molgri.space.utils import (dist_on_sphere, distance_between_quaternions, find_inverse_quaternion, k_is_a_row,
+    normalise_vectors, q_in_upper_sphere, random_quaternions, random_sphere_points, which_row_is_k)
 
 
 class AbstractVoronoi(ABC):
@@ -32,9 +29,15 @@ class AbstractVoronoi(ABC):
     3) regions
     """
 
-    def __init__(self):
-        self.centers, self.vertices, self.regions = self._create_centers_vertices_regions()
-        self.reduced_vertices, self.reduced_regions = self.get_reduced_vertices_regions()
+    def __init__(self, additional_points = None, **kwargs):
+        created_vor = self._create_centers_vertices_regions()
+        self.centers = copy(created_vor[0])
+        self.vertices = copy(created_vor[1])
+        self.regions = copy(created_vor[2])
+        created_reduced = self.get_reduced_vertices_regions()
+        self.reduced_vertices = copy(created_reduced[0])
+        self.reduced_regions = copy(created_reduced[1])
+        self.additional_points = additional_points
 
     @abstractmethod
     def _create_centers_vertices_regions(self) -> Tuple:
@@ -77,28 +80,67 @@ class AbstractVoronoi(ABC):
     def get_dim(self):
         return self.get_all_voronoi_centers().shape[1]
 
-    def get_reduced_vertices_regions(self, **kwargs) -> Tuple:
+    def get_reduced_vertices_regions(self) -> Tuple:
         # vertices
-        original_vertices = self.get_all_voronoi_vertices(**kwargs)
+        original_vertices = copy(self.get_all_voronoi_vertices(reduced=False))
         indexes = np.unique(original_vertices, axis=0, return_index=True)[1]
+        #print(indexes, sorted(indexes))
         new_vertices = np.array([original_vertices[index] for index in sorted(indexes)])
-
-        print(new_vertices[:3], original_vertices[:3])
+        #assert np.allclose(np.unique(new_vertices, axis=0), np.unique(original_vertices, axis=0))
 
         # regions
         old2new = {old_i: which_row_is_k(new_vertices, old)[0] for old_i, old in enumerate(original_vertices)}
+        print(old2new)
         old_regions = self.get_all_voronoi_regions()
-        new_regions = copy(old_regions)
+        new_regions = []
         for i, region in enumerate(old_regions):
+            fresh_region = []
             for j, el in enumerate(region):
-                new_regions[i][j] = old2new[el]
+                fresh_region.append(old2new[el])
+            new_regions.append(fresh_region)
+        #assert np.allclose(np.unique(original_vertices, axis=0), new_vertices)
         return new_vertices, new_regions
 
-    def get_sets_of_shared_vertices(self, reduced=False) -> coo_array:
+    def _additional_points_per_cell(self) -> List:
         """
-        Get a sparse array containing sets of reduced vertices shared between points
+        Returns a list (len=num of centers) of lists in which there are additional points that are associated with
+        each region (or empty list if there are none)
         """
-        pass
+        all_points = self.get_all_voronoi_centers()
+        if self.additional_points is not None:
+            result = []
+            extra_points_belongings = np.argmin(cdist(self.additional_points, all_points,
+                                                      metric="cos"), axis=1)
+            for i, _ in enumerate(all_points):
+                result.append(self.additional_points[extra_points_belongings == i])
+            return result
+        else:
+            return [[] for _ in range(len(all_points))]
+
+    def get_convex_hulls(self):
+        """
+        In the same order as self.get_all_centers(), get convex hulls using the point, the vertices and possibly
+        additional points that belong into this region. Used for approximating volumes, areas ...
+        """
+        all_points = self.get_all_voronoi_centers()
+        all_vertices = self.get_all_voronoi_vertices(reduced=True)
+        all_regions = self.get_all_voronoi_regions(reduced=True)
+        additional_assignments = self._additional_points_per_cell()
+        all_hulls = []
+        # in first approximation, take the volume of convex hull of vertices belonging to a point
+        for i, region in enumerate(all_regions):
+            # In the region there are vertices, central point and possibly additional point
+            associated_vertices = all_vertices[region]
+            within_region = np.vstack([all_points[i], associated_vertices])
+            if np.any(additional_assignments[i]):
+                within_region = np.vstack([additional_assignments[i], within_region])
+            my_convex_hull = ConvexHull(within_region, qhull_options='QJ')
+            all_hulls.append(my_convex_hull)
+        return np.array(all_hulls)
+
+    def get_voronoi_volumes(self) -> NDArray:
+        all_hulls = self.get_convex_hulls()
+        return np.array([my_convex_hull.area / 2 for my_convex_hull in all_hulls])
 
     def get_voronoi_adjacency(self, **kwargs) -> coo_array:
         return self._calculate_N_N_array(property="adjacency", **kwargs)
@@ -130,7 +172,8 @@ class AbstractVoronoi(ABC):
         pass
 
     def _calculate_N_N_array(self, property="adjacency", **kwargs):
-        reduced_vertices, reduced_regions = self.get_reduced_vertices_regions()
+        reduced_vertices = self.get_all_voronoi_vertices(reduced=True)
+        reduced_regions = self.get_all_voronoi_regions(reduced=True)
 
         # prepare for adjacency matrix
         rows = []
@@ -138,7 +181,6 @@ class AbstractVoronoi(ABC):
         elements = []
 
         for index_tuple in combinations(list(range(len(reduced_regions))), 2):
-
             set_1 = set(reduced_regions[index_tuple[0]])
             set_2 = set(reduced_regions[index_tuple[1]])
 
@@ -168,19 +210,26 @@ class AbstractVoronoi(ABC):
 
 class RotobjVoronoi(AbstractVoronoi):
 
-    def __init__(self, my_array: NDArray):
+    def __init__(self, my_array: NDArray, using_detailed_grid=True):
         self.my_array = my_array
         self.spherical_voronoi = SphericalVoronoi(my_array, radius=1, threshold=10 ** -UNIQUE_TOL)
         try:
             self.spherical_voronoi.sort_vertices_of_regions()
         except TypeError:
             pass
-        super().__init__()
+        dimensions = my_array.shape[1]
+        if using_detailed_grid and dimensions == 3:
+            dense_points = random_sphere_points(1000)
+        elif using_detailed_grid and dimensions == 4:
+            dense_points = random_quaternions(1000)
+        else:
+            dense_points = None
+        super().__init__(additional_points=dense_points)
 
     def _create_centers_vertices_regions(self) -> Tuple:
         return self.spherical_voronoi.points, self.spherical_voronoi.vertices, self.spherical_voronoi.regions
 
-    def get_cell_volumes(self, approx=False, using_detailed_grid=True, only_upper=False) -> NDArray:
+    def get_voronoi_volumes(self, approx=False) -> Optional[NDArray]:
         """
         From Voronoi cells you may also calculate areas on the sphere that are closest each grid point. The order of
         areas is the same as the order of points in self.grid. In Hyperspheres, these are volumes and only the
@@ -190,49 +239,17 @@ class RotobjVoronoi(AbstractVoronoi):
 
         If only upper, the calculation will be done for all but only the results at upper indices will be returned.
         """
-        dimensions = self.get_all_voronoi_centers().shape[1] # dimensionality of the space in which we position points
+        dimensions = self.get_dim() # dimensionality of the space in which we position points
         if not approx and dimensions == 4:
             print("In 4D, only approximate calculation of Voronoi cells is possible. Proceeding numerically.")
-            approx =True
-
+            approx = True
         if not approx and dimensions == 3:
-            output_array = np.array(self.spherical_voronoi.calculate_areas())
+            return np.array(self.spherical_voronoi.calculate_areas())
         elif approx:
-            all_estimated_areas = []
-            all_vertices = self.get_all_voronoi_vertices(only_upper=False)
-
-            # for more precision, assign detailed grid points to closest sphere points
-            # the first time, this will take a long time, but then, a saved version will be used
-            if using_detailed_grid:
-                if dimensions == 3:
-                    dense_points = SphereGrid3DFactory.create("ico", N=2562, use_saved=True).get_grid_as_array(
-                        only_upper=False)
-                elif dimensions == 4:
-                    dense_points = SphereGrid4DFactory.create("cube4D", N=272, use_saved=True).get_grid_as_array(
-                        only_upper=False)
-                else:
-                    raise ValueError("Dimensions must be 3 or 4")
-                extra_points_belongings = np.argmin(cdist(dense_points, self.get_all_voronoi_centers(only_upper=False),
-                                                          metric="cos"), axis=1)
-
-            for point_index, point in enumerate(self.get_all_voronoi_centers(only_upper=False)):
-                vertices = all_vertices[point_index]
-                if using_detailed_grid:
-                    region_vertices_and_point = np.vstack(
-                        [dense_points[extra_points_belongings == point_index], vertices])
-                else:
-                    region_vertices_and_point = np.vstack([point, vertices])
-                my_convex_hull = ConvexHull(region_vertices_and_point, qhull_options='QJ')
-                all_estimated_areas.append(my_convex_hull.area / 2)
-            output_array = np.array(all_estimated_areas)
+            return super().get_voronoi_volumes()
         else:
             print(f"Calculation and/or estimation of volume not possible. Returning None.")
             return
-
-        if only_upper:
-            return output_array[self.get_upper_indices()]
-        else:
-            return output_array
 
     def _calculate_center_distances(self, index_1: int, index_2: int):
         v1 = self.get_all_voronoi_centers()[index_1]
@@ -243,52 +260,16 @@ class RotobjVoronoi(AbstractVoronoi):
             dist = distance_between_quaternions(v1, v2)
         return dist
 
-    def _calculate_N_N_array(self, property="adjacency", only_upper=False, include_opposing_neighbours=False):
-        if self.dimensions == 3:
-            N = self.get_N()
-        else:
-            N = 2*self.get_N()
-        adj_matrix = super()._calculate_N_N_array(property=property).toarray() # todo: avoid non-sparse
-
-        # TODO: here deal with only_upper, include_opposing_neighbours
-        #adj_matrix = coo_array((elements, (rows, columns)), shape=(N, N)).toarray()
-        if include_opposing_neighbours:
-
-            all_grid = self.get_all_voronoi_centers(only_upper=False)
-            ind2opp_index = dict()
-            for d, n in enumerate(all_grid):
-                inverse_el = find_inverse_quaternion(n)
-                opp_ind = which_row_is_k(all_grid, inverse_el)
-                if opp_ind:
-                    ind2opp_index[d] = opp_ind[0]
-            for i, line in enumerate(adj_matrix):
-                for j, el in enumerate(line):
-                    if el and j in ind2opp_index.keys():
-                        adj_matrix[i][ind2opp_index[j]] = adj_matrix[i][j]
-        if only_upper:
-            available_indices = self._get_upper_indices()
-            # Create a new array with the same shape as the original array
-            extracted_arr = np.empty_like(adj_matrix, dtype=float)
-            extracted_arr[:] = np.nan
-
-            # Extract the specified rows and columns from the original array
-            extracted_arr[available_indices, :] = adj_matrix[available_indices, :]
-            extracted_arr[:, available_indices] = adj_matrix[:, available_indices]
-            adj_matrix = extracted_arr
-
-            # exclude nans
-            valid_rows = np.all(~np.isnan(adj_matrix), axis=1)
-            valid_columns = np.all(~np.isnan(adj_matrix), axis=0)
-
-            # Extract the valid rows and columns from the original array
-            extracted_arr = adj_matrix[valid_rows, :]
-            extracted_arr = extracted_arr[:, valid_columns]
-            adj_matrix = extracted_arr
-            N = N // 2
-
 
 class HalfRotobjVoronoi(RotobjVoronoi):
 
+    def _additional_points_per_cell(self) -> List:
+        """
+        For half voronoi we need to filter additional points that are not in upper hypersphere
+        """
+        if self.additional_points is not None:
+            self.additional_points = np.array([ap for ap in self.additional_points if q_in_upper_sphere(ap)])
+        return super()._additional_points_per_cell()
 
     def _get_upper_indices(self):
         """
@@ -321,7 +302,65 @@ class HalfRotobjVoronoi(RotobjVoronoi):
                 new_regions.append(fresh_list)
         return half_centers, half_vertices, new_regions
 
+    def get_voronoi_volumes(self, approx=False) -> Optional[NDArray]:
+        """
+        From Voronoi cells you may also calculate areas on the sphere that are closest each grid point. The order of
+        areas is the same as the order of points in self.grid. In Hyperspheres, these are volumes and only the
+        approximation method is possible.
 
+        Approximations only available for Ico, Cube3D and Cube4D polytopes.
+
+        If only upper, the calculation will be done for all but only the results at upper indices will be returned.
+        """
+        dimensions = self.get_all_voronoi_centers().shape[1] # dimensionality of the space in which we position points
+        if not approx and dimensions == 3:
+            return np.array([self.spherical_voronoi.calculate_areas()[i] for i in self._get_upper_indices()])
+        else:
+            return super().get_voronoi_volumes(approx=approx)
+
+    def _calculate_N_N_array(self, property="adjacency", only_upper=False, include_opposing_neighbours=False):
+        dimensions = self.get_all_voronoi_centers().shape[1]
+        if dimensions == 3:
+            N = len(self.get_all_voronoi_centers())
+        else:
+            N = 2 * len(self.get_all_voronoi_centers())
+
+        adj_matrix = super()._calculate_N_N_array(property=property).toarray()  # todo: avoid non-sparse
+
+        # TODO: here deal with only_upper, include_opposing_neighbours
+        if include_opposing_neighbours:
+            all_grid = self.spherical_voronoi.points
+            ind2opp_index = dict()
+            for d, n in enumerate(all_grid):
+                inverse_el = find_inverse_quaternion(n)
+                opp_ind = which_row_is_k(all_grid, inverse_el)
+                if opp_ind:
+                    ind2opp_index[d] = opp_ind[0]
+            for i, line in enumerate(adj_matrix):
+                for j, el in enumerate(line):
+                    if el and j in ind2opp_index.keys():
+                        adj_matrix[i][ind2opp_index[j]] = adj_matrix[i][j]
+        if only_upper:
+            available_indices = self._get_upper_indices()
+            # Create a new array with the same shape as the original array
+            extracted_arr = np.empty_like(adj_matrix, dtype=float)
+            extracted_arr[:] = np.nan
+
+            # Extract the specified rows and columns from the original array
+            extracted_arr[available_indices, :] = adj_matrix[available_indices, :]
+            extracted_arr[:, available_indices] = adj_matrix[:, available_indices]
+            adj_matrix = extracted_arr
+
+            # exclude nans
+            valid_rows = np.all(~np.isnan(adj_matrix), axis=1)
+            valid_columns = np.all(~np.isnan(adj_matrix), axis=0)
+
+            # Extract the valid rows and columns from the original array
+            extracted_arr = adj_matrix[valid_rows, :]
+            extracted_arr = extracted_arr[:, valid_columns]
+            adj_matrix = extracted_arr
+            N = N // 2
+        return coo_array(adj_matrix)
 
 
 class PositionVoronoi(AbstractVoronoi):

@@ -529,7 +529,7 @@ def test_position_grid_voronoi():
     assert np.allclose(all_voronoi_centers, fg.get_position_grid_as_array())
 
     # right position of voronoi vertices (scaled to radii between layers, otherwise same as unit sv)
-    unit_sv = fg.o_rotations.get_spherical_voronoi_cells()
+    unit_sv = fg.o_rotations.get_spherical_voronoi()
     all_voronoi_vertices = pv.get_all_voronoi_vertices()
     num_per_layer = len(unit_sv.vertices)
     for ind, eb in enumerate(expected_between):

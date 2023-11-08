@@ -117,7 +117,7 @@ class SphereGridPlot(ArrayPlot):
 
     @plot3D_method
     def plot_voronoi(self, only_upper=False, labels=False, points=True, vertices=True, borders=True, polygons=False):
-        sv = self.sphere_grid.get_spherical_voronoi_cells()
+        sv = self.sphere_grid.get_spherical_voronoi()
         my_upper = self.sphere_grid.get_upper_indices()
         my_points = self.sphere_grid.get_grid_as_array(only_upper=only_upper)
         my_vertices = self.sphere_grid.get_sv_vertices(only_upper=only_upper)
