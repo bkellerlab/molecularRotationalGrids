@@ -223,7 +223,7 @@ class PtWriter:
                 self.write_structure(pt, path_structure)
             self._merge_and_write(trajectory_writer, pt)
             last_i = i
-        product_of_grids = pt.position_grid.shape[0] * len(pt.rot_grid_body) * pt.position_grid.shape[1]
+        product_of_grids = len(pt.get_full_grid().get_full_grid_as_array())
         assert last_i + 1 == product_of_grids, f"Length of PT not correct, {last_i}=/={product_of_grids}"
         trajectory_writer.close()
 

@@ -727,13 +727,11 @@ def _t_and_o_2_positions(o_property, t_property):
 
 
 if __name__ == "__main__":
-    n_o = 7
-    n_b = 40
-    fg = FullGrid(f"fulldiv_{n_b}", f"ico_{n_o}", "linspace(1, 5, 4)", use_saved=False)
-
-    print(fg.get_name())
-    print(fg.get_position_grid())
-    print(fg.get_adjacency_of_orientation_grid())
+    n_o = 2
+    n_b = 3
+    fg = FullGrid(f"randomQ_{n_b}", f"randomS_{n_o}", "linspace(0.1, 0.5, 2)", use_saved=False)
+    np.set_printoptions(precision=3)
+    print(fg.get_full_grid_as_array())
 
     # position_adjacency = fg.get_adjacency_of_position_grid().toarray()
     # orientation_adjacency = fg.get_adjacency_of_orientation_grid().toarray()
