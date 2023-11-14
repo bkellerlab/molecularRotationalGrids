@@ -66,11 +66,3 @@ class Pseudotrajectory:
             # rotate back
             self.molecule.rotate_about_body(rotation, inverse=True)
 
-        # for origin_rotations in self.position_grid:
-        #     for body_rotation in self.rot_grid_body:
-        #         self.molecule.rotate_about_body(body_rotation)
-        #         for origin_rotation in origin_rotations:
-        #             self.molecule.rotate_to(origin_rotation)
-        #             yield self.current_frame, self.molecule
-        #             self.current_frame += 1
-        #         self.molecule.rotate_about_body(body_rotation, inverse=True)
