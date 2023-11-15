@@ -23,11 +23,12 @@ from mpl_toolkits.mplot3d.art3d import Poly3DCollection
 from numpy.typing import NDArray
 from IPython import display
 from scipy.spatial import geometric_slerp
+from scipy.spatial.distance import cdist
 
 from molgri.constants import DIM_SQUARE, DEFAULT_DPI, EXTENSION_FIGURES, DEFAULT_DPI_MULTI, EXTENSION_ANIMATIONS
 from molgri.logfiles import paths_free_4_all
 from molgri.paths import PATH_OUTPUT_PLOTS, PATH_OUTPUT_ANIS
-from molgri.space.utils import normalise_vectors
+from molgri.space.utils import normalise_vectors, random_sphere_points
 
 
 def _set_style_and_context(context: str = None, color_style: str = None):
@@ -415,6 +416,15 @@ def show_anim_in_jupyter(anim):
 def plot_voronoi_cells(sv, ax, plot_vertex_points=True, colors=None):
     sv.sort_vertices_of_regions()
     t_vals = np.linspace(0, 1, 2000)
+
+    all_points = sv.points
+    norm = np.linalg.norm(sv.vertices[0])
+    extra_points = normalise_vectors(random_sphere_points(3000), length=norm)
+    my_p = []
+    extra_points_belongings = np.argmin(cdist(extra_points, normalise_vectors(all_points, length=norm),
+                                              metric="cos"), axis=1)
+    for j, _ in enumerate(all_points):
+        my_p.append(extra_points[extra_points_belongings == j])
     # plot Voronoi vertices
     if plot_vertex_points:
         ax.scatter(sv.vertices[:, 0], sv.vertices[:, 1], sv.vertices[:, 2], c='g')
@@ -427,14 +437,10 @@ def plot_voronoi_cells(sv, ax, plot_vertex_points=True, colors=None):
             norm = np.linalg.norm(start)
             result = geometric_slerp(normalise_vectors(start), normalise_vectors(end), t_vals)
             ax.plot(norm * result[..., 0], norm * result[..., 1], norm * result[..., 2], c='k')
+
         if colors:
-
-            associated_vertices = sv.vertices[region]
-            within_region = np.vstack([sv.points[i], associated_vertices])
-            #if np.any(additional_assignments[i]):
-            #    within_region = np.vstack([additional_assignments[i], within_region])
-            #my_convex_hull = ConvexHull(within_region, qhull_options='QJ')
-
-            polygon = Poly3DCollection(sv.vertices[region], alpha=0.5)
-            polygon.set_color(colors[i])
-            ax.add_collection3d(polygon)
+            to_plot = np.array(my_p[i]) #np.vstack([my_p[i], sv.vertices[region]])
+            ax.plot_trisurf(*to_plot.T, color=colors[i], linewidth=0, alpha=0.5)
+            #polygon = Poly3DCollection([sv.vertices[region],], alpha=0.5)
+            #polygon.set_color(colors[i])
+            #ax.add_collection3d(polygon)

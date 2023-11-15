@@ -204,7 +204,7 @@ if __name__ == "__main__":
     colors[point_index] = "blue"
 
     fgp = FullGridPlot(fg, default_complexity_level="half_empty")
-    fgp.make_position_plot(save=False)
-    ani = fgp.make_full_voronoi_plot(save=True, animate_rot=True, numbered=False, ax=fgp.ax, fig=fgp.fig)
+    #fgp.make_position_plot(save=False)
+    #ani = fgp.make_full_voronoi_plot(save=True, animate_rot=True, numbered=False, ax=fgp.ax, fig=fgp.fig)
     #plt.show()
-    #ani = fgp.make_full_voronoi_plot(save=True, animate_rot=False, numbered=False, colors=colors)
+    ani = fgp.make_full_voronoi_plot(save=True, animate_rot=True, numbered=False, colors=colors)
