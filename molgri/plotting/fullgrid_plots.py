@@ -47,6 +47,7 @@ class FullGridPlot(RepresentationCollection):
         self._create_fig_ax(fig=fig, ax=ax, projection=projection)
 
         points = self.full_grid.get_flat_position_grid()
+        self.ax.scatter(*points.T, color=c)
 
         if numbered:
             for i, point in enumerate(points):
@@ -73,55 +74,20 @@ class FullGridPlot(RepresentationCollection):
             for i, point in enumerate(points):
                 self.ax.text(*point, s=f"{i}")
 
-        #try:
+        try:
+            voronoi_disc = self.full_voronoi_grid.get_voronoi_discretisation()
 
-        voronoi_disc = self.full_voronoi_grid.get_voronoi_discretisation()
 
-
-        for i, sv in enumerate(voronoi_disc):
-            sv.sort_vertices_of_regions()
-            all_points = sv.points
-
-            # red area
-            extra_points = normalise_vectors(random_sphere_points(3000), length=2)
-            result = []
-            extra_points_belongings = np.argmin(cdist(extra_points, all_points,
-                                                      metric="cos"), axis=1)
-            for j, _ in enumerate(all_points):
-                result.append(extra_points[extra_points_belongings == j])
-            if i==0:
-                my_points = np.vstack([result[5], sv.vertices[sv.regions[5]]])
-                Xs = my_points[:, 0]
-                Ys = my_points[:, 1]
-                Zs = my_points[:, 2]
-                from matplotlib import cm
-                self.ax.plot_trisurf(Xs, Ys, Zs, color="red", linewidth=0)
-
-                # side area
-                num_vertices = len(sv.vertices[sv.regions[5]])
-                for k in range(num_vertices):
-                    t_vals = np.linspace(0, 1, 3000)
-                    zero = np.array([0, 0, 0])
-                    start = sv.vertices[sv.regions[5]][k]
-                    end = sv.vertices[sv.regions[5]][(k+1)%num_vertices]
-                    norm = np.linalg.norm(start)
-                    result = normalise_vectors(geometric_slerp(normalise_vectors(start), normalise_vectors(end), t_vals),
-                                               length=norm)
-                    print(result)
-                    #ax.plot(norm * result[..., 0], norm * result[..., 1], norm * result[..., 2], c='k')
-                    my_points2 = np.vstack([zero, result])
-                    polygon = Poly3DCollection([my_points2], alpha=0.5)
-                    polygon.set_color("red")
-                    self.ax.add_collection3d(polygon)
-
-            plot_voronoi_cells(sv, self.ax, plot_vertex_points=plot_vertex_points, colors=colors)
-            # plot rays from origin to highest level
-            if i == len(voronoi_disc)-1:
-                for vertex in sv.vertices:
-                    ray_line = np.concatenate((origin[:, np.newaxis], vertex[:, np.newaxis]), axis=1)
-                    self.ax.plot(*ray_line, color="black")
-        #except AttributeError:
-        #    pass
+            for i, sv in enumerate(voronoi_disc):
+                sv.sort_vertices_of_regions()
+                plot_voronoi_cells(sv, self.ax, plot_vertex_points=plot_vertex_points, colors=colors)
+                # plot rays from origin to highest level
+                if i == len(voronoi_disc)-1:
+                    for vertex in sv.vertices:
+                        ray_line = np.concatenate((origin[:, np.newaxis], vertex[:, np.newaxis]), axis=1)
+                        self.ax.plot(*ray_line, color="black")
+        except AttributeError:
+            pass
 
         self.ax.view_init(elev=20, azim=20)
         self._set_axis_limits((-3, 3, -3, 3, -3, 3))
