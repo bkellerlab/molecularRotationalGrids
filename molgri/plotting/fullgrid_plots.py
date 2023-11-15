@@ -8,8 +8,9 @@ import numpy as np
 import seaborn as sns
 from matplotlib import colors
 from mpl_toolkits.mplot3d.art3d import Poly3DCollection
+from scipy.spatial.distance import cdist
 
-from molgri.space.utils import normalise_vectors
+from molgri.space.utils import normalise_vectors, random_sphere_points
 from scipy.spatial import geometric_slerp
 
 from molgri.constants import GRID_ALGORITHMS, NAME2SHORT_NAME
@@ -46,17 +47,6 @@ class FullGridPlot(RepresentationCollection):
         self._create_fig_ax(fig=fig, ax=ax, projection=projection)
 
         points = self.full_grid.get_flat_position_grid()
-        self.ax.scatter(*points.T, color=c)
-
-        straight = np.array([points[10], points[35]]).T
-        self.ax.plot(*straight, color="red", linewidth = 5)
-
-        t_vals = np.linspace(0, 1, 2000)
-        start = points[30]
-        end = points[43]
-        norm = np.linalg.norm(start)
-        result = geometric_slerp(normalise_vectors(start), normalise_vectors(end), t_vals)
-        self.ax.plot(norm * result[..., 0], norm * result[..., 1], norm * result[..., 2], c="blue", linewidth = 5)
 
         if numbered:
             for i, point in enumerate(points):
@@ -64,7 +54,7 @@ class FullGridPlot(RepresentationCollection):
 
         if projection == "3d":
             self.ax.view_init(elev=10, azim=30)
-            self._set_axis_limits((-1, 1, -1, 1, -1, 1))
+            self._set_axis_limits()
             self._equalize_axes()
 
         if save:
@@ -83,23 +73,56 @@ class FullGridPlot(RepresentationCollection):
             for i, point in enumerate(points):
                 self.ax.text(*point, s=f"{i}")
 
-        try:
-            voronoi_disc = self.full_voronoi_grid.get_voronoi_discretisation()
+        #try:
+
+        voronoi_disc = self.full_voronoi_grid.get_voronoi_discretisation()
 
 
+        for i, sv in enumerate(voronoi_disc):
+            sv.sort_vertices_of_regions()
+            all_points = sv.points
 
-            for i, sv in enumerate(voronoi_disc):
-                plot_voronoi_cells(sv, self.ax, plot_vertex_points=plot_vertex_points, colors=colors)
-                # plot rays from origin to highest level
-                if i == len(voronoi_disc)-1:
-                    for vertex in sv.vertices:
-                        ray_line = np.concatenate((origin[:, np.newaxis], vertex[:, np.newaxis]), axis=1)
-                        self.ax.plot(*ray_line, color="black")
-        except AttributeError:
-            pass
+            # red area
+            extra_points = normalise_vectors(random_sphere_points(3000), length=2)
+            result = []
+            extra_points_belongings = np.argmin(cdist(extra_points, all_points,
+                                                      metric="cos"), axis=1)
+            for j, _ in enumerate(all_points):
+                result.append(extra_points[extra_points_belongings == j])
+            if i==0:
+                my_points = sv.vertices[sv.regions[5]] #np.vstack([result[5], sv.vertices[sv.regions[5]]])
+                Xs = my_points[:, 0]
+                Ys = my_points[:, 1]
+                Zs = my_points[:, 2]
+                from matplotlib import cm
+                self.ax.plot_trisurf(Xs, Ys, Zs, color="red", linewidth=0)
 
-        self.ax.view_init(elev=10, azim=30)
-        self._set_axis_limits((-1, 1, -1, 1, -1, 1))
+                # green area
+                t_vals = np.linspace(0, 1, 1)
+                zero = np.array([0, 0, 0])
+                start = sv.vertices[sv.regions[8]][2]
+                end = sv.vertices[sv.regions[8]][3]
+                norm = np.linalg.norm(start)
+                result = normalise_vectors(geometric_slerp(normalise_vectors(start), normalise_vectors(end), t_vals),
+                                           length=norm)
+                print(result)
+                #ax.plot(norm * result[..., 0], norm * result[..., 1], norm * result[..., 2], c='k')
+                my_points2 = np.vstack([zero, start, end])
+                polygon = Poly3DCollection([my_points2], alpha=0.5)
+                polygon.set_color("green")
+                self.ax.add_collection3d(polygon)
+
+            plot_voronoi_cells(sv, self.ax, plot_vertex_points=plot_vertex_points, colors=colors)
+            # plot rays from origin to highest level
+            if i == len(voronoi_disc)-1:
+                for vertex in sv.vertices:
+                    ray_line = np.concatenate((origin[:, np.newaxis], vertex[:, np.newaxis]), axis=1)
+                    self.ax.plot(*ray_line, color="black")
+        #except AttributeError:
+        #    pass
+
+        self.ax.view_init(elev=20, azim=20)
+        self._set_axis_limits((-3, 3, -3, 3, -3, 3))
         self._equalize_axes()
 
         if save:
@@ -191,8 +214,8 @@ if __name__ == "__main__":
     from molgri.constants import SMALL_NS, DEFAULT_NS, MINI_NS
     import matplotlib.pyplot as plt
 
-    n_o = 25
-    fg = FullGrid(f"zero", f"cube3D_{n_o}", "[0.05, 0.1]", use_saved=False)
+    n_o = 15
+    fg = FullGrid(f"zero", f"cube3D_{n_o}", "[0.15, 0.25]", use_saved=False)
     colors = ["white"] * len(fg.get_flat_position_grid())
     vor_adj = fg.get_adjacency_of_position_grid().toarray()
     #dist_adj = fg.get_poly_dist_adjacency()
