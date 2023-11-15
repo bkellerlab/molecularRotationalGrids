@@ -7,6 +7,10 @@ Plot position grids in space, Voronoi cells and their volumes etc.
 import numpy as np
 import seaborn as sns
 from matplotlib import colors
+from mpl_toolkits.mplot3d.art3d import Poly3DCollection
+
+from molgri.space.utils import normalise_vectors
+from scipy.spatial import geometric_slerp
 
 from molgri.constants import GRID_ALGORITHMS, NAME2SHORT_NAME
 from molgri.plotting.abstract import RepresentationCollection, PanelRepresentationCollection, plot_voronoi_cells
@@ -42,9 +46,17 @@ class FullGridPlot(RepresentationCollection):
         self._create_fig_ax(fig=fig, ax=ax, projection=projection)
 
         points = self.full_grid.get_flat_position_grid()
-        cmap = "bwr"
-        norm = colors.TwoSlopeNorm(vcenter=0)
-        self.ax.scatter(*points.T, c=c, cmap=cmap, norm=norm)
+        self.ax.scatter(*points.T, color=c)
+
+        straight = np.array([points[10], points[35]]).T
+        self.ax.plot(*straight, color="red", linewidth = 5)
+
+        t_vals = np.linspace(0, 1, 2000)
+        start = points[30]
+        end = points[43]
+        norm = np.linalg.norm(start)
+        result = geometric_slerp(normalise_vectors(start), normalise_vectors(end), t_vals)
+        self.ax.plot(norm * result[..., 0], norm * result[..., 1], norm * result[..., 2], c="blue", linewidth = 5)
 
         if numbered:
             for i, point in enumerate(points):
@@ -52,7 +64,7 @@ class FullGridPlot(RepresentationCollection):
 
         if projection == "3d":
             self.ax.view_init(elev=10, azim=30)
-            self._set_axis_limits()
+            self._set_axis_limits((-1, 1, -1, 1, -1, 1))
             self._equalize_axes()
 
         if save:
@@ -74,6 +86,8 @@ class FullGridPlot(RepresentationCollection):
         try:
             voronoi_disc = self.full_voronoi_grid.get_voronoi_discretisation()
 
+
+
             for i, sv in enumerate(voronoi_disc):
                 plot_voronoi_cells(sv, self.ax, plot_vertex_points=plot_vertex_points, colors=colors)
                 # plot rays from origin to highest level
@@ -85,7 +99,7 @@ class FullGridPlot(RepresentationCollection):
             pass
 
         self.ax.view_init(elev=10, azim=30)
-        self._set_axis_limits()
+        self._set_axis_limits((-1, 1, -1, 1, -1, 1))
         self._equalize_axes()
 
         if save:
@@ -175,27 +189,31 @@ class PanelConvergenceFullGridPlots(PanelRepresentationCollection):
 
 if __name__ == "__main__":
     from molgri.constants import SMALL_NS, DEFAULT_NS, MINI_NS
+    import matplotlib.pyplot as plt
 
-    n_o = 50
-    fg = FullGrid(f"zero", f"cube3D_{n_o}", "[0.1,]", use_saved=False)
+    n_o = 25
+    fg = FullGrid(f"zero", f"cube3D_{n_o}", "[0.05, 0.1]", use_saved=False)
     colors = ["white"] * len(fg.get_flat_position_grid())
     vor_adj = fg.get_adjacency_of_position_grid().toarray()
-    dist_adj = fg.get_poly_dist_adjacency()
-    poly_adj = fg.get_polyhedron_adjacency(o_grid=True).toarray()
+    #dist_adj = fg.get_poly_dist_adjacency()
+    #poly_adj = fg.get_polyhedron_adjacency(o_grid=True).toarray()
     # cdis = cdist(fg.o_positions, fg.o_positions, "cos")
     # print(cdis)
     # wished = (8, 9, 10)
 
     # dist_neig = ((dist_adj[0] | poly_adj[0]) == 1)
-    point_index = 12
+    point_index = 13
 
     # for el in wished:
     #    colors[el] = "green"
 
-    for i, trug in enumerate(poly_adj[point_index]):
+    for i, trug in enumerate(vor_adj[point_index]):
         if trug:
             colors[i] = "green"
     colors[point_index] = "blue"
 
-    fgp = FullGridPlot(fg)
-    ani = fgp.make_full_voronoi_plot(save=True, animate_rot=True, numbered=True, colors=colors)
+    fgp = FullGridPlot(fg, default_complexity_level="half_empty")
+    fgp.make_position_plot(save=False)
+    ani = fgp.make_full_voronoi_plot(save=True, animate_rot=False, numbered=False, ax=fgp.ax, fig=fgp.fig)
+    #plt.show()
+    #ani = fgp.make_full_voronoi_plot(save=True, animate_rot=False, numbered=False, colors=colors)

@@ -428,6 +428,13 @@ def plot_voronoi_cells(sv, ax, plot_vertex_points=True, colors=None):
             result = geometric_slerp(normalise_vectors(start), normalise_vectors(end), t_vals)
             ax.plot(norm * result[..., 0], norm * result[..., 1], norm * result[..., 2], c='k')
         if colors:
-            polygon = Poly3DCollection([sv.vertices[region]], alpha=0.5)
+
+            associated_vertices = sv.vertices[region]
+            within_region = np.vstack([sv.points[i], associated_vertices])
+            #if np.any(additional_assignments[i]):
+            #    within_region = np.vstack([additional_assignments[i], within_region])
+            #my_convex_hull = ConvexHull(within_region, qhull_options='QJ')
+
+            polygon = Poly3DCollection(sv.vertices[region], alpha=0.5)
             polygon.set_color(colors[i])
             ax.add_collection3d(polygon)
