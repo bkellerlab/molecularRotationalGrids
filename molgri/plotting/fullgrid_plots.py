@@ -90,7 +90,7 @@ class FullGridPlot(RepresentationCollection):
             for j, _ in enumerate(all_points):
                 result.append(extra_points[extra_points_belongings == j])
             if i==0:
-                my_points = sv.vertices[sv.regions[5]] #np.vstack([result[5], sv.vertices[sv.regions[5]]])
+                my_points = np.vstack([result[5], sv.vertices[sv.regions[5]]])
                 Xs = my_points[:, 0]
                 Ys = my_points[:, 1]
                 Zs = my_points[:, 2]
@@ -98,7 +98,7 @@ class FullGridPlot(RepresentationCollection):
                 self.ax.plot_trisurf(Xs, Ys, Zs, color="red", linewidth=0)
 
                 # green area
-                t_vals = np.linspace(0, 1, 1)
+                t_vals = np.linspace(0, 1, 3000)
                 zero = np.array([0, 0, 0])
                 start = sv.vertices[sv.regions[8]][2]
                 end = sv.vertices[sv.regions[8]][3]
@@ -107,7 +107,7 @@ class FullGridPlot(RepresentationCollection):
                                            length=norm)
                 print(result)
                 #ax.plot(norm * result[..., 0], norm * result[..., 1], norm * result[..., 2], c='k')
-                my_points2 = np.vstack([zero, start, end])
+                my_points2 = np.vstack([zero, result])
                 polygon = Poly3DCollection([my_points2], alpha=0.5)
                 polygon.set_color("green")
                 self.ax.add_collection3d(polygon)
