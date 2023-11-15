@@ -97,20 +97,22 @@ class FullGridPlot(RepresentationCollection):
                 from matplotlib import cm
                 self.ax.plot_trisurf(Xs, Ys, Zs, color="red", linewidth=0)
 
-                # green area
-                t_vals = np.linspace(0, 1, 3000)
-                zero = np.array([0, 0, 0])
-                start = sv.vertices[sv.regions[8]][2]
-                end = sv.vertices[sv.regions[8]][3]
-                norm = np.linalg.norm(start)
-                result = normalise_vectors(geometric_slerp(normalise_vectors(start), normalise_vectors(end), t_vals),
-                                           length=norm)
-                print(result)
-                #ax.plot(norm * result[..., 0], norm * result[..., 1], norm * result[..., 2], c='k')
-                my_points2 = np.vstack([zero, result])
-                polygon = Poly3DCollection([my_points2], alpha=0.5)
-                polygon.set_color("green")
-                self.ax.add_collection3d(polygon)
+                # side area
+                num_vertices = len(sv.vertices[sv.regions[5]])
+                for k in range(num_vertices):
+                    t_vals = np.linspace(0, 1, 3000)
+                    zero = np.array([0, 0, 0])
+                    start = sv.vertices[sv.regions[5]][k]
+                    end = sv.vertices[sv.regions[5]][(k+1)%num_vertices]
+                    norm = np.linalg.norm(start)
+                    result = normalise_vectors(geometric_slerp(normalise_vectors(start), normalise_vectors(end), t_vals),
+                                               length=norm)
+                    print(result)
+                    #ax.plot(norm * result[..., 0], norm * result[..., 1], norm * result[..., 2], c='k')
+                    my_points2 = np.vstack([zero, result])
+                    polygon = Poly3DCollection([my_points2], alpha=0.5)
+                    polygon.set_color("red")
+                    self.ax.add_collection3d(polygon)
 
             plot_voronoi_cells(sv, self.ax, plot_vertex_points=plot_vertex_points, colors=colors)
             # plot rays from origin to highest level
@@ -237,6 +239,6 @@ if __name__ == "__main__":
 
     fgp = FullGridPlot(fg, default_complexity_level="half_empty")
     fgp.make_position_plot(save=False)
-    ani = fgp.make_full_voronoi_plot(save=True, animate_rot=False, numbered=False, ax=fgp.ax, fig=fgp.fig)
+    ani = fgp.make_full_voronoi_plot(save=True, animate_rot=True, numbered=False, ax=fgp.ax, fig=fgp.fig)
     #plt.show()
     #ani = fgp.make_full_voronoi_plot(save=True, animate_rot=False, numbered=False, colors=colors)
