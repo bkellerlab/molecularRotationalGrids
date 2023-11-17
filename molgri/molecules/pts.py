@@ -8,6 +8,8 @@ For this purpose, Writers in molgri.writers module are provided.
 
 from typing import Tuple, Generator
 
+import numpy as np
+from molgri.space.rotations import grid2rotation, two_vectors2rot
 from scipy.spatial.transform import Rotation
 
 from molgri.molecules.parsers import ParsedMolecule
@@ -21,13 +23,6 @@ class Pseudotrajectory:
         A Pseudotrajectory (PT) is a generator of frames in which a molecule assumes new positions in accordance
         with a grid. Initiate with molecule in any position, the method .generate_pseudotrajectory will make sure
         to first center and then correctly position/orient the molecule
-
-        The first origin rotation is & first rotation about body are performed. All translational distances are covered.
-        Then, another body rotation, again at all translational distances tested. When all body rotations are
-        exhausted, move on to the next position. As a consequence:
-
-            trajectory[0:N_t*N_b] COM will always be on the same vector from origin
-            trajectory[::N_t] will always be at the smallest radius
 
         Args:
             molecule: a molecule that will be moved/rotated into all combinations of stated defined by full_grid
@@ -47,22 +42,31 @@ class Pseudotrajectory:
 
     def generate_pseudotrajectory(self) -> Generator[Tuple[int, ParsedMolecule], None, None]:
         """
-        A generator of ParsedMolecule elements, for each frame one. Only deals with the molecule that moves.
+        A generator of ParsedMolecule elements, for each frame one. Only deals with the molecule that moves. The
+        order of generated structures is the order of 7D coordinates in SE(3) space given by
+        self.full_grid.get_full_grid_as_array().
 
         Yields:
             frame index, molecule with current position attribute
         """
+        fg = self.full_grid.get_full_grid_as_array()
         # center second molecule if not centered yet
         self.molecule.translate_to_origin()
-        for se3_coo in self.full_grid.get_full_grid_as_array():
+        for se3_coo in fg:
             position = se3_coo[:3]
             orientation = se3_coo[3:]
             rotation = Rotation.from_quat(orientation)
             self.molecule.rotate_about_body(rotation)
+
             self.molecule.translate_to_origin()
-            self.molecule.translate(position)
+
+            z_vector = np.array([0, 0, np.linalg.norm(position)])
+            self.molecule.translate(z_vector)
+
+            self.molecule.rotate_about_origin(Rotation.from_matrix(two_vectors2rot(z_vector, position)))
             yield self.current_frame, self.molecule
             self.current_frame += 1
             # rotate back
+            self.molecule.rotate_about_origin(Rotation.from_matrix(two_vectors2rot(z_vector, position)), inverse=True)
             self.molecule.rotate_about_body(rotation, inverse=True)
 

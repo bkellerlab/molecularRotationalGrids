@@ -9,7 +9,7 @@ from molgri.space.utils import all_row_norms_equal_k, two_sets_of_quaternions_eq
 USE_SAVED = False
 
 # don't test fulldiv
-GRID_ALGORITHMS_4D = [x for x in GRID_ALGORITHMS_4D if x!="fulldiv"]
+GRID_ALGORITHMS_4D = [x for x in GRID_ALGORITHMS_4D if x != "fulldiv"]
 
 
 def test_saving_rotobj():
@@ -105,7 +105,8 @@ def test_full_and_half_hypersphere():
             assert two_sets_of_quaternions_equal(full_grid[:N], full_grid[N:])
             # no repeating rows in first and second half
             for el in full_grid[:N]:
-                assert len(np.nonzero(np.all(np.isclose(el, full_grid[N:]), axis=1))[0])==0
+                assert len(np.nonzero(np.all(np.isclose(el, full_grid[N:]), axis=1))[0]) == 0
+
 
 if __name__ == "__main__":
     test_saving_rotobj()

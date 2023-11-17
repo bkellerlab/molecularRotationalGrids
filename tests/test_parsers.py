@@ -3,9 +3,8 @@ import pytest
 
 from molgri.molecules.parsers import FileParser
 from molgri.space.translations import TranslationParser
-from molgri.naming import FullGridNameParser, GridNameParser
+from molgri.naming import GridNameParser
 from molgri.constants import ANGSTROM2NM, NM2ANGSTROM, DEFAULT_ALGORITHM_O
-from molgri.space.fullgrid import FullGrid
 
 
 def test_grid_name_parser():
@@ -157,6 +156,7 @@ def test_trans_parser():
     assert tp3.grid_hash == 753285640
     tp4 = TranslationParser("linspace(2, 6, 3)")
     assert tp4.grid_hash == 753285640
+
 
 if __name__ == "__main__":
     test_grid_name_parser()

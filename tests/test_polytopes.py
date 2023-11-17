@@ -161,10 +161,12 @@ def test_ico_polytope():
     for i in range(3):
         if i != 0:
             ico.divide_edges()
-        assert ico.G.number_of_nodes() == expected_num_of_points[i], f"At level {i} cube 3D should have {expected_num_of_points[i]} nodes"
+        assert ico.G.number_of_nodes() == expected_num_of_points[i], f"At level {i} cube 3D should " \
+                                                                     f"have {expected_num_of_points[i]} nodes"
         # those points are unique
         all_rows_unique(ico.get_nodes(projection=True))
-        assert ico.G.number_of_edges() == expected_num_of_edges[i], f"At level {i} cube 3D should have {expected_num_of_edges[i]} edges "
+        assert ico.G.number_of_edges() == expected_num_of_edges[i], f"At level {i} cube 3D should " \
+                                                                    f"have {expected_num_of_edges[i]} edges "
 
 
 def test_cube3D_polytope():
@@ -183,12 +185,15 @@ def test_cube3D_polytope():
     for i in range(3):
         if i != 0:
             cub.divide_edges()
-        assert cub.G.number_of_nodes() == expected_num_of_points[i], f"At level {i} cube 3D should have {expected_num_of_points[i]} nodes"
+        assert cub.G.number_of_nodes() == expected_num_of_points[i], f"At level {i} cube 3D should " \
+                                                                     f"have {expected_num_of_points[i]} nodes"
         # those points are unique
         all_rows_unique(cub.get_nodes(projection=True))
-        assert cub.G.number_of_edges() == expected_num_of_edges[i], f"At level {i} cube 3D should have {expected_num_of_edges[i]} edges "
+        assert cub.G.number_of_edges() == expected_num_of_edges[i], f"At level {i} cube 3D should " \
+                                                                    f"have {expected_num_of_edges[i]} edges "
         edge_categories = cub._get_count_of_edge_categories()
-        assert np.all(edge_categories == expected_categories_of_edges[i]), f"At level {i} cube 3D has edge categories {expected_categories_of_edges[i]}"
+        assert np.all(edge_categories == expected_categories_of_edges[i]), f"At level {i} cube 3D has edge categories" \
+                                                                           f" {expected_categories_of_edges[i]}"
 
 
 def test_cube4D_polytope():
@@ -205,7 +210,6 @@ def test_cube4D_polytope():
     expected_categories_of_nodes = [[16], [16, 32, 24, 8], [16, 64, 32, 96, 96, 24, 64, 96, 48, 8]]
     expected_categories_of_edges = [[32, 48, 32], [208, 384, 256], [1568, 3072, 2048]]
 
-
     cub = Cube4DPolytope()
     for i in range(3):
         if i != 0:
@@ -217,9 +221,11 @@ def test_cube4D_polytope():
         assert cub.G.number_of_edges() == expected_num_of_edges[i], f"At level {i} cube 4D should have " \
                                                                     f"{expected_num_of_edges[i]} edges "
         node_categories = cub._get_count_of_point_categories()
-        assert np.all(node_categories == expected_categories_of_nodes[i]), f"At level {i} cube 4D has edge categories {expected_categories_of_edges[i]}"
+        assert np.all(node_categories == expected_categories_of_nodes[i]), f"At level {i} cube 4D has edge categories" \
+                                                                           f" {expected_categories_of_edges[i]}"
         edge_categories = cub._get_count_of_edge_categories()
-        assert np.all(edge_categories == expected_categories_of_edges[i]), f"At level {i} cube 4D has edge categories {expected_categories_of_edges[i]}"
+        assert np.all(edge_categories == expected_categories_of_edges[i]), f"At level {i} cube 4D has edge categories" \
+                                                                           f" {expected_categories_of_edges[i]}"
 
 
 def test_edge_attributes():
@@ -325,7 +331,6 @@ def test_half_hypercube():
         indices_outside_N = [cube4D.G.nodes[n]["central_index"] for n in not_in_half_N]
         for index_within in indices_within_N:
             assert np.all([index_within < x for x in indices_outside_N])
-
 
 
 if __name__ == "__main__":

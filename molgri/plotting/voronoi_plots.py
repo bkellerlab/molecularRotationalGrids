@@ -65,14 +65,20 @@ class VoronoiPlot(RepresentationCollection):
         self._equalize_axes()
 
     @plot3D_method
-    def plot_regions(self, color="green", reduced=True):
+    def plot_regions(self, color="green", reduced=True, additional_points=True):
         vertices = self.get_all_voronoi_vertices(reduced=reduced)
         regions = self.get_all_voronoi_regions(reduced=reduced)
+        additional = self._additional_points_per_cell()
         for i, region in enumerate(regions):
-            n = len(region)
-            for j in range(n):
-                polygon = Poly3DCollection([vertices[region]], alpha=0.1, facecolors=color)
+            # displays flat polygons
+            if not additional_points:
+                polygon = Poly3DCollection([vertices[region]], alpha=0.5, facecolors=color)
                 self.ax.add_collection3d(polygon)
+            # approximates rounded polygons
+            else:
+                my_points = np.vstack([vertices[region], additional[i]])
+                #self.ax.scatter(*my_points.T)
+                self.ax.plot_trisurf(*my_points.T, alpha=0.5) #color=color,
 
     @plot3D_method
     def plot_vertices_of_i(self, i: int = 0, color="blue", labels=True, reduced=False, region=False):
@@ -84,10 +90,6 @@ class VoronoiPlot(RepresentationCollection):
             print(f"The grid does not contain index i={i}")
             return
         vertices_of_i = all_vertices[indices_of_i]
-        print("not reduced", self.get_all_voronoi_vertices(reduced=False)[self.get_all_voronoi_regions(
-            reduced=False)[i]])
-        print("reduced", self.get_all_voronoi_vertices(reduced=True)[self.get_all_voronoi_regions(
-            reduced=True)[i]])
         self.ax.scatter(vertices_of_i[:, 0], vertices_of_i[:, 1], vertices_of_i[:, 2], c=color)
 
         if labels:
@@ -122,9 +124,10 @@ if __name__ == "__main__":
     my_points = random_sphere_points(85)
     my_voronoi = HalfRotobjVoronoi(my_points, using_detailed_grid=True)
     vp = VoronoiPlot(my_voronoi)
-    # vp.plot_centers(save=False)
+    vp.plot_centers(save=False)
+    vp.plot_regions(color="red", additional_points=True, save=False, ax=vp.ax, fig=vp.fig)
     # vp.plot_vertices(ax=vp.ax, fig=vp.fig, save=False, alpha=0.5, labels=False)
     # vp.plot_borders(ax=vp.ax, fig=vp.fig, save=False)
     # vp.plot_vertices_of_i(i=5, ax=vp.ax, fig=vp.fig, save=True)
-    vp.plot_volumes(save=False, approx=False)
+    #vp.plot_volumes(save=False, approx=False)
     plt.show()

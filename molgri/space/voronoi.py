@@ -84,13 +84,9 @@ class AbstractVoronoi(ABC):
         # vertices
         original_vertices = copy(self.get_all_voronoi_vertices(reduced=False))
         indexes = np.unique(original_vertices, axis=0, return_index=True)[1]
-        #print(indexes, sorted(indexes))
         new_vertices = np.array([original_vertices[index] for index in sorted(indexes)])
-        #assert np.allclose(np.unique(new_vertices, axis=0), np.unique(original_vertices, axis=0))
-
         # regions
         old2new = {old_i: which_row_is_k(new_vertices, old)[0] for old_i, old in enumerate(original_vertices)}
-        print(old2new)
         old_regions = self.get_all_voronoi_regions()
         new_regions = []
         for i, region in enumerate(old_regions):
@@ -98,7 +94,6 @@ class AbstractVoronoi(ABC):
             for j, el in enumerate(region):
                 fresh_region.append(old2new[el])
             new_regions.append(fresh_region)
-        #assert np.allclose(np.unique(original_vertices, axis=0), new_vertices)
         return new_vertices, new_regions
 
     def _additional_points_per_cell(self) -> List:
@@ -219,9 +214,9 @@ class RotobjVoronoi(AbstractVoronoi):
             pass
         dimensions = my_array.shape[1]
         if using_detailed_grid and dimensions == 3:
-            dense_points = random_sphere_points(1000)
+            dense_points = random_sphere_points(3000)
         elif using_detailed_grid and dimensions == 4:
-            dense_points = random_quaternions(1000)
+            dense_points = random_quaternions(3000)
         else:
             dense_points = None
         super().__init__(additional_points=dense_points)

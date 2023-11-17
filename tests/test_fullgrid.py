@@ -541,13 +541,13 @@ def test_position_grid_voronoi():
 
 
 if __name__ == "__main__":
-    #test_fullgrid_voronoi_radii()
-    #test_cell_assignment()
-    #test_distances_voronoi_centers()
-    #test_division_area()
-    #test_volumes()
-    #test_default_full_grids()
-    #test_position_grid()
-    #test_voronoi_regression()
-    #test_position_adjacency()
+    test_fullgrid_voronoi_radii()
+    test_cell_assignment()
+    test_distances_voronoi_centers()
+    test_division_area()
+    test_volumes()
+    test_default_full_grids()
+    test_position_grid()
+    test_voronoi_regression()
+    test_position_adjacency()
     test_position_grid_voronoi()

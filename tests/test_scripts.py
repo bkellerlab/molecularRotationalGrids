@@ -58,7 +58,9 @@ def test_generate_pt():
 
     for err_command in expected_error_commands:
         with pytest.raises(Exception):
+            print(err_command)
             subprocess.run(err_command, shell=True, check=True)
+
 
 def test_generate_energy():
     test_set_up_io()
@@ -71,6 +73,7 @@ def test_generate_energy():
 
     for command in commands:
         print(subprocess.run(command, shell=True, check=True))
+
 
 if __name__ == "__main__":
     test_set_up_io()

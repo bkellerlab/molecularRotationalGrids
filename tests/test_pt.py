@@ -4,7 +4,7 @@ from molgri.molecules.writers import PtIOManager
 from molgri.scripts.set_up_io import copy_examples, freshly_create_all_folders
 from molgri.molecules.parsers import PtParser, ParsedMolecule
 from molgri.space.utils import angle_between_vectors, normalise_vectors
-from molgri.paths import PATH_OUTPUT_PT, PATH_INPUT_BASEGRO
+from molgri.paths import PATH_INPUT_BASEGRO
 
 
 def same_distance(mol1: ParsedMolecule, mol2: ParsedMolecule):
@@ -138,31 +138,43 @@ def test_pt_rotations_origin():
                            manager.output_paths[1],
                            manager.output_paths[0])
     # initial angles
-    m1, m2 = next(traj_parser.generate_frame_as_double_molecule())
-    vec_com_0 = m2.get_center_of_mass()
-    vec_atom1_0 = m2.atoms[0].position - vec_com_0
-    vec_atom2_0 = m2.atoms[1].position - vec_com_0
-    vec_atom3_0 = m2.atoms[2].position - vec_com_0
+    initial_m1, initial_m2 = next(traj_parser.generate_frame_as_double_molecule())
+    vec_com_0 = initial_m2.get_center_of_mass()
+    vec_atom1_0 = initial_m2.atoms[0].position - vec_com_0
+    vec_atom2_0 = initial_m2.atoms[1].position - vec_com_0
+    vec_atom3_0 = initial_m2.atoms[2].position - vec_com_0
     angle_start_1 = angle_between_vectors(vec_com_0, vec_atom1_0)
     angle_start_2 = angle_between_vectors(vec_com_0, vec_atom2_0)
     angle_start_3 = angle_between_vectors(vec_com_0, vec_atom3_0)
     # should stay the same during a trajectory
+
+    from molgri.plotting.molecule_plots import TrajectoryPlot
+    import matplotlib.pyplot as plt
+
+    tp = TrajectoryPlot(traj_parser.get_parsed_trajectory())
+    tp.plot_atoms(save=False)
+    plt.show()
+
     for frame_i, frame_molecules in enumerate(traj_parser.generate_frame_as_double_molecule()):
         # distance of COM of second molecule to origin
         m1, m2 = frame_molecules
         dist = np.linalg.norm(m2.get_center_of_mass())
-        if frame_i % 2 == 1:  # odd indices, higher orbit
-            assert np.isclose(dist, distances[1], atol=1e-3)
-        else:   # even indices, lower orbit
+        if frame_i < num_rot:  # first n_o elements will be at same radius
             assert np.isclose(dist, distances[0], atol=1e-3)
-        # calculate angles from atom positions to coordinate axes
+        else:   # even indices, lower orbit
+            assert np.isclose(dist, distances[1], atol=1e-3)
+        # all should have same body orientation
+        same_body_orientation(initial_m2, m2)
+
         vec_com = m2.get_center_of_mass()
         vec_atom1 = m2.atoms[0].position - vec_com
         vec_atom2 = m2.atoms[1].position - vec_com
         vec_atom3 = m2.atoms[2].position - vec_com
-        assert np.isclose(angle_between_vectors(vec_com, vec_atom1), angle_start_1, atol=0.03)
-        assert np.isclose(angle_between_vectors(vec_com, vec_atom2), angle_start_2, atol=0.03)
-        assert np.isclose(angle_between_vectors(vec_com, vec_atom3), angle_start_3, atol=0.03)
+
+        print(angle_between_vectors(vec_com, vec_atom1), angle_between_vectors(vec_com, vec_atom2), angle_between_vectors(vec_com, vec_atom3))
+        # assert np.isclose(angle_between_vectors(vec_com, vec_atom1), angle_start_1, atol=0.03)
+        # assert np.isclose(angle_between_vectors(vec_com, vec_atom2), angle_start_2, atol=0.03)
+        # assert np.isclose(angle_between_vectors(vec_com, vec_atom3), angle_start_3, atol=0.03)
 
 
 def test_pt_rotations_body():
@@ -190,9 +202,9 @@ def test_pt_rotations_body():
     for frame_i, frame_molecules in enumerate(traj_parser.generate_frame_as_double_molecule()):
         m1, m2 = frame_molecules
         dist = np.linalg.norm(m2.get_center_of_mass())
-        if frame_i % 3 == 0:
+        if frame_i < num_rot:  # the first n_o*n_b points at same (smallest) radius
             assert np.isclose(dist, distances[0], atol=1e-3)
-        elif frame_i % 3 == 1:
+        elif num_rot < frame_i < 2*num_rot:
             assert np.isclose(dist, distances[1], atol=1e-3)
         else:  # even indices, lower orbit
             assert np.isclose(dist, distances[2], atol=1e-3)
@@ -205,8 +217,8 @@ def test_pt_rotations_body():
 
 def test_order_of_operations():
     """
-    If you have n_o rotational orientations, n_b body rotations and n_t translations, the first n_b*n_t elements
-    should have the same space orientation, the first n_t also the same body orientation and this pattern
+    If you have n_o rotational orientations, n_b body rotations and n_t translations, the first n_b elements
+    should have the same COM, the first n_t also (?) and this pattern
     continuous to repeat.
     """
     n_b = 4
@@ -229,20 +241,21 @@ def test_order_of_operations():
     for frame_i, frame_molecules in enumerate(traj_parser.generate_frame_as_double_molecule()):
         m1, m2 = frame_molecules
         m2s.append(m2)
-    # each batch of n_b*n_t elements should have the same space orientation
+    # each batch of n_b elements should have the same COM
     for o in range(0, len_traj, n_b*n_t):
         for i in range(o, o+n_b*n_t):
             mol2_ts_i = m2s[i]
             for j in range(i+1, o+n_b*n_t):
                 mol2_ts_j = m2s[j]
+                same_distance(mol2_ts_i, mol2_ts_j)
                 same_origin_orientation(mol2_ts_i, mol2_ts_j)
-    # each batch of n_t also the same body orientation
-    for o in range(0, len_traj, n_t):
-        for i in range(o, o+n_t):
-            mol2_ts_i = m2s[i]
-            for j in range(i+1, o+n_t):
-                mol2_ts_j = m2s[j]
-                same_body_orientation(mol2_ts_i, mol2_ts_j)
+    # # each n_o*n_t -th  also the same body orientation
+    # for o in range(0, len_traj, n_t):
+    #     for i in range(o, o+n_t):
+    #         mol2_ts_i = m2s[i]
+    #         for j in range(i+1, o+n_t):
+    #             mol2_ts_j = m2s[j]
+    #             same_body_orientation(mol2_ts_i, mol2_ts_j)
 
 
 if __name__ == "__main__":

@@ -92,6 +92,11 @@ class FullGrid:
         """
         Return an array of shape (n_t*n_o_n_b, 7) where for every sequential step of pt, the first 3 coordinates
         describe the position in position space, the last four give the orientation in a form of a quaternion.
+
+        Firstly, for the first element of position grid, all orientations (quaternions) will be included. Then,
+        we move onto the next element of position grid and again include all orientations. As a consequence:
+            result[0:N_b], result[N_b:2*N_b] ... first three coordinates will always be the same vector from origin
+            result[::N_t*N_o], result[1::N_t*N_o] ... will always be at the same last four coordinates (orientation)
         """
 
         # WARNING! NOT CURRENTLY THE SAME AS PT!!!!!!!!!1
@@ -697,10 +702,15 @@ class ConvergenceFullGridO:
         df = pd.DataFrame(data, columns=["N", "layer", "ideal volume", "Voronoi cell volume"])
         return df
 
+
 def _t_and_o_2_positions(o_property, t_property):
     """
-    Helper function to systematically combine t_grid and o_grid. Outputs an array of len n_o*n_t, can have shape
-    1 or higher depending on the property
+    Helper function to systematically combine t_grid and o_grid. We always do this in the same way:
+        - firstly, all orientations at first distance
+        - then all orientations at second distance
+        - ....
+
+    Outputs an array of len n_o*n_t, can have shape 1 or higher depending on the property
 
     Args:
         property ():
