@@ -112,7 +112,6 @@ class FullGrid:
                 current_index += 1
         return result
 
-
     def point2cell_position_grid(self, points_vector: NDArray) -> NDArray:
         """
         This method is used to back-map any points in 3D space to their corresponding Voronoi cell indices (of position

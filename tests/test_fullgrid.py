@@ -505,6 +505,7 @@ def test_position_adjacency():
     my_result[adj_of_20] = True
     assert np.all(my_array[20] == my_result)
 
+
 def test_position_grid_voronoi():
     """
     This function tests that PositionVoronoi:

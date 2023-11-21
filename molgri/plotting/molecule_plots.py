@@ -49,9 +49,7 @@ class TrajectoryPlot(RepresentationCollection):
         atom_selection = self._default_atom_selection(atom_selection)
 
         for mol in self.parsed_trajectory.molecule_generator(atom_selection):
-            print(mol.get_atoms())
             for atom in mol.get_atoms():
-                print(atom.type)
                 if "O" in atom.type:
                     color="red"
                 elif "H" in atom.type:
@@ -59,11 +57,7 @@ class TrajectoryPlot(RepresentationCollection):
                 else:
                     color="blue"
                 self.ax.scatter(*atom.position, color=color)
-
-        # # filter out unique COMs
-        # coms, _ = self.parsed_trajectory.get_unique_com_till_N(N=self.N_used, atom_selection=atom_selection)
-        # # plot data
-        # self._make_scatter_plot(projection, coms.T, c=)
+        self._equalize_axes()
 
     @plot3D_method
     def plot_COM(self, atom_selection=None, fg = None, projection="3d", **kwargs):

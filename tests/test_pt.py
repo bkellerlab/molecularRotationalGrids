@@ -121,7 +121,7 @@ def test_pt_rotations_origin():
     """
     Test that if there is no body rotation grid,
         1) distances to COM are equal to those prescribed by translational grid
-        2) angles between vector to COM and vectors to individual atoms stay constant
+        2) angles between vector to COM and vectors to individual atoms stay constant (water stays the shape of water)
     """
     num_rot = 12
     num_trans = 2
@@ -148,12 +148,13 @@ def test_pt_rotations_origin():
     angle_start_3 = angle_between_vectors(vec_com_0, vec_atom3_0)
     # should stay the same during a trajectory
 
-    from molgri.plotting.molecule_plots import TrajectoryPlot
-    import matplotlib.pyplot as plt
-
-    tp = TrajectoryPlot(traj_parser.get_parsed_trajectory())
-    tp.plot_atoms(save=False)
-    plt.show()
+    # can visualize
+    # from molgri.plotting.molecule_plots import TrajectoryPlot
+    # import matplotlib.pyplot as plt
+    #
+    # tp = TrajectoryPlot(traj_parser.get_parsed_trajectory())
+    # tp.plot_atoms(save=False)
+    # plt.show()
 
     for frame_i, frame_molecules in enumerate(traj_parser.generate_frame_as_double_molecule()):
         # distance of COM of second molecule to origin
@@ -171,10 +172,9 @@ def test_pt_rotations_origin():
         vec_atom2 = m2.atoms[1].position - vec_com
         vec_atom3 = m2.atoms[2].position - vec_com
 
-        print(angle_between_vectors(vec_com, vec_atom1), angle_between_vectors(vec_com, vec_atom2), angle_between_vectors(vec_com, vec_atom3))
-        # assert np.isclose(angle_between_vectors(vec_com, vec_atom1), angle_start_1, atol=0.03)
-        # assert np.isclose(angle_between_vectors(vec_com, vec_atom2), angle_start_2, atol=0.03)
-        # assert np.isclose(angle_between_vectors(vec_com, vec_atom3), angle_start_3, atol=0.03)
+        assert np.isclose(angle_between_vectors(vec_com, vec_atom1), angle_start_1, atol=0.03)
+        assert np.isclose(angle_between_vectors(vec_com, vec_atom2), angle_start_2, atol=0.03)
+        assert np.isclose(angle_between_vectors(vec_com, vec_atom3), angle_start_3, atol=0.03)
 
 
 def test_pt_rotations_body():
@@ -199,15 +199,24 @@ def test_pt_rotations_body():
                            f"{PATH_INPUT_BASEGRO}{m2_path}",
                            manager.output_paths[1],
                            manager.output_paths[0])
+
+    # can visualize
+    # from molgri.plotting.molecule_plots import TrajectoryPlot
+    # import matplotlib.pyplot as plt
+    #
+    # tp = TrajectoryPlot(traj_parser.get_parsed_trajectory())
+    # tp.plot_atoms(save=False)
+    # plt.show()
+
     for frame_i, frame_molecules in enumerate(traj_parser.generate_frame_as_double_molecule()):
         m1, m2 = frame_molecules
         dist = np.linalg.norm(m2.get_center_of_mass())
         if frame_i < num_rot:  # the first n_o*n_b points at same (smallest) radius
-            assert np.isclose(dist, distances[0], atol=1e-3)
-        elif num_rot < frame_i < 2*num_rot:
-            assert np.isclose(dist, distances[1], atol=1e-3)
-        else:  # even indices, lower orbit
-            assert np.isclose(dist, distances[2], atol=1e-3)
+            assert np.isclose(dist, distances[0], atol=1e-3), f"{dist}!={distances[0]}"
+        elif frame_i < 2*num_rot:
+            assert np.isclose(dist, distances[1], atol=1e-3), f"{dist}!={distances[1]}"
+        else:
+            assert np.isclose(dist, distances[2], atol=1e-3), f"Frame {frame_i}: {dist}!={distances[2]}"
         # x and y coordinates of COM of molecule 2 stay 0, z coordinate is same as distance
         com_2 = m2.get_center_of_mass()
         assert np.isclose(com_2[0], 0, atol=1e-3)
@@ -241,21 +250,28 @@ def test_order_of_operations():
     for frame_i, frame_molecules in enumerate(traj_parser.generate_frame_as_double_molecule()):
         m1, m2 = frame_molecules
         m2s.append(m2)
-    # each batch of n_b elements should have the same COM
-    for o in range(0, len_traj, n_b*n_t):
-        for i in range(o, o+n_b*n_t):
-            mol2_ts_i = m2s[i]
-            for j in range(i+1, o+n_b*n_t):
-                mol2_ts_j = m2s[j]
-                same_distance(mol2_ts_i, mol2_ts_j)
-                same_origin_orientation(mol2_ts_i, mol2_ts_j)
-    # # each n_o*n_t -th  also the same body orientation
-    # for o in range(0, len_traj, n_t):
-    #     for i in range(o, o+n_t):
-    #         mol2_ts_i = m2s[i]
-    #         for j in range(i+1, o+n_t):
-    #             mol2_ts_j = m2s[j]
-    #             same_body_orientation(mol2_ts_i, mol2_ts_j)
+
+    # result[k*N_b:(k+1)*N_b] for integer k: same vector from origin
+    for k in range(n_t*n_o):
+        first_one = m2s[k*n_b]
+        for o in range(k*n_b, (k+1)*n_b):
+            second_one = m2s[o]
+            same_distance(first_one, second_one)
+            same_origin_orientation(first_one, second_one)
+
+    # result[k::N_t*N_o] for integer k is the same body orientation
+    for k in range(n_b):
+        first_one = m2s[k]
+        for o in range(k, len_traj, n_t*n_o):
+            second_one = m2s[o]
+            same_body_orientation(first_one, second_one)
+
+    # from molgri.plotting.molecule_plots import TrajectoryPlot
+    # import matplotlib.pyplot as plt
+    #
+    # tp = TrajectoryPlot(traj_parser.get_parsed_trajectory())
+    # tp.plot_atoms(save=False)
+    # plt.show()
 
 
 if __name__ == "__main__":
