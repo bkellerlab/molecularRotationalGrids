@@ -24,12 +24,15 @@ def example_rotobj(dim: int, sizes=None, half=False, detailed=True) -> Tuple[Sph
     elif sizes is None and dim == 4:
         sizes = [16, 80, 544]
     for size in sizes:
-        my_rotobj = SphereGrid3DFactory().create(alg_name=DEFAULT_ALGORITHM_O, N=size, use_saved=False)
-        if half:
-            # important! you still use only_upper=False
-            my_voronoi = HalfRotobjVoronoi(my_rotobj.get_grid_as_array(only_upper=False), using_detailed_grid=detailed)
+        if dim == 3:
+            my_rotobj = SphereGrid3DFactory().create(alg_name=DEFAULT_ALGORITHM_O, N=size, use_saved=False)
         else:
-            my_voronoi = RotobjVoronoi(my_rotobj.get_grid_as_array(only_upper=False), using_detailed_grid=detailed)
+            my_rotobj = SphereGrid4DFactory().create(alg_name=DEFAULT_ALGORITHM_B, N=size, use_saved=False)
+
+        # create a full Voronoi grid, then optionally get a derived half grid
+        my_voronoi = RotobjVoronoi(my_rotobj.get_grid_as_array(only_upper=False), using_detailed_grid=detailed)
+        if half:
+            my_voronoi = my_voronoi.get_related_half_voronoi()
         yield my_rotobj, my_voronoi
 
 
@@ -45,8 +48,6 @@ def _assert_volumes_make_sense(volumes, dim, half, approx):
     if half:
         volume_sum /= 2
     theo_volume = volume_sum / N
-
-
 
     if N == 85:
         atol = 3
@@ -95,27 +96,31 @@ def test_reduced_coordinates():
     This function tests that reduced coordinates still map to exactly the same vertices (only removing non-unique ones)
     """
     for half in [False, True]:
-        my_example = example_rotobj(dim=3, half=half)
-        for el in my_example:
-            my_rotobj, my_voronoi = el
-            all_vertices = my_voronoi.get_all_voronoi_vertices(reduced=False)
-            reduced_vertices = my_voronoi.get_all_voronoi_vertices(reduced=True)
-            all_regions = my_voronoi.get_all_voronoi_regions(reduced=False)
-            reduced_regions = my_voronoi.get_all_voronoi_regions(reduced=True)
-            assert len(reduced_regions) == len(all_regions), "No point should get lost when redundant vertices are " \
-                                                             "removed"
-            for i, region in enumerate(all_regions):
-                i_before_reduction = region
-                i_after_reduction = reduced_regions[i]
-                vertices_before_reduction = all_vertices[i_before_reduction]
-                unique_before = np.unique(vertices_before_reduction, axis=0)
-                vertices_after_reduction = reduced_vertices[i_after_reduction]
-                # test: all rows in vertices_after_reduction must be present in vertices_before_reduction
-                #print(unique_before, vertices_after_reduction, my_rotobj.N)
-                assert len(unique_before) == len(vertices_after_reduction)
-                for row in vertices_after_reduction:
-                    assert k_is_a_row(unique_before, row), f"{unique_before, row}"
-                #assert np.allclose(np.unique(vertices_before_reduction, axis=0), vertices_after_reduction)
+        for dim in [3, 4]:
+            my_example = example_rotobj(dim=dim, half=half)
+            for el in my_example:
+                my_rotobj, my_voronoi = el
+                all_vertices = my_voronoi.get_all_voronoi_vertices(reduced=False)
+                reduced_vertices = my_voronoi.get_all_voronoi_vertices(reduced=True)
+                all_regions = my_voronoi.get_all_voronoi_regions(reduced=False)
+                reduced_regions = my_voronoi.get_all_voronoi_regions(reduced=True)
+                assert len(reduced_regions) == len(all_regions), "No point should get lost when redundant vertices are " \
+                                                                 "removed"
+                for i, region in enumerate(all_regions):
+                    i_before_reduction = region
+                    i_after_reduction = reduced_regions[i]
+                    vertices_before_reduction = all_vertices[i_before_reduction]
+                    unique_before = np.unique(vertices_before_reduction, axis=0)
+                    vertices_after_reduction = reduced_vertices[i_after_reduction]
+                    # test: all rows in vertices_after_reduction must be present in vertices_before_reduction
+                    assert len(i_before_reduction) == len(i_after_reduction)
+                    for row in vertices_after_reduction:
+                        assert k_is_a_row(unique_before, row), f"{unique_before, row}"
+                    # test: all rows in vertices_after_reduction must be present in vertices_before_reduction
+                    # but some may repeat, so we need to do unique in both cases
+                    unique_before = np.unique(vertices_before_reduction, axis=0)
+                    unique_after = np.unique(vertices_after_reduction, axis=0)
+                    assert np.allclose(unique_before, unique_after)
 
 
 def _assert_neig_of_ico_12(obtained_adj_mat: NDArray):
@@ -430,40 +435,99 @@ def test_4Dvoronoi():
 
 def test_hypersphere_adj():
     # the % of neighbours must be the same whether using all points or half points & opposing neighbours
-    for alg in ["cube4D", "randomQ"]:
-        for N in [8, 15, 73]:
-            hypersphere = SphereGrid4DFactory.create(alg, N, use_saved=False)
-            hypersphere.get_voronoi_adjacency()
+    my_example = example_rotobj(dim=3, half=False, sizes=(13,))
+    for el in my_example:
+        my_rotobj, my_voronoi = el
+        import matplotlib.pyplot as plt
+        fig = plt.figure(figsize=(12, 12))
+        ax = fig.add_subplot(projection='3d')
+        #print(my_voronoi.get_all_voronoi_centers())
+        ax.scatter(*my_voronoi.get_all_voronoi_centers().T, color="black")
+        # average number of neighbours per row
+        print(np.average(np.sum(my_voronoi.get_voronoi_adjacency().toarray(), axis=0)))
+        #print(np.average(my_voronoi.get_voronoi_adjacency().toarray()))
+    my_example = example_rotobj(dim=3, half=True, sizes=(13,))
+    for el in my_example:
+        my_rotobj, my_voronoi = el
+        ax.scatter(*my_voronoi.get_all_voronoi_centers().T, color="red", marker="x")
+        plt.show()
+        # average number of neighbours per row
+        print(np.average(np.sum(my_voronoi.get_voronoi_adjacency().toarray(), axis=0)))
+
+
+def test_full_and_half():
+    """
+    Tests that for 4D voronoi grids, the half grids have
+    0) N centers and N volumes, NxN adjacency grids
+    1) exactly the same vertices and points, just not all of them
+    2) the same average number of neighbours
+    3) the same volumes (again just not all of them)
+    4) TODO: and same lengths, borders
+    """
+    dim = 4 # will only be using this in 4D
+    for size in [29, 55]:
+        my_example_full = example_rotobj(dim=dim, half=False, sizes=[size,])
+        my_example_half = example_rotobj(dim=dim, half=True, sizes=[size, ])
+        for el_full, el_half in zip(my_example_full, my_example_half):
+            my_rotobj_full, my_voronoi_full = el_full
+            my_rotobj_half, my_voronoi_half = el_half
+            # all half points in full points (but not vice versa)
+            half_points = my_voronoi_half.get_all_voronoi_centers()
+            all_points = my_voronoi_full.get_all_voronoi_centers()
+            # IN 4D, full vronoi grid has too many (2N) points, the ones that really interest us are the first N points
+            assert len(half_points) == size
+            assert len(all_points) == 2*size
+            assert np.allclose(half_points, all_points[:size])
+            for hp in half_points:
+                assert k_is_a_row(all_points, hp)
+
+            # all half vertices in full vertices (but not vice versa)
+            half_points = my_voronoi_half.get_all_voronoi_vertices()
+            all_points = my_voronoi_full.get_all_voronoi_vertices()
+            assert len(half_points) < len(all_points)
+            for hp in half_points:
+                assert k_is_a_row(all_points, hp)
+
+            # test adjacency, lengths, borders
+            for my_property in ["adjacency", "center_distances", "border_len"]:
+                adj_full = my_voronoi_full._calculate_N_N_array(property=my_property).toarray()
+                adj_half = my_voronoi_half._calculate_N_N_array(property=my_property).toarray()
+                assert adj_full.shape == (2*size, 2*size)
+                assert adj_half.shape == (size, size)
+                # num of neighbours on average same in full sphere and half sphere with opposite neighbours
+                assert np.isclose(np.average(np.sum(adj_full, axis=0)), np.average(np.sum(adj_half, axis=0)), atol=0.2,
+                                  rtol=0.01)
+                # if you select only_upper=False, include_opposing_neighbours=False, it's the same as full grid
+                option2 = my_voronoi_half._calculate_N_N_array(property=my_property,
+                                                               only_upper=False,
+                                                               include_opposing_neighbours=False).toarray()
+                assert np.allclose(option2, adj_full)
+                # if you select only_upper=True, include_opposing_neighbours=False, you get the upper left corner of full
+                # adjacency array
+                option3 = my_voronoi_half._calculate_N_N_array(property=my_property, only_upper=True,
+                                                                include_opposing_neighbours=False).toarray()
+                assert np.allclose(option3, adj_full[:size, :size])
+
+            # volumes
+            full_volumes = my_voronoi_full.get_voronoi_volumes()
+            half_volumes = my_voronoi_half.get_voronoi_volumes()
+            assert len(full_volumes) == 2*size
+            assert len(half_volumes) == size
+            assert np.allclose(half_volumes, full_volumes[:size])
 
 
 if __name__ == "__main__":
-    test_reduced_coordinates()
+    for dim in [3, 4]:
+        my_example = example_rotobj(dim=dim, half=False, sizes=[13,])
+        for el in my_example:
+            my_rotobj, my_voronoi = el
+            my_voronoi.get_cell_borders()
 
-    # my_example = example_rotobj(dim=3, half=False, detailed=True, sizes=[85,])
-    # for el in my_example:
-    #     my_rotobj, my_voronoi = el
-    #     from molgri.plotting.voronoi_plots import VoronoiPlot
-    #     import matplotlib.pyplot as plt
-    #     vp = VoronoiPlot(my_voronoi)
-    #     vp.plot_centers(save=False)
-    #     vp.plot_vertices(ax=vp.ax, fig=vp.fig, save=False, alpha=0.5, labels=False)
-    #     vp.plot_borders(ax=vp.ax, fig=vp.fig, save=False, animate_rot=False, reduced=True)
-    #     volumes = my_voronoi.get_voronoi_volumes(approx=False)
-    #     smallest_volumes = np.argsort(volumes)[:2]
-    #     largest_volumes = np.argsort(volumes)[-10:]
-    #     print(smallest_volumes)
-    #     for lv in largest_volumes:
-    #         vp.plot_vertices_of_i(lv, ax=vp.ax, fig=vp.fig, save=False, color="red", labels=False, region=True)
-    #     for sv in smallest_volumes:
-    #         if sv==61:
-    #             labels=True
-    #         else:
-    #             labels=False
-    #         vp.plot_vertices_of_i(sv, ax=vp.ax, fig=vp.fig, save=False, color="green", labels=labels, region=True)
-    #     #vp.plot_vertices_of_i(36, ax=vp.ax, fig=vp.fig, save=False)
-    #     plt.show()
-    #     volumes = my_voronoi.get_voronoi_volumes(approx=False)
-    #     expected_small = volumes[[5, 12, 13, 14, 15, 16, 17, 19]]
-    #     expected_large = volumes[[0, 1, 2, 3, 9, 11]]
-    #     print(expected_small, expected_large, np.average(volumes), np.min(volumes), np.max(volumes))
-    #test_rotobj()
+    # test_reduced_coordinates()
+    # test_full_and_half()
+
+    # test_rotobj()
+    # test_voronoi_exact_divisions()
+    # test_3D_voronoi_visual_inspection()
+    # test_4Dvoronoi()
+    # test_hypersphere_adj()

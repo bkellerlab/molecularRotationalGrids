@@ -261,7 +261,12 @@ class SphereGrid4Dim(SphereGridNDim, ABC):
 
     def get_grid_as_array(self, only_upper: bool = True) -> NDArray:
         """
-        Same as above, only changing the default value.
+        By default, get an array of shape (N, 4) where every row is a quaternion in the upper hemisphere of a
+        hypersphere.
+
+        Args:
+            only_upper: if False, return an array of shape (2N, 4), where you first get N quaternions on upper
+            sphere and then also get their N exactly opposing points on bottom hemisphere.
         """
         return super(SphereGrid4Dim, self).get_grid_as_array(only_upper=only_upper)
 
@@ -273,6 +278,7 @@ class ZeroRotations3D(SphereGrid3Dim):
         z_vec = np.array([[0, 0, 1]])
         return z_vec
 
+
 class ZeroRotations4D(SphereGrid4Dim):
     algorithm_name = "zero4D"
 
@@ -283,6 +289,7 @@ class ZeroRotations4D(SphereGrid4Dim):
         self.rotations = Rotation.from_matrix(rot_matrix)
         self.grid = self.rotations.as_quat()
         return super()._gen_grid()
+
 
 class RandomQRotations(SphereGrid4Dim):
 

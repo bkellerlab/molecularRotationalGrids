@@ -2,6 +2,8 @@
 Building up on scipy objects Voronoi and SphericalVoronoi
 
 """
+from __future__ import annotations
+
 from abc import ABC, abstractmethod
 from copy import copy
 from itertools import combinations
@@ -83,9 +85,11 @@ class AbstractVoronoi(ABC):
     def get_reduced_vertices_regions(self) -> Tuple:
         # vertices
         original_vertices = copy(self.get_all_voronoi_vertices(reduced=False))
+        # correctly determines which lines to use
         indexes = np.unique(original_vertices, axis=0, return_index=True)[1]
         new_vertices = np.array([original_vertices[index] for index in sorted(indexes)])
         # regions
+        # correctly assigns
         old2new = {old_i: which_row_is_k(new_vertices, old)[0] for old_i, old in enumerate(original_vertices)}
         old_regions = self.get_all_voronoi_regions()
         new_regions = []
@@ -188,13 +192,7 @@ class AbstractVoronoi(ABC):
                     dist = self._calculate_center_distances(*index_tuple)
                     elements.extend([dist, dist])
                 elif property == "border_len":
-                    # here the points are the voronoi indices that both cells share
-                    indices_border = list(set_1.intersection(set_2))
-                    dist = self._calculate_borders()
-
-                    v1 = reduced_vertices[indices_border[0]]
-                    v2 = reduced_vertices[indices_border[1]]
-                    dist = dist_on_sphere(v1, v2)[0]
+                    dist = self._calculate_borders(*index_tuple)
                     elements.extend([dist, dist])
                 else:
                     raise ValueError(f"Didn't understand the argument property={property}.")
@@ -205,14 +203,16 @@ class AbstractVoronoi(ABC):
 
 class RotobjVoronoi(AbstractVoronoi):
 
-    def __init__(self, my_array: NDArray, using_detailed_grid=True):
+    def __init__(self, my_array: NDArray, using_detailed_grid: bool =True):
         self.my_array = my_array
+        self.using_detailed_grid = using_detailed_grid
         self.spherical_voronoi = SphericalVoronoi(my_array, radius=1, threshold=10 ** -UNIQUE_TOL)
         try:
             self.spherical_voronoi.sort_vertices_of_regions()
         except TypeError:
             pass
         dimensions = my_array.shape[1]
+        np.random.seed(1)
         if using_detailed_grid and dimensions == 3:
             dense_points = random_sphere_points(3000)
         elif using_detailed_grid and dimensions == 4:
@@ -255,8 +255,73 @@ class RotobjVoronoi(AbstractVoronoi):
             dist = distance_between_quaternions(v1, v2)
         return dist
 
+    def _calculate_borders(self, index_1: int, index_2: int):
+        # here the points are the voronoi indices that both cells share
+        reduced_vertices = self.get_all_voronoi_vertices(reduced=True)
+        reduced_regions = self.get_all_voronoi_regions(reduced=True)
+        set_1 = set(reduced_regions[index_1])
+        set_2 = set(reduced_regions[index_2])
+        indices_border = list(set_1.intersection(set_2))
+        # if self.get_dim() == 3:
+        #     # we need a part of a circle, defined with two points
+        #     assert len(indices_border) == 2
+        #     v1 = reduced_vertices[indices_border[0]]
+        #     v2 = reduced_vertices[indices_border[1]]
+        #     dist = dist_on_sphere(v1, v2)[0]
+        # else:
+        # we need a part of a sphere surface
+
+        v1 = reduced_vertices[indices_border[0]]
+        v2 = reduced_vertices[indices_border[1]]
+        exp_dist = dist_on_sphere(v1, v2)[0]
+
+        shared_vertices = reduced_vertices[indices_border]
+        # matrix rank of shared_vertices should be one less than the dimesionality of space, because it's a
+        # normal sphere (well, some points on a sphere) hidden inside 4D coordinates, or a part of a planar circle
+        # expressed with 3D coordinates
+        assert np.linalg.matrix_rank(shared_vertices) == self.get_dim() - 1
+
+        from scipy.linalg import svd
+        u, s, vh = svd(shared_vertices)
+        sigma = np.zeros(shared_vertices.shape)
+        for i in range(min(shared_vertices.shape)):
+            sigma[i, i] = s[i]
+        #print(np.round(np.dot(shared_vertices, vh.T), 3))
+        dist = dist_on_sphere(u[0], u[1])[0]
+
+        # rotate till last dimension is only zeros, then cut off the redundant dimension. Now we can correctly
+        # calculate borders using lower-dimensional tools
+        mat = np.dot(shared_vertices, vh.T)[:, :-1]
+        print(dist, exp_dist, dist_on_sphere(mat[0], mat[1])[0] )
+        assert np.isclose(dist_on_sphere(mat[0], mat[1])[0], exp_dist)
+        #print(np.round(np.dot(sigma, np.dot(shared_vertices, vh.T)), 3))
+        # import matplotlib.pyplot as plt
+        # fig = plt.figure(figsize=(12, 12))
+        # ax = fig.add_subplot(projection='3d')
+        # # print(my_voronoi.get_all_voronoi_centers())
+        # ax.scatter(*shared_vertices.T, color="black")
+        # ax.scatter(*u, color="red")
+        # plt.show()
+        return dist
+
+    def get_related_half_voronoi(self) -> HalfRotobjVoronoi:
+        """
+        The RotobjVoronoi deals with entire hyperspheres. If you are interested in filtering out only data applying to
+        the upper part of this same grid, use this method
+
+        Returns:
+            HalfRotobjVoronoi object that only contains (roughly) half of the points of this grid that fall in the
+            upper hemisphere. All getters of the Half object will return vertices, volumes ... only for these half
+            points.
+        """
+        return HalfRotobjVoronoi(self.my_array, self.using_detailed_grid)
+
 
 class HalfRotobjVoronoi(RotobjVoronoi):
+
+    def __init__(self, my_array: NDArray, using_detailed_grid: bool = True):
+        self.full_voronoi = RotobjVoronoi(my_array=my_array, using_detailed_grid=using_detailed_grid)
+        super().__init__(my_array=my_array, using_detailed_grid=using_detailed_grid)
 
     def _additional_points_per_cell(self) -> List:
         """
@@ -303,31 +368,27 @@ class HalfRotobjVoronoi(RotobjVoronoi):
         areas is the same as the order of points in self.grid. In Hyperspheres, these are volumes and only the
         approximation method is possible.
 
-        Approximations only available for Ico, Cube3D and Cube4D polytopes.
-
-        If only upper, the calculation will be done for all but only the results at upper indices will be returned.
+        This cannot be done directly for half a sphere. We need the calculation on full sphere and then select only
+        relevant volumes
         """
-        dimensions = self.get_all_voronoi_centers().shape[1] # dimensionality of the space in which we position points
-        if not approx and dimensions == 3:
-            return np.array([self.spherical_voronoi.calculate_areas()[i] for i in self._get_upper_indices()])
-        else:
-            return super().get_voronoi_volumes(approx=approx)
+        all_volumes = self.full_voronoi.get_voronoi_volumes(approx=approx)
+        return np.array([all_volumes[i] for i in self._get_upper_indices()])
 
-    def _calculate_N_N_array(self, property="adjacency", only_upper=False, include_opposing_neighbours=False):
+    def _calculate_N_N_array(self, property="adjacency", only_upper=True, include_opposing_neighbours=True):
         dimensions = self.get_all_voronoi_centers().shape[1]
         if dimensions == 3:
             N = len(self.get_all_voronoi_centers())
         else:
             N = 2 * len(self.get_all_voronoi_centers())
 
-        adj_matrix = super()._calculate_N_N_array(property=property).toarray()  # todo: avoid non-sparse
+        # warning! here use self.full_voronoi NOT super() to calculate the adj on full sphere
+        adj_matrix = self.full_voronoi._calculate_N_N_array(property=property).toarray()
 
-        # TODO: here deal with only_upper, include_opposing_neighbours
         if include_opposing_neighbours:
             all_grid = self.spherical_voronoi.points
             ind2opp_index = dict()
             for d, n in enumerate(all_grid):
-                inverse_el = find_inverse_quaternion(n)
+                inverse_el = -n
                 opp_ind = which_row_is_k(all_grid, inverse_el)
                 if opp_ind:
                     ind2opp_index[d] = opp_ind[0]
