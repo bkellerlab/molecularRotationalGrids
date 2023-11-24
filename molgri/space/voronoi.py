@@ -11,6 +11,7 @@ from typing import List, Optional, Tuple
 
 import numpy as np
 from numpy.typing import NDArray
+from scipy.constants import pi
 from scipy.sparse import coo_array
 from scipy.spatial import SphericalVoronoi, ConvexHull
 from scipy.spatial.distance import cdist
@@ -18,7 +19,8 @@ from scipy.spatial.distance import cdist
 from molgri.constants import UNIQUE_TOL
 from molgri.space.translations import get_between_radii
 from molgri.space.utils import (dist_on_sphere, distance_between_quaternions, find_inverse_quaternion, k_is_a_row,
-    normalise_vectors, q_in_upper_sphere, random_quaternions, random_sphere_points, which_row_is_k)
+                                normalise_vectors, q_in_upper_sphere, random_quaternions, random_sphere_points,
+                                sort_points_on_sphere_ccw, which_row_is_k)
 
 
 class AbstractVoronoi(ABC):
@@ -291,17 +293,28 @@ class RotobjVoronoi(AbstractVoronoi):
 
         # rotate till last dimension is only zeros, then cut off the redundant dimension. Now we can correctly
         # calculate borders using lower-dimensional tools
+        # the points have unit norm
         mat = np.dot(shared_vertices, vh.T)[:, :-1]
-        print(dist, exp_dist, dist_on_sphere(mat[0], mat[1])[0] )
         assert np.isclose(dist_on_sphere(mat[0], mat[1])[0], exp_dist)
+
+        #bhv = BorderHypersphereVoronoi(mat)
+        #print(np.sum(bhv.get_voronoi_volumes()), 4*pi)
+        #print("before", mat)
+        mat = sort_points_on_sphere_ccw(mat)
+        #print("after", mat)
         #print(np.round(np.dot(sigma, np.dot(shared_vertices, vh.T)), 3))
-        # import matplotlib.pyplot as plt
-        # fig = plt.figure(figsize=(12, 12))
-        # ax = fig.add_subplot(projection='3d')
-        # # print(my_voronoi.get_all_voronoi_centers())
-        # ax.scatter(*shared_vertices.T, color="black")
-        # ax.scatter(*u, color="red")
-        # plt.show()
+        import matplotlib.pyplot as plt
+        fig = plt.figure(figsize=(12, 12))
+        ax = fig.add_subplot(projection='3d')
+        vector_center = normalise_vectors(np.average(mat, axis=0))
+        ax.scatter(*vector_center, color="blue")
+        # print(my_voronoi.get_all_voronoi_centers())
+        for i, line in enumerate(mat):
+            ax.scatter(*line, color="red")
+            ax.text(*line, f"{i}")
+        #ax.scatter(*centers.T, color="blue", s=10)
+        ax.scatter(*random_sphere_points().T, color="black")
+        plt.show()
         return dist
 
     def get_related_half_voronoi(self) -> HalfRotobjVoronoi:
@@ -418,6 +431,28 @@ class HalfRotobjVoronoi(RotobjVoronoi):
             N = N // 2
         return coo_array(adj_matrix)
 
+
+class BorderHypersphereVoronoi(AbstractVoronoi):
+    """
+    A border between two hypersphere cells is a spherical polygon - so we already have vertices and create fake sv
+     to calculate the area numerically.
+    """
+
+    def __init__(self, vertices_border, **kwargs):
+        self.vertices_border = vertices_border
+        super().__init__(**kwargs, additional_points=random_sphere_points(3000))
+
+    def _create_centers_vertices_regions(self) -> Tuple:
+        # create fake voronoi
+        centers = np.array([np.average(self.vertices_border, axis=0), -np.average(self.vertices_border, axis=0)])
+        centers = normalise_vectors(centers)
+        regions = [list(range(len(self.vertices_border))), list(range(len(self.vertices_border)))]
+
+        fake_sv = SphericalVoronoi(random_sphere_points(10))
+        fake_sv.regions = regions
+        fake_sv.vertices = self.vertices_border
+        fake_sv.points = centers
+        return centers, self.vertices_border, regions
 
 class PositionVoronoi(AbstractVoronoi):
 

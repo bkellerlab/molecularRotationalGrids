@@ -1,14 +1,10 @@
 import os
 import numpy as np
 
-from molgri.space.utils import (all_row_norms_equal_k, all_row_norms_similar, distance_between_quaternions,
-                                find_inverse_quaternion, hemisphere_quaternion_set,
-                                is_array_with_d_dim_r_rows_c_columns, normalise_vectors,
-                                points4D_2_8cells, quaternion_in_array,
-                                angle_between_vectors, dist_on_sphere, two_sets_of_quaternions_equal,
-                                q_in_upper_sphere)
+from molgri.space.utils import *
 from molgri.logfiles import find_first_free_index
 from scipy.constants import pi
+from scipy.spatial import SphericalVoronoi
 
 
 
@@ -276,7 +272,84 @@ def test_8cells():
     points4D_2_8cells(my_array)
 
 
+def test_sort_points_on_sphere_ccw():
+    """
+    Tests that we are able to sort points on a sphere in a counter-clockwise manner
+    """
+    # 4-vertices
+    points = np.array([[0, 0, 1], [1, 0, 0], [0, 1, 0], [0, 0, -1]])
+    sorted_points = sort_points_on_sphere_ccw(points)
+    # I know the right sorting order from a figure
+    assert np.allclose(sorted_points, np.array([[0, 0, 1], [1, 0, 0], [0, 0, -1], [0, 1, 0]]))
+
+    # several vertices
+    selected_points = np.array([[-0.10032958139610515, -0.3742352250322544, -0.9218904335342354],
+                                [-0.65167348958781, 0.3568899121850265, -0.6692916057661347],
+                                [0.2791525497835811, 0.0036756526706076126, -0.9602397323204089],
+                                [-0.35134574017448206, 0.8268837937574938, -0.4391120158711898],
+                                [-0.11487326450948024, 0.5951911517472088, -0.7953311423443485],
+                                [-0.6374280117198982, -0.001693650569418198, -0.7705080540932496],
+                                [-0.5797319316904881, -0.13641782805291072, -0.8033063323338998]])
+
+    sorted_points = sort_points_on_sphere_ccw(selected_points)
+    # I know the right sorting order from a figure
+    expected_sorted = np.array([[-0.10032958139610515, -0.3742352250322544, -0.9218904335342354],
+                                [-0.5797319316904881, -0.13641782805291072, -0.8033063323338998],
+                                [-0.6374280117198982, -0.001693650569418198, -0.7705080540932496],
+                                [-0.65167348958781, 0.3568899121850265, -0.6692916057661347],
+                                [-0.35134574017448206, 0.8268837937574938, -0.4391120158711898],
+                                [-0.11487326450948024, 0.5951911517472088, -0.7953311423443485],
+                                [0.2791525497835811, 0.0036756526706076126, -0.9602397323204089]])
+    assert np.allclose(expected_sorted, sorted_points)
+
+    # if you wanna visualize
+    # import matplotlib.pyplot as plt
+    # fig = plt.figure(figsize=(12, 12))
+    # ax = fig.add_subplot(projection='3d')
+    # for i, line in enumerate(selected_points):
+    #     ax.scatter(*line, color="green", marker="x", s=10)
+    #     ax.text(*line*1.1, f"{i}", color="green")
+    # for i, line in enumerate(sorted_points):
+    #     ax.scatter(*line, color="red")
+    #     ax.text(*line, f"{i}", color="red")
+    # ax.scatter(*random_sphere_points().T, color="black")
+    # plt.show()
+
+
+def test_exact_area_of_spherical_polygon():
+    # triangle
+    points = np.array([[0, 0, 1], [1, 0, 0], [0, 1, 0]])
+    points = sort_points_on_sphere_ccw(points)
+    # a triangle is 1/8 of full sphere area
+    assert np.isclose(exact_area_of_spherical_polygon(points), 1/8 * 4*pi)
+
+    # several vertices
+    selected_points = np.array([[-0.10032958139610515, -0.3742352250322544, -0.9218904335342354],
+                                [-0.65167348958781, 0.3568899121850265, -0.6692916057661347],
+                                [0.2791525497835811, 0.0036756526706076126, -0.9602397323204089],
+                                [-0.35134574017448206, 0.8268837937574938, -0.4391120158711898],
+                                [-0.11487326450948024, 0.5951911517472088, -0.7953311423443485],
+                                [-0.6374280117198982, -0.001693650569418198, -0.7705080540932496],
+                                [-0.5797319316904881, -0.13641782805291072, -0.8033063323338998]])
+
+    sorted_points = sort_points_on_sphere_ccw(selected_points)
+    # this test is just based on a previous calculation
+    assert np.isclose(exact_area_of_spherical_polygon(sorted_points), 0.7906249967780283)
+    # test using voronoi as example
+    for n_points in (7, 30, 192):
+        sv1 = SphericalVoronoi(random_sphere_points(n_points))
+        expected_areas = sv1.calculate_areas()
+        areas = []
+        for region in sv1.regions:
+            vertices = sv1.vertices[region]
+            areas.append(exact_area_of_spherical_polygon(vertices))
+        assert np.allclose(np.array(areas), expected_areas)
+
+
+
 if __name__ == "__main__":
+    test_exact_area_of_spherical_polygon()
+    test_sort_points_on_sphere_ccw()
     test_find_first_free_index()
     test_normalising()
     test_distance_between_quaternions()

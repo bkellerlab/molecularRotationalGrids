@@ -400,3 +400,92 @@ def exclude_nans(arr: NDArray) -> NDArray:
     extracted_arr = arr[valid_rows, :]
     extracted_arr = extracted_arr[:, valid_columns]
     return extracted_arr
+
+
+def sort_points_on_sphere_ccw(points: NDArray) -> NDArray:
+    """
+    Gets an array of points on a 2D sphere; returns an array of the same points, but ordered in a counter-clockwise
+    manner.
+
+    Args:
+        points (NDArray): an array in which each row is a coordinate of a point on a unit sphere (2-sphere)
+
+    Returns:
+        the same array of points, but sorted in a counter-clockwise manner. The first point remains in first position.
+    """
+
+    def is_ccw(v_0, v_c, v_i):
+        # checks if the smaller interior angle for the great circles connecting u-v and v-w is CCW (counter-clockwise)
+        return (np.dot(np.cross(v_c - v_0, v_i - v_c), v_i) < 0)
+
+    all_row_norms_equal_k(points, 1), "Not points on a unit sphere"
+    vector_center = normalise_vectors(np.average(points, axis=0))
+    N = len(points)
+    # angle between first point, center point, and each additional point
+    alpha = np.zeros(N)  # initialize array
+    vector_co = points[0] - vector_center
+    for i in range(1, N):
+        alpha_candidate = np.arccos(np.dot(vector_co, (points[i]-vector_center)))
+        if is_ccw(points[0], vector_center, points[i]):
+            alpha[i] = alpha_candidate
+        else:
+            alpha[i] = 2*pi - alpha_candidate
+    assert np.all(alpha >= 0)
+    return points[np.argsort(alpha)]
+
+
+def _get_central_angles(vertices, center = None) -> NDArray:
+    """
+    Vertices must be sorted counter-clockwise. Calculate an array of central angles describing the angle one_vertex
+    --- center --- the following vertex.
+
+    Args:
+        vertices ():
+        center ():
+
+    Returns:
+
+    """
+    if center is None:
+        center = normalise_vectors(np.average(vertices, axis=0))
+    N = len(vertices)
+    # angle between first point, center point, and each additional point
+    alpha = np.zeros(N)  # initialize array
+    for i in range(0, N):
+        alpha[i] = np.arccos(np.dot((vertices[i-1]-center), (vertices[i] - center)))
+    return alpha
+
+
+def exact_area_of_spherical_polygon(vertices: NDArray, r: float = 1) -> float:
+    """
+    Use the formula S=[\sum{\theta_i} - (n-2)\pi]r^2 (Todhunter, I. (1886). Spherical Trigonometry), to calculate the
+    area of a spherical polygon with given
+    vertices. In the formula, r, is the radius of the sphere, n the number of polygon vertices, theta_i-s are the radian
+    angles of a spherical polygon.
+
+    Args:
+        vertices (NDArray): A (m, 3) array of points on a unit 2-sphere. Points must be ordered counter-clockwise and
+        unique.
+
+    Returns:
+
+    """
+    n = len(vertices)
+    thetas = []
+    for i in range(n):
+        # consider spherical triangle:
+        A = normalise_vectors(vertices[i])
+        B = normalise_vectors(vertices[i-1])
+        C = normalise_vectors(vertices[(i + 1) % n])
+        # and lengths of the opposite sides a, b, c are
+        a = dist_on_sphere(B, C)[0]
+        b = dist_on_sphere(C, A)[0]
+        c = dist_on_sphere(A, B)[0]
+        # using cosine law on spheres:
+        theta = np.arccos((np.cos(a)-np.cos(b)*np.cos(c))/(np.sin(b)*np.sin(c)))
+        thetas.append(theta)
+    area = (np.sum(thetas) - (n-2)*pi) * r**2
+    # chose the smaller of two possible spherical polygons described by these vertices
+    if area > 2 * pi * r**2:
+        area = 4 * pi * r**2 - area
+    return area

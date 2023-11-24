@@ -517,7 +517,7 @@ def test_full_and_half():
 
 
 if __name__ == "__main__":
-    for dim in [3, 4]:
+    for dim in [4,]:
         my_example = example_rotobj(dim=dim, half=False, sizes=[13,])
         for el in my_example:
             my_rotobj, my_voronoi = el
