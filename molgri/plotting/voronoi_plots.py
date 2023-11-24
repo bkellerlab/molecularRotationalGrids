@@ -121,8 +121,14 @@ class VoronoiPlot(RepresentationCollection):
         my_array = self.get_cell_borders().toarray()
         self._plot_position_N_N(my_array, cbar=False)
 
+    @plot_method
+    def plot_center_distances_heatmap(self):
+        my_array = self.get_center_distances().toarray()
+        self._plot_position_N_N(my_array, cbar=False)
+
+
 if __name__ == "__main__":
-    from molgri.space.voronoi import RotobjVoronoi, HalfRotobjVoronoi
+    from molgri.space.voronoi import RotobjVoronoi
     from molgri.space.utils import normalise_vectors, random_sphere_points, random_quaternions
     import matplotlib.pyplot as plt
     np.random.seed(1)

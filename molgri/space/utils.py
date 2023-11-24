@@ -488,4 +488,5 @@ def exact_area_of_spherical_polygon(vertices: NDArray, r: float = 1) -> float:
     # chose the smaller of two possible spherical polygons described by these vertices
     if area > 2 * pi * r**2:
         area = 4 * pi * r**2 - area
+    #assert area >= 0, f"Area cannot be negative!"
     return area

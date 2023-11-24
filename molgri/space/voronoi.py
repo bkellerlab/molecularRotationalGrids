@@ -175,7 +175,6 @@ class AbstractVoronoi(ABC):
         pass
 
     def _calculate_N_N_array(self, property="adjacency", **kwargs):
-        reduced_vertices = self.get_all_voronoi_vertices(reduced=True)
         reduced_regions = self.get_all_voronoi_regions(reduced=True)
 
         # prepare for adjacency matrix
@@ -283,7 +282,17 @@ class RotobjVoronoi(AbstractVoronoi):
             return dist_on_sphere(border_full_rank_points[0], border_full_rank_points[1])[0]
         else:
             border_full_rank_points = sort_points_on_sphere_ccw(border_full_rank_points)
-            return exact_area_of_spherical_polygon(border_full_rank_points)
+            area = exact_area_of_spherical_polygon(border_full_rank_points)
+            if area < 0:
+                import matplotlib.pyplot as plt
+                fig = plt.figure(figsize=(12, 12))
+                ax = fig.add_subplot(projection='3d')
+                for i, line in enumerate(border_full_rank_points):
+                    ax.scatter(*line, color="red", marker="x", s=10)
+                    ax.text(*line*1.1, f"{i}", color="red")
+                ax.scatter(*random_sphere_points().T, color="black")
+                plt.show()
+            return area
 
     def get_related_half_voronoi(self) -> HalfRotobjVoronoi:
         """
