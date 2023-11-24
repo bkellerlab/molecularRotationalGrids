@@ -12,13 +12,15 @@ from typing import List, Optional, Tuple
 import numpy as np
 from numpy.typing import NDArray
 from scipy.constants import pi
+from scipy.linalg import svd
 from scipy.sparse import coo_array
 from scipy.spatial import SphericalVoronoi, ConvexHull
 from scipy.spatial.distance import cdist
 
 from molgri.constants import UNIQUE_TOL
 from molgri.space.translations import get_between_radii
-from molgri.space.utils import (dist_on_sphere, distance_between_quaternions, find_inverse_quaternion, k_is_a_row,
+from molgri.space.utils import (dist_on_sphere, distance_between_quaternions, exact_area_of_spherical_polygon,
+                                find_inverse_quaternion, k_is_a_row,
                                 normalise_vectors, q_in_upper_sphere, random_quaternions, random_sphere_points,
                                 sort_points_on_sphere_ccw, which_row_is_k)
 
@@ -264,58 +266,24 @@ class RotobjVoronoi(AbstractVoronoi):
         set_1 = set(reduced_regions[index_1])
         set_2 = set(reduced_regions[index_2])
         indices_border = list(set_1.intersection(set_2))
-        # if self.get_dim() == 3:
-        #     # we need a part of a circle, defined with two points
-        #     assert len(indices_border) == 2
-        #     v1 = reduced_vertices[indices_border[0]]
-        #     v2 = reduced_vertices[indices_border[1]]
-        #     dist = dist_on_sphere(v1, v2)[0]
-        # else:
-        # we need a part of a sphere surface
-
-        v1 = reduced_vertices[indices_border[0]]
-        v2 = reduced_vertices[indices_border[1]]
-        exp_dist = dist_on_sphere(v1, v2)[0]
 
         shared_vertices = reduced_vertices[indices_border]
-        # matrix rank of shared_vertices should be one less than the dimesionality of space, because it's a
+        # matrix rank of shared_vertices should be one less than the dimensionality of space, because it's a
         # normal sphere (well, some points on a sphere) hidden inside 4D coordinates, or a part of a planar circle
         # expressed with 3D coordinates
         assert np.linalg.matrix_rank(shared_vertices) == self.get_dim() - 1
-
-        from scipy.linalg import svd
         u, s, vh = svd(shared_vertices)
-        sigma = np.zeros(shared_vertices.shape)
-        for i in range(min(shared_vertices.shape)):
-            sigma[i, i] = s[i]
-        #print(np.round(np.dot(shared_vertices, vh.T), 3))
-        dist = dist_on_sphere(u[0], u[1])[0]
-
         # rotate till last dimension is only zeros, then cut off the redundant dimension. Now we can correctly
         # calculate borders using lower-dimensional tools
+        border_full_rank_points = np.dot(shared_vertices, vh.T)[:, :-1]
         # the points have unit norm
-        mat = np.dot(shared_vertices, vh.T)[:, :-1]
-        assert np.isclose(dist_on_sphere(mat[0], mat[1])[0], exp_dist)
 
-        #bhv = BorderHypersphereVoronoi(mat)
-        #print(np.sum(bhv.get_voronoi_volumes()), 4*pi)
-        #print("before", mat)
-        mat = sort_points_on_sphere_ccw(mat)
-        #print("after", mat)
-        #print(np.round(np.dot(sigma, np.dot(shared_vertices, vh.T)), 3))
-        import matplotlib.pyplot as plt
-        fig = plt.figure(figsize=(12, 12))
-        ax = fig.add_subplot(projection='3d')
-        vector_center = normalise_vectors(np.average(mat, axis=0))
-        ax.scatter(*vector_center, color="blue")
-        # print(my_voronoi.get_all_voronoi_centers())
-        for i, line in enumerate(mat):
-            ax.scatter(*line, color="red")
-            ax.text(*line, f"{i}")
-        #ax.scatter(*centers.T, color="blue", s=10)
-        ax.scatter(*random_sphere_points().T, color="black")
-        plt.show()
-        return dist
+        # print(np.round(np.dot(shared_vertices, vh.T), 3))
+        if self.get_dim() == 3:
+            return dist_on_sphere(border_full_rank_points[0], border_full_rank_points[1])[0]
+        else:
+            border_full_rank_points = sort_points_on_sphere_ccw(border_full_rank_points)
+            return exact_area_of_spherical_polygon(border_full_rank_points)
 
     def get_related_half_voronoi(self) -> HalfRotobjVoronoi:
         """
@@ -388,12 +356,6 @@ class HalfRotobjVoronoi(RotobjVoronoi):
         return np.array([all_volumes[i] for i in self._get_upper_indices()])
 
     def _calculate_N_N_array(self, property="adjacency", only_upper=True, include_opposing_neighbours=True):
-        dimensions = self.get_all_voronoi_centers().shape[1]
-        if dimensions == 3:
-            N = len(self.get_all_voronoi_centers())
-        else:
-            N = 2 * len(self.get_all_voronoi_centers())
-
         # warning! here use self.full_voronoi NOT super() to calculate the adj on full sphere
         adj_matrix = self.full_voronoi._calculate_N_N_array(property=property).toarray()
 
@@ -428,31 +390,8 @@ class HalfRotobjVoronoi(RotobjVoronoi):
             extracted_arr = adj_matrix[valid_rows, :]
             extracted_arr = extracted_arr[:, valid_columns]
             adj_matrix = extracted_arr
-            N = N // 2
         return coo_array(adj_matrix)
 
-
-class BorderHypersphereVoronoi(AbstractVoronoi):
-    """
-    A border between two hypersphere cells is a spherical polygon - so we already have vertices and create fake sv
-     to calculate the area numerically.
-    """
-
-    def __init__(self, vertices_border, **kwargs):
-        self.vertices_border = vertices_border
-        super().__init__(**kwargs, additional_points=random_sphere_points(3000))
-
-    def _create_centers_vertices_regions(self) -> Tuple:
-        # create fake voronoi
-        centers = np.array([np.average(self.vertices_border, axis=0), -np.average(self.vertices_border, axis=0)])
-        centers = normalise_vectors(centers)
-        regions = [list(range(len(self.vertices_border))), list(range(len(self.vertices_border)))]
-
-        fake_sv = SphericalVoronoi(random_sphere_points(10))
-        fake_sv.regions = regions
-        fake_sv.vertices = self.vertices_border
-        fake_sv.points = centers
-        return centers, self.vertices_border, regions
 
 class PositionVoronoi(AbstractVoronoi):
 

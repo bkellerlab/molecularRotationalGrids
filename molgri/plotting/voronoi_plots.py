@@ -112,8 +112,13 @@ class VoronoiPlot(RepresentationCollection):
         self._equalize_axes()
 
     @plot_method
-    def plot_position_adjacency(self):
-        my_array = self.get_adjacency_of_position_grid().toarray()
+    def plot_adjacency_heatmap(self):
+        my_array = self.get_voronoi_adjacency().toarray()
+        self._plot_position_N_N(my_array, cbar=False)
+
+    @plot_method
+    def plot_border_heatmap(self):
+        my_array = self.get_cell_borders().toarray()
         self._plot_position_N_N(my_array, cbar=False)
 
 if __name__ == "__main__":
@@ -121,13 +126,13 @@ if __name__ == "__main__":
     from molgri.space.utils import normalise_vectors, random_sphere_points, random_quaternions
     import matplotlib.pyplot as plt
     np.random.seed(1)
-    my_points = random_sphere_points(85)
-    my_voronoi = HalfRotobjVoronoi(my_points, using_detailed_grid=True)
+    my_points = random_quaternions(85)
+
+    fig, ax = plt.subplots(1, 2)
+    my_voronoi = RotobjVoronoi(my_points, using_detailed_grid=True)
     vp = VoronoiPlot(my_voronoi)
-    vp.plot_centers(save=False)
-    vp.plot_regions(color="red", additional_points=True, save=False, ax=vp.ax, fig=vp.fig)
-    # vp.plot_vertices(ax=vp.ax, fig=vp.fig, save=False, alpha=0.5, labels=False)
-    # vp.plot_borders(ax=vp.ax, fig=vp.fig, save=False)
-    # vp.plot_vertices_of_i(i=5, ax=vp.ax, fig=vp.fig, save=True)
-    #vp.plot_volumes(save=False, approx=False)
+    vp.plot_border_heatmap(save=False, ax=ax[0], fig=fig)
+    my_half_voronoi = my_voronoi.get_related_half_voronoi()
+    vp_half = VoronoiPlot(my_half_voronoi)
+    vp_half.plot_border_heatmap(save=False, ax=ax[1], fig=fig)
     plt.show()
