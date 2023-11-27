@@ -425,34 +425,58 @@ def sort_points_on_sphere_ccw(points: NDArray) -> NDArray:
     alpha = np.zeros(N)  # initialize array
     vector_co = points[0] - vector_center
     for i in range(1, N):
-        alpha_candidate = np.arccos(np.dot(vector_co, (points[i]-vector_center)))
+        alpha_candidate = _get_alpha_with_spherical_cosine_law(vector_center, points[0], points[i])
+        #print(alpha_candidate)
+        #alpha_candidate = np.arccos(np.dot(vector_co, (points[i]-vector_center)))
         if is_ccw(points[0], vector_center, points[i]):
             alpha[i] = alpha_candidate
         else:
             alpha[i] = 2*pi - alpha_candidate
+    #print(alpha)
     assert np.all(alpha >= 0)
     return points[np.argsort(alpha)]
 
 
-def _get_central_angles(vertices, center = None) -> NDArray:
+# def _get_central_angles(vertices, center = None) -> NDArray:
+#     """
+#     Vertices must be sorted counter-clockwise. Calculate an array of central angles describing the angle one_vertex
+#     --- center --- the following vertex.
+#
+#     Args:
+#         vertices ():
+#         center ():
+#
+#     Returns:
+#
+#     """
+#     if center is None:
+#         center = normalise_vectors(np.average(vertices, axis=0))
+#     N = len(vertices)
+#     # angle between first point, center point, and each additional point
+#     alpha = np.zeros(N)  # initialize array
+#     for i in range(0, N):
+#         alpha[i] = np.arccos(np.dot((vertices[i-1]-center), (vertices[i] - center)))
+#     return alpha
+
+
+def _get_alpha_with_spherical_cosine_law(A: NDArray, B: NDArray, C: NDArray):
     """
-    Vertices must be sorted counter-clockwise. Calculate an array of central angles describing the angle one_vertex
-    --- center --- the following vertex.
-
-    Args:
-        vertices ():
-        center ():
-
-    Returns:
-
+    A, B and C are points on a sphere that form a triangle, given as vectors in cartesian coordinates. We use
+    the spherical law of cosines to obtain the angle at point A.
     """
-    if center is None:
-        center = normalise_vectors(np.average(vertices, axis=0))
-    N = len(vertices)
-    # angle between first point, center point, and each additional point
-    alpha = np.zeros(N)  # initialize array
-    for i in range(0, N):
-        alpha[i] = np.arccos(np.dot((vertices[i-1]-center), (vertices[i] - center)))
+    # check that they all have the same norm (are on the same sphere)
+    assert np.allclose(np.linalg.norm(A), np.linalg.norm(B)) and np.allclose(np.linalg.norm(A), np.linalg.norm(C))
+    # consider spherical triangle:
+    A = normalise_vectors(A)
+    B = normalise_vectors(B)
+    C = normalise_vectors(C)
+    # and lengths of the opposite sides a, b, c are
+    a = dist_on_sphere(B, C)[0]
+    b = dist_on_sphere(C, A)[0]
+    c = dist_on_sphere(A, B)[0]
+    # using cosine law on spheres (need rounding so we don't numerically get over/under the range of arccos):
+    alpha = np.arccos(np.round((np.cos(a) - np.cos(b) * np.cos(c)) / (np.sin(b) * np.sin(c)), 7))
+    #print(a, b, c, (np.cos(a) - np.cos(b) * np.cos(c)) / (np.sin(b) * np.sin(c)), alpha)
     return alpha
 
 
@@ -473,20 +497,12 @@ def exact_area_of_spherical_polygon(vertices: NDArray, r: float = 1) -> float:
     n = len(vertices)
     thetas = []
     for i in range(n):
-        # consider spherical triangle:
-        A = normalise_vectors(vertices[i])
-        B = normalise_vectors(vertices[i-1])
-        C = normalise_vectors(vertices[(i + 1) % n])
-        # and lengths of the opposite sides a, b, c are
-        a = dist_on_sphere(B, C)[0]
-        b = dist_on_sphere(C, A)[0]
-        c = dist_on_sphere(A, B)[0]
         # using cosine law on spheres:
-        theta = np.arccos((np.cos(a)-np.cos(b)*np.cos(c))/(np.sin(b)*np.sin(c)))
+        theta = _get_alpha_with_spherical_cosine_law(vertices[i], vertices[i-1], vertices[(i + 1) % n])
         thetas.append(theta)
     area = (np.sum(thetas) - (n-2)*pi) * r**2
     # chose the smaller of two possible spherical polygons described by these vertices
     if area > 2 * pi * r**2:
         area = 4 * pi * r**2 - area
-    #assert area >= 0, f"Area cannot be negative!"
+    assert area >= 0, f"Area cannot be negative!"
     return area
