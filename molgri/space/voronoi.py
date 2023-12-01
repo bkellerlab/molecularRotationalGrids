@@ -92,6 +92,11 @@ class AbstractVoronoi(ABC):
         # correctly determines which lines to use
         indexes = np.unique(original_vertices, axis=0, return_index=True)[1]
         new_vertices = np.array([original_vertices[index] for index in sorted(indexes)])
+
+        for old in original_vertices:
+            k = which_row_is_k(new_vertices, old)
+            if k is None:
+                print(old)
         # regions
         # correctly assigns
         old2new = {old_i: which_row_is_k(new_vertices, old)[0] for old_i, old in enumerate(original_vertices)}
@@ -399,12 +404,39 @@ class PositionVoronoi(AbstractVoronoi):
     This object consists of several layers of spherical voronoi cells one above the other in several shells
     """
 
-    def __init__(self, o_grid: NDArray, point_radii: NDArray):
+    def __init__(self, o_grid: NDArray, point_radii: NDArray, **kwargs):
         self.o_grid = o_grid
         self.point_radii = point_radii
         self.n_o = len(self.o_grid)
         self.n_t = len(self.point_radii)
         self.unit_sph_voronoi = SphericalVoronoi(self.o_grid, radius=1, threshold=10 ** -UNIQUE_TOL)
+        super().__init__(**kwargs)
+
+    def _create_centers_vertices_regions(self) -> Tuple:
+        all_sv = [self._change_voronoi_radius(self.unit_sph_voronoi, r) for r in self.point_radii]
+        centers = np.concatenate([sv.points for sv in all_sv])
+
+        all_vertices_sv = [self._change_voronoi_radius(self.unit_sph_voronoi, r) for r in self.get_voronoi_radii()]
+        # TODO: remove redundant vertices
+        vertices = np.concatenate([sv.vertices for sv in all_vertices_sv])
+
+        # first get regions associated with points in the same layer
+        base_regions = self.unit_sph_voronoi.regions
+        # vertices that in the end belong to a point are the "base points" in layers above and below
+        num_base_vertices = len(all_vertices_sv[0].vertices)
+        all_regions = []
+
+        for point_i, point in enumerate(centers):
+            point_regions = []
+            layer = point_i // self.n_o
+            index_within_layer = point_i % self.n_o
+            base_region = base_regions[index_within_layer]
+            # points below
+            point_regions.extend([x+layer*num_base_vertices for x in base_region])
+            # points above
+            point_regions.extend([x + (layer + 1) * num_base_vertices for x in base_region])
+            all_regions.append(point_regions)
+        return centers, vertices, all_regions
 
     def get_voronoi_radii(self):
         return get_between_radii(self.point_radii, include_zero=True)
@@ -421,48 +453,3 @@ class PositionVoronoi(AbstractVoronoi):
         sv.vertices = normalise_vectors(sv.vertices, length=new_radius)
         sv.points = normalise_vectors(sv.points, length=new_radius)
         return sv
-
-    def get_all_voronoi_centers(self) -> NDArray:
-        """
-        Get a position grid that is not structured layer-by-layer but is simply a 2D array of shape (N_t*N_o, 3) where
-        N_t is the length of translation grid and N_o the length of orientation grid.
-
-        Centers occur at radii self.point_radii
-        """
-
-        all_sv = [self._change_voronoi_radius(self.unit_sph_voronoi, r) for r in self.point_radii]
-        return np.concatenate([sv.points for sv in all_sv])
-
-    def get_all_voronoi_vertices(self) -> NDArray:
-        """
-        Get an array in which every element is a voronoi vertex, starting with the ones with smallest norm and then
-        going towards larger radii.
-
-        Vertices occur at radii self.get_voronoi_radii()
-        """
-        all_sv = [self._change_voronoi_radius(self.unit_sph_voronoi, r) for r in self.get_voronoi_radii()]
-        # TODO: remove redundant vertices
-        return np.concatenate([sv.vertices for sv in all_sv])
-
-    def get_all_voronoi_regions(self) -> List:
-        # first get regions associated with points in the same layer
-        base_regions = self.unit_sph_voronoi.regions
-        # vertices that in the end belong to a point are the "base points" in layers above and below
-        num_base_vertices = len(self.unit_sph_voronoi.vertices)
-
-        all_regions = []
-
-        voronoi_points = self.get_all_voronoi_centers()
-        for point_i, point in enumerate(voronoi_points):
-            point_regions = []
-            layer = point_i // self.n_o
-            index_within_layer = point_i % self.n_o
-            base_region = base_regions[index_within_layer]
-            # points below
-            point_regions.extend([x+layer*num_base_vertices for x in base_region])
-            # points above
-            point_regions.extend([x + (layer + 1) * num_base_vertices for x in base_region])
-            all_regions.append(point_regions)
-        return all_regions
-
-

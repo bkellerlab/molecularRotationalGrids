@@ -260,8 +260,6 @@ def which_row_is_k(my_array: NDArray, k: NDArray) -> ArrayLike:
     Returns:
 
     """
-    if not np.any(my_array) or not np.any(k):
-        return None
     return np.nonzero(np.all(np.isclose(k, my_array), axis=1))[0]
 
 

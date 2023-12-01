@@ -76,7 +76,7 @@ def test_rotobj_voronoi_3D_exact():
     2) give the right adjacency matrix
     3) TODO: give the right border lengths and distances between centers
     """
-    for N in [12, 42]: # 162
+    for N in [12, 42, 162]: # 162
         my_grid = SphereGridFactory.create(N=N, alg_name=DEFAULT_ALGORITHM_O, dimensions=3, use_saved=False)
         my_voronoi = RotobjVoronoi(my_grid.get_grid_as_array(only_upper=False), using_detailed_grid=True)
         # plotting
@@ -248,43 +248,60 @@ def test_rotobj_voronoi_3D_non_exact():
 
 def test_rotobj_voronoi_4D():
     """
-    This function tests that for 4D points on the sphere:
-    1) the size of voronoi cells, border areas and distances between centers are reasonable and don't have huge
+    This function tests that for 4D points on the (half)hypersphere:
+    1) the size of voronoi cells, TODO: border areas and distances between centers are reasonable and don't have huge
     deviations
     2) the neighbouring relations are as expected from visual inspection (for cube4D)
     3) default function for calculating areas gives values that sum up well for full and half hyperspheres
     """
     # 8, 40, 250
-    for N in [8, ]:  #40, 250
+    for N in [8, 40, 272]:
         hypersphere = SphereGrid4DFactory.create(DEFAULT_ALGORITHM_B, N, use_saved=False)
         # uncomment for plotting
         from molgri.plotting.spheregrid_plots import EightCellsPlot, SphereGridPlot
-        sp = SphereGridPlot(hypersphere)
-        # sp.plot_voronoi(points=True, vertices=True, borders=False, animate_rot=True)
-        # sp.plot_adjacency_array()
-        # sp.plot_center_distances_array(only_upper=False)
-        # sp.plot_cdist_array(only_upper=False)
-        #sp.plot_center_distances_array()
-        ep = EightCellsPlot(hypersphere.polytope, only_half_of_cube=False)
-        ep.make_all_8cell_neighbours(node_index=15, animate_rot=False)
-        adj_array = hypersphere.get_voronoi_adjacency(only_upper=False, include_opposing_neighbours=False).toarray()
-        print(adj_array.astype(int))
-        avg_neigh1 = np.mean(np.nansum(adj_array, axis=0))
-        adj_array3 = hypersphere.get_voronoi_adjacency(only_upper=True, include_opposing_neighbours=True).toarray()
-        avg_neigh3 = np.mean(np.nansum(adj_array3, axis=0))
-        assert np.isclose(avg_neigh1, avg_neigh3, atol=0.2, rtol=0.01)
-        # volumes
-        all_volumes = hypersphere.get_cell_volumes(approx=True, only_upper=False)
-        half_volumes = hypersphere.get_cell_volumes(approx=True, only_upper=True)
-        # first half of all_volumes are exactly the half_volumes
-        assert 2 * len(half_volumes) == len(all_volumes)
-        assert np.allclose(all_volumes[:len(half_volumes)], half_volumes)
-        # second half of all_volumes are also at least approx the same
-        assert np.allclose(all_volumes[len(half_volumes):], half_volumes, atol=0.3, rtol=0.05)
-        # sum is approx half of the hypersphere (with enough points):
-        if N > 10:
-            assert np.isclose(np.sum(half_volumes), pi ** 2, atol=0.6, rtol=0.1), f"{np.sum(half_volumes)}!={pi ** 2}"
+        my_voronoi = RotobjVoronoi(hypersphere.get_grid_as_array(only_upper=False), using_detailed_grid=True)
+        half_voronoi = my_voronoi.get_related_half_voronoi()
 
+        # plotting voronoi
+        # from molgri.plotting.voronoi_plots import VoronoiPlot
+        # import matplotlib.pyplot as plt
+        # vp = VoronoiPlot(my_voronoi)
+        # vp.plot_centers(save=False)
+        # vp.plot_vertices(ax=vp.ax, fig=vp.fig, save=False, alpha=0.5, labels=False)
+        # vp.plot_borders(ax=vp.ax, fig=vp.fig, save=False, animate_rot=False, reduced=True)
+        # plt.show()
+
+        # plotting eight cells
+        # ep = EightCellsPlot(hypersphere.polytope, only_half_of_cube=False)
+        # ep.make_all_8cell_neighbours(node_index=15, animate_rot=False)
+
+        # volumes
+        all_volumes = my_voronoi.get_voronoi_volumes()
+        half_volumes = half_voronoi.get_voronoi_volumes()
+        # sum makes sense
+        assert np.isclose(np.sum(all_volumes), HYPERSPHERE_SURFACE, atol=1, rtol=0.025)
+        assert np.isclose(np.sum(half_volumes), HYPERSPHERE_SURFACE/2, atol=0.3, rtol=0.025)
+        # averages make sense
+        assert np.isclose(np.average(all_volumes), HYPERSPHERE_SURFACE/(2*N), atol=0.3, rtol=0.025)
+        assert np.isclose(np.average(half_volumes), HYPERSPHERE_SURFACE/(2*N), atol=0.3, rtol=0.025)
+
+
+        # adjacency
+        full_adjacency = my_voronoi.get_voronoi_adjacency().toarray()
+        half_adjacency = half_voronoi.get_voronoi_adjacency().toarray()
+        #print(np.unique(full_adjacency, return_counts=True), np.unique(half_adjacency, return_counts=True))
+        # average num of neighbours constant
+        #print(np.average(np.sum(full_adjacency, axis=0)), np.average(np.sum(half_adjacency, axis=0)))
+        # visual inspection of neighbours
+
+
+        # borders
+        full_borders = my_voronoi.get_cell_borders().toarray()
+        half_borders = half_voronoi.get_cell_borders().toarray()
+        #print(np.unique(full_borders, return_counts=True), np.unique(half_borders, return_counts=True))
+        # in 2d the sum of borders basically doubles
+        # TODO: check convergence if adding more additional points
+        print("4d", N, np.sum(full_borders), np.sum(full_borders)/N, 4*pi, np.sum(full_borders)/4/pi/N)
 
 
 def test_full_and_half():
@@ -354,10 +371,6 @@ if __name__ == "__main__":
     #test_reduced_coordinates()    # done
     #test_full_and_half()   # done
     #test_rotobj_voronoi_3D_non_exact()  # done
-    test_rotobj_voronoi_3D_exact()  # done
-    #test_rotobj_voronoi_4D()
+    #test_rotobj_voronoi_3D_exact()  # done
+    test_rotobj_voronoi_4D()
 
-
-    # test_voronoi_exact_divisions()
-    # test_3D_voronoi_visual_inspection()
-    # test_4Dvoronoi()

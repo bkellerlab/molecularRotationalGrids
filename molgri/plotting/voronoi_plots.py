@@ -6,7 +6,7 @@ from scipy.constants import pi
 
 from molgri.plotting.abstract import RepresentationCollection, plot3D_method
 from molgri.space.voronoi import AbstractVoronoi
-from molgri.space.utils import normalise_vectors
+from molgri.space.utils import normalise_vectors, sort_points_on_sphere_ccw
 from molgri.wrappers import plot_method
 
 
@@ -48,7 +48,7 @@ class VoronoiPlot(RepresentationCollection):
         self._equalize_axes()
 
     @plot3D_method
-    def plot_borders(self, color="black", reduced=False):
+    def plot_borders(self, color="black", reduced=True):
         t_vals = np.linspace(0, 1, 2000)
         vertices = self.get_all_voronoi_vertices(reduced=reduced)
         regions = self.get_all_voronoi_regions(reduced=reduced)
@@ -58,8 +58,15 @@ class VoronoiPlot(RepresentationCollection):
                 start = vertices[region][j]
                 end = vertices[region][(j + 1) % n]
                 norm = np.linalg.norm(start)
-                result = geometric_slerp(normalise_vectors(start), normalise_vectors(end), t_vals)
-                self.ax.plot(norm * result[..., 0], norm * result[..., 1], norm * result[..., 2], c=color)
+                # plot a spherical border
+                if np.isclose(np.linalg.norm(start), np.linalg.norm(end)) and not np.isclose(np.linalg.norm(start), 0):
+                    #print(np.linalg.norm(start), np.linalg.norm(end))
+                    result = geometric_slerp(normalise_vectors(start), normalise_vectors(end), t_vals)
+                    self.ax.plot(norm * result[..., 0], norm * result[..., 1], norm * result[..., 2], c=color)
+                # plot a straight border
+                else:
+                    line = np.array([start, end])
+                    self.ax.plot(*line.T, c=color)
 
         self._set_axis_limits()
         self._equalize_axes()
@@ -72,12 +79,14 @@ class VoronoiPlot(RepresentationCollection):
         for i, region in enumerate(regions):
             # displays flat polygons
             if not additional_points:
-                polygon = Poly3DCollection([vertices[region]], alpha=0.5, facecolors=color)
+                v = sort_points_on_sphere_ccw(vertices[region])
+                polygon = Poly3DCollection([v], alpha=0.5, facecolors=color)
                 self.ax.add_collection3d(polygon)
             # approximates rounded polygons
             else:
                 my_points = np.vstack([vertices[region], additional[i]])
                 #self.ax.scatter(*my_points.T)
+                my_points = sort_points_on_sphere_ccw(my_points)
                 self.ax.plot_trisurf(*my_points.T, alpha=0.5) #color=color,
 
     @plot3D_method
@@ -128,17 +137,17 @@ class VoronoiPlot(RepresentationCollection):
 
 
 if __name__ == "__main__":
-    from molgri.space.voronoi import RotobjVoronoi
+    from molgri.space.voronoi import RotobjVoronoi, PositionVoronoi
     from molgri.space.utils import normalise_vectors, random_sphere_points, random_quaternions
     import matplotlib.pyplot as plt
     np.random.seed(1)
-    my_points = random_quaternions(85)
+    my_points = random_sphere_points(15)
+    dists = np.array([0.1, 0.3])
 
-    fig, ax = plt.subplots(1, 2)
-    my_voronoi = RotobjVoronoi(my_points, using_detailed_grid=True)
+
+    my_voronoi = PositionVoronoi(my_points, dists, using_detailed_grid=True)
     vp = VoronoiPlot(my_voronoi)
-    vp.plot_border_heatmap(save=False, ax=ax[0], fig=fig)
-    my_half_voronoi = my_voronoi.get_related_half_voronoi()
-    vp_half = VoronoiPlot(my_half_voronoi)
-    vp_half.plot_border_heatmap(save=False, ax=ax[1], fig=fig)
+    vp.plot_centers(save=False)
+    vp.plot_vertices(ax=vp.ax, fig=vp.fig, save=False, alpha=0.5, labels=False)
+    vp.plot_borders(ax=vp.ax, fig=vp.fig, save=False, animate_rot=False, reduced=True)
     plt.show()
