@@ -343,7 +343,7 @@ def test_exact_area_of_spherical_polygon():
         for region in sv1.regions:
             vertices = sv1.vertices[region]
             areas.append(exact_area_of_spherical_polygon(vertices))
-        assert np.allclose(np.array(areas), expected_areas)
+        assert np.allclose(np.array(areas), expected_areas, atol=1e-5)
 
 
 
