@@ -6,7 +6,7 @@ from scipy.constants import pi
 
 from molgri.plotting.abstract import RepresentationCollection, plot3D_method
 from molgri.space.voronoi import AbstractVoronoi
-from molgri.space.utils import normalise_vectors, sort_points_on_sphere_ccw
+from molgri.space.utils import normalise_vectors, sort_points_on_sphere_ccw, triangle_order_for_ccw_polygons
 from molgri.wrappers import plot_method
 
 
@@ -72,41 +72,53 @@ class VoronoiPlot(RepresentationCollection):
         self._equalize_axes()
 
     @plot3D_method
-    def plot_regions(self, color="green", reduced=True, additional_points=True):
-        vertices = self.get_all_voronoi_vertices(reduced=reduced)
+    def plot_regions(self, color=None, reduced=True):
+        #vertices = self.get_all_voronoi_vertices(reduced=reduced)
         regions = self.get_all_voronoi_regions(reduced=reduced)
-        additional = self._additional_points_per_cell()
+        #additional = self._additional_points_per_cell()
+
         for i, region in enumerate(regions):
-            # displays flat polygons
-            if not additional_points:
-                v = sort_points_on_sphere_ccw(vertices[region])
-                polygon = Poly3DCollection([v], alpha=0.5, facecolors=color)
-                self.ax.add_collection3d(polygon)
-            # approximates rounded polygons
-            else:
-                my_points = np.vstack([vertices[region], additional[i]])
-                #self.ax.scatter(*my_points.T)
-                my_points = sort_points_on_sphere_ccw(my_points)
-                self.ax.plot_trisurf(*my_points.T, alpha=0.5) #color=color,
+            self._plot_one_region(index_center=i, color=color, reduced=reduced)
+            # # displays flat polygons
+            # if not np.any(additional[i]):
+            #     v = sort_points_on_sphere_ccw(vertices[region])
+            #     #polygon = Poly3DCollection([v], alpha=0.5) #, facecolors=color
+            #     #self.ax.add_collection3d(polygon)
+            #     self.ax.plot_trisurf(*v.T, alpha=0.5)
+            # # approximates rounded polygons
+            # else:
+            #     my_points = np.vstack([vertices[region], additional[i]])
+            #     #self.ax.scatter(*my_points.T)
+            #     my_points = sort_points_on_sphere_ccw(my_points)
+            #     self.ax.plot_trisurf(*my_points.T, alpha=0.5) #color=color,
+
+    def _plot_one_region(self, index_center: int, color=None, reduced=True, **kwargs):
+        relevant_points = self.get_convex_hulls()[index_center].points
+        triangles = self.get_convex_hulls()[index_center].simplices
+
+        X, Y, Z = relevant_points.T
+
+        self.ax.plot_trisurf(X, Y, triangles=triangles, alpha=0.5, color=color, linewidth=0, **kwargs, Z=Z)
 
     @plot3D_method
-    def plot_vertices_of_i(self, i: int = 0, color="blue", labels=True, reduced=False, region=False):
+    def plot_vertices_of_i(self, index_center: int = 0, color="blue", labels=True, reduced=False, region=False):
         all_vertices = self.get_all_voronoi_vertices(reduced=reduced)
         all_regions = self.get_all_voronoi_regions(reduced=reduced)
+
         try:
-            indices_of_i = all_regions[i]
+            indices_of_i = all_regions[index_center]
         except IndexError:
-            print(f"The grid does not contain index i={i}")
+            print(f"The grid does not contain index index_center={index_center}")
             return
         vertices_of_i = all_vertices[indices_of_i]
+
         self.ax.scatter(vertices_of_i[:, 0], vertices_of_i[:, 1], vertices_of_i[:, 2], c=color)
 
         if labels:
-            for i, point in enumerate(vertices_of_i):
-                self.ax.text(*point[:3], s=f"{indices_of_i[i]}", c=color)
+            for ic, point in enumerate(vertices_of_i):
+                self.ax.text(*point[:3], s=f"{indices_of_i[ic]}", c=color)
         if region:
-            polygon = Poly3DCollection([vertices_of_i], alpha=0.1, facecolors=color)
-            self.ax.add_collection3d(polygon)
+            self._plot_one_region(index_center=index_center, color=color, reduced=reduced)
         self._set_axis_limits()
         self._equalize_axes()
 
@@ -141,13 +153,15 @@ if __name__ == "__main__":
     from molgri.space.utils import normalise_vectors, random_sphere_points, random_quaternions
     import matplotlib.pyplot as plt
     np.random.seed(1)
-    my_points = random_sphere_points(15)
+    my_points = random_sphere_points(25)
     dists = np.array([0.1, 0.3])
 
 
-    my_voronoi = PositionVoronoi(my_points, dists, using_detailed_grid=True)
+    my_voronoi = RotobjVoronoi(my_points, using_detailed_grid=True)
     vp = VoronoiPlot(my_voronoi)
     vp.plot_centers(save=False)
-    vp.plot_vertices(ax=vp.ax, fig=vp.fig, save=False, alpha=0.5, labels=False)
-    vp.plot_borders(ax=vp.ax, fig=vp.fig, save=False, animate_rot=False, reduced=True)
-    plt.show()
+
+    vp.plot_regions(ax=vp.ax, fig=vp.fig, save=False, animate_rot=False, )
+    vp.plot_borders(ax=vp.ax, fig=vp.fig, save=True, animate_rot=True, reduced=True)
+
+

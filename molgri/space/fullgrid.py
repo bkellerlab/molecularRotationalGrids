@@ -263,7 +263,7 @@ class PositionGrid:
         n_t = self.t_grid.get_N_trans()
 
         # First you have neighbours that occur from being at subsequent radii and the same ray
-        # Since the position grid has all orientations at first r, then all at second r ... the points i and i+n_o will
+        # Since the position grid has all orientations at first r, then all at second r ... the points index_center and index_center+n_o will
         # always be neighbours, so we need the off-diagonals by n_o and -n_o
         # Most points have two neighbours this way, first and last layer have only one
 
@@ -335,7 +335,7 @@ class PositionGrid:
         """
         Get a position grid adjacency matrix of shape (n_t*n_o, n_t*n_o) based on the numbering of flat position matrix.
         Two indices of position matrix are neigbours if
-            i) one is directly above the other, or
+            index_center) one is directly above the other, or
             ii) they are voronoi neighbours at the same radius
 
         Returns:
@@ -463,14 +463,14 @@ class PositionGrid:
 #         """
 #         N = len(self.flat_positions)
 #         volumes = np.zeros((N,))
-#         for i in range(0, N):
-#             volumes[i] = self.get_volume(i)
+#         for index_center in range(0, N):
+#             volumes[index_center] = self.get_volume(index_center)
 #         return volumes
 #
 #     def _get_property_all_pairs(self, method: Callable) -> csc_array:
 #         """
 #         Helper method for any property that is dependent on a pair of indices. Examples: obtaining all distances
-#         between cell centers or all areas between cells. Always symmetrical - value at (i, j) equals the one at (j, i)
+#         between cell centers or all areas between cells. Always symmetrical - value at (index_center, j) equals the one at (j, index_center)
 #
 #         Args:
 #             method: must have a signature (index1: int, index2: int, print_message: boolean)
@@ -482,23 +482,23 @@ class PositionGrid:
 #         row_indices = []
 #         column_indices = []
 #         N_pos_array = len(self.flat_positions)
-#         for i in range(N_pos_array):
-#             for j in range(i + 1, N_pos_array):
-#                 my_property = method(i, j, print_message=False)
+#         for index_center in range(N_pos_array):
+#             for j in range(index_center + 1, N_pos_array):
+#                 my_property = method(index_center, j, print_message=False)
 #                 if my_property is not None:
-#                     # this value will be added to coordinates (i, j) and (j, i)
+#                     # this value will be added to coordinates (index_center, j) and (j, index_center)
 #                     data.extend([my_property, my_property])
-#                     row_indices.extend([i, j])
-#                     column_indices.extend([j, i])
+#                     row_indices.extend([index_center, j])
+#                     column_indices.extend([j, index_center])
 #         sparse_property = coo_array((data, (row_indices, column_indices)), shape=(N_pos_array, N_pos_array))
 #         return sparse_property.tocsc()
 #
 #     @save_or_use_saved
 #     def get_all_voronoi_surfaces(self) -> csc_array:
 #         """
-#         If l is the length of the flattened position array, returns a lxl (sparse) array where the i-th row and j-th
-#         column (as well as the j-th row and the i-th column) represent the size of the Voronoi surface between points
-#         i and j in position grid. If the points do not share a division area, no value will be set.
+#         If l is the length of the flattened position array, returns a lxl (sparse) array where the index_center-th row and j-th
+#         column (as well as the j-th row and the index_center-th column) represent the size of the Voronoi surface between points
+#         index_center and j in position grid. If the points do not share a division area, no value will be set.
 #         """
 #         return self._get_property_all_pairs(self.get_division_area)
 #
@@ -506,7 +506,7 @@ class PositionGrid:
 #     def get_all_distances_between_centers(self) -> csc_array:
 #         """
 #         Get a sparse matrix where for all sets of neighbouring cells the distance between Voronoi centers is provided.
-#         Therefore, the value at [i][j] equals the value at [j][i]. For more information, check
+#         Therefore, the value at [index_center][j] equals the value at [j][index_center]. For more information, check
 #         self.get_distance_between_centers.
 #         """
 #         return self._get_property_all_pairs(self.get_distance_between_centers)
@@ -543,9 +543,9 @@ class PositionGrid:
 #     def _find_index_radial(self) -> int:
 #         """Find to which radial layer of points this point belongs."""
 #         point_radii = self.full_sv.full_grid.get_radii()
-#         for i, dist in enumerate(point_radii):
+#         for index_center, dist in enumerate(point_radii):
 #             if np.isclose(dist, self.d_to_origin):
-#                 return i
+#                 return index_center
 #         else:
 #             raise ValueError("The norm of the point not close to any of the radii.")
 #
@@ -556,9 +556,9 @@ class PositionGrid:
 #         return self.index_position_grid - num_o_rot * radial_index
 #
 #     def _find_index_sv_above(self) -> Optional[int]:
-#         for i, sv in enumerate(self.full_sv.get_voronoi_discretisation()):
+#         for index_center, sv in enumerate(self.full_sv.get_voronoi_discretisation()):
 #             if sv.radius > self.d_to_origin:
-#                 return i
+#                 return index_center
 #         else:
 #             # the point is outside the largest voronoi sphere
 #             return None

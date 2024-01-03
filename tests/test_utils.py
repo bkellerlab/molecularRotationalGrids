@@ -302,7 +302,8 @@ def test_sort_points_on_sphere_ccw():
                                 [0.2791525497835811, 0.0036756526706076126, -0.9602397323204089]])
     assert np.allclose(expected_sorted, sorted_points)
 
-    # if you wanna visualize
+
+    # # if you wanna visualize
     # import matplotlib.pyplot as plt
     # fig = plt.figure(figsize=(12, 12))
     # ax = fig.add_subplot(projection='3d')

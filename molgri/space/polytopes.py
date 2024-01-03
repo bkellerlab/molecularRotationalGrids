@@ -185,10 +185,10 @@ class Polytope(ABC):
         #         opp_ind = find_opposing_q(ind, self.G)
         #         if opp_ind in all_central_ind:
         #             ind2opp_index[ind] = opp_ind
-        #     for i, line in enumerate(adj_matrix):
+        #     for index_center, line in enumerate(adj_matrix):
         #         for j, el in enumerate(line):
         #             if el:
-        #                 adj_matrix[i][all_central_ind.index(ind2opp_index[j])] = True
+        #                 adj_matrix[index_center][all_central_ind.index(ind2opp_index[j])] = True
         # if only_half_of_cube:
         #     available_indices = self.get_half_of_hypercube(return_central_indices=True)
         #     available_indices.sort()

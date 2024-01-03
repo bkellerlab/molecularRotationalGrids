@@ -425,14 +425,32 @@ def sort_points_on_sphere_ccw(points: NDArray) -> NDArray:
     for i in range(1, N):
         alpha_candidate = _get_alpha_with_spherical_cosine_law(vector_center, points[0], points[i])
         #print(alpha_candidate)
-        #alpha_candidate = np.arccos(np.dot(vector_co, (points[i]-vector_center)))
+        #alpha_candidate = np.arccos(np.dot(vector_co, (points[index_center]-vector_center)))
         if is_ccw(points[0], vector_center, points[i]):
             alpha[i] = alpha_candidate
         else:
             alpha[i] = 2*pi - alpha_candidate
     #print(alpha)
     assert np.all(alpha >= 0)
-    return points[np.argsort(alpha)]
+
+    output = points[np.argsort(alpha)]
+    return output
+
+def triangle_order_for_ccw_polygons(len_points: int) -> list:
+    """
+    You used the function sort_points_on_sphere_ccw to order points of a spherical polygon  in a ccw fashion. Now you
+    want to plot these points with plot_trisurf. To do that perfectly, you need to specify triangles. These are for
+    ordered points quite simply [[0, 1, 2], [0, 2, 3], [0, 3, 4], .... [0, len_points-2, len_points-1]]. This
+    function creates this list of indices automatically.
+
+    Returns:
+        a list
+    """
+    output = []
+    for i in range(1, len_points-1):
+        suboutput = [0, i, i+1]
+        output.append(suboutput)
+    return output
 
 
 # def _get_central_angles(vertices, center = None) -> NDArray:
@@ -452,8 +470,8 @@ def sort_points_on_sphere_ccw(points: NDArray) -> NDArray:
 #     N = len(vertices)
 #     # angle between first point, center point, and each additional point
 #     alpha = np.zeros(N)  # initialize array
-#     for i in range(0, N):
-#         alpha[i] = np.arccos(np.dot((vertices[i-1]-center), (vertices[i] - center)))
+#     for index_center in range(0, N):
+#         alpha[index_center] = np.arccos(np.dot((vertices[index_center-1]-center), (vertices[index_center] - center)))
 #     return alpha
 
 
@@ -480,7 +498,7 @@ def _get_alpha_with_spherical_cosine_law(A: NDArray, B: NDArray, C: NDArray):
 
 def exact_area_of_spherical_polygon(vertices: NDArray, r: float = 1) -> float:
     """
-    Use the formula S=[\sum{\theta_i} - (n-2)\pi]r^2 (Todhunter, I. (1886). Spherical Trigonometry), to calculate the
+    Use the formula S=[\sum{\theta_i} - (n-2)\pindex_center]r^2 (Todhunter, I. (1886). Spherical Trigonometry), to calculate the
     area of a spherical polygon with given
     vertices. In the formula, r, is the radius of the sphere, n the number of polygon vertices, theta_i-s are the radian
     angles of a spherical polygon.
