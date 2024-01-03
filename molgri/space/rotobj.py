@@ -28,7 +28,7 @@ from molgri.space.utils import (find_inverse_quaternion, random_quaternions, ran
 from molgri.constants import UNIQUE_TOL, EXTENSION_GRID_FILES, NAME2PRETTY_NAME, SMALL_NS
 from molgri.paths import PATH_OUTPUT_ROTGRIDS, PATH_OUTPUT_STAT
 from molgri.space.polytopes import Cube4DPolytope, IcosahedronPolytope, Cube3DPolytope
-from molgri.space.voronoi import RotobjVoronoi, AbstractVoronoi
+from molgri.space.voronoi import RotobjVoronoi, AbstractVoronoi, HalfRotobjVoronoi
 from molgri.wrappers import time_method, save_or_use_saved
 
 
@@ -99,7 +99,10 @@ class SphereGridNDim(ABC):
         assert np.allclose(np.linalg.norm(self.grid, axis=1), 1, atol=10 ** (-UNIQUE_TOL)), "A grid must have norm 1!"
 
         # the corresponding voronoi
-        self.spherical_voronoi = RotobjVoronoi(self.grid)
+        if self.dimensions == 3:
+            self.spherical_voronoi = RotobjVoronoi(self.grid)
+        elif self.dimensions == 4:
+            self.spherical_voronoi = HalfRotobjVoronoi(self.grid)
 
         return self.grid
 

@@ -211,7 +211,7 @@ class AbstractVoronoi(ABC):
 
 class RotobjVoronoi(AbstractVoronoi):
 
-    def __init__(self, my_array: NDArray, using_detailed_grid: bool =True):
+    def __init__(self, my_array: NDArray, using_detailed_grid: bool = True):
         self.my_array = my_array
         self.using_detailed_grid = using_detailed_grid
         self.spherical_voronoi = SphericalVoronoi(my_array, radius=1, threshold=10 ** -UNIQUE_TOL)
