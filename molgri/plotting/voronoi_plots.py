@@ -118,7 +118,8 @@ class VoronoiPlot(RepresentationCollection):
         self.plot_centers(ax=self.ax, fig=self.fig, labels=False, s=all_volumes, save=False)
 
     def _plot_position_N_N(self, my_array = None, **kwargs):
-        sns.heatmap(my_array, cmap="gray", ax=self.ax, **kwargs)
+        sns.heatmap(my_array, cmap="gray", ax=self.ax, xticklabels=False, yticklabels=False, **kwargs)
+        #self.ax.xaxis.tick_top()
         self._equalize_axes()
 
     @plot_method
@@ -142,16 +143,17 @@ if __name__ == "__main__":
     from molgri.space.utils import normalise_vectors, random_sphere_points, random_quaternions
     import matplotlib.pyplot as plt
     np.random.seed(1)
-    my_points = random_sphere_points(12)
-    dists = np.array([0.2, 0.3])
+    my_points = random_sphere_points(15)
+    dists = np.array([0.1, 0.3, 0.5, 0.7])
 
 
     my_voronoi = PositionVoronoi(my_points, dists, using_detailed_grid=True)
-    vp = VoronoiPlot(my_voronoi)
-    vp.plot_centers(save=False)
+    vp = VoronoiPlot(my_voronoi, default_complexity_level="half_empty")
+    vp.plot_adjacency_heatmap()
+    #vp.plot_border_heatmap()
+    #vp.plot_center_distances_heatmap()
+    vp.plot_volumes()
 
-    vp.plot_vertices_of_i(index_center=17, ax=vp.ax, fig=vp.fig, save=False, region=True, alpha=0.5, reduced=False)
-    vp.plot_borders(ax=vp.ax, fig=vp.fig, save=False, animate_rot=False, reduced=False)
     plt.show()
 
 
