@@ -28,7 +28,7 @@ from molgri.space.utils import (find_inverse_quaternion, random_quaternions, ran
 from molgri.constants import UNIQUE_TOL, EXTENSION_GRID_FILES, NAME2PRETTY_NAME, SMALL_NS
 from molgri.paths import PATH_OUTPUT_ROTGRIDS, PATH_OUTPUT_STAT
 from molgri.space.polytopes import Cube4DPolytope, IcosahedronPolytope, Cube3DPolytope
-from molgri.space.voronoi import RotobjVoronoi
+from molgri.space.voronoi import RotobjVoronoi, AbstractVoronoi
 from molgri.wrappers import time_method, save_or_use_saved
 
 
@@ -55,6 +55,7 @@ class SphereGridNDim(ABC):
         self.time_generation = time_generation
         self.grid: Optional[NDArray] = None
         self.polytope = None
+        self.spherical_voronoi: Optional[AbstractVoronoi] = None
 
     def __getattr__(self, name):
         """ Enable forwarding methods to self.position_grid, so that from SphereGridNDim you can access all properties and
@@ -96,6 +97,10 @@ class SphereGridNDim(ABC):
         elif self.dimensions == 4:
             assert self.grid.shape == (2*self.N, self.dimensions), f"4D Grid (double coverage) not of correct shape!"
         assert np.allclose(np.linalg.norm(self.grid, axis=1), 1, atol=10 ** (-UNIQUE_TOL)), "A grid must have norm 1!"
+
+        # the corresponding voronoi
+        self.spherical_voronoi = RotobjVoronoi(self.grid)
+
         return self.grid
 
     def get_grid_as_array(self, only_upper: bool = False) -> NDArray:
@@ -277,6 +282,25 @@ class ZeroRotations3D(SphereGrid3Dim):
         self.N = 1
         z_vec = np.array([[0, 0, 1]])
         return z_vec
+
+# class HandMade3D(SphereGrid3Dim):
+#     """
+#     This is for tests - generate a SphereGrid3Dim object from any list or array. Fails if not 3D or not points on
+#     unit sphere.
+#     """
+#     algorithm_name = "handmade3D"
+#
+#     def __init__(self, *args, **kwargs):
+#         super().__init__(*args, **kwargs)
+#         if "points" not in kwargs.keys:
+#             raise ValueError("HandMade grids must provide an argument points.")
+#         self.points = np.array(kwargs["points"])
+#
+#     def _gen_grid(self) -> NDArray:
+#
+#         assert all_row_norms_equal_k
+#         self.N = len(self.points)
+#         return self.points
 
 
 class ZeroRotations4D(SphereGrid4Dim):

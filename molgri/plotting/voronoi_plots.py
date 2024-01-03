@@ -12,10 +12,10 @@ from molgri.wrappers import plot_method
 
 class VoronoiPlot(RepresentationCollection):
 
-    def __init__(self, voronoi: AbstractVoronoi):
+    def __init__(self, voronoi: AbstractVoronoi, **kwargs):
         self.voronoi = voronoi
         N_points = len(self.voronoi.get_all_voronoi_centers())
-        super().__init__(data_name=f"voronoi_{N_points}", default_complexity_level="half_empty")
+        super().__init__(data_name=f"voronoi_{N_points}", **kwargs)
 
     def __getattr__(self, name):
         """ Enable forwarding methods to self.position_grid, so that from FullGrid you can access all properties and

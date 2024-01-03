@@ -11,6 +11,7 @@ from molgri.constants import DEFAULT_ALGORITHM_B, DEFAULT_ALGORITHM_O
 
 from molgri.space.rotobj import SphereGrid3DFactory, SphereGrid4DFactory
 from molgri.plotting.spheregrid_plots import SphereGridPlot
+from molgri.plotting.voronoi_plots import VoronoiPlot
 from molgri.scripts.set_up_io import freshly_create_all_folders
 
 import warnings
@@ -45,7 +46,7 @@ def run_generate_grid():
     # if already exists and no --recalculate flag, just display a message
     use_saved = not my_args.recalculate
 
-    # check dimensions and create accordingly
+    # check dimensions and create accordingly; also create the belonging voronoi object
     if my_args.d == 3:
         if my_args.algorithm is None:
             my_args.algorithm = DEFAULT_ALGORITHM_O
@@ -64,10 +65,15 @@ def run_generate_grid():
     default_complexity_level = "half_empty"
     sgp = SphereGridPlot(my_rotations, default_context="talk", default_complexity_level=default_complexity_level)
 
+    # and here the voronoi plotting
+    vp = VoronoiPlot(my_rotations.get_spherical_voronoi(), default_context="talk",
+                     default_complexity_level=default_complexity_level)
+
     if my_args.animate or my_args.animate_ordering:
         my_args.draw = True
     if my_args.draw:
         sgp.plot_grid(animate_rot=my_args.animate)
+        vp.create_all_plots(and_animations=my_args.animate)
         print(f"Grid drawn and figure saved to {sgp.fig_path}.")
         if my_args.animate:
             print(f"Animation of the grid saved to {sgp.ani_path}")
