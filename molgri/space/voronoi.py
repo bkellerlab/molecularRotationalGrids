@@ -404,13 +404,48 @@ class PositionVoronoi(AbstractVoronoi):
     This object consists of several layers of spherical voronoi cells one above the other in several shells
     """
 
-    def __init__(self, o_grid: NDArray, point_radii: NDArray, **kwargs):
+    def __init__(self, o_grid: NDArray, point_radii: NDArray, using_detailed_grid: bool = True, **kwargs):
         self.o_grid = o_grid
+        self.using_detailed_grid = using_detailed_grid
         self.point_radii = point_radii
         self.n_o = len(self.o_grid)
         self.n_t = len(self.point_radii)
         self.unit_sph_voronoi = SphericalVoronoi(self.o_grid, radius=1, threshold=10 ** -UNIQUE_TOL)
-        super().__init__(**kwargs)
+        if self.using_detailed_grid:
+            dense_points = random_sphere_points(5000)
+        else:
+            dense_points = None
+        super().__init__(additional_points=dense_points, **kwargs)
+
+    def _additional_points_per_cell(self) -> List:
+        """
+        Returns a list (len=num of centers) of lists in which there are additional points that are associated with
+        each region (or empty list if there are none)
+        """
+        all_points = self.get_all_voronoi_centers()
+        if self.additional_points is not None:
+            # first belongings of unit_sph_voronoi are determined
+            result = []
+            unit_points_belongings = np.argmin(cdist(self.additional_points,
+                                                     self.unit_sph_voronoi.points,
+                                                      metric="cos"), axis=1)
+
+            between_radii = get_between_radii(self.point_radii, include_zero=True)
+
+            for i, _ in enumerate(all_points):
+                down_index = np.max([i//self.n_o, 0])
+                top_index = np.min([(i // self.n_o) + 1, self.n_t+2])
+                subresult_1 = list(normalise_vectors(self.additional_points[
+                                                         unit_points_belongings==i%self.n_o],
+                length=between_radii[down_index]))
+                subresult_2 = list(normalise_vectors(self.additional_points[unit_points_belongings ==
+                                                                            i%self.n_o],
+                                                     length=between_radii[top_index]))
+                subresult_1.extend(subresult_2)
+                result.append(subresult_1)
+            return result
+        else:
+            return [[] for _ in range(len(all_points))]
 
     def _create_centers_vertices_regions(self) -> Tuple:
         all_sv = [self._change_voronoi_radius(self.unit_sph_voronoi, r) for r in self.point_radii]

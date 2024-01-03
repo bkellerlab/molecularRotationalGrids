@@ -73,35 +73,24 @@ class VoronoiPlot(RepresentationCollection):
 
     @plot3D_method
     def plot_regions(self, color=None, reduced=True):
-        #vertices = self.get_all_voronoi_vertices(reduced=reduced)
         regions = self.get_all_voronoi_regions(reduced=reduced)
-        #additional = self._additional_points_per_cell()
 
         for i, region in enumerate(regions):
-            self._plot_one_region(index_center=i, color=color, reduced=reduced)
-            # # displays flat polygons
-            # if not np.any(additional[i]):
-            #     v = sort_points_on_sphere_ccw(vertices[region])
-            #     #polygon = Poly3DCollection([v], alpha=0.5) #, facecolors=color
-            #     #self.ax.add_collection3d(polygon)
-            #     self.ax.plot_trisurf(*v.T, alpha=0.5)
-            # # approximates rounded polygons
-            # else:
-            #     my_points = np.vstack([vertices[region], additional[i]])
-            #     #self.ax.scatter(*my_points.T)
-            #     my_points = sort_points_on_sphere_ccw(my_points)
-            #     self.ax.plot_trisurf(*my_points.T, alpha=0.5) #color=color,
+            self._plot_one_region(index_center=i, color=color)
 
-    def _plot_one_region(self, index_center: int, color=None, reduced=True, **kwargs):
+
+    def _plot_one_region(self, index_center: int, color=None, alpha=0.5):
         relevant_points = self.get_convex_hulls()[index_center].points
+        #self.ax.scatter(*relevant_points.T, s=2)
         triangles = self.get_convex_hulls()[index_center].simplices
 
         X, Y, Z = relevant_points.T
 
-        self.ax.plot_trisurf(X, Y, triangles=triangles, alpha=0.5, color=color, linewidth=0, **kwargs, Z=Z)
+        self.ax.plot_trisurf(X, Y, triangles=triangles, alpha=alpha, color=color, linewidth=0, Z=Z)
 
     @plot3D_method
-    def plot_vertices_of_i(self, index_center: int = 0, color="blue", labels=True, reduced=False, region=False):
+    def plot_vertices_of_i(self, index_center: int = 0, color="blue", labels=True, reduced=False, region=False,
+                           alpha=0.5):
         all_vertices = self.get_all_voronoi_vertices(reduced=reduced)
         all_regions = self.get_all_voronoi_regions(reduced=reduced)
 
@@ -118,7 +107,7 @@ class VoronoiPlot(RepresentationCollection):
             for ic, point in enumerate(vertices_of_i):
                 self.ax.text(*point[:3], s=f"{indices_of_i[ic]}", c=color)
         if region:
-            self._plot_one_region(index_center=index_center, color=color, reduced=reduced)
+            self._plot_one_region(index_center=index_center, color=color, alpha=alpha)
         self._set_axis_limits()
         self._equalize_axes()
 
@@ -153,15 +142,16 @@ if __name__ == "__main__":
     from molgri.space.utils import normalise_vectors, random_sphere_points, random_quaternions
     import matplotlib.pyplot as plt
     np.random.seed(1)
-    my_points = random_sphere_points(25)
-    dists = np.array([0.1, 0.3])
+    my_points = random_sphere_points(12)
+    dists = np.array([0.2, 0.3])
 
 
-    my_voronoi = RotobjVoronoi(my_points, using_detailed_grid=True)
+    my_voronoi = PositionVoronoi(my_points, dists, using_detailed_grid=True)
     vp = VoronoiPlot(my_voronoi)
     vp.plot_centers(save=False)
 
-    vp.plot_regions(ax=vp.ax, fig=vp.fig, save=False, animate_rot=False, )
-    vp.plot_borders(ax=vp.ax, fig=vp.fig, save=True, animate_rot=True, reduced=True)
+    vp.plot_vertices_of_i(index_center=17, ax=vp.ax, fig=vp.fig, save=False, region=True, alpha=0.5, reduced=False)
+    vp.plot_borders(ax=vp.ax, fig=vp.fig, save=False, animate_rot=False, reduced=False)
+    plt.show()
 
 
