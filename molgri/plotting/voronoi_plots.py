@@ -84,7 +84,10 @@ class VoronoiPlot(RepresentationCollection):
         #self.ax.scatter(*relevant_points.T, s=2)
         triangles = self.get_convex_hulls()[index_center].simplices
 
-        X, Y, Z = relevant_points.T
+        # don't move this to one line since it may have 4 components (hyperspheres)
+        X = relevant_points.T[0]
+        Y = relevant_points.T[1]
+        Z = relevant_points.T[2]
 
         self.ax.plot_trisurf(X, Y, triangles=triangles, alpha=alpha, color=color, linewidth=0, Z=Z)
 
@@ -129,6 +132,7 @@ class VoronoiPlot(RepresentationCollection):
     @plot_method
     def plot_border_heatmap(self):
         my_array = self.get_cell_borders().toarray()
+        print(my_array/(2*pi)*360)
         self._plot_position_N_N(my_array, cbar=True)
 
     @plot_method
@@ -138,18 +142,22 @@ class VoronoiPlot(RepresentationCollection):
 
 
 if __name__ == "__main__":
-    from molgri.space.voronoi import RotobjVoronoi
+    from molgri.space.rotobj import SphereGrid3DFactory
     from molgri.space.fullgrid import PositionGrid
     from molgri.space.utils import normalise_vectors, random_sphere_points, random_quaternions
     import matplotlib.pyplot as plt
     np.random.seed(1)
-    my_points = random_sphere_points(15)
-    dists = np.array([0.1, 0.5])
+    my_points = SphereGrid3DFactory.create(alg_name="ico", N=12)
+
+    vp = VoronoiPlot(my_points.get_spherical_voronoi())
+    vp.plot_adjacency_heatmap()
+    vp.plot_border_heatmap()
+
+    vp.plot_centers(save=False)
+    vp.plot_borders(save=False, fig=vp.fig, ax=vp.ax)
+    plt.show()
 
 
-    pg = PositionGrid("15", "[0.1, 0.5]", use_saved=False)
-    my_array = pg.get_distances_of_position_grid().toarray()
-    sns.heatmap(my_array, cmap="gray")
 
 
 

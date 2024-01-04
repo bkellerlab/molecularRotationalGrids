@@ -75,6 +75,9 @@ class FullGrid:
     def get_position_grid(self):
         return self.position_grid
 
+    def get_between_radii(self):
+        return get_between_radii(self.t_grid.get_trans_grid())
+
     def get_adjacency_of_orientation_grid(self) -> coo_array:
         return self.b_rotations.get_voronoi_adjacency(only_upper=True, include_opposing_neighbours=True)
 
@@ -126,7 +129,7 @@ class FullGrid:
         # determine radii of cells
         norms = norm_per_axis(points_vector)
         layers = np.zeros((len(points_vector),))
-        vor_radii = self.get_between_radii()
+        vor_radii = get_between_radii(self.t_grid.get_trans_grid())
 
         # find the index of the layer to which each point belongs
         for i, norm in enumerate(norms):
@@ -234,24 +237,17 @@ class PositionGrid:
         N_t is the length of translation grid and N_o the length of orientation grid.
         """
         return _t_and_o_2_positions(o_property=self.get_o_grid().get_grid_as_array(only_upper=False),
-                                         t_property=self.get_t_grid().get_trans_grid())
+                                         t_property=self.get_radii())
 
     def get_all_position_volumes(self) -> NDArray:
         # o grid has the option to get size of areas -> need to be divided by 3 and multiplied with radius^3 to get
         # volumes in the first shell, later shells need previous shells subtracted
-        radius_above = self.get_between_radii()
+        radius_above = get_between_radii(self.t_grid.get_trans_grid())
         radius_below = np.concatenate(([0, ], radius_above[:-1]))
-        area = self.get_o_grid().get_cell_volumes()
+        area = self.get_o_grid().get_spherical_voronoi().get_voronoi_volumes()
         cumulative_volumes = (_t_and_o_2_positions(o_property=area/3, t_property=radius_above**3) -
                               _t_and_o_2_positions(o_property=area/3, t_property=radius_below**3))
         return cumulative_volumes
-
-    def _get_shared_vertex_indices(self):
-        """
-        This returns a (sparse) matrix in which every element is a set of voronoi vertices that are shared between
-        cells in the given row and column.
-        """
-        adjacency = self.get_adjacency_of_position_grid()
 
 
     def _get_N_N_position_array(self, property="adjacency"):
@@ -262,7 +258,8 @@ class PositionGrid:
         between_radii = get_between_radii(self.t_grid.get_trans_grid())
 
         # First you have neighbours that occur from being at subsequent radii and the same ray
-        # Since the position grid has all orientations at first r, then all at second r ... the points index_center and index_center+n_o will
+        # Since the position grid has all orientations at first r, then all at second r ...
+        # the points index_center and index_center+n_o will
         # always be neighbours, so we need the off-diagonals by n_o and -n_o
         # Most points have two neighbours this way, first and last layer have only one
 
@@ -271,26 +268,29 @@ class PositionGrid:
             my_dtype = bool
             # within a layer
             neig = self.o_rotations.get_voronoi_adjacency(only_upper=False, include_opposing_neighbours=False).toarray()
+            # what to multipy with in higher layers
             multiply = np.ones(n_t)
-        elif property == "border":
+        elif property == "border":         # TODO TODO TODO
             my_diags  = []
             radius_1_areas = self.o_rotations.get_spherical_voronoi().get_voronoi_volumes()
             # last layer doesn't have a border up
             for layer_i, radius in enumerate(between_radii[:-1]):
                 my_diags.extend(radius_1_areas * radius**2)  # todo: test
             my_dtype = float
-            # within a layer -> this is the arch above
-            neig = self.o_rotations.get_center_distances(only_upper=False, include_opposing_neighbours=False).toarray()
-            multiply = between_radii ** 2 / 2
+            # neighbours in the same layer -> this is the arch above (or angle in radians since unit sphere)
+            neig = self.o_rotations.get_cell_borders().toarray()
+            # area is angle/2pi  * pi r**2
+            subtracted_radii = np.array([0, *between_radii[:-1]])
+            multiply = between_radii ** 2 / 2 - subtracted_radii**2/2  # need to subtract area of previous level
         elif property == "distance":
             # n_o elements will have the same distance
             increments = self.t_grid.get_increments()
-            print(increments)
             my_diags = _t_and_o_2_positions(np.ones(len(self.o_rotations)), increments) # todo: test
             my_dtype = float
             # within a layer -> this is the arch at the level of points
-            neig = self.o_rotations.get_center_distances(only_upper=False, include_opposing_neighbours=False).toarray()
-            multiply = increments
+            neig = self.o_rotations.get_center_distances(only_upper=False,
+                                                                          include_opposing_neighbours=False).toarray()
+            multiply = self.get_radii()
         else:
             raise ValueError(f"Not recognised argument property={property}")
 
@@ -317,8 +317,6 @@ class PositionGrid:
             my_blocks = np.array(my_blocks, dtype=object)
             my_blocks = my_blocks.reshape(n_t, n_t)
             same_radius_neighbours = bmat(my_blocks, dtype=float)
-
-            #print(same_radius_neighbours.row, same_radius_neighbours.data)
 
             for ind_n_t in range(n_t):
                 smallest_row = ind_n_t*n_o <= same_radius_neighbours.row
@@ -418,14 +416,12 @@ def _t_and_o_2_positions(o_property, t_property):
 
     Outputs an array of len n_o*n_t, can have shape 1 or higher depending on the property
 
-    Args:
-        property ():
-
     Returns:
 
     """
     n_t = len(t_property)
     n_o = len(o_property)
+
 
     # eg coordinates
     if len(o_property.shape) > 1:

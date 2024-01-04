@@ -92,7 +92,7 @@ class FullGridPlot(ArrayPlot):
     @plot_method
     def plot_position_volumes(self):
         all_volumes = self.get_all_position_volumes()
-        self.ax.scatter(all_volumes)
+        sns.violinplot(all_volumes, ax=self.ax)
 
     def _plot_position_N_N(self, my_array = None, **kwargs):
         sns.heatmap(my_array, cmap="gray", ax=self.ax, **kwargs)

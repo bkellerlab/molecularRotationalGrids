@@ -36,6 +36,7 @@ def test_generate_grid():
         with pytest.raises(Exception):
             subprocess.run(err_command, shell=True, check=True)
 
+
 def test_generate_pt():
     test_set_up_io()
     # all these commands should pass with no error

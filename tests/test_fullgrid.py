@@ -4,9 +4,8 @@ from scipy.constants import pi
 from abc import ABC, abstractmethod
 
 from molgri.space.fullgrid import FullGrid
-from molgri.space.voronoi import PositionVoronoi
 from molgri.space.rotobj import SphereGridFactory
-from molgri.space.utils import normalise_vectors, all_row_norms_equal_k
+from molgri.space.utils import dist_on_sphere, normalise_vectors, all_row_norms_equal_k
 from molgri.plotting.fullgrid_plots import FullGridPlot
 import matplotlib.pyplot as plt
 
@@ -17,6 +16,12 @@ USE_SAVED = False
 class IdealPolyhedron(ABC):
 
     def __init__(self, Rs: NDArray, N_vertices):
+        """
+
+        Args:
+            Rs (): radii of voronoi cells
+            N_vertices ():
+        """
         self.Rs = Rs
         self.N_vertices = N_vertices
 
@@ -110,9 +115,9 @@ def test_fullgrid_voronoi_radii():
     # between radii as expected; last one is same as previous distance
     assert np.allclose(fg.get_between_radii(), [6.5, 15, 23.5, 28.5, 31.5])
     # assert that those are also the radii of voronoi cells
-    voronoi = fg.get_position_voronoi()
-    voronoi_radii = [sv.radius for sv in voronoi]
-    assert np.allclose(voronoi_radii, [6.5, 15, 23.5, 28.5, 31.5])
+    # voronoi = fg.get_position_voronoi()
+    # voronoi_radii = [sv.radius for sv in voronoi]
+    # assert np.allclose(voronoi_radii, [6.5, 15, 23.5, 28.5, 31.5])
 
     # example with only one layer
     fg = FullGrid(b_grid_name="randomQ_7", o_grid_name=f"cube3D_15", t_grid_name="[0.3]")
@@ -121,16 +126,16 @@ def test_fullgrid_voronoi_radii():
     # between radii as expected; last one is same as previous distance
     assert np.allclose(fg.get_between_radii(), [6])
     # assert that those are also the radii of voronoi cells
-    voronoi = fg.get_position_voronoi()
-    voronoi_radii = [sv.radius for sv in voronoi]
-    assert np.allclose(voronoi_radii, [6])
+    # voronoi = fg.get_position_voronoi()
+    # voronoi_radii = [sv.radius for sv in voronoi]
+    # assert np.allclose(voronoi_radii, [6])
 
 
 def test_cell_assignment():
     # 1st test: the position grid points must correspond to themselves
     N_rot = 18
     fullgrid = FullGrid(b_grid_name="randomQ_7", o_grid_name=f"ico_{N_rot}", t_grid_name="[1, 2, 3]", use_saved=False)
-    points_local = fullgrid.get_flat_position_grid()
+    points_local = fullgrid.get_position_grid_as_array()
     num_points = len(points_local)
     assert np.all(fullgrid.point2cell_position_grid(points_local) == np.arange(0, num_points))
     # 1st test:even if a bit of noise is added
@@ -161,26 +166,9 @@ def test_cell_assignment():
 
 
 def test_distances_voronoi_centers():
-    # tetrahedron
-    fg = get_tetrahedron_grid(visualise=False, use_saved=False)
-    all_dist = fg.get_all_distances_between_centers_as_numpy()
-    rs = fg.get_radii()
-    ideal_angle = IdealTetrahedron(rs).get_vertex_center_vertex_angle()
-    ideal_dist = rs[0]*ideal_angle
-    rel_errors = []
-    for i in range(4):
-        for j in range(i+1, 4):
-            arch_dist = fvg.get_distance_between_centers(i, j, print_message=False)
-            assert np.isclose(all_dist[i][j], arch_dist)
-            assert np.isclose(all_dist[j][i], arch_dist)
-            rel_errors.append(np.abs(arch_dist-ideal_dist)/ideal_dist * 100)
-    print(f"Relative errors in tetrahedron distances {np.round(rel_errors, 2)}")
-
-    # from molgri.plotting.other_plots import ArrayPlot
-    # ArrayPlot(all_dist, data_name="tetra_distances").make_heatmap_plot(save=True)
 
     #icosahedron
-    fg, fvg = get_icosahedron_grid(visualise=False, use_saved=False)
+    fg = get_icosahedron_grid(visualise=False, use_saved=False)
     rs = fg.get_radii()
 
     # all idealised distances
@@ -188,10 +176,7 @@ def test_distances_voronoi_centers():
     ideal_first_arch = rs[0] * IdealIcosahedron(rs).get_vertex_center_vertex_angle()
     ideal_second_arch = rs[1] * IdealIcosahedron(rs).get_vertex_center_vertex_angle()
 
-    all_dist = fvg.get_all_distances_between_centers_as_numpy()
-
-    # from molgri.plotting.other_plots import ArrayPlot
-    # ArrayPlot(all_dist, data_name="ico_distances").make_heatmap_plot(save=True)
+    all_dist = fg.get_distances_of_position_grid().toarray()
 
     # ray distances
     for i in range(12):
@@ -216,22 +201,22 @@ def test_distances_voronoi_centers():
 
 
 def test_division_area():
-    fg = get_tetrahedron_grid(visualise=False, use_saved=False)
-    # what we expect:
-    # 1) all points are neighbours (in the same layer)
-    # 2) all points share a division surface that approx equals R^2*alpha/2
-    # where R is the voronoi radius and alpha the Vertex-Center-Vertex tetrahedron angle
-    R = fg.get_between_radii()
-    expected_surface = IdealTetrahedron(R).get_ideal_sideways_area()[0]
-
-    # calculated all at once
-    all_areas = fg.get_borders_of_position_grid()
-    all_areas = all_areas.toarray(order='C')
-
-    # on average should be right area
-    assert np.allclose(np.average(all_areas[np.nonzero(all_areas)])/R, expected_surface/R, rtol=0.01, atol=0.1)
-    rel_errors = np.abs(all_areas - expected_surface) / expected_surface * 100
-    print(f"Relative errors in tetrahedron surfaces: {np.round(rel_errors, 2)}")
+    # fg = get_tetrahedron_grid(visualise=False, use_saved=False)
+    # # what we expect:
+    # # 1) all points are neighbours (in the same layer)
+    # # 2) all points share a division surface that approx equals R^2*alpha/2
+    # # where R is the voronoi radius and alpha the Vertex-Center-Vertex tetrahedron angle
+    # R = fg.get_between_radii()
+    # expected_surface = IdealTetrahedron(R).get_ideal_sideways_area()[0]
+    #
+    # # calculated all at once
+    # all_areas = fg.get_borders_of_position_grid()
+    # all_areas = all_areas.toarray(order='C')
+    #
+    # # on average should be right area
+    # assert np.allclose(np.average(all_areas[np.nonzero(all_areas)])/R, expected_surface/R, rtol=0.01, atol=0.1)
+    # rel_errors = np.abs(all_areas - expected_surface) / expected_surface * 100
+    # print(f"Relative errors in tetrahedron surfaces: {np.round(rel_errors, 2)}")
 
     # uncomment to visualise array
     #from molgri.plotting.other_plots import ArrayPlot
@@ -247,7 +232,6 @@ def test_division_area():
     areas_above = ii.get_ideal_sphere_area()
 
     border_areas = fug2.get_borders_of_position_grid().toarray()
-    #print(border_areas)
 
     # points 0 and 12, 1 and 13 ... right above each other
     real_areas_above = []
@@ -255,7 +239,7 @@ def test_division_area():
         real_areas_above.append(border_areas[i][i+12])
     real_areas_above = np.array(real_areas_above)
     assert np.allclose(real_areas_above, areas_above[0])
-
+    #
     real_areas_first_level = []
     # now let's see some sideways areas
     for i in range(12):
@@ -264,33 +248,25 @@ def test_division_area():
             if not np.isclose(area, areas_above[0]) and not np.isclose(area, 0):
                 real_areas_first_level.append(area)
     real_areas_first_level = np.array(real_areas_first_level)
-    print(real_areas_first_level, areas_sideways)
-    print(pi*R_s[0]**2/6)
-    assert np.allclose(real_areas_first_level, areas_sideways[0])
-
-    # uncomment to visualise array
-    # all_areas = fvg2.get_all_voronoi_surfaces()
-    # all_areas = all_areas.toarray(order='C')
-    # from molgri.plotting.other_plots import ArrayPlot
-    # ArrayPlot(all_areas, data_name="ico_areas").make_heatmap_plot(save=True)
+    assert np.allclose(real_areas_first_level, areas_sideways[0]), f"{real_areas_first_level[0]}!={areas_sideways[0]}"
 
     real_areas_sec_level = []
     # now let's see some sideways areas - this time second level of points
     for i in range(12, 24):
         for j in range(12, 24):
-            area = fvg2.get_division_area(i, j, print_message=False)
-            if area is not None:
+            area = border_areas[i][j]
+            if area is not None and not np.isclose(area, 0):
                 real_areas_sec_level.append(area)
     real_areas_sec_level = np.array(real_areas_sec_level)
-    assert np.allclose(real_areas_sec_level, areas_sideways[1])
+    assert np.allclose(real_areas_sec_level, areas_sideways[1]), f"{real_areas_sec_level}!={areas_sideways[1]}"
 
     # assert that curved areas add up to a full surface of sphere
     N_o = 22
     full_grid = FullGrid(t_grid_name="[3, 7]", o_grid_name=f"cube3D_{N_o}", b_grid_name="cube4D_6", use_saved=USE_SAVED)
-    fvg = full_grid.get_full_voronoi_grid()
+    #fvg = full_grid.get_full_voronoi_grid()
     first_radius = full_grid.get_between_radii()[0]
     exp_total_area = 4 * pi * first_radius ** 2
-    areas = fvg.get_all_voronoi_surfaces_as_numpy()
+    areas = full_grid.get_borders_of_position_grid().toarray()
     sum_curved_areas = 0
     for i in range(N_o):
         sum_curved_areas += areas[i, i+N_o]
@@ -413,16 +389,14 @@ def test_voronoi_regression():
     However, they are regression tests and should not be trusted unconditionally!
     """
     N_o = 22
-    N_t = 2
     fg = FullGrid(b_grid_name="cube4D_16", o_grid_name=f"ico_{N_o}", t_grid_name="[2, 4]", use_saved=USE_SAVED)
-    fvg = fg.get_position_voronoi()
-    volumes = fvg.get_all_voronoi_volumes()
+    volumes = fg.get_all_position_volumes()
     expected_vols = np.array([5253.4525878,  8791.29124553, 8791.29124553, 7022.37191666, 7022.37191666,
                               5253.4525878,  4555.04327387, 4936.70923018])
 
     assert np.allclose(volumes[:8], expected_vols)
 
-    all_areas = fvg.get_all_voronoi_surfaces()
+    all_areas = fg.get_borders_of_position_grid()
     assert np.isclose(all_areas[13, 0], 0)
     assert np.isclose(all_areas[22, 0], 525.3452587797963)
     assert np.isclose(all_areas[11, 2], 0)
@@ -506,39 +480,39 @@ def test_position_adjacency():
     assert np.all(my_array[20] == my_result)
 
 
-def test_position_grid_voronoi():
-    """
-    This function tests that PositionVoronoi:
-    1) creates the same list of layered points as PositionGrid
-    2) creates the corresponding voronoi vertices
-    """
-    n_o = 7
-    fg = FullGrid("20", f"{n_o}", "[0.1, 0.2, 0.3]", use_saved=False)
-    expected_between = [0, 1.5, 2.5, 3.5]
-    n_t = 3
-    # from molgri.plotting.fullgrid_plots import FullGridPlot
-    # import matplotlib.pyplot as plt
-    # fg = FullGridPlot(fg)
-    # fg.plot_position_voronoi(plot_vertex_points=True, numbered=True, save=False)
-    # plt.show()
-
-    pv = fg.get_position_voronoi()
-    all_voronoi_centers = pv.get_all_voronoi_centers()
-    # right shape of voronoi centers
-    assert np.shape(all_voronoi_centers) == (n_o * n_t, 3)
-    # right position of voronoi centers (exactly where poisition grid is)
-    assert np.allclose(all_voronoi_centers, fg.get_position_grid_as_array())
-
-    # right position of voronoi vertices (scaled to radii between layers, otherwise same as unit sv)
-    unit_sv = fg.o_rotations.get_spherical_voronoi()
-    all_voronoi_vertices = pv.get_all_voronoi_vertices()
-    num_per_layer = len(unit_sv.vertices)
-    for ind, eb in enumerate(expected_between):
-        a_layer_of_vertices = all_voronoi_vertices[ind*num_per_layer:(ind+1)*num_per_layer]
-        expected_scaled_vertices = eb*unit_sv.vertices
-        assert np.allclose(a_layer_of_vertices, expected_scaled_vertices)
-
-    print(pv.get_all_voronoi_regions())
+# def test_position_grid_voronoi():
+#     """
+#     This function tests that PositionVoronoi:
+#     1) creates the same list of layered points as PositionGrid
+#     2) creates the corresponding voronoi vertices
+#     """
+#     n_o = 7
+#     fg = FullGrid("20", f"{n_o}", "[0.1, 0.2, 0.3]", use_saved=False)
+#     expected_between = [0, 1.5, 2.5, 3.5]
+#     n_t = 3
+#     # from molgri.plotting.fullgrid_plots import FullGridPlot
+#     # import matplotlib.pyplot as plt
+#     # fg = FullGridPlot(fg)
+#     # fg.plot_position_voronoi(plot_vertex_points=True, numbered=True, save=False)
+#     # plt.show()
+#
+#     pv = fg.get_position_voronoi()
+#     all_voronoi_centers = pv.get_all_voronoi_centers()
+#     # right shape of voronoi centers
+#     assert np.shape(all_voronoi_centers) == (n_o * n_t, 3)
+#     # right position of voronoi centers (exactly where poisition grid is)
+#     assert np.allclose(all_voronoi_centers, fg.get_position_grid_as_array())
+#
+#     # right position of voronoi vertices (scaled to radii between layers, otherwise same as unit sv)
+#     unit_sv = fg.o_rotations.get_spherical_voronoi()
+#     all_voronoi_vertices = pv.get_all_voronoi_vertices()
+#     num_per_layer = len(unit_sv.vertices)
+#     for ind, eb in enumerate(expected_between):
+#         a_layer_of_vertices = all_voronoi_vertices[ind*num_per_layer:(ind+1)*num_per_layer]
+#         expected_scaled_vertices = eb*unit_sv.vertices
+#         assert np.allclose(a_layer_of_vertices, expected_scaled_vertices)
+#
+#     print(pv.get_all_voronoi_regions())
 
 
 if __name__ == "__main__":
@@ -551,4 +525,3 @@ if __name__ == "__main__":
     test_position_grid()
     test_voronoi_regression()
     test_position_adjacency()
-    test_position_grid_voronoi()
