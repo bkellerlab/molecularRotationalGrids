@@ -29,10 +29,10 @@ import pandas as pd
 
 from molgri.constants import SMALL_NS
 from molgri.space.rotobj import SphereGrid3DFactory, SphereGrid3Dim, SphereGrid4DFactory
-from molgri.space.translations import TranslationParser
+from molgri.space.translations import TranslationParser, get_between_radii
 from molgri.naming import GridNameParser
 from molgri.space.utils import norm_per_axis, angle_between_vectors
-from molgri.space.voronoi import PositionVoronoi
+#from molgri.space.voronoi import PositionVoronoi
 from molgri.wrappers import save_or_use_saved
 
 
@@ -98,8 +98,6 @@ class FullGrid:
             result[0:N_b], result[N_b:2*N_b] ... first three coordinates will always be the same vector from origin
             result[::N_t*N_o], result[1::N_t*N_o] ... will always be at the same last four coordinates (orientation)
         """
-
-        # WARNING! NOT CURRENTLY THE SAME AS PT!!!!!!!!!1
         result = np.full((len(self), 7), np.nan)
         position_grid = self.position_grid.get_position_grid_as_array()
         quaternions = self.b_rotations.get_grid_as_array(only_upper=True)
@@ -261,6 +259,7 @@ class PositionGrid:
         n_points = len(flat_pos_grid)  # equals n_o*n_t
         n_o = self.o_rotations.get_N()
         n_t = self.t_grid.get_N_trans()
+        between_radii = get_between_radii(self.t_grid.get_trans_grid())
 
         # First you have neighbours that occur from being at subsequent radii and the same ray
         # Since the position grid has all orientations at first r, then all at second r ... the points index_center and index_center+n_o will
@@ -275,21 +274,23 @@ class PositionGrid:
             multiply = np.ones(n_t)
         elif property == "border":
             my_diags  = []
-            radius_1_areas = self.o_rotations.get_cell_volumes()
+            radius_1_areas = self.o_rotations.get_spherical_voronoi().get_voronoi_volumes()
             # last layer doesn't have a border up
-            for layer_i, radius in enumerate(self.get_between_radii()[:-1]):
+            for layer_i, radius in enumerate(between_radii[:-1]):
                 my_diags.extend(radius_1_areas * radius**2)  # todo: test
             my_dtype = float
             # within a layer -> this is the arch above
             neig = self.o_rotations.get_center_distances(only_upper=False, include_opposing_neighbours=False).toarray()
-            multiply = self.get_between_radii() ** 2 / 2
-            print(multiply)
+            multiply = between_radii ** 2 / 2
         elif property == "distance":
             # n_o elements will have the same distance
             increments = self.t_grid.get_increments()
             print(increments)
             my_diags = _t_and_o_2_positions(np.ones(len(self.o_rotations)), increments) # todo: test
             my_dtype = float
+            # within a layer -> this is the arch at the level of points
+            neig = self.o_rotations.get_center_distances(only_upper=False, include_opposing_neighbours=False).toarray()
+            multiply = increments
         else:
             raise ValueError(f"Not recognised argument property={property}")
 
@@ -347,303 +348,9 @@ class PositionGrid:
     def get_borders_of_position_grid(self) -> coo_array:
         return self._get_N_N_position_array(property="border")
 
-    def get_position_voronoi(self):
-        my_sv = PositionVoronoi(self.o_positions, self.t_grid.get_trans_grid())
-        return my_sv
+    def get_distances_of_position_grid(self) -> coo_array:
+        return self._get_N_N_position_array(property="distance")
 
-
-#
-#     ###################################################################################################################
-#     #                           useful properties
-#     ###################################################################################################################
-#
-#     def find_voronoi_vertices_of_point(self, point_index: int, which: str = "all") -> NDArray:
-#         """
-#         Using an index (from flattened position grid), find which voronoi vertices belong to this point.
-#
-#         Args:
-#             point_index: for which point in flattened position grid the vertices should be found
-#             which: which vertices: all, upper or lower
-#
-#         Returns:
-#             an array of vertices, each row is a 3D point.
-#         """
-#         my_point = Point(point_index, self)
-#
-#         if which == "all":
-#             vertices = my_point.get_vertices()
-#         elif which == "upper":
-#             vertices = my_point.get_vertices_above()
-#         elif which == "lower":
-#             vertices = my_point.get_vertices_below()
-#         else:
-#             raise ValueError("The value of which not recognised, select 'all', 'upper', 'lower'.")
-#         return vertices
-#
-#     def get_distance_between_centers(self, index_1: int, index_2: int, print_message=True) -> Optional[float]:
-#         """
-#         Calculate the distance between two position grid points selected by their indices. Optionally print message
-#         if they are not neighbours.
-#
-#         There are three options:
-#             - point1 is right above point2 or vide versa -> the distance is measured in a straight line from the center
-#             - point1 and point2 are sideways neighbours -> the distance is measured on the circumference of their radius
-#             - point1 and point2 are not neighbours -> return None
-#
-#         Returns:
-#             None if not neighbours, distance in angstrom else
-#         """
-#         point_1 = Point(index_1, self)
-#         point_2 = Point(index_2, self)
-#
-#         if self._point1_right_above_point2(point_1, point_2) or self._point2_right_above_point1(point_1, point_2):
-#             return np.abs(point_1.d_to_origin - point_2.d_to_origin)
-#         elif self._are_sideways_neighbours(point_1, point_2):
-#             radius = point_1.d_to_origin
-#             theta = angle_between_vectors(point_1.point, point_2.point)
-#             # length of arc
-#             return theta * radius
-#         else:
-#             if print_message:
-#                 print(f"Points {index_1} and {index_2} are not neighbours.")
-#             return None
-#
-#     def get_division_area(self, index_1: int, index_2: int, print_message: bool = True) -> Optional[float]:
-#         """
-#         Calculate the area (in Angstrom squared) that is the border area between two Voronoi cells. This is either
-#         a curved area (a part of a sphere) if the two cells are one above the other or a flat, part of circle or
-#         circular ring if the cells are neighbours at the same level. If points are not neighbours, returns None.
-#         """
-#         point_1 = Point(index_1, self)
-#         point_2 = Point(index_2, self)
-#
-#         # if they are sideways neighbours
-#         if self._at_same_radius(point_1, point_2):
-#             # vertices_above
-#             vertices_1a = point_1.get_vertices_above()
-#             vertices_2a = point_2.get_vertices_above()
-#             r_larger = np.linalg.norm(vertices_1a[0])
-#             set_vertices_1a = set([tuple(v) for v in vertices_1a])
-#             set_vertices_2a = set([tuple(v) for v in vertices_2a])
-#             # vertices that are above point 1 and point 2
-#             intersection_a = set_vertices_1a.intersection(set_vertices_2a)
-#             # vertices below - only important to determine radius
-#             vertices_1b = point_1.get_vertices_below()
-#             r_smaller = np.linalg.norm(vertices_1b[0])
-#             if len(intersection_a) != 2:
-#                 if print_message:
-#                     print(f"Points {index_1} and {index_2} are not neighbours.")
-#                 return None
-#             else:
-#                 # angle will be determined by the vector from origin to both points above
-#                 intersection_list = list(intersection_a)
-#                 theta = angle_between_vectors(np.array(intersection_list[0]), np.array(intersection_list[1]))
-#                 return theta / 2 * (r_larger ** 2 - r_smaller ** 2)
-#         # if point_1 right above point_2
-#         if self._point1_right_above_point2(point_1, point_2):
-#             return point_2.get_area_above()
-#         if self._point2_right_above_point1(point_1, point_2):
-#             return point_1.get_area_above()
-#         # if no exit point so far
-#         if print_message:
-#             print(f"Points {index_1} and {index_2} are not neighbours.")
-#         return None
-#
-#     def get_volume(self, index: int) -> float:
-#         """
-#         Get the volume of any cell in FullVoronoiGrid, defined by its index in flattened position grid.
-#         """
-#         point = Point(index, self)
-#         return point.get_cell_volume()
-#
-#     @save_or_use_saved
-#     def get_all_voronoi_volumes(self) -> NDArray:
-#         """
-#         Get an array in the same order as flat position grid, listing the volumes of Voronoi cells.
-#         """
-#         N = len(self.flat_positions)
-#         volumes = np.zeros((N,))
-#         for index_center in range(0, N):
-#             volumes[index_center] = self.get_volume(index_center)
-#         return volumes
-#
-#     def _get_property_all_pairs(self, method: Callable) -> csc_array:
-#         """
-#         Helper method for any property that is dependent on a pair of indices. Examples: obtaining all distances
-#         between cell centers or all areas between cells. Always symmetrical - value at (index_center, j) equals the one at (j, index_center)
-#
-#         Args:
-#             method: must have a signature (index1: int, index2: int, print_message: boolean)
-#
-#         Returns:
-#             a sparse matrix of shape (len_flat_position_array, len_flat_position_array)
-#         """
-#         data = []
-#         row_indices = []
-#         column_indices = []
-#         N_pos_array = len(self.flat_positions)
-#         for index_center in range(N_pos_array):
-#             for j in range(index_center + 1, N_pos_array):
-#                 my_property = method(index_center, j, print_message=False)
-#                 if my_property is not None:
-#                     # this value will be added to coordinates (index_center, j) and (j, index_center)
-#                     data.extend([my_property, my_property])
-#                     row_indices.extend([index_center, j])
-#                     column_indices.extend([j, index_center])
-#         sparse_property = coo_array((data, (row_indices, column_indices)), shape=(N_pos_array, N_pos_array))
-#         return sparse_property.tocsc()
-#
-#     @save_or_use_saved
-#     def get_all_voronoi_surfaces(self) -> csc_array:
-#         """
-#         If l is the length of the flattened position array, returns a lxl (sparse) array where the index_center-th row and j-th
-#         column (as well as the j-th row and the index_center-th column) represent the size of the Voronoi surface between points
-#         index_center and j in position grid. If the points do not share a division area, no value will be set.
-#         """
-#         return self._get_property_all_pairs(self.get_division_area)
-#
-#     @save_or_use_saved
-#     def get_all_distances_between_centers(self) -> csc_array:
-#         """
-#         Get a sparse matrix where for all sets of neighbouring cells the distance between Voronoi centers is provided.
-#         Therefore, the value at [index_center][j] equals the value at [j][index_center]. For more information, check
-#         self.get_distance_between_centers.
-#         """
-#         return self._get_property_all_pairs(self.get_distance_between_centers)
-#
-#     def get_all_voronoi_surfaces_as_numpy(self) -> NDArray:
-#         """See self.get_all_voronoi_surfaces, only transforms sparse array to normal array."""
-#         return self.get_all_voronoi_surfaces().toarray(order='C')
-#
-#     def get_all_distances_between_centers_as_numpy(self) -> NDArray:
-#         """See self.get_all_distances_between_centers, only transforms sparse array to normal array."""
-#         return self.get_all_distances_between_centers().toarray(order='C')
-#
-#
-# class Point:
-#
-#     """
-#     A Point represents a single cell in a particular FullVoronoiGrid. It holds all relevant information, eg. the
-#     index of the cell within a single layer and in a full flattened position grid. It enables the identification
-#     of Voronoi vertices and connected calculations (distances, areas, volumes).
-#     """
-#
-#     def __init__(self, index_position_grid: int, full_sv: FullVoronoiGrid):
-#         self.full_sv = full_sv
-#         self.index_position_grid: int = index_position_grid
-#         self.point: NDArray = self.full_sv.flat_positions[index_position_grid]
-#         self.d_to_origin: float = np.linalg.norm(self.point)
-#         self.index_radial: int = self._find_index_radial()
-#         self.index_within_sphere: int = self._find_index_within_sphere()
-#
-#     def get_normalised_point(self) -> NDArray:
-#         """Get the vector to the grid point (center of Voronoi cell) normalised to length 1."""
-#         return normalise_vectors(self.point, length=1)
-#
-#     def _find_index_radial(self) -> int:
-#         """Find to which radial layer of points this point belongs."""
-#         point_radii = self.full_sv.full_grid.get_radii()
-#         for index_center, dist in enumerate(point_radii):
-#             if np.isclose(dist, self.d_to_origin):
-#                 return index_center
-#         else:
-#             raise ValueError("The norm of the point not close to any of the radii.")
-#
-#     def _find_index_within_sphere(self) -> int:
-#         """Find the index of the point within a single layer of possible orientations."""
-#         radial_index = self.index_radial
-#         num_o_rot = len(self.full_sv.full_grid.o_rotations.get_grid_as_array())
-#         return self.index_position_grid - num_o_rot * radial_index
-#
-#     def _find_index_sv_above(self) -> Optional[int]:
-#         for index_center, sv in enumerate(self.full_sv.get_voronoi_discretisation()):
-#             if sv.radius > self.d_to_origin:
-#                 return index_center
-#         else:
-#             # the point is outside the largest voronoi sphere
-#             return None
-#
-#     def _get_sv_above(self) -> SphericalVoronoi:
-#         """Get the spherical Voronoi with the first radius that is larger than point radius."""
-#         return self.full_sv.get_voronoi_discretisation()[self._find_index_sv_above()]
-#
-#     def _get_sv_below(self) -> Optional[SphericalVoronoi]:
-#         """Get the spherical Voronoi with the largest radius that is smaller than point radius. If the point is in the
-#         first layer, return None."""
-#         index_above = self._find_index_sv_above()
-#         if index_above != 0:
-#             return self.full_sv.get_voronoi_discretisation()[index_above-1]
-#         else:
-#             return None
-#
-#     ##################################################################################################################
-#     #                            GETTERS - DISTANCES, AREAS, VOLUMES
-#     ##################################################################################################################
-#
-#     def get_radius_above(self) -> float:
-#         """Get the radius of the SphericalVoronoi cell that is the upper surface of the cell."""
-#         sv_above = self._get_sv_above()
-#         return sv_above.radius
-#
-#     def get_radius_below(self) -> float:
-#         """Get the radius of the SphericalVoronoi cell that is the lower surface of the cell (return zero if there is
-#         no Voronoi layer below)."""
-#         sv_below = self._get_sv_below()
-#         if sv_below is None:
-#             return 0.0
-#         else:
-#             return sv_below.radius
-#
-#     def get_area_above(self) -> float:
-#         """Get the area of the Voronoi surface that is the upper side of the cell (curved surface, part of sphere)."""
-#         sv_above = self._get_sv_above()
-#         areas = sv_above.calculate_areas()
-#         return areas[self.index_within_sphere]
-#
-#     def get_area_below(self) -> float:
-#         """Get the area of the Voronoi surface that is the lower side of the cell (curved surface, part of sphere)."""
-#         sv_below = self._get_sv_below()
-#         if sv_below is None:
-#             return 0.0
-#         else:
-#             areas = sv_below.calculate_areas()
-#             return areas[self.index_within_sphere]
-#
-#     def get_vertices_above(self) -> NDArray:
-#         """Get the vertices of this cell that belong to the SphericalVoronoi above the point."""
-#         sv_above = self._get_sv_above()
-#         regions = sv_above.regions[self.index_within_sphere]
-#         vertices_above = sv_above.vertices[regions]
-#         return vertices_above
-#
-#     def get_vertices_below(self) -> NDArray:
-#         """Get the vertices of this cell that belong to the SphericalVoronoi below the point (or just the origin
-#         if the point belongs to the first layer."""
-#         sv_below = self._get_sv_below()
-#         if sv_below is None:
-#             vertices_below = np.zeros((1, 3))
-#         else:
-#             regions = sv_below.regions[self.index_within_sphere]
-#             vertices_below = sv_below.vertices[regions]
-#
-#         return vertices_below
-#
-#     def get_vertices(self) -> NDArray:
-#         """Get all vertices of this cell as a single array."""
-#         vertices_above = self.get_vertices_above()
-#         vertices_below = self.get_vertices_below()
-#
-#         return np.concatenate((vertices_above, vertices_below))
-#
-#     def get_cell_volume(self) -> float:
-#         """Get the volume of this cell (calculated as the difference between the part of sphere volume at radius above
-#         minus the same area at smaller radius)."""
-#         radius_above = self.get_radius_above()
-#         radius_below = self.get_radius_below()
-#         area_above = self.get_area_above()
-#         area_below = self.get_area_below()
-#         volume = 1/3 * (radius_above * area_above - radius_below * area_below)
-#         return volume
 
 
 class ConvergenceFullGridO:

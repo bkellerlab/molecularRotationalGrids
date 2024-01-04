@@ -57,7 +57,7 @@ def test_pt_len():
     assert len(parser.universe.trajectory) == end_index
     assert parser.c_num == parser.r_num == 3
     # 2nd example
-    num_body = 3
+    num_body = 5
     num_origin = 18
     m1_path = f"H2O.gro"
     m2_path = f"NH3.gro"

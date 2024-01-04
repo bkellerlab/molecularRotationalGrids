@@ -99,11 +99,13 @@ class SphereGridNDim(ABC):
         assert np.allclose(np.linalg.norm(self.grid, axis=1), 1, atol=10 ** (-UNIQUE_TOL)), "A grid must have norm 1!"
 
         # the corresponding voronoi
-        if self.dimensions == 3:
+        if self.dimensions == 3 and self.N >= 4:
             self.spherical_voronoi = RotobjVoronoi(self.grid)
-        elif self.dimensions == 4:
+        elif self.dimensions == 4  and self.N >= 4:
             self.spherical_voronoi = HalfRotobjVoronoi(self.grid)
-
+        else:
+            print("Warning! Voronoi objects can only be created for >=4 points")
+            self.spherical_voronoi = None
         return self.grid
 
     def get_grid_as_array(self, only_upper: bool = False) -> NDArray:

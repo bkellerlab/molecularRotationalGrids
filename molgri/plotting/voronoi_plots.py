@@ -111,11 +111,10 @@ class VoronoiPlot(RepresentationCollection):
         self._set_axis_limits()
         self._equalize_axes()
 
-    @plot3D_method
+    @plot_method
     def plot_volumes(self, approx=False):
         all_volumes = self.get_voronoi_volumes(approx=approx)
-        self.plot_borders(ax=self.ax, fig=self.fig, save=False)
-        self.plot_centers(ax=self.ax, fig=self.fig, labels=False, s=all_volumes, save=False)
+        sns.catplot(all_volumes, ax=self.ax, kind="violin")
 
     def _plot_position_N_N(self, my_array = None, **kwargs):
         sns.heatmap(my_array, cmap="gray", ax=self.ax, xticklabels=False, yticklabels=False, **kwargs)
@@ -130,30 +129,27 @@ class VoronoiPlot(RepresentationCollection):
     @plot_method
     def plot_border_heatmap(self):
         my_array = self.get_cell_borders().toarray()
-        self._plot_position_N_N(my_array, cbar=False)
+        self._plot_position_N_N(my_array, cbar=True)
 
     @plot_method
     def plot_center_distances_heatmap(self):
         my_array = self.get_center_distances().toarray()
-        self._plot_position_N_N(my_array, cbar=False)
+        self._plot_position_N_N(my_array, cbar=True)
 
 
 if __name__ == "__main__":
-    from molgri.space.voronoi import RotobjVoronoi, PositionVoronoi
+    from molgri.space.voronoi import RotobjVoronoi
+    from molgri.space.fullgrid import PositionGrid
     from molgri.space.utils import normalise_vectors, random_sphere_points, random_quaternions
     import matplotlib.pyplot as plt
     np.random.seed(1)
     my_points = random_sphere_points(15)
-    dists = np.array([0.1, 0.3, 0.5, 0.7])
+    dists = np.array([0.1, 0.5])
 
 
-    my_voronoi = PositionVoronoi(my_points, dists, using_detailed_grid=True)
-    vp = VoronoiPlot(my_voronoi, default_complexity_level="half_empty")
-    vp.plot_adjacency_heatmap()
-    #vp.plot_border_heatmap()
-    #vp.plot_center_distances_heatmap()
-    vp.plot_volumes()
+    pg = PositionGrid("15", "[0.1, 0.5]", use_saved=False)
+    my_array = pg.get_distances_of_position_grid().toarray()
+    sns.heatmap(my_array, cmap="gray")
 
-    plt.show()
 
 
