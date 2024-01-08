@@ -65,7 +65,7 @@ class PtIOManager:
 
 
     def get_decorator_name(self) -> str:
-        return f"Pt {self.determine_pt_name()}"
+        return f"Pt {self.get_name()}"
 
     def get_name(self):
         output_paths = self._get_all_output_paths()
@@ -111,18 +111,19 @@ class PtIOManager:
         """
         path_t, path_s, path_l = self._get_all_output_paths(extension_trajectory=extension_trajectory,
                                                             extension_structure=extension_structure)
+        # log set-up before calculating PT in case any errors occur in-between
+        if print_messages:
+            print(f"Saved the log file to {path_l}")
         pt_logger = PtLogger(path_l)
         pt_logger.log_set_up(self)
         logger = pt_logger.logger
         logger.info(f"central molecule: {self.central_parser.get_topology_file_name()}")
         logger.info(f"rotating molecule: {self.rotating_parser.get_topology_file_name()}")
         logger.info(f"full grid name: {self.pt.get_full_grid().get_name()}")
+        logger.info(f"full grid coordinates:\n{self.pt.get_full_grid().get_full_grid_as_array()}")
         logger.info(f"translation grid [A]: {self.pt.get_full_grid().get_radii()}")
         logger.info(f"quaternions for rot around the body: {self.pt.get_full_grid().get_body_rotations().as_quat()}")
         logger.info(f"positions on a sphere for origin rot: {self.pt.get_full_grid().o_positions}")
-        # log set-up before calculating PT in case any errors occur in-between
-        if print_messages:
-            print(f"Saved the log file to {path_l}")
         # generate a pt
         if as_dir:
             selected_function = self.writer.write_frames_in_directory

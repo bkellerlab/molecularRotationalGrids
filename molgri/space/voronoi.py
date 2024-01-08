@@ -398,6 +398,22 @@ class HalfRotobjVoronoi(RotobjVoronoi):
             adj_matrix = extracted_arr
         return coo_array(adj_matrix)
 
+class FullVoronoi(AbstractVoronoi):
+
+    def __init__(self, full_grid_array: NDArray, using_detailed_grid: bool = True, **kwargs):
+        self.full_grid_array = full_grid_array
+#         self.o_grid = o_grid
+#         self.using_detailed_grid = using_detailed_grid
+#         self.point_radii = point_radii
+#         self.n_o = len(self.o_grid)
+#         self.n_t = len(self.point_radii)
+#         self.unit_sph_voronoi = SphericalVoronoi(self.o_grid, radius=1, threshold=10 ** -UNIQUE_TOL)
+#         if self.using_detailed_grid:
+#             dense_points = random_sphere_points(5000)
+#         else:
+#             dense_points = None
+#         super().__init__(additional_points=dense_points, **kwargs)
+
 
 # class PositionVoronoi(AbstractVoronoi):
 #
