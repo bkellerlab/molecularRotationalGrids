@@ -522,3 +522,33 @@ def exact_area_of_spherical_polygon(vertices: NDArray, r: float = 1) -> float:
         area = 4 * pi * r**2 - area
     assert area >= 0, f"Area cannot be negative!"
     return area
+
+
+def k_argmin_in_array(my_array: NDArray, k: int):
+    """
+    Of all the values in the array, find the indices of the k smallest values.
+
+    Args:
+        my_array (): array in which to search
+        k (): number of results
+
+    Returns:
+        k indices indicating smallest item, second smallest etc
+    """
+
+    idx = np.argpartition(my_array, k)
+    return idx[:k]
+
+
+def k_argmax_in_array(my_array: NDArray, k: int):
+    """
+    Of all the values in the array, find the indices of the k largest values.
+
+    Args:
+        my_array (): array in which to search
+        k (): number of results
+
+    Returns:
+        k indices indicating larges item, second largest etc
+    """
+    return np.argpartition(my_array, -k)[-k:]

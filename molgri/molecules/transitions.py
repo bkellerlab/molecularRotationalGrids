@@ -11,6 +11,7 @@ import numpy as np
 from numpy.typing import NDArray
 from scipy.sparse.linalg import eigs
 from scipy.constants import k as kB
+from scipy.constants import N_A
 from tqdm import tqdm
 
 from molgri.wrappers import save_or_use_saved
@@ -62,7 +63,7 @@ class TransitionModel(ABC):
         self.tau_array = tau_array
         self.use_saved = use_saved
         _, self.assignments = self.sim_hist.get_all_assignments()
-        self.num_cells = len(self.sim_hist.full_grid.get_flat_position_grid())
+        self.num_cells = len(self.sim_hist.full_grid.get_full_grid_as_array())
         self.num_tau = len(self.tau_array)
         self.transition_matrix = None
 
@@ -76,7 +77,7 @@ class TransitionModel(ABC):
         point energy calculations.
 
         Returns:
-            an array of shape (num_tau, num_cells, num_cells) for MSM or (n1, num_cells, num_cells) for SQRA
+            an array of shape (num_tau, num_cells, num_cells) for MSM or (1, num_cells, num_cells) for SQRA
         """
         pass
 
@@ -211,6 +212,9 @@ class SQRA(TransitionModel):
         tau_array = np.array([1])
         self.energy_type = energy_type
         super().__init__(sim_hist, tau_array=tau_array, **kwargs)
+        len_fgrid = len(self.sim_hist.full_grid.get_full_grid_as_array())
+        if len(sim_hist.parsed_trajectory.energies.get_energies(energy_type)) == len_fgrid:
+            self.assignments = np.arange(len_fgrid)
 
     @save_or_use_saved
     def get_transitions_matrix(self, D: float = 1, T=273) -> NDArray:
@@ -229,11 +233,10 @@ class SQRA(TransitionModel):
             is expanded to be compatible with the MSM model)
         """
         if self.transition_matrix is None:
-            voronoi_grid = self.sim_hist.full_grid.get_full_voronoi_grid()
-            all_volumes = voronoi_grid.get_all_voronoi_volumes()
+            all_volumes = self.sim_hist.full_grid.get_total_volumes()
             # TODO: move your work to sparse matrices at some point?
-            all_surfaces = voronoi_grid.get_all_voronoi_surfaces_as_numpy()
-            all_distances = voronoi_grid.get_all_distances_between_centers_as_numpy()
+            all_surfaces = self.sim_hist.full_grid.get_full_borders().toarray()
+            all_distances = self.sim_hist.full_grid.get_full_distances().toarray()
             # energies are either NaN (calculation in that cell was not completed or the particle left the cell during
             # optimisation) or they are the arithmetic average of all energies of COM assigned to that cell.
             all_energies = np.empty(shape=(self.num_cells,))
@@ -250,15 +253,17 @@ class SQRA(TransitionModel):
             self.transition_matrix = np.divide(D * all_surfaces, all_distances, out=np.zeros_like(D * all_surfaces),
                                     where=all_distances!=0)
 
+
             for i, _ in enumerate(self.transition_matrix):
                 divide_by = all_volumes[i]
                 self.transition_matrix[i] = np.divide(self.transition_matrix[i], divide_by,
                                                       out=np.zeros_like(self.transition_matrix[i]),
                                          where=(divide_by != 0 and divide_by != np.NaN))
+
             for j, _ in enumerate(self.transition_matrix):
                 for i, _ in enumerate(self.transition_matrix):
                     # gromacs uses kJ/mol as energy unit, boltzmann constant is J/K
-                    multiply_with = np.exp((all_energies[i]-all_energies[j])*1000/(2*kB*T))
+                    multiply_with = np.exp((all_energies[i]-all_energies[j])*1000/(2*kB*N_A*T))
                     self.transition_matrix[i, j] = np.multiply(self.transition_matrix[i, j], multiply_with,
                                                                out=np.zeros_like(self.transition_matrix[i, j]),
                                                where=multiply_with != np.NaN)
@@ -274,21 +279,34 @@ class SQRA(TransitionModel):
 
 if __name__ == "__main__":
     import pandas as pd
-    from molgri.molecules.parsers import FileParser, ParsedEnergy
+    from molgri.molecules.parsers import FileParser, ParsedEnergy, XVGParser
+    import MDAnalysis as mda
+    from molgri.space.utils import k_argmin_in_array
+
+    my_num = "0099"
 
     # preparing the parsed trajectory
-    path_energy = "/home/mdglasius/Modelling/trypsin_normal/nobackup/outputs/data.txt"
-    df = pd.read_csv(path_energy)
-    energies = df['Potential Energy (kJ/mole)'].to_numpy()[:, np.newaxis]
-    pe = ParsedEnergy(energies=energies, labels=["Potential Energy"], unit="(kJ/mole)")
+    my_parser = XVGParser(f"/home/hanaz63/nobackup/gromacs/H2O_H2O_{my_num}/H2O_H2O_{my_num}.xvg")
+    pe = my_parser.get_parsed_energy()  # .get_energies("Disper. corr.")
     pt_parser = FileParser(
-        path_topology="/home/mdglasius/Modelling/trypsin_normal/inputs/trypsin_probe.pdb",
-        path_trajectory="/home/mdglasius/Modelling/trypsin_normal/nobackup/outputs/aligned_traj.dcd")
-    parsed_trajectory = pt_parser.get_parsed_trajectory(default_atom_selection="segid B")
+        path_topology=f"/home/hanaz63/nobackup/gromacs/H2O_H2O_{my_num}/H2O_H2O_{my_num}.gro",
+        path_trajectory=f"/home/hanaz63/nobackup/gromacs/H2O_H2O_{my_num}/H2O_H2O_{my_num}.xtc")
+    parsed_trajectory = pt_parser.get_parsed_trajectory(default_atom_selection="bynum 4:6")
     parsed_trajectory.energies = pe
 
-    # preparing the grid
-    fg = FullGrid(t_grid_name="[5, 10, 15]", o_grid_name="ico_100", b_grid_name="zero")
+    energ = pe.get_energies("Potential")
 
-    sh = SimulationHistogram(parsed_trajectory, fg)
-    my_msm = MSM(sh, tau_array=np.array([10, 50, 100]), use_saved=False)
+
+    # if the len of pt == len of fg then you can just assign 1 to 1
+
+    fg = FullGrid(o_grid_name="12", b_grid_name="8", t_grid_name="linspace(0.2, 0.5, 10)", use_saved=True)
+    #fg = FullGrid(o_grid_name="42", b_grid_name="40", t_grid_name="linspace(0.2, 0.5, 20)", use_saved=True)
+    print(len(energ), len(fg.get_full_grid_as_array()))
+
+    sim_hist = SimulationHistogram(parsed_trajectory, full_grid=fg)
+    #print(sim_hist.get_all_assignments())
+
+    u = mda.Universe(f"/home/hanaz63/nobackup/gromacs/H2O_H2O_{my_num}/H2O_H2O_{my_num}.gro",
+                     f"/home/hanaz63/nobackup/gromacs/H2O_H2O_{my_num}/H2O_H2O_{my_num}.xtc")
+    sqra = SQRA(sim_hist)
+    my_rates = sqra.get_transitions_matrix()

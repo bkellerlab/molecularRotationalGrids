@@ -43,6 +43,9 @@ class PtIOManager:
             output_name: select the name under which all associated files will be saved (if None use names of molecules)
         """
         # parsing input files
+        self.o_grid_name = o_grid_name
+        self.b_grid_name = b_grid_name
+        self.t_grid_name = t_grid_name
         central_file_path = f"{PATH_INPUT_BASEGRO}{name_central_molecule}"
         self.central_parser = FileParser(central_file_path)
         rotating_file_path = f"{PATH_INPUT_BASEGRO}{name_rotating_molecule}"
@@ -119,6 +122,7 @@ class PtIOManager:
         logger = pt_logger.logger
         logger.info(f"central molecule: {self.central_parser.get_topology_file_name()}")
         logger.info(f"rotating molecule: {self.rotating_parser.get_topology_file_name()}")
+        logger.info(f"input grid parameters: {self.o_grid_name} {self.b_grid_name} {self.t_grid_name}")
         logger.info(f"full grid name: {self.pt.get_full_grid().get_name()}")
         logger.info(f"full grid coordinates:\n{self.pt.get_full_grid().get_full_grid_as_array()}")
         logger.info(f"translation grid [A]: {self.pt.get_full_grid().get_radii()}")
