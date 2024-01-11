@@ -327,7 +327,7 @@ class XVGParser(object):
         return self.all_values
 
     def get_all_labels(self) -> tuple:
-        result = []
+        result = ["None"]
         with open(self.path_name, "r") as f:
             for line in f:
                 # parse column number
@@ -368,6 +368,7 @@ class XVGParser(object):
                   f"column instead.")
             column_label = "XVG column 1"
             correct_column = 1
+        print(column_label, correct_column)
         return column_label, correct_column
 
 

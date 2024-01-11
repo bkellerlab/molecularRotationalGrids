@@ -75,6 +75,21 @@ class FullGrid:
     def get_position_grid(self):
         return self.position_grid
 
+    def get_total_volumes(self):
+        """
+        Return 6D volume of a particular point obtained from multiplying position space region and orientation space
+        region.
+
+        """
+        pos_volumes = self.get_position_grid().get_all_position_volumes()
+        ori_volumes = self.b_rotations.get_spherical_voronoi().get_voronoi_volumes()
+
+        all_volumes = []
+        for o_rot in pos_volumes:
+            for b_rot in ori_volumes:
+                all_volumes.append(o_rot*b_rot)
+        return all_volumes
+
     def get_between_radii(self):
         return get_between_radii(self.t_grid.get_trans_grid())
 
@@ -155,45 +170,58 @@ class FullGrid:
         indices = indices[~np.isnan(indices)]
         return valid_points, indices.astype(int)
 
+
     def get_full_adjacency(self):
+        return self._get_N_N(sel_property="adjacency")
+
+    def get_full_distances(self):
+        return self._get_N_N(sel_property="center_distances")
+
+    def get_full_borders(self):
+        return self._get_N_N(sel_property="border_len")
+
+    def _get_N_N(self, sel_property="adjacency"):
         full_sequence = self.get_full_grid_as_array()
         n_total = len(full_sequence)
         n_o = self.o_rotations.get_N()
         n_b = self.b_rotations.get_N()
         n_t = self.t_grid.get_N_trans()
 
-        position_adjacency = self.position_grid.get_adjacency_of_position_grid().toarray()
+        position_adjacency = self.position_grid._get_N_N_position_array(sel_property=sel_property).toarray()
         if n_b > 1:
-            orientation_adjacency = self.b_rotations.get_voronoi_adjacency(only_upper=True,
-                                                                           include_opposing_neighbours=True)
+            orientation_adjacency = self.b_rotations.get_spherical_voronoi()._calculate_N_N_array(sel_property=sel_property)
         else:
-            orientation_adjacency = coo_array([False], shape=(1,1))
+            orientation_adjacency = coo_array([False], shape=(1, 1))
 
         row = []
         col = []
+        values = []
 
         for i, line in enumerate(position_adjacency):
             for j, el in enumerate(line):
                 if el:
                     for k in range(n_b):
-                        row.append(n_b*i+k)
-                        col.append(n_b*j+k)
-        same_orientation_neighbours = coo_array(([True,]*len(row), (row, col)), shape=(n_total, n_total),
+                        row.append(n_b * i + k)
+                        col.append(n_b * j + k)
+                        values.append(el)
+        same_orientation_neighbours = coo_array((values, (row, col)), shape=(n_total, n_total),
                                                 dtype=bool)
 
         # along the diagonal blocks of size n_o*n_t that are neighbours exactly if their quaternions are neighbours
         if n_t * n_o > 1:
             my_blocks = [orientation_adjacency]
-            my_blocks.extend([None, ] * (n_t*n_o))
-            my_blocks = my_blocks * (n_t*n_o)
-            my_blocks = my_blocks[:-(n_t*n_o)]
+            my_blocks.extend([None, ] * (n_t * n_o))
+            my_blocks = my_blocks * (n_t * n_o)
+            my_blocks = my_blocks[:-(n_t * n_o)]
             my_blocks = np.array(my_blocks, dtype=object)
-            my_blocks = my_blocks.reshape((n_t*n_o), (n_t*n_o))
+            my_blocks = my_blocks.reshape((n_t * n_o), (n_t * n_o))
             same_position_neighbours = bmat(my_blocks, dtype=float)
         else:
             return coo_array(orientation_adjacency)
         all_neighbours = same_position_neighbours + same_orientation_neighbours
         return all_neighbours
+
+
 
 
 class PositionGrid:
@@ -250,7 +278,7 @@ class PositionGrid:
         return cumulative_volumes
 
 
-    def _get_N_N_position_array(self, property="adjacency"):
+    def _get_N_N_position_array(self, sel_property="adjacency"):
         flat_pos_grid = self.get_position_grid_as_array()
         n_points = len(flat_pos_grid)  # equals n_o*n_t
         n_o = self.o_rotations.get_N()
@@ -263,14 +291,14 @@ class PositionGrid:
         # always be neighbours, so we need the off-diagonals by n_o and -n_o
         # Most points have two neighbours this way, first and last layer have only one
 
-        if property == "adjacency":
+        if sel_property == "adjacency":
             my_diags = (True,)
             my_dtype = bool
             # within a layer
             neig = self.o_rotations.get_voronoi_adjacency(only_upper=False, include_opposing_neighbours=False).toarray()
             # what to multipy with in higher layers
             multiply = np.ones(n_t)
-        elif property == "border":         # TODO TODO TODO
+        elif sel_property == "border_len":         # TODO TODO TODO
             my_diags  = []
             radius_1_areas = self.o_rotations.get_spherical_voronoi().get_voronoi_volumes()
             # last layer doesn't have a border up
@@ -282,7 +310,7 @@ class PositionGrid:
             # area is angle/2pi  * pi r**2
             subtracted_radii = np.array([0, *between_radii[:-1]])
             multiply = between_radii ** 2 / 2 - subtracted_radii**2/2  # need to subtract area of previous level
-        elif property == "distance":
+        elif sel_property == "center_distances":
             # n_o elements will have the same distance
             increments = self.t_grid.get_increments()
             my_diags = _t_and_o_2_positions(np.ones(len(self.o_rotations)), increments) # todo: test
@@ -292,7 +320,7 @@ class PositionGrid:
                                                                           include_opposing_neighbours=False).toarray()
             multiply = self.get_radii()
         else:
-            raise ValueError(f"Not recognised argument property={property}")
+            raise ValueError(f"Not recognised argument property={sel_property}")
 
         same_ray_neighbours = diags(my_diags, offsets=n_o, shape=(n_points, n_points), dtype=my_dtype,
                                           format="coo")
@@ -341,13 +369,13 @@ class PositionGrid:
             a diagonally-symmetric boolean sparse matrix where entries are True if neighbours and False otherwise
 
         """
-        return self._get_N_N_position_array(property="adjacency")
+        return self._get_N_N_position_array(sel_property="adjacency")
 
     def get_borders_of_position_grid(self) -> coo_array:
-        return self._get_N_N_position_array(property="border")
+        return self._get_N_N_position_array(sel_property="border_len")
 
     def get_distances_of_position_grid(self) -> coo_array:
-        return self._get_N_N_position_array(property="distance")
+        return self._get_N_N_position_array(sel_property="center_distances")
 
 
 
@@ -439,23 +467,32 @@ def _t_and_o_2_positions(o_property, t_property):
 
 
 if __name__ == "__main__":
-    n_o = 2
-    n_b = 3
-    fg = FullGrid(f"randomQ_{n_b}", f"randomS_{n_o}", "linspace(0.1, 0.5, 2)", use_saved=False)
+    b_grid = "8"
+    o_grid = "12"
+    t_grid = "linspace(0.1, 0.4, 3)"
+    fg = FullGrid(b_grid_name=b_grid, o_grid_name=o_grid, t_grid_name=t_grid, use_saved=True)
     np.set_printoptions(precision=3)
-    print(fg.get_full_grid_as_array())
+    my_vols = fg.get_total_volumes()
+    print(get_between_radii(fg.get_t_grid().get_trans_grid()))
+    print(np.sum(my_vols))
+    my_pos_dis = fg.get_position_grid().get_distances_of_position_grid()
+    my_ori_dis = fg.b_rotations.get_spherical_voronoi().get_center_distances()
+    print("Pos dist", my_pos_dis)
+    print("Ori dist", my_ori_dis)
 
-    # position_adjacency = fg.get_adjacency_of_position_grid().toarray()
-    # orientation_adjacency = fg.get_adjacency_of_orientation_grid().toarray()
-    # full_adjacency = fg.get_full_adjacency().toarray()
-    #
-    # fig, ax = plt.subplots(1, 3, figsize=(30, 10))
-    # sns.heatmap(position_adjacency, cmap="gray", ax=ax[0])
-    # sns.heatmap(orientation_adjacency, cmap="gray", ax=ax[1])
-    # sns.heatmap(full_adjacency, cmap="gray", ax=ax[2])
-    # ax[0].set_title("Position adjacency")
-    # ax[1].set_title("Orientation adjacency")
-    # ax[2].set_title("Full adjacency")
-    # plt.tight_layout()
-    # plt.show()
+    import seaborn as sns
+    import matplotlib.pyplot as plt
+
+    my_array = fg.get_full_adjacency().toarray()
+
+    sns.heatmap(my_array, cmap="gray", xticklabels=False, yticklabels=False)
+    plt.show()
+
+    my_array = fg.get_full_distances().toarray()
+
+    sns.heatmap(my_array, cmap="plasma", xticklabels=False, yticklabels=False)
+    plt.show()
+
+
+
 

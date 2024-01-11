@@ -152,7 +152,7 @@ class AbstractVoronoi(ABC):
         return np.array([my_convex_hull.area / 2 for my_convex_hull in all_hulls])
 
     def get_voronoi_adjacency(self, **kwargs) -> coo_array:
-        return self._calculate_N_N_array(property="adjacency", **kwargs)
+        return self._calculate_N_N_array(sel_property="adjacency", **kwargs)
 
     def get_center_distances(self, **kwargs) -> coo_array:
         """
@@ -162,7 +162,7 @@ class AbstractVoronoi(ABC):
         Returns:
 
         """
-        return self._calculate_N_N_array(property="center_distances", **kwargs)
+        return self._calculate_N_N_array(sel_property="center_distances", **kwargs)
 
     def get_cell_borders(self, **kwargs) -> coo_array:
         """
@@ -172,7 +172,7 @@ class AbstractVoronoi(ABC):
         Returns:
 
         """
-        return self._calculate_N_N_array(property="border_len", **kwargs)
+        return self._calculate_N_N_array(sel_property="border_len", **kwargs)
 
     def _calculate_center_distances(self, index_1: int, index_2: int):
         pass
@@ -180,7 +180,7 @@ class AbstractVoronoi(ABC):
     def _calculate_borders(self, index_1: int, index_2: int):
         pass
 
-    def _calculate_N_N_array(self, property="adjacency", **kwargs):
+    def _calculate_N_N_array(self, sel_property="adjacency", **kwargs):
         reduced_regions = self.get_all_voronoi_regions(reduced=True)
 
         # prepare for adjacency matrix
@@ -195,16 +195,16 @@ class AbstractVoronoi(ABC):
             if len(set_1.intersection(set_2)) >= self.get_dim() - 1:
                 rows.extend([index_tuple[0], index_tuple[1]])
                 columns.extend([index_tuple[1], index_tuple[0]])
-                if property == "adjacency":
+                if sel_property == "adjacency":
                     elements.extend([True, True])
-                elif property == "center_distances":
+                elif sel_property == "center_distances":
                     dist = self._calculate_center_distances(*index_tuple)
                     elements.extend([dist, dist])
-                elif property == "border_len":
+                elif sel_property == "border_len":
                     dist = self._calculate_borders(*index_tuple)
                     elements.extend([dist, dist])
                 else:
-                    raise ValueError(f"Didn't understand the argument property={property}.")
+                    raise ValueError(f"Didn't understand the argument property={sel_property}.")
         N = len(self.get_all_voronoi_centers())
         adj_matrix = coo_array((elements, (rows, columns)), shape=(N, N))
         return adj_matrix
@@ -361,9 +361,9 @@ class HalfRotobjVoronoi(RotobjVoronoi):
         all_volumes = self.full_voronoi.get_voronoi_volumes(approx=approx)
         return np.array([all_volumes[i] for i in self._get_upper_indices()])
 
-    def _calculate_N_N_array(self, property="adjacency", only_upper=True, include_opposing_neighbours=True):
+    def _calculate_N_N_array(self, sel_property="adjacency", only_upper=True, include_opposing_neighbours=True):
         # warning! here use self.full_voronoi NOT super() to calculate the adj on full sphere
-        adj_matrix = self.full_voronoi._calculate_N_N_array(property=property).toarray()
+        adj_matrix = self.full_voronoi._calculate_N_N_array(sel_property=sel_property).toarray()
 
         if include_opposing_neighbours:
             all_grid = self.spherical_voronoi.points
