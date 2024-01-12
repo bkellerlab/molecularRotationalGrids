@@ -340,22 +340,22 @@ def test_full_and_half():
 
             # test adjacency, lengths, borders
             for my_property in ["adjacency", "center_distances", "border_len"]:
-                adj_full = my_voronoi_full._calculate_N_N_array(property=my_property).toarray()
-                adj_half = my_voronoi_half._calculate_N_N_array(property=my_property).toarray()
+                adj_full = my_voronoi_full._calculate_N_N_array(sel_property=my_property).toarray()
+                adj_half = my_voronoi_half._calculate_N_N_array(sel_property=my_property).toarray()
                 assert adj_full.shape == (2*size, 2*size)
                 assert adj_half.shape == (size, size)
                 # num of neighbours on average same in full sphere and half sphere with opposite neighbours
                 assert np.isclose(np.average(np.sum(adj_full, axis=0)), np.average(np.sum(adj_half, axis=0)), atol=0.2,
                                   rtol=0.01)
                 # if you select only_upper=False, include_opposing_neighbours=False, it's the same as full grid
-                option2 = my_voronoi_half._calculate_N_N_array(property=my_property,
+                option2 = my_voronoi_half._calculate_N_N_array(sel_property=my_property,
                                                                only_upper=False,
                                                                include_opposing_neighbours=False).toarray()
                 assert np.allclose(option2, adj_full)
                 # if you select only_upper=True, include_opposing_neighbours=False, you should get the upper left
                 # corner of full
                 # adjacency array
-                option3 = my_voronoi_half._calculate_N_N_array(property=my_property, only_upper=True,
+                option3 = my_voronoi_half._calculate_N_N_array(sel_property=my_property, only_upper=True,
                                                                 include_opposing_neighbours=False).toarray()
                 assert np.allclose(option3, adj_full[:size, :size])
 
