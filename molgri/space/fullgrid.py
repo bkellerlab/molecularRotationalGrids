@@ -158,6 +158,9 @@ class FullGrid:
 
         layer_len = len(rot_points)
         indices = layers * layer_len + indices_within_layer
+
+        # determine the closest orientation
+        available_quats = self.b_rotations.
         return indices
 
     def nan_free_assignments(self, points_vector: NDArray) -> Tuple[NDArray, NDArray]:

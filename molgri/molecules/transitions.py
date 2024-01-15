@@ -38,16 +38,21 @@ class SimulationHistogram:
 
     def get_all_assignments(self) -> Tuple[NDArray, NDArray]:
         """
-        For each step in the trajectory assign which cell it belongs to. Uses the default atom selection of the
-        ParsedTrajectory object.
+        For each step in the trajectory assign which cell of the self.fg it belongs to. Uses the default atom selection
+        of the ParsedTrajectory object to determine the .
 
         Returns:
             (all centers of mass within grid, all assignments to grid cells)
         """
-        atom_selection = self.parsed_trajectory.default_atom_selection
-        # if you do nan_free, your tau may not be correct anymore because several steps in-between may be missing
-        return self.parsed_trajectory.assign_coms_2_grid_points(self.full_grid, atom_selection=atom_selection,
-                                                                nan_free=False)
+        # first step: make sure all movements of the second molecule are seen as relative to a fixed first molecule
+
+        # second step: determine to which position grid cell the COM of the moving molecule belongs to
+        #atom_selection = self.parsed_trajectory.default_atom_selection
+        coms_per_frame = self.parsed_trajectory.get_all_COM()
+
+        assignments = self.full_grid.point2cell_position_grid(coms_per_frame)
+
+        return assignments
 
 
 class TransitionModel(ABC):
@@ -283,30 +288,23 @@ if __name__ == "__main__":
     import MDAnalysis as mda
     from molgri.space.utils import k_argmin_in_array
 
-    my_num = "0099"
+    my_path = "D:\HANA\phD\PAPER_2022\molecularRotationalGrids\output\H2O_H2O_0095_2000\\"
+    topology = f"{my_path}H2O_H2O_0095.gro"
+    coordinates = f"{my_path}fitted_output.xtc"
+    energy = f"{my_path}full_energy.xvg"
 
     # preparing the parsed trajectory
-    my_parser = XVGParser(f"/home/hanaz63/nobackup/gromacs/H2O_H2O_{my_num}/H2O_H2O_{my_num}.xvg")
-    pe = my_parser.get_parsed_energy()  # .get_energies("Disper. corr.")
+    my_parser = XVGParser(energy)
+    pe = my_parser.get_parsed_energy()
     pt_parser = FileParser(
-        path_topology=f"/home/hanaz63/nobackup/gromacs/H2O_H2O_{my_num}/H2O_H2O_{my_num}.gro",
-        path_trajectory=f"/home/hanaz63/nobackup/gromacs/H2O_H2O_{my_num}/H2O_H2O_{my_num}.xtc")
+        path_topology=topology,
+        path_trajectory=coordinates)
     parsed_trajectory = pt_parser.get_parsed_trajectory(default_atom_selection="bynum 4:6")
     parsed_trajectory.energies = pe
 
-    energ = pe.get_energies("Potential")
+    fg = FullGrid(o_grid_name="12", b_grid_name="8", t_grid_name="linspace(0.2, 1, 20)", use_saved=True)
 
 
-    # if the len of pt == len of fg then you can just assign 1 to 1
-
-    fg = FullGrid(o_grid_name="12", b_grid_name="8", t_grid_name="linspace(0.2, 0.5, 10)", use_saved=True)
-    #fg = FullGrid(o_grid_name="42", b_grid_name="40", t_grid_name="linspace(0.2, 0.5, 20)", use_saved=True)
-    print(len(energ), len(fg.get_full_grid_as_array()))
-
-    sim_hist = SimulationHistogram(parsed_trajectory, full_grid=fg)
-    #print(sim_hist.get_all_assignments())
-
-    u = mda.Universe(f"/home/hanaz63/nobackup/gromacs/H2O_H2O_{my_num}/H2O_H2O_{my_num}.gro",
-                     f"/home/hanaz63/nobackup/gromacs/H2O_H2O_{my_num}/H2O_H2O_{my_num}.xtc")
-    sqra = SQRA(sim_hist)
-    my_rates = sqra.get_transitions_matrix()
+    sm = SimulationHistogram(parsed_trajectory, fg)
+    my_array1 = sm.get_all_assignments()
+    print(np.where(my_array1==74))

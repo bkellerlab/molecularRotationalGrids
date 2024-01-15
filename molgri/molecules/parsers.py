@@ -10,6 +10,7 @@ ParsedTrajectory. Those are the objects that other modules should access.
 """
 
 import os
+from copy import copy
 from pathlib import Path
 from typing import Generator, Tuple, List, Callable
 
@@ -390,32 +391,6 @@ class ParsedTrajectory:
             atom_selection = self.default_atom_selection
         return len(self.get_unique_com(energy_type=energy_type, atom_selection=atom_selection)[0])
 
-    def assign_coms_2_grid_points(self, full_grid: FullGrid, atom_selection=None, coms=None,
-                                  nan_free=False) -> Tuple[NDArray, NDArray]:
-        """
-        Given a simulation, select centres of mass of a subset of atoms (eg. one of the molecules and assign them
-        to the Voronoi cells of a selected position grid. This is useful to see what part of position space a
-        classical simulation has covered or to see which molecules moved out of their original grid point area
-        after a short optimisation.
-
-        Args:
-            full_grid: to which full grid the COMs should be fitted
-            atom_selection: used to select the atom belonging to the wished group
-
-        Returns:
-            an array of numbers, length the same as the length of the parsed trajectory, each number represents the
-            index of the point in the flattened position grid of the full_grid that is closest to this COM.
-        """
-        if atom_selection is None:
-            atom_selection = self.default_atom_selection
-        if coms is None:
-            coms = self.get_all_COM(atom_selection=atom_selection)
-        if nan_free:
-            # remove NaNs and convert the rest to int
-            return full_grid.nan_free_assignments(coms)
-        else:
-            return coms, full_grid.point2cell_position_grid(coms)
-
     def set_c_r(self, c_num: int, r_num: int):
         self.c_num = c_num
         self.r_num = r_num
@@ -431,6 +406,15 @@ class ParsedTrajectory:
             all_com.append(mol.get_center_of_mass())
         all_com = np.array(all_com)
         return all_com
+
+    def get_all_quaternions(self, atom_selection=None) -> NDArray:
+        if atom_selection is None:
+            atom_selection = self.default_atom_selection
+        all_quat = []
+        for mol in self.molecule_generator(atom_selection):
+            all_quat.append(mol.get_quaternion())
+        all_quat = np.array(all_quat)
+        return all_quat
 
     def get_name(self):
         return self.name
@@ -506,34 +490,9 @@ class ParsedTrajectory:
 
 if __name__ == "__main__":
     import matplotlib.pyplot as plt
-    # SIMULATION
-    path_energy = "/home/mdglasius/Modelling/trypsin_normal/nobackup/outputs/data.txt"
-    df = pd.read_csv(path_energy)
-    energies = df['Potential Energy (kJ/mole)'].to_numpy()[:, np.newaxis]
-    pe = ParsedEnergy(energies=energies, labels=["Potential Energy"], unit="(kJ/mole)")
-    pt_parser = FileParser(
-             path_topology="/home/mdglasius/Modelling/trypsin_normal/inputs/trypsin_probe.pdb",
-             path_trajectory="/home/mdglasius/Modelling/trypsin_normal/nobackup/outputs/aligned_traj.dcd")
-    print(pt_parser.get_dt())
-    parsed_trajectory = pt_parser.get_parsed_trajectory()
-    parsed_trajectory.energies = pe
-    #fg = FullGrid(t_grid_name="linspace(0.8, 2.5, 8)", o_grid_name="ico_512", b_grid_name="zero")
-    fg = FullGrid(t_grid_name="[5, 10, 15]", o_grid_name="ico_100", b_grid_name="zero")
-    coms, assignments = parsed_trajectory.assign_coms_2_grid_points(full_grid=fg, atom_selection="segid B")
-    num_cells_visited = len(np.unique(assignments))
-    num_cells_total = len(fg.get_flat_position_grid())
-    print(f"Percentage of non-empty cells: {np.round(num_cells_visited/num_cells_total * 100, 2)}%")
-    # import seaborn as sns
-    # import matplotlib.pyplot as plt
-    # bins = np.arange(0, len(fg.get_flat_position_grid()))
-    # sns.histplot(assignments, bins=bins)
-    # sns.scatterplot(x=assignments, y=energies.squeeze(), ax=plt.gca().twinx())
-    # plt.show()
-    # from molgri.plotting.molecule_plots import TrajectoryPlot
-    # from molgri.plotting.fullgrid_plots import PositionGridPlot
-    # tp = TrajectoryPlot(parsed_trajectory)
-    # #tp.make_COM_plot(atom_selection="segid B", animate_rot=True)
-    # tp.make_energy_COM_plot(atom_selection="segid B", animate_rot=False, energy_type="Potential Energy",
-    #                         projection="3d", save=False)
-    # fg = PositionGridPlot(fg)
-    # fg.make_full_voronoi_plot(ax=tp.ax, fig=tp.fig, animate_rot=True, plot_vertex_points=False)
+
+    my_path = "D:\HANA\phD\PAPER_2022\molecularRotationalGrids\output\H2O_H2O_0095_10000\\"
+    topology = f"{my_path}H2O_H2O_0095.gro"
+    coordinates = f"{my_path}fitted_output3.xtc"
+    energy = f"{my_path}full_energy.xvg"
+
