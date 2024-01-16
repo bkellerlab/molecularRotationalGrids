@@ -56,6 +56,9 @@ class FullGrid:
             t_grid_name: of the form '[1, 3, 4.5]'
             use_saved: try to obtain saved data if possible
         """
+        self.b_grid_name = b_grid_name
+        self.o_grid_name = o_grid_name
+        self.t_grid_name = t_grid_name
         b_grid_name = GridNameParser(b_grid_name, "b")
         self.b_rotations = SphereGrid4DFactory.create(alg_name=b_grid_name.get_alg(), N=b_grid_name.get_N(),
                                                       use_saved=use_saved)
@@ -127,52 +130,6 @@ class FullGrid:
                 result[current_index][3:] = b_rot
                 current_index += 1
         return result
-
-    def point2cell_position_grid(self, points_vector: NDArray) -> NDArray:
-        """
-        This method is used to back-map any points in 3D space to their corresponding Voronoi cell indices (of position
-        grid). This means that, given an array of shape (k, 3) as points_vector, the result
-        will be a vector of length k in which each item is an index of the flattened position grid. The point falls
-        into the Voronoi cell associated with this index.
-        """
-        # determine index within a layer - the layer grid point to which the point vectors are closest
-        rot_points = self.o_rotations.get_grid_as_array()
-        # this automatically select the one of angles that is < pi
-        angles = angle_between_vectors(points_vector, rot_points)
-        indices_within_layer = np.argmin(angles, axis=1)
-
-        # determine radii of cells
-        norms = norm_per_axis(points_vector)
-        layers = np.zeros((len(points_vector),))
-        vor_radii = get_between_radii(self.t_grid.get_trans_grid())
-
-        # find the index of the layer to which each point belongs
-        for i, norm in enumerate(norms):
-            for j, vor_rad in enumerate(vor_radii):
-                # because norm keeps the shape of the original array
-                if norm[0] < vor_rad:
-                    layers[i] = j
-                    break
-            else:
-                layers[i] = np.NaN
-
-        layer_len = len(rot_points)
-        indices = layers * layer_len + indices_within_layer
-
-        # determine the closest orientation
-        available_quats = self.b_rotations.
-        return indices
-
-    def nan_free_assignments(self, points_vector: NDArray) -> Tuple[NDArray, NDArray]:
-        """
-        Same as point2cell_position_grid, but remove any cells that don't belong to the grid. In this way, there are no
-        NaNs in the assignment array and it can be converted to the integer type
-        """
-        indices = self.point2cell_position_grid(points_vector)
-        valid_points = points_vector[~np.isnan(indices)]
-        indices = indices[~np.isnan(indices)]
-        return valid_points, indices.astype(int)
-
 
     def get_full_adjacency(self):
         return self._get_N_N(sel_property="adjacency")

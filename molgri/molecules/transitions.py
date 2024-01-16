@@ -8,15 +8,24 @@ from abc import ABC, abstractmethod
 from typing import Tuple, Sequence, Any
 
 import numpy as np
+import MDAnalysis as mda
+from MDAnalysis.analysis.rms import rmsd
+from MDAnalysis.analysis.base import AnalysisFromFunction
+from MDAnalysis.coordinates.memory import MemoryReader
+from molgri.molecules.writers import PtIOManager
+
+from molgri.molecules.pts import Pseudotrajectory
 from numpy.typing import NDArray
 from scipy.sparse.linalg import eigs
-from scipy.constants import k as kB
-from scipy.constants import N_A
+from scipy.constants import k as kB, N_A
+from scipy.spatial.distance import cdist
 from tqdm import tqdm
 
+from molgri.space.translations import get_between_radii
 from molgri.wrappers import save_or_use_saved
-from molgri.molecules.parsers import ParsedTrajectory
+from molgri.molecules.parsers import ParsedEnergy, ParsedTrajectory
 from molgri.space.fullgrid import FullGrid
+from molgri.paths import PATH_OUTPUT_PT
 
 
 class SimulationHistogram:
@@ -26,33 +35,110 @@ class SimulationHistogram:
     step can be assigned to a cell and the occupancy of those cells evaluated.
     """
 
-    def __init__(self, parsed_trajectory: ParsedTrajectory, full_grid: FullGrid):
-        self.parsed_trajectory = parsed_trajectory
+    def __init__(self, trajectory_path: str, trajectory_name: str, full_grid: FullGrid, energies: ParsedEnergy,
+                 second_molecule_selection):
+        self.trajectory_name = trajectory_name
+        self.second_molecule_selection = second_molecule_selection
+        split_name = trajectory_name.split("_")
+        self.m1_name = split_name[0]
+        self.m2_name = split_name[1]
+        self.trajectory_universe = mda.Universe(f"{trajectory_path}{trajectory_name}.gro",
+                                                f"{trajectory_path}fitted_output.xtc")
         self.full_grid = full_grid
+        self.energies = energies
 
     # noinspection PyMissingOrEmptyDocstring
     def get_name(self) -> str:
-        traj_name = self.parsed_trajectory.get_name()
+        traj_name = self.trajectory_name
         grid_name = self.full_grid.get_name()
         return f"{traj_name}_{grid_name}"
 
-    def get_all_assignments(self) -> Tuple[NDArray, NDArray]:
-        """
-        For each step in the trajectory assign which cell of the self.fg it belongs to. Uses the default atom selection
-        of the ParsedTrajectory object to determine the .
 
-        Returns:
-            (all centers of mass within grid, all assignments to grid cells)
-        """
-        # first step: make sure all movements of the second molecule are seen as relative to a fixed first molecule
+    def assign_trajectory_2_quaternion_grid(self):
 
-        # second step: determine to which position grid cell the COM of the moving molecule belongs to
-        #atom_selection = self.parsed_trajectory.default_atom_selection
-        coms_per_frame = self.parsed_trajectory.get_all_COM()
+        def _extract_universe_second_molecule(original_universe, selection_criteria):
+            m2 = original_universe.select_atoms(selection_criteria)
 
-        assignments = self.full_grid.point2cell_position_grid(coms_per_frame)
+            coordinates = AnalysisFromFunction(lambda ag: ag.positions.copy(), m2).run().results['timeseries']
+            u2 = mda.Merge(m2)
+            u2.load_new(coordinates, format=MemoryReader)
+            return u2
 
-        return assignments
+        # create PT on quaternion-only grid
+        manager = PtIOManager(self.m1_name, self.m2_name, o_grid_name="1", b_grid_name=self.full_grid.b_grid_name,
+                              t_grid_name="[0.1]")
+        manager.construct_pt()
+
+        # read the PT universe constructed in previous lines
+        my_pt_name = manager.get_name()
+        pt_sec_mol_universe = mda.Universe(f"{PATH_OUTPUT_PT}{my_pt_name}.gro", f"{PATH_OUTPUT_PT}{my_pt_name}.xtc")
+
+        # in the real and pt trajectory, extract the second molecule and center it without rotating
+        trajectory_universe_m2 = _extract_universe_second_molecule(self.trajectory_universe,
+                                                                   self.second_molecule_selection)
+        pt_universe_m2 = _extract_universe_second_molecule(pt_sec_mol_universe, self.second_molecule_selection)
+        # move them to center - curently doing that later
+        # workflow = [mda.transformations.center_in_box(real_traj_sec_mol.atoms, center="mass", point=(0, 0, 0))]
+        # real_traj_sec_mol.trajectory.add_transformations(*workflow)
+
+        # calculate RMSD between each frame of real trajectory and all reference orientations from PT
+        total_results = []
+        for i, ts in enumerate(pt_universe_m2.trajectory):
+            results = []
+            for j, ts2 in enumerate(trajectory_universe_m2.trajectory):
+                results.append(rmsd(trajectory_universe_m2.trajectory[j].positions,
+                                                     pt_universe_m2.trajectory[i].positions,
+                                                     center=True, weights=trajectory_universe_m2.atoms.masses))
+            total_results.append(results)
+
+        # Of all reference orientations, select the one with the smallest RMSD
+        total_results = np.array(total_results)
+        clases = np.argmin(total_results, axis=0)
+        return clases
+
+    def assign_trajectory_2_position_grid(self):
+
+        coms = AnalysisFromFunction(lambda ag: ag.center_of_mass(),
+                                   self.trajectory_universe.trajectory,
+                                    self.trajectory_universe.select_atoms(self.second_molecule_selection))
+        coms.run()
+
+        points_vector = coms.results['timeseries']
+
+        rot_points = self.full_grid.o_rotations.get_grid_as_array()
+        # this automatically select the one of angles that is < pi
+        angles = angle_between_vectors(points_vector, rot_points)
+        indices_within_layer = np.argmin(angles, axis=1)
+
+        # determine radii of cells
+        norms = norm_per_axis(points_vector)
+        layers = np.zeros((len(points_vector),))
+        vor_radii = get_between_radii(self.full_grid.t_grid.get_trans_grid())
+
+        # find the index of the layer to which each point belongs
+        for i, norm in enumerate(norms):
+            for j, vor_rad in enumerate(vor_radii):
+                # because norm keeps the shape of the original array
+                if norm[0] < vor_rad:
+                    layers[i] = j
+                    break
+            else:
+                layers[i] = np.NaN
+
+        layer_len = len(rot_points)
+        indices = layers * layer_len + indices_within_layer
+
+        # determine the closest orientation
+
+        return indices
+
+    def assign_trajectory_2_full_grid(self):
+        position_assignments = self.assign_trajectory_2_position_grid()
+        quaternion_assignments = self.assign_trajectory_2_quaternion_grid()
+        num_quaternions = self.full_grid.b_rotations.get_N()
+
+        return position_assignments * num_quaternions + quaternion_assignments
+
 
 
 class TransitionModel(ABC):
@@ -67,7 +153,7 @@ class TransitionModel(ABC):
             tau_array = np.array([2, 5, 7, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100, 110, 130, 150, 180, 200])
         self.tau_array = tau_array
         self.use_saved = use_saved
-        _, self.assignments = self.sim_hist.get_all_assignments()
+        self.assignments = self.sim_hist.get_all_assignments()
         self.num_cells = len(self.sim_hist.full_grid.get_full_grid_as_array())
         self.num_tau = len(self.tau_array)
         self.transition_matrix = None
@@ -286,9 +372,9 @@ if __name__ == "__main__":
     import pandas as pd
     from molgri.molecules.parsers import FileParser, ParsedEnergy, XVGParser
     import MDAnalysis as mda
-    from molgri.space.utils import k_argmin_in_array
+    from molgri.space.utils import angle_between_vectors, k_argmin_in_array, norm_per_axis
 
-    my_path = "D:\HANA\phD\PAPER_2022\molecularRotationalGrids\output\H2O_H2O_0095_2000\\"
+    my_path = "/home/hanaz63/nobackup/gromacs/H2O_H2O_0095_2000/"
     topology = f"{my_path}H2O_H2O_0095.gro"
     coordinates = f"{my_path}fitted_output.xtc"
     energy = f"{my_path}full_energy.xvg"
@@ -305,6 +391,8 @@ if __name__ == "__main__":
     fg = FullGrid(o_grid_name="12", b_grid_name="8", t_grid_name="linspace(0.2, 1, 20)", use_saved=True)
 
 
-    sm = SimulationHistogram(parsed_trajectory, fg)
-    my_array1 = sm.get_all_assignments()
-    print(np.where(my_array1==74))
+    sm = SimulationHistogram(my_path, "H2O_H2O_0095", fg, pe, "bynum 4:6")
+
+    pos_grid_assignments = sm.assign_trajectory_2_full_grid()
+    print(np.unique(pos_grid_assignments, return_counts=True))
+

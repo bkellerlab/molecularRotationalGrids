@@ -407,15 +407,6 @@ class ParsedTrajectory:
         all_com = np.array(all_com)
         return all_com
 
-    def get_all_quaternions(self, atom_selection=None) -> NDArray:
-        if atom_selection is None:
-            atom_selection = self.default_atom_selection
-        all_quat = []
-        for mol in self.molecule_generator(atom_selection):
-            all_quat.append(mol.get_quaternion())
-        all_quat = np.array(all_quat)
-        return all_quat
-
     def get_name(self):
         return self.name
 
