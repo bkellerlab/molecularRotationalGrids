@@ -5,6 +5,7 @@ In this module, the two methods of evaluating transitions between states - the M
 implemented.
 """
 from abc import ABC, abstractmethod
+from copy import copy
 from typing import Tuple, Sequence, Any
 
 import numpy as np
@@ -12,20 +13,27 @@ import MDAnalysis as mda
 from MDAnalysis.analysis.rms import rmsd
 from MDAnalysis.analysis.base import AnalysisFromFunction
 from MDAnalysis.coordinates.memory import MemoryReader
+from MDAnalysis.analysis.align import rotation_matrix
+from MDAnalysis.transformations import center_in_box
+
+from build.lib.molgri.rotations import two_vectors2rot
 from molgri.molecules.writers import PtIOManager
 
 from molgri.molecules.pts import Pseudotrajectory
 from numpy.typing import NDArray
 from scipy.sparse.linalg import eigs
+from scipy.spatial.transform import Rotation
 from scipy.constants import k as kB, N_A
 from scipy.spatial.distance import cdist
 from tqdm import tqdm
 
 from molgri.space.translations import get_between_radii
 from molgri.wrappers import save_or_use_saved
-from molgri.molecules.parsers import ParsedEnergy, ParsedTrajectory
+from molgri.molecules.parsers import FileParser, ParsedEnergy, ParsedMolecule, ParsedTrajectory
 from molgri.space.fullgrid import FullGrid
-from molgri.paths import PATH_OUTPUT_PT
+from molgri.paths import OUTPUT_PLOTTING_DATA, PATH_INPUT_BASEGRO, PATH_OUTPUT_LOGGING, PATH_OUTPUT_PT
+from molgri.space.utils import angle_between_vectors, distance_between_quaternions, hemisphere_quaternion_set, \
+    norm_per_axis
 
 
 class SimulationHistogram:
@@ -43,7 +51,7 @@ class SimulationHistogram:
         self.m1_name = split_name[0]
         self.m2_name = split_name[1]
         self.trajectory_universe = mda.Universe(f"{trajectory_path}{trajectory_name}.gro",
-                                                f"{trajectory_path}fitted_output.xtc")
+                                                f"{trajectory_path}{trajectory_name}.xtc")
         self.full_grid = full_grid
         self.energies = energies
 
@@ -53,8 +61,7 @@ class SimulationHistogram:
         grid_name = self.full_grid.get_name()
         return f"{traj_name}_{grid_name}"
 
-
-    def assign_trajectory_2_quaternion_grid(self):
+    def assign_trajectory_2_quaternion_grid_old(self):
 
         def _extract_universe_second_molecule(original_universe, selection_criteria):
             m2 = original_universe.select_atoms(selection_criteria)
@@ -94,6 +101,68 @@ class SimulationHistogram:
         # Of all reference orientations, select the one with the smallest RMSD
         total_results = np.array(total_results)
         clases = np.argmin(total_results, axis=0)
+        return clases
+
+
+    def assign_trajectory_2_quaternion_grid(self):
+
+        def _extract_universe_second_molecule(original_universe, selection_criteria):
+            m2 = original_universe.select_atoms(selection_criteria)
+
+            coordinates = AnalysisFromFunction(lambda ag: ag.positions.copy(), m2).run().results['timeseries']
+            u2 = mda.Merge(m2)
+            u2.load_new(coordinates, format=MemoryReader)
+            return u2
+
+        # get full grid used in creation
+        with open(f"{PATH_OUTPUT_LOGGING}{self.trajectory_name}.log") as f:
+            while True:
+                line = f.readline()
+                if line.startswith("INFO:PtLogger:full grid name:"):
+                    full_grid_name = line.strip().split(": ")[-1]
+                    break
+        num_quat = int(full_grid_name.split("_")[2])
+        used_grid = np.load(f"{OUTPUT_PLOTTING_DATA}get_full_grid_as_array_{full_grid_name}.npy")
+        all_quaternions = used_grid[:num_quat, 3:]
+        print(all_quaternions[:5])
+
+        # in the real and pt trajectory, extract the second molecule and center it without rotating
+        trajectory_universe_m2 = _extract_universe_second_molecule(self.trajectory_universe,
+                                                                   self.second_molecule_selection)
+        # get and center reference structure
+        my_file = FileParser(f"{PATH_INPUT_BASEGRO}{self.m2_name}").as_parsed_molecule()
+        my_file.translate_to_origin()
+        initial_pos = my_file.get_positions()
+        # calculate RMSD between each frame of real trajectory and all reference orientations from PT
+        total_results = []
+        #for i, ts in enumerate(pt_universe_m2.trajectory):
+        #    results = []
+        for j, ts2 in enumerate(trajectory_universe_m2.trajectory):
+            trajectory_universe_m2.trajectory[j]
+            # something here not right
+            current_parsed = ParsedMolecule(trajectory_universe_m2.atoms)
+            current_parsed.rotate_to(np.array([0, 0, 1]))
+            #trajectory_universe_m2.atoms.rotate(o_rot_matrix)
+            # now com should be in direction of z-vector
+            #TODO: plot this
+            new_com = current_parsed.get_center_of_mass()
+            current_parsed.translate(-new_com)
+
+            rot_mat = rotation_matrix(initial_pos, current_parsed.get_positions(),
+                                      weights=trajectory_universe_m2.atoms.masses)
+
+            total_results.append(Rotation.from_matrix(rot_mat[0]).as_quat())
+        total_results = np.array(total_results)
+        print(total_results[0])
+        total_results = hemisphere_quaternion_set(total_results)
+
+        total_results = cdist(total_results, all_quaternions,
+                    metric=distance_between_quaternions)
+
+        print(total_results[0])
+        # Of all reference orientations, select the one with the smallest RMSD
+
+        clases = np.argmin(total_results.T, axis=0)
         return clases
 
     def assign_trajectory_2_position_grid(self):
@@ -369,30 +438,13 @@ class SQRA(TransitionModel):
 
 
 if __name__ == "__main__":
-    import pandas as pd
-    from molgri.molecules.parsers import FileParser, ParsedEnergy, XVGParser
-    import MDAnalysis as mda
-    from molgri.space.utils import angle_between_vectors, k_argmin_in_array, norm_per_axis
-
-    my_path = "/home/hanaz63/nobackup/gromacs/H2O_H2O_0095_2000/"
-    topology = f"{my_path}H2O_H2O_0095.gro"
-    coordinates = f"{my_path}fitted_output.xtc"
-    energy = f"{my_path}full_energy.xvg"
-
-    # preparing the parsed trajectory
-    my_parser = XVGParser(energy)
-    pe = my_parser.get_parsed_energy()
-    pt_parser = FileParser(
-        path_topology=topology,
-        path_trajectory=coordinates)
-    parsed_trajectory = pt_parser.get_parsed_trajectory(default_atom_selection="bynum 4:6")
-    parsed_trajectory.energies = pe
-
-    fg = FullGrid(o_grid_name="12", b_grid_name="8", t_grid_name="linspace(0.2, 1, 20)", use_saved=True)
-
-
-    sm = SimulationHistogram(my_path, "H2O_H2O_0095", fg, pe, "bynum 4:6")
-
-    pos_grid_assignments = sm.assign_trajectory_2_full_grid()
-    print(np.unique(pos_grid_assignments, return_counts=True))
+    import sys
+    my_fg = FullGrid("40", "42", "[1, 2, 3, 4]")
+    sh = SimulationHistogram(trajectory_path=PATH_OUTPUT_PT, trajectory_name="TRYP_NH3_0000", full_grid=my_fg,
+                             energies="None",
+                             second_molecule_selection="resname SOL")
+    assignments = sh.assign_trajectory_2_quaternion_grid()
+    np.set_printoptions(threshold=sys.maxsize)
+    print(assignments.astype(int)[::40])
+    print(np.unique(assignments.astype(int), return_counts=True))
 
