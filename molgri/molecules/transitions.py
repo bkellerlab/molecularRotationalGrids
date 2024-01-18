@@ -5,21 +5,19 @@ In this module, the two methods of evaluating transitions between states - the M
 implemented.
 """
 from abc import ABC, abstractmethod
-from copy import copy
+import copy
 from typing import Tuple, Sequence, Any
 
 import numpy as np
 import MDAnalysis as mda
+from IPython.core.display import display
 from MDAnalysis.analysis.rms import rmsd
 from MDAnalysis.analysis.base import AnalysisFromFunction
 from MDAnalysis.coordinates.memory import MemoryReader
 from MDAnalysis.analysis.align import rotation_matrix
-from MDAnalysis.transformations import center_in_box
+import nglview as nv
+from molgri.space.rotations import two_vectors2rot
 
-from build.lib.molgri.rotations import two_vectors2rot
-from molgri.molecules.writers import PtIOManager
-
-from molgri.molecules.pts import Pseudotrajectory
 from numpy.typing import NDArray
 from scipy.sparse.linalg import eigs
 from scipy.spatial.transform import Rotation
@@ -55,15 +53,75 @@ class SimulationHistogram:
         self.full_grid = full_grid
         self.energies = energies
 
+        # assignments
+        self.position_assignments = self._assign_trajectory_2_position_grid()
+        self.quaternion_assignments = self._assign_trajectory_2_quaternion_grid()
+        self.full_assignments = self._assign_trajectory_2_full_grid()
+
     # noinspection PyMissingOrEmptyDocstring
     def get_name(self) -> str:
         traj_name = self.trajectory_name
         grid_name = self.full_grid.get_name()
         return f"{traj_name}_{grid_name}"
 
-    def assign_trajectory_2_quaternion_grid_old(self):
+    def get_position_assignments(self):
+        return self.position_assignments
 
-        def _extract_universe_second_molecule(original_universe, selection_criteria):
+    def get_quaternion_assignments(self):
+        return self.quaternion_assignments
+
+    def get_full_assignments(self):
+        return self.full_assignments
+
+    # def assign_trajectory_2_quaternion_grid_old(self):
+    #
+    #     def _extract_universe_second_molecule(original_universe, selection_criteria):
+    #         m2 = original_universe.select_atoms(selection_criteria)
+    #
+    #         coordinates = AnalysisFromFunction(lambda ag: ag.positions.copy(), m2).run().results['timeseries']
+    #         u2 = mda.Merge(m2)
+    #         u2.load_new(coordinates, format=MemoryReader)
+    #         return u2
+    #
+    #     # create PT on quaternion-only grid
+    #     manager = PtIOManager(self.m1_name, self.m2_name, o_grid_name="1", b_grid_name=self.full_grid.b_grid_name,
+    #                           t_grid_name="[0.1]")
+    #     manager.construct_pt()
+    #
+    #     # read the PT universe constructed in previous lines
+    #     my_pt_name = manager.get_name()
+    #     pt_sec_mol_universe = mda.Universe(f"{PATH_OUTPUT_PT}{my_pt_name}.gro", f"{PATH_OUTPUT_PT}{my_pt_name}.xtc")
+    #
+    #     # in the real and pt trajectory, extract the second molecule and center it without rotating
+    #     trajectory_universe_m2 = _extract_universe_second_molecule(self.trajectory_universe,
+    #                                                                self.second_molecule_selection)
+    #     pt_universe_m2 = _extract_universe_second_molecule(pt_sec_mol_universe, self.second_molecule_selection)
+    #     # move them to center - curently doing that later
+    #     # workflow = [mda.transformations.center_in_box(real_traj_sec_mol.atoms, center="mass", point=(0, 0, 0))]
+    #     # real_traj_sec_mol.trajectory.add_transformations(*workflow)
+    #
+    #     # calculate RMSD between each frame of real trajectory and all reference orientations from PT
+    #     total_results = []
+    #     for i, ts in enumerate(pt_universe_m2.trajectory):
+    #         results = []
+    #         for j, ts2 in enumerate(trajectory_universe_m2.trajectory):
+    #             results.append(rmsd(trajectory_universe_m2.trajectory[j].positions,
+    #                                                  pt_universe_m2.trajectory[i].positions,
+    #                                                  center=True, weights=trajectory_universe_m2.atoms.masses))
+    #         total_results.append(results)
+    #
+    #     # Of all reference orientations, select the one with the smallest RMSD
+    #     total_results = np.array(total_results)
+    #     clases = np.argmin(total_results, axis=0)
+    #     return clases
+
+
+    def _assign_trajectory_2_quaternion_grid(self):
+
+        def _extract_universe_second_molecule(original_universe, selection_criteria) -> mda.Universe:
+            """
+            This function removes the first molecule and rotates the second one to the position [0, 0, 1]
+            """
             m2 = original_universe.select_atoms(selection_criteria)
 
             coordinates = AnalysisFromFunction(lambda ag: ag.positions.copy(), m2).run().results['timeseries']
@@ -71,101 +129,87 @@ class SimulationHistogram:
             u2.load_new(coordinates, format=MemoryReader)
             return u2
 
-        # create PT on quaternion-only grid
-        manager = PtIOManager(self.m1_name, self.m2_name, o_grid_name="1", b_grid_name=self.full_grid.b_grid_name,
-                              t_grid_name="[0.1]")
-        manager.construct_pt()
+        def _get_reference_molecule() -> mda.Universe:
+            """This function loads the input second molecule and translates it to position [0, 0, 1]"""
+            my_file = FileParser(f"{PATH_INPUT_BASEGRO}{self.m2_name}").as_parsed_molecule()
+            my_file.translate_to_origin()
+            #my_file.translate(np.array([0, 0, 1]))
+            # turn to Universe
+            u_ref = mda.Merge(my_file.atoms)
+            return u_ref
 
-        # read the PT universe constructed in previous lines
-        my_pt_name = manager.get_name()
-        pt_sec_mol_universe = mda.Universe(f"{PATH_OUTPUT_PT}{my_pt_name}.gro", f"{PATH_OUTPUT_PT}{my_pt_name}.xtc")
-
-        # in the real and pt trajectory, extract the second molecule and center it without rotating
-        trajectory_universe_m2 = _extract_universe_second_molecule(self.trajectory_universe,
-                                                                   self.second_molecule_selection)
-        pt_universe_m2 = _extract_universe_second_molecule(pt_sec_mol_universe, self.second_molecule_selection)
-        # move them to center - curently doing that later
-        # workflow = [mda.transformations.center_in_box(real_traj_sec_mol.atoms, center="mass", point=(0, 0, 0))]
-        # real_traj_sec_mol.trajectory.add_transformations(*workflow)
-
-        # calculate RMSD between each frame of real trajectory and all reference orientations from PT
-        total_results = []
-        for i, ts in enumerate(pt_universe_m2.trajectory):
-            results = []
-            for j, ts2 in enumerate(trajectory_universe_m2.trajectory):
-                results.append(rmsd(trajectory_universe_m2.trajectory[j].positions,
-                                                     pt_universe_m2.trajectory[i].positions,
-                                                     center=True, weights=trajectory_universe_m2.atoms.masses))
-            total_results.append(results)
-
-        # Of all reference orientations, select the one with the smallest RMSD
-        total_results = np.array(total_results)
-        clases = np.argmin(total_results, axis=0)
-        return clases
-
-
-    def assign_trajectory_2_quaternion_grid(self):
-
-        def _extract_universe_second_molecule(original_universe, selection_criteria):
-            m2 = original_universe.select_atoms(selection_criteria)
-
-            coordinates = AnalysisFromFunction(lambda ag: ag.positions.copy(), m2).run().results['timeseries']
-            u2 = mda.Merge(m2)
-            u2.load_new(coordinates, format=MemoryReader)
-            return u2
-
-        # get full grid used in creation
-        with open(f"{PATH_OUTPUT_LOGGING}{self.trajectory_name}.log") as f:
-            while True:
-                line = f.readline()
-                if line.startswith("INFO:PtLogger:full grid name:"):
-                    full_grid_name = line.strip().split(": ")[-1]
-                    break
-        num_quat = int(full_grid_name.split("_")[2])
-        used_grid = np.load(f"{OUTPUT_PLOTTING_DATA}get_full_grid_as_array_{full_grid_name}.npy")
-        all_quaternions = used_grid[:num_quat, 3:]
+        all_quaternions = self.full_grid.b_rotations.get_grid_as_array()
         print(all_quaternions[:5])
+
+
 
         # in the real and pt trajectory, extract the second molecule and center it without rotating
         trajectory_universe_m2 = _extract_universe_second_molecule(self.trajectory_universe,
                                                                    self.second_molecule_selection)
         # get and center reference structure
-        my_file = FileParser(f"{PATH_INPUT_BASEGRO}{self.m2_name}").as_parsed_molecule()
-        my_file.translate_to_origin()
-        initial_pos = my_file.get_positions()
+        initial_u = _get_reference_molecule()
+
         # calculate RMSD between each frame of real trajectory and all reference orientations from PT
         total_results = []
         #for i, ts in enumerate(pt_universe_m2.trajectory):
         #    results = []
+        from molgri.plotting.widgets import ViewManager
+
         for j, ts2 in enumerate(trajectory_universe_m2.trajectory):
             trajectory_universe_m2.trajectory[j]
+
+
+            # first assign closest position grid point so you only consider additional rotation from that point
+            my_pos_assignment = int(self.position_assignments[j])
+            position = self.full_grid.get_position_grid_as_array()[my_pos_assignment]
+            z_vector = np.array([0, 0, np.linalg.norm(position)])
+
             # something here not right
-            current_parsed = ParsedMolecule(trajectory_universe_m2.atoms)
-            current_parsed.rotate_to(np.array([0, 0, 1]))
-            #trajectory_universe_m2.atoms.rotate(o_rot_matrix)
-            # now com should be in direction of z-vector
-            #TODO: plot this
-            new_com = current_parsed.get_center_of_mass()
-            current_parsed.translate(-new_com)
+            fresh_parsed = ParsedMolecule(trajectory_universe_m2.copy().atoms)
+            current_positions = trajectory_universe_m2.atoms.positions
 
-            rot_mat = rotation_matrix(initial_pos, current_parsed.get_positions(),
-                                      weights=trajectory_universe_m2.atoms.masses)
+            all_rmsd = []
+            for i, available_quat in enumerate(all_quaternions):
+                current_parsed = ParsedMolecule(trajectory_universe_m2.atoms)
+                current_parsed.atoms.positions = current_positions
+                print(np.round(current_parsed.get_positions()[0], 3), i)
+                rotation_body = Rotation.from_quat(available_quat)
+                # TODO: here you could simpy try which of the available quaternion rotations brings you closest to inital
+                #  state
+                current_parsed.rotate_about_body(rotation_body, inverse=True)
+                rotation_origin = Rotation.from_matrix(two_vectors2rot(z_vector, position))
+                current_parsed.rotate_about_origin(rotation_origin, inverse=True)
+                current_parsed.translate_to_origin()
+                all_rmsd.append(rmsd(current_parsed.get_positions(), initial_u.atoms.positions)) #
+                # weights=initial_u.atoms.masses)
+            best_q = np.argmin(all_rmsd)
+            #print(all_rmsd)
+            #print(best_q)
+            total_results.append(best_q)
+            #current_parsed.rotate_to(np.array([0, 0, 1]))
+            #print("After o-rotation state")
+            #if j%8 == 0:
+            #    display(ViewManager(mda.Merge(current_parsed.atoms)).plot_ith_frame(0))
 
-            total_results.append(Rotation.from_matrix(rot_mat[0]).as_quat())
-        total_results = np.array(total_results)
-        print(total_results[0])
-        total_results = hemisphere_quaternion_set(total_results)
+            #rot_mat = rotation_matrix(initial_u.atoms.positions, current_parsed.get_positions(),
+            #                          weights=trajectory_universe_m2.atoms.masses)
 
-        total_results = cdist(total_results, all_quaternions,
-                    metric=distance_between_quaternions)
+            #total_results.append(Rotation.from_matrix(rot_mat[0]).as_quat())
+        #total_results = np.array(total_results)
+        #print(total_results[0])
+        #total_results = hemisphere_quaternion_set(total_results)
 
-        print(total_results[0])
+        #total_results = cdist(total_results, all_quaternions,
+        #            metric=distance_between_quaternions)
+
+        #print(total_results[0])
         # Of all reference orientations, select the one with the smallest RMSD
 
-        clases = np.argmin(total_results.T, axis=0)
-        return clases
+        #clases = np.argmin(total_results.T, axis=0)
+        #return clases
+        return np.array(total_results)
 
-    def assign_trajectory_2_position_grid(self):
+    def _assign_trajectory_2_position_grid(self) -> NDArray:
 
         coms = AnalysisFromFunction(lambda ag: ag.center_of_mass(),
                                    self.trajectory_universe.trajectory,
@@ -199,14 +243,11 @@ class SimulationHistogram:
 
         # determine the closest orientation
 
-        return indices
+        return np.array(indices, dtype=int)
 
-    def assign_trajectory_2_full_grid(self):
-        position_assignments = self.assign_trajectory_2_position_grid()
-        quaternion_assignments = self.assign_trajectory_2_quaternion_grid()
+    def _assign_trajectory_2_full_grid(self):
         num_quaternions = self.full_grid.b_rotations.get_N()
-
-        return position_assignments * num_quaternions + quaternion_assignments
+        return self.get_position_assignments() * num_quaternions + self.get_quaternion_assignments()
 
 
 
@@ -439,12 +480,12 @@ class SQRA(TransitionModel):
 
 if __name__ == "__main__":
     import sys
-    my_fg = FullGrid("40", "42", "[1, 2, 3, 4]")
-    sh = SimulationHistogram(trajectory_path=PATH_OUTPUT_PT, trajectory_name="TRYP_NH3_0000", full_grid=my_fg,
+    my_fg = FullGrid("8", "12", "[0.2, 0.3, 0.4]")
+    sh = SimulationHistogram(trajectory_path=PATH_OUTPUT_PT, trajectory_name="NH3_H2O_0000", full_grid=my_fg,
                              energies="None",
-                             second_molecule_selection="resname SOL")
-    assignments = sh.assign_trajectory_2_quaternion_grid()
+                             second_molecule_selection="bynum 5:7")
+    assignments = sh.get_quaternion_assignments()
     np.set_printoptions(threshold=sys.maxsize)
-    print(assignments.astype(int)[::40])
+    print(assignments.astype(int)[1::8])
     print(np.unique(assignments.astype(int), return_counts=True))
 
