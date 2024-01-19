@@ -13,6 +13,7 @@ from MDAnalysis.analysis.rms import rmsd
 from MDAnalysis.analysis.base import AnalysisFromFunction
 from MDAnalysis.coordinates.memory import MemoryReader
 from numpy.typing import NDArray
+from scipy.sparse import csr_array
 from scipy.sparse.linalg import eigs
 from scipy.spatial.transform import Rotation
 from scipy.constants import k as kB, N_A
@@ -20,10 +21,10 @@ from tqdm import tqdm
 
 from molgri.space.translations import get_between_radii
 from molgri.wrappers import save_or_use_saved
-from molgri.molecules.parsers import FileParser, ParsedEnergy, ParsedMolecule, ParsedTrajectory
+from molgri.molecules.parsers import ParsedMolecule, XVGParser
 from molgri.space.fullgrid import FullGrid
-from molgri.paths import PATH_INPUT_BASEGRO, PATH_OUTPUT_AUTOSAVE
-from molgri.space.utils import angle_between_vectors, norm_per_axis
+from molgri.paths import PATH_OUTPUT_AUTOSAVE, PATH_OUTPUT_ENERGIES, PATH_OUTPUT_LOGGING, PATH_OUTPUT_PT
+from molgri.space.utils import angle_between_vectors, k_argmin_in_array, norm_per_axis
 from molgri.space.rotations import two_vectors2rot
 
 
@@ -34,28 +35,40 @@ class SimulationHistogram:
     step can be assigned to a cell and the occupancy of those cells evaluated.
     """
 
-    def __init__(self, trajectory_universe: mda.Universe, full_grid: FullGrid,
-                 second_molecule_selection: str, trajectory_name: str = None):
+    def __init__(self, trajectory_name: str, is_pt: bool, second_molecule_selection: str, full_grid: FullGrid = None,
+                 use_saved=True):
         """
-        Situation: you have created a (pseudo)trajectory and calculated
+        Situation: you have created a (pseudo)trajectory (.gro and .xtc files in PATH_OUTPUT_PT) and calculated the
+        energies for every frame (.xvg file PATH_OUTPUT_ENERGIES) - all files have the name given by trajectory_name.
+        Now you want to assign one of the molecules (selected by second_molecule_selection) in every frame to one
+        cell ub full_grid.
 
         Args:
-            trajectory_universe (mda.Universe): contains atoms of both molecules for every step of trajectory
-            full_grid (): even if the input is a PT, you can use a different PT
+            trajectory_name (str): like H2O_H2O_0095 for PTs or H2O_H2O_0095_1000 for trajectories, the folder
+                                   PATH_OUTPUT_PT will be searched for this name
+            full_grid (FullGrid): used to assign to cells; even if the input is a PT, you can use a different FullGrid
+                                  but if None, the FullGrid used in creation will be used
             second_molecule_selection (str): will be forwarded to trajectory_universe to identify the moving molecule
-            trajectory_name (str): like H2O_H2O_0095, not necessary but nice to keep the same name as used before
+
         """
         if trajectory_name is None:
             trajectory_name = "simulation_histogram"
         self.trajectory_name = trajectory_name
+        self.is_pt = is_pt
+        self.use_saved = use_saved
         self.second_molecule_selection = second_molecule_selection
-        self.trajectory_universe = trajectory_universe
+        self.energies = XVGParser(f"{PATH_OUTPUT_ENERGIES}{self.trajectory_name}.xvg").get_parsed_energy()
+        self.trajectory_universe = mda.Universe(f"{PATH_OUTPUT_PT}{trajectory_name}.gro",
+                                                f"{PATH_OUTPUT_PT}{trajectory_name}.xtc")
+        if full_grid is None and self.is_pt:
+            full_grid = self.read_fg_PT()
         self.full_grid = full_grid
 
         # assignments
-        self.position_assignments = self._assign_trajectory_2_position_grid()
-        self.quaternion_assignments = self._assign_trajectory_2_quaternion_grid()
-        self.full_assignments = self._assign_trajectory_2_full_grid()
+        self.position_assignments = None
+        self.quaternion_assignments = None
+        self.full_assignments = None
+        self.transition_model = None
 
     # noinspection PyMissingOrEmptyDocstring
     def get_name(self) -> str:
@@ -63,35 +76,122 @@ class SimulationHistogram:
         grid_name = self.full_grid.get_name()
         return f"{traj_name}_{grid_name}"
 
+    def read_fg_PT(self) -> FullGrid:
+        """
+        If no FG is provided as input but the input is a pseutotrajectory, the grid that was used in PT generation
+        will also be used in assignments.
+        """
+
+        input_names = None
+        full_grid_name = None
+
+        # first step: read the name of the full grid from the log file
+        try:
+            with open(f"{PATH_OUTPUT_LOGGING}{self.trajectory_name}.log") as f:
+                while input_names is None or full_grid_name is None:
+                    line = f.readline()
+                    if line.startswith("INFO:PtLogger:input grid parameters:"):
+                        input_names = line.strip().split(": ")[-1]
+                    elif line.startswith("INFO:PtLogger:full grid name:"):
+                        full_grid_name = line.strip().split(": ")[-1]
+        except FileNotFoundError:
+            raise ValueError("If you are inputing a trajectory (not PT), you must provide a FullGrid")
+
+        self.grid_name = full_grid_name
+
+        input_names = input_names.split(" ")
+        t_input = " ".join(input_names[2:])
+        fg = FullGrid(o_grid_name=input_names[0], b_grid_name=input_names[1], t_grid_name=t_input,
+                      use_saved=True)
+
+        # second step: load the .npy file with the found name
+        used_grid = np.load(f"{PATH_OUTPUT_AUTOSAVE}get_full_grid_as_array_{full_grid_name}.npy")
+
+        # third step: assert that this is actually the grid that has been used
+        assert np.allclose(used_grid, fg.get_full_grid_as_array())
+
+        return fg
+
+    """
+    --------------------------------------------------------------------------------------------------
+                               Getters to obtain important indices.
+    --------------------------------------------------------------------------------------------------
+    """
+
+    def get_indices_k_lowest_energies(self, k: int, energy_type: str):
+        all_energies = self.energies.get_energies(energy_type)
+        return k_argmin_in_array(all_energies, k)
+
+    def get_indices_neighbours_of_cell_i(self, i: int):
+        adj_array = csr_array(self.full_grid.get_full_adjacency())[:, [i]].toarray().T[0]
+        neighbour_cell_indices = np.nonzero(adj_array)[0]
+        neighbour_indices = []
+        for cell_i in neighbour_cell_indices:
+            neighbour_indices.append(self.get_indices_same_cell(cell_i))
+        return neighbour_indices
+
+    def get_indices_same_orientation(self, quaternion_grid_index: int):
+        return np.where(self.get_quaternion_assignments() == quaternion_grid_index)[0]
+
+    def get_indices_same_position(self, position_grid_index: int):
+        return np.where(self.get_position_assignments() == position_grid_index)[0]
+
+    def get_indices_same_cell(self, full_grid_index: int):
+        return np.where(self.get_full_assignments() == full_grid_index)[0]
+
+    """
+    --------------------------------------------------------------------------------------------------
+                               Getters to obtain a measure of magnitude.
+    --------------------------------------------------------------------------------------------------
+    """
+
+    def get_magnitude_energy(self, energy_type: str):
+        return self.energies.get_energies(energy_type)
+
+    def get_magnitude_ith_eigenvector(self, i: int):
+        evalu, evec = self.get_transition_model().get_eigenval_eigenvec()
+        my_eigenvector = evec[0].T[i]
+        return my_eigenvector
+
     def get_position_assignments(self):
+        if self.position_assignments is None:
+            self.position_assignments = self._assign_trajectory_2_position_grid()
         return self.position_assignments
 
     def get_quaternion_assignments(self):
+        if self.quaternion_assignments is None:
+            self.quaternion_assignments = self._assign_trajectory_2_quaternion_grid()
         return self.quaternion_assignments
 
     def get_full_assignments(self):
+        if self.full_assignments is None:
+            self.full_assignments = self._assign_trajectory_2_full_grid()
         return self.full_assignments
 
+    def get_transition_model(self, tau_array=None, energy_type="Potential"):
+        if self.transition_model is None:
+            if self.is_pt:
+                self.transition_model = SQRA(self, energy_type=energy_type, use_saved=self.use_saved)
+            else:
+                self.transition_model = MSM(self, tau_array=tau_array, use_saved=self.use_saved)
+        return self.transition_model
 
+    def _extract_universe_second_molecule(self) -> mda.Universe:
+        """
+        This function removes the first molecule and rotates the second one to the position [0, 0, 1]
+        """
+        m2 = self.trajectory_universe.select_atoms(self.second_molecule_selection)
+
+        coordinates = AnalysisFromFunction(lambda ag: ag.positions.copy(), m2).run().results['timeseries']
+        u2 = mda.Merge(m2)
+        u2.load_new(coordinates, format=MemoryReader)
+        return u2
 
     def _assign_trajectory_2_quaternion_grid(self):
-
-        def _extract_universe_second_molecule(original_universe, selection_criteria) -> mda.Universe:
-            """
-            This function removes the first molecule and rotates the second one to the position [0, 0, 1]
-            """
-            m2 = original_universe.select_atoms(selection_criteria)
-
-            coordinates = AnalysisFromFunction(lambda ag: ag.positions.copy(), m2).run().results['timeseries']
-            u2 = mda.Merge(m2)
-            u2.load_new(coordinates, format=MemoryReader)
-            return u2
-
         all_quaternions = self.full_grid.b_rotations.get_grid_as_array()
 
         # in the real trajectory, extract the second molecule and center it without rotating
-        trajectory_universe_m2 = _extract_universe_second_molecule(self.trajectory_universe,
-                                                                   self.second_molecule_selection)
+        trajectory_universe_m2 = self._extract_universe_second_molecule()
         # get and center reference structure
         initial_u = mda.Merge(trajectory_universe_m2.atoms)
         initial_u.atoms.translate(-initial_u.atoms.center_of_mass())
@@ -178,15 +278,13 @@ class TransitionModel(ABC):
     A class that contains both the MSM and SQRA models.
     """
 
-    def __init__(self, sim_hist: SimulationHistogram, energies: ParsedEnergy,
-                 tau_array: NDArray = None, use_saved: bool = False):
+    def __init__(self, sim_hist: SimulationHistogram, tau_array: NDArray = None, use_saved: bool = False):
         self.sim_hist = sim_hist
         if tau_array is None:
             tau_array = np.array([2, 5, 7, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100, 110, 130, 150, 180, 200])
         self.tau_array = tau_array
         self.use_saved = use_saved
         self.assignments = self.sim_hist.get_full_assignments()
-        self.energies = energies
         self.num_cells = len(self.sim_hist.full_grid.get_full_grid_as_array())
         self.num_tau = len(self.tau_array)
         self.transition_matrix = None
@@ -337,7 +435,7 @@ class SQRA(TransitionModel):
         self.energy_type = energy_type
         super().__init__(sim_hist, tau_array=tau_array, **kwargs)
         len_fgrid = len(self.sim_hist.full_grid.get_full_grid_as_array())
-        if len(self.energies.get_energies(energy_type)) == len_fgrid:
+        if len(self.sim_hist.energies.get_energies(energy_type)) == len_fgrid:
             self.assignments = np.arange(len_fgrid)
 
     @save_or_use_saved
@@ -365,7 +463,7 @@ class SQRA(TransitionModel):
             # optimisation) or they are the arithmetic average of all energies of COM assigned to that cell.
             all_energies = np.empty(shape=(self.num_cells,))
             energy_counts = np.zeros(shape=(self.num_cells,))
-            obtained_energies = self.energies.get_energies(energy_type=self.energy_type)
+            obtained_energies = self.sim_hist.energies.get_energies(energy_type=self.energy_type)
             for a, e in zip(self.assignments, obtained_energies):
                 if not np.isnan(a):
                     all_energies[int(a)] += e
@@ -403,15 +501,14 @@ class SQRA(TransitionModel):
 
 if __name__ == "__main__":
     import sys
-    my_fg = FullGrid("8", "12", "[0.2, 0.3, 0.4]")
-    folder_name = "/home/hanaz63/nobackup/gromacs/H2O_H2O_0095_5200/"
-    my_trajectory_name = "H2O_H2O_0095"
 
-    my_universe = mda.Universe(f"{folder_name}{my_trajectory_name}.gro", f"{folder_name}{my_trajectory_name}.xtc")
+    evaluation_fg = FullGrid("40", "42", "linspace(0.2, 1.5, 10)")
 
-    sh = SimulationHistogram(my_universe, full_grid=my_fg, second_molecule_selection="bynum 4:6",
-                             trajectory_name=my_trajectory_name)
-    assignments = sh.get_quaternion_assignments()
+    # example with PT
+    my_pt_name = "H2O_H2O_0179"
+
+    sh = SimulationHistogram(my_pt_name, full_grid=evaluation_fg, second_molecule_selection="bynum 4:6")
+    assignments = sh.get_full_assignments()
     np.set_printoptions(threshold=sys.maxsize)
     print(np.unique(assignments.astype(int), return_counts=True))
 

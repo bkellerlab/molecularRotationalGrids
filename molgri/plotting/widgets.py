@@ -1,7 +1,9 @@
 import MDAnalysis as mda
+import matplotlib
 import nglview as nv
 import ipywidgets as widgets
 from IPython.core.display import display
+from numpy._typing import ArrayLike
 
 
 class ViewManager:
@@ -74,7 +76,8 @@ class ViewManager:
             self._add_coordinate_axes()
         return self.view
 
-    def _add_optional_representation_parameters(self, my_index: int, colors: list, opacities: list):
+    def _add_optional_representation_parameters(self, my_index: int, colors: list, opacities: list,
+                                                color_magnitudes: list, **cmap_kwargs):
         """
         Helper method if you want to plot several view and pass arguments to them.
         """
@@ -82,10 +85,29 @@ class ViewManager:
         if colors is not None:
             kwargs["color"] = colors[my_index]
         if opacities is not None:
-            kwargs["opacity"] = opacities[my_index]
+            if type(opacities) == float or type(opacities) == int:
+                kwargs["opacity"] = opacities
+            else:
+                kwargs["opacity"] = opacities[my_index]
+        if color_magnitudes is not None:
+            colors = self._color_magnitudes2colors(color_magnitudes, **cmap_kwargs)
+            kwargs["color"] = colors[my_index]
         return kwargs
 
-    def plot_frames_sequential(self, list_indices: list, colors: list = None, opacities: list = None):
+    def _color_magnitudes2colors(self, magnitudes, cmap = "bwr", vcenter: float = 0):
+        cmap = matplotlib.cm.get_cmap(cmap)
+        norm = matplotlib.colors.CenteredNorm(vcenter=vcenter, clip=True)
+        scalarMap = matplotlib.cm.ScalarMappable(norm=norm, cmap=cmap)
+
+        all_hex = []
+        for mag in magnitudes:
+            rgba = scalarMap.to_rgba(mag)
+            hex_color = matplotlib.colors.rgb2hex(rgba)
+            all_hex.append(hex_color)
+        return all_hex
+
+    def plot_frames_sequential(self, list_indices: list, colors: list = None, opacities: list = None,
+                               color_magnitudes: list = None, **cmap_kwargs):
         """
         Plot several frames of the self.u next to each other. Automatically ngo to next now if you have too
         many frames to display in one row.
@@ -95,29 +117,24 @@ class ViewManager:
             - colors: a list of colors (must be same length as list_indices) or None (default)
             - opacities: a list of opacities (must be same length as list_indices) or None (default)
         """
-
-        # settings that are important so that rows with too many images nicely overflow in the next row
-        box = widgets.Box(layout=widgets.Layout(width='100%', display='inline-flex', flex_flow='row wrap'))
-        box.overflow_x = 'auto'
-
         all_views = []
         for li, list_i in enumerate(list_indices):
             self.fresh_view()
             # add optional parameters
-            kwargs = self._add_optional_representation_parameters(li, colors, opacities)
+            kwargs = self._add_optional_representation_parameters(li, colors, opacities, color_magnitudes,
+                                                                  **cmap_kwargs)
             neig_view = self.plot_ith_frame(list_i, **kwargs)
             # this is also important for nice arragement of figures
             neig_view.layout.width = "200px"
             all_views.append(neig_view)
 
         # sync all views (so that all plots move if you move any)
-        for v in all_views:
-            v._set_sync_camera(all_views)
+        sync_all_views(all_views)
+        display_all_views(all_views)
 
-        box.children = [i for i in all_views]
-        display(box)
 
-    def plot_frames_overlapping(self, list_indices: list, colors: list = None, opacities: list = None):
+    def plot_frames_overlapping(self, list_indices: list, colors: list = None, opacities: list = None,
+                                color_magnitudes: list = None, **cmap_kwargs):
         """
         Plot several frames of the self.u overlapping.
 
@@ -130,10 +147,23 @@ class ViewManager:
 
         for li, list_i in enumerate(list_indices):
             # add optional parameters
-            kwargs = self._add_optional_representation_parameters(li, colors, opacities)
+            kwargs = self._add_optional_representation_parameters(li, colors, opacities, color_magnitudes,
+                                                                  **cmap_kwargs)
 
             self.plot_ith_frame(list_i, **kwargs)
 
         return self.view
 
 
+
+def sync_all_views(all_views: list):
+    for v in all_views:
+        v._set_sync_camera(all_views)
+
+
+def display_all_views(all_views: list):
+    # settings that are important so that rows with too many images nicely overflow in the next row
+    box = widgets.Box(layout=widgets.Layout(width='100%', display='inline-flex', flex_flow='row wrap'))
+    box.overflow_x = 'auto'
+    box.children = [i for i in all_views]
+    display(box)

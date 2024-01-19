@@ -27,12 +27,13 @@ class TranslationParser(object):
             - a range with optionally provided step, eg 'range(0.5, 3, 0.4)'
     """
 
-    def __init__(self, user_input: str):
+    def __init__(self, user_input: str, use_saved=True):
         """
         Args:
             user_input: a string in one of allowed formats
         """
         self.user_input = user_input
+        self.use_saved = use_saved
         if "linspace" in self.user_input:
             bracket_input = self._read_within_brackets()
             self.trans_grid = np.linspace(*bracket_input, dtype=float)
