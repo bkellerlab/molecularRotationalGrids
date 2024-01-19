@@ -20,7 +20,7 @@ from typing import Optional
 from matplotlib.animation import FuncAnimation
 from matplotlib.axes import Axes
 from matplotlib.figure import Figure
-from molgri.paths import OUTPUT_PLOTTING_DATA
+from molgri.paths import PATH_OUTPUT_AUTOSAVE
 from mpl_toolkits.mplot3d import Axes3D
 
 
@@ -70,7 +70,7 @@ def save_or_use_saved(my_method):
     @wraps(my_method)
     def decorated(self, *args, **kwargs):
         method_name = my_method.__name__
-        name_without_ext = f"{OUTPUT_PLOTTING_DATA}{method_name}_{self.get_name()}"
+        name_without_ext = f"{PATH_OUTPUT_AUTOSAVE}{method_name}_{self.get_name()}"
         # try to find a suitable saved file
         if self.use_saved:
             if os.path.isfile(f"{name_without_ext}.npy"):

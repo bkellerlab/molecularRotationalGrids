@@ -12,25 +12,6 @@ USE_SAVED = False
 GRID_ALGORITHMS_4D = [x for x in GRID_ALGORITHMS_4D if x != "fulldiv"]
 
 
-def test_saving_rotobj():
-    """
-    This function tests:
-    1) after saving you get back the same grid (and therefore same statistics)
-    """
-    for algos, d in zip((GRID_ALGORITHMS_3D, GRID_ALGORITHMS_4D), (3, 4)):
-        for N in (12, 23, 51):
-            for algo in algos:
-                rotobj_start = SphereGridFactory.create(N=N, alg_name=algo, dimensions=d, use_saved=False)
-                array_before = rotobj_start.get_grid_as_array()
-                statistics_before = rotobj_start.get_uniformity_df(alphas=DEFAULT_ALPHAS_3D)
-                rotobj_new = SphereGridFactory.create(N=N, alg_name=algo, dimensions=d, use_saved=True)
-                array_after = rotobj_new.get_grid_as_array()
-                statistics_after = rotobj_new.get_uniformity_df(alphas=DEFAULT_ALPHAS_3D)
-                assert rotobj_new.get_name(with_dim=True) == rotobj_start.get_name(with_dim=True)
-                assert statistics_before.equals(statistics_after)
-                assert np.allclose(array_before, array_after)
-
-
 def test_general_grid_properties():
     """
     This function tests:
@@ -109,7 +90,6 @@ def test_full_and_half_hypersphere():
 
 
 if __name__ == "__main__":
-    test_saving_rotobj()
     test_general_grid_properties()
     test_statistics()
     test_ordering()

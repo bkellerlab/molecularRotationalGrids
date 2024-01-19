@@ -12,6 +12,7 @@ import seaborn as sns
 
 from molgri.constants import ENERGY2SHORT
 from molgri.molecules.parsers import ParsedTrajectory
+from molgri.molecules.transitions import SimulationHistogram
 from molgri.plotting.abstract import RepresentationCollection, MultiRepresentationCollection
 from molgri.plotting.fullgrid_plots import FullGridPlot
 from molgri.wrappers import plot_method, plot3D_method

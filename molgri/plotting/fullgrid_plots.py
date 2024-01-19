@@ -134,8 +134,6 @@ class ConvergenceFullGridPlot(RepresentationCollection):
 
 
 if __name__ == "__main__":
-    from molgri.constants import SMALL_NS, DEFAULT_NS, MINI_NS
-
     fg = FullGrid("12", "20", "[0.1, 0.2]", use_saved=False)
     fgp = FullGridPlot(full_grid=fg)
     fgp.create_all_plots()

@@ -11,10 +11,9 @@ from ast import literal_eval
 
 import numpy as np
 from numpy.typing import NDArray
-from scipy.sparse import coo_array
 
 from molgri.constants import NM2ANGSTROM
-from molgri.paths import PATH_OUTPUT_TRANSGRIDS
+from molgri.wrappers import save_or_use_saved
 
 
 class TranslationParser(object):
@@ -50,11 +49,11 @@ class TranslationParser(object):
         self.trans_grid = self.trans_grid * NM2ANGSTROM
         # we use a (shortened) hash value to uniquely identify the grid used, no matter how it's generated
         self.grid_hash = int(hashlib.md5(self.trans_grid).hexdigest()[:8], 16)
-        # save the grid (for record purposes)
-        path = f"{PATH_OUTPUT_TRANSGRIDS}trans_{self.grid_hash}.txt"
-        # noinspection PyTypeChecker
-        np.savetxt(path, self.trans_grid)
 
+    def get_name(self):
+        return f"{self.grid_hash}"
+
+    @save_or_use_saved
     def get_trans_grid(self) -> NDArray:
         """Getter to access all distances from origin in angstorms."""
         return self.trans_grid

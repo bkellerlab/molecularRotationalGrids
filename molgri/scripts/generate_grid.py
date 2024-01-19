@@ -8,6 +8,7 @@ User script for generating custom rotational grids. Quickly get rotobj and their
 import argparse
 
 from molgri.constants import DEFAULT_ALGORITHM_B, DEFAULT_ALGORITHM_O
+from molgri.paths import PATH_OUTPUT_AUTOSAVE
 
 from molgri.space.rotobj import SphereGrid3DFactory, SphereGrid4DFactory
 from molgri.plotting.spheregrid_plots import SphereGridPlot
@@ -85,7 +86,7 @@ def run_generate_grid():
             print(f"Animation of the grid sliding through the last dimension saved to {sgp.ani_path}")
     if my_args.statistics:
         my_rotations.save_uniformity_statistics()
-        print(f"A statistics file describing the grid {grid_name} was saved to {my_rotations.get_statistics_path('csv')}.")
+        print(f"A statistics file describing the grid {grid_name} was saved to {PATH_OUTPUT_AUTOSAVE}.")
         sgp.plot_uniformity()
         print(f"A violin plot showing the uniformity of {grid_name} saved to {sgp.fig_path}.")
         sgp.plot_convergence()

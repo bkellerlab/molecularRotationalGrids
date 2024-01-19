@@ -41,7 +41,7 @@ class TransitionPlot(RepresentationCollection):
         self._equalize_axes()
 
     @plot_method
-    def plot_its(self, num_eigenv=6, as_line=False):
+    def plot_its(self, num_eigenv=6, as_line=False, dt=1):
         """
         Plot iterative timescales.
         """
@@ -49,7 +49,7 @@ class TransitionPlot(RepresentationCollection):
         tau_array = self.transition_obj.tau_array
         eigenvals, eigenvecs = self.transition_obj.get_eigenval_eigenvec(num_eigenv=num_eigenv)
         eigenvals = np.array(eigenvals)
-        dt = self.transition_obj.sim_hist.parsed_trajectory.dt
+        dt = dt
 
         if not as_line:
             for j in range(1, num_eigenv):
@@ -127,62 +127,4 @@ class TransitionPlot(RepresentationCollection):
 
 
 if __name__ == "__main__":
-    from molgri.molecules._load_examples import load_molgri_data, load_simulation_data
-    from molgri.space.fullgrid import FullGrid
-    from molgri.molecules.transitions import MSM, SQRA, SimulationHistogram
-    from molgri.molecules.parsers import XVGParser, FileParser
-
-    USE_SAVED = False
-
-    # TRANSITION MATRIX
-    # parsed_sim = load_simulation_data()
-    # # define some full grid to assign to
-    # full_grid = FullGrid(t_grid_name="linspace(3, 13, 4)", o_grid_name="ico_20", b_grid_name="zero")
-    #
-    # combined_sim = SimulationHistogram(parsed_sim, full_grid)
-    # msm = MSM(combined_sim, use_saved=True)
-    # tp_msm = TransitionPlot(msm, default_context="talk")
-    # tp_msm.create_all_plots()
-
-    #
-    # # RATE MATRIX
-    # molgri_pt = load_molgri_data()
-    # full_grid_m = FullGrid(t_grid_name="linspace(0.8, 1.5, 1)", o_grid_name="ico_5", b_grid_name="zero")
-    # #full_grid_m = FullGrid(t_grid_name="linspace(0.8, 1.5, 10)", o_grid_name="ico_50", b_grid_name="zero")
-    # combined_molgri = SimulationHistogram(molgri_pt, full_grid_m)
-    # sqra = SQRA(combined_molgri, energy_type="Potential Energy", use_saved=USE_SAVED)
-    # tp_sqra = TransitionPlot(sqra, default_context="talk")
-    #
-    # print(sqra.get_transitions_matrix())
-    # tp_sqra.create_all_plots()
-
-
-    my_num = "0099"
-    len_traj = "10000"
-
-    # preparing the parsed trajectory
-    my_parser = XVGParser(f"/home/hanaz63/nobackup/gromacs/H2O_H2O_{my_num}/H2O_H2O_{my_num}.xvg")
-    pe = my_parser.get_parsed_energy()  # .get_energies("Disper. corr.")
-    pt_parser = FileParser(
-        path_topology=f"/home/hanaz63/nobackup/gromacs/H2O_H2O_{my_num}/H2O_H2O_{my_num}.gro",
-        path_trajectory=f"/home/hanaz63/nobackup/gromacs/H2O_H2O_{my_num}/H2O_H2O_{my_num}.xtc")
-    parsed_trajectory = pt_parser.get_parsed_trajectory(default_atom_selection="bynum 4:6")
-    parsed_trajectory.energies = pe
-
-    energ = pe.get_energies("Potential")
-
-    fg = FullGrid(o_grid_name="12", b_grid_name="8", t_grid_name="linspace(0.2, 0.5, 10)", use_saved=True)
-    #fg = FullGrid(o_grid_name="42", b_grid_name="40", t_grid_name="linspace(0.2, 0.5, 20)", use_saved=True)
-
-    sim_hist = SimulationHistogram(parsed_trajectory, full_grid=fg)
-
-    sqra = SQRA(sim_hist)
-    eval, evec = sqra.get_eigenval_eigenvec()
-    print(sorted(evec[0][0]))
-    #my_rates = sqra.get_transitions_matrix()
-
-    tp_sqra = TransitionPlot(sqra, default_context="talk")
-    for i in range(5):
-        tp_sqra.plot_one_eigenvector_flat(i)
-    #print(sqra.get_transitions_matrix())
-    #tp_sqra.plot_heatmap()
+    pass

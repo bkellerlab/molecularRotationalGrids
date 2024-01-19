@@ -1,7 +1,6 @@
 """
 Naming conventions are defined here.
 """
-import numpy as np
 from molgri.constants import (ALL_GRID_ALGORITHMS, DEFAULT_ALGORITHM_O, DEFAULT_ALGORITHM_B, ZERO_ALGORITHM_3D,
                               ZERO_ALGORITHM_4D, GRID_ALGORITHMS_3D, GRID_ALGORITHMS_4D)
 

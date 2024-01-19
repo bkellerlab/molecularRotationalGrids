@@ -24,9 +24,8 @@ import MDAnalysis as mda
 from MDAnalysis.core import AtomGroup
 
 from molgri.constants import EXTENSIONS_STR, EXTENSIONS_TRJ
-from molgri.paths import PATH_INPUT_ENERGIES
+from molgri.paths import PATH_OUTPUT_ENERGIES
 from molgri.space.rotations import two_vectors2rot
-from molgri.space.fullgrid import FullGrid
 
 
 class ParsedMolecule:
@@ -159,7 +158,7 @@ class FileParser:
             name_getters = [self.get_topology_file_name(), self.get_trajectory_file_name()]
             for proposed_name in name_getters:
                 if proposed_name is not None:
-                    proposed_path = f"{PATH_INPUT_ENERGIES}{proposed_name}.xvg"
+                    proposed_path = f"{PATH_OUTPUT_ENERGIES}{proposed_name}.xvg"
                     if os.path.isfile(proposed_path):
                         return proposed_path
         return None
