@@ -2,6 +2,7 @@ import MDAnalysis as mda
 import matplotlib
 import nglview as nv
 import ipywidgets as widgets
+import numpy as np
 from IPython.core.display import display
 from numpy._typing import ArrayLike
 
@@ -96,7 +97,7 @@ class ViewManager:
 
     def _color_magnitudes2colors(self, magnitudes, cmap = "bwr", vcenter: float = 0):
         cmap = matplotlib.cm.get_cmap(cmap)
-        norm = matplotlib.colors.CenteredNorm(vcenter=vcenter, clip=True)
+        norm = matplotlib.colors.CenteredNorm(vcenter=vcenter, halfrange=np.abs(np.min(magnitudes)), clip=True)
         scalarMap = matplotlib.cm.ScalarMappable(norm=norm, cmap=cmap)
 
         all_hex = []
