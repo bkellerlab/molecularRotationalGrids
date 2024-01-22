@@ -76,7 +76,7 @@ class ViewManager:
         ith_atoms = self.get_ith_frame(frame_i)
 
         # don't plot frames that would have tiny opacity anyway
-        if "opacity" in kwargs.keys() and kwargs["opacity"] < 0.05:
+        if "opacity" in kwargs.keys() and kwargs["opacity"] < 0.005:
             return self.view
 
         self.view.add_component(ith_atoms, default_representation=False)
