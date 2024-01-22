@@ -122,13 +122,13 @@ class SimulationHistogram:
         all_energies = self.energies.get_energies(energy_type)
         return k_argmin_in_array(all_energies, k)
 
-    def get_indices_neighbours_of_cell_i(self, i: int):
+    def get_indices_neighbours_of_cell_i(self, i: int) -> NDArray:
         adj_array = csr_array(self.full_grid.get_full_adjacency())[:, [i]].toarray().T[0]
         neighbour_cell_indices = np.nonzero(adj_array)[0]
         neighbour_indices = []
         for cell_i in neighbour_cell_indices:
-            neighbour_indices.append(self.get_indices_same_cell(cell_i))
-        return neighbour_indices
+            neighbour_indices.extend(self.get_indices_same_cell(cell_i))
+        return np.array(neighbour_indices)
 
     def get_indices_same_orientation(self, quaternion_grid_index: int):
         return np.where(self.get_quaternion_assignments() == quaternion_grid_index)[0]

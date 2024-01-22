@@ -1,10 +1,12 @@
+from typing import Optional
+
 import MDAnalysis as mda
 import matplotlib
 import nglview as nv
 import ipywidgets as widgets
 import numpy as np
 from IPython.core.display import display
-from numpy._typing import ArrayLike
+from numpy.typing import ArrayLike, NDArray
 
 
 class ViewManager:
@@ -19,10 +21,13 @@ class ViewManager:
         self.u = u
         self.fresh_view()
 
+
     def fresh_view(self):
         """
         Run this when you want to start a new view and discard an old one.
         """
+        self.current_magnitudes: Optional[NDArray] = None
+        self.current_opacities: Optional[NDArray] = None
         self.view = nv.NGLWidget()
 
     def get_ith_frame(self, i: int) -> mda.Universe:
@@ -70,6 +75,10 @@ class ViewManager:
         """
         ith_atoms = self.get_ith_frame(frame_i)
 
+        # don't plot frames that would have tiny opacity anyway
+        if "opacity" in kwargs.keys() and kwargs["opacity"] < 0.05:
+            return self.view
+
         self.view.add_component(ith_atoms, default_representation=False)
         # the index is there in order to only affect the last added representation
         self.view[-1].add_representation("ball+stick", **kwargs)
@@ -77,12 +86,38 @@ class ViewManager:
             self._add_coordinate_axes()
         return self.view
 
-    def _add_optional_representation_parameters(self, my_index: int, colors: list, opacities: list,
-                                                color_magnitudes: list, **cmap_kwargs):
+    def set_color_magnitude(self, all_magnitudes, cmap = None, norm = None):
+        if cmap is None:
+            cmap = matplotlib.cm.get_cmap("bwr")
+        if norm is None:
+            norm = matplotlib.colors.CenteredNorm(vcenter=0, halfrange=np.abs(np.min(all_magnitudes)), clip=True)
+        scalarMap = matplotlib.cm.ScalarMappable(norm=norm, cmap=cmap)
+
+        all_hex = []
+        for mag in all_magnitudes:
+            rgba = scalarMap.to_rgba(mag)
+            hex_color = matplotlib.colors.rgb2hex(rgba)
+            all_hex.append(hex_color)
+        self.current_magnitudes = np.array(all_hex)
+
+    def set_opacity_magnitude(self, all_magnitudes: NDArray):
+        # normalize magnitudes between 0 and 1
+        min_mag = np.min(all_magnitudes)
+        max_mag = np.max(all_magnitudes)
+        self.current_opacities = (all_magnitudes - min_mag)/(max_mag - min_mag)
+
+
+    def _add_optional_representation_parameters(self, my_index: int, colors: list, opacities: list):
         """
         Helper method if you want to plot several view and pass arguments to them.
         """
         kwargs = {}
+        # read from self properties is set
+        if self.current_magnitudes is not None:
+            colors = self.current_magnitudes
+        if self.current_opacities is not None:
+            opacities = self.current_opacities
+        # add to kwargs
         if colors is not None:
             kwargs["color"] = colors[my_index]
         if opacities is not None:
@@ -90,25 +125,10 @@ class ViewManager:
                 kwargs["opacity"] = opacities
             else:
                 kwargs["opacity"] = opacities[my_index]
-        if color_magnitudes is not None:
-            colors = self._color_magnitudes2colors(color_magnitudes, **cmap_kwargs)
-            kwargs["color"] = colors[my_index]
         return kwargs
 
-    def _color_magnitudes2colors(self, magnitudes, cmap = "bwr", vcenter: float = 0):
-        cmap = matplotlib.cm.get_cmap(cmap)
-        norm = matplotlib.colors.CenteredNorm(vcenter=vcenter, halfrange=np.abs(np.min(magnitudes)), clip=True)
-        scalarMap = matplotlib.cm.ScalarMappable(norm=norm, cmap=cmap)
 
-        all_hex = []
-        for mag in magnitudes:
-            rgba = scalarMap.to_rgba(mag)
-            hex_color = matplotlib.colors.rgb2hex(rgba)
-            all_hex.append(hex_color)
-        return all_hex
-
-    def plot_frames_sequential(self, list_indices: list, colors: list = None, opacities: list = None,
-                               color_magnitudes: list = None, **cmap_kwargs):
+    def plot_frames_sequential(self, list_indices: list, colors: list = None, opacities: list = None):
         """
         Plot several frames of the self.u next to each other. Automatically ngo to next now if you have too
         many frames to display in one row.
@@ -119,11 +139,10 @@ class ViewManager:
             - opacities: a list of opacities (must be same length as list_indices) or None (default)
         """
         all_views = []
-        for li, list_i in enumerate(list_indices):
+        for list_i in list_indices:
             self.fresh_view()
             # add optional parameters
-            kwargs = self._add_optional_representation_parameters(li, colors, opacities, color_magnitudes,
-                                                                  **cmap_kwargs)
+            kwargs = self._add_optional_representation_parameters(list_i, colors, opacities)
             neig_view = self.plot_ith_frame(list_i, **kwargs)
             # this is also important for nice arragement of figures
             neig_view.layout.width = "200px"
@@ -134,8 +153,7 @@ class ViewManager:
         display_all_views(all_views)
 
 
-    def plot_frames_overlapping(self, list_indices: list, colors: list = None, opacities: list = None,
-                                color_magnitudes: list = None, **cmap_kwargs):
+    def plot_frames_overlapping(self, list_indices: list, colors: list = None, opacities: list = None):
         """
         Plot several frames of the self.u overlapping.
 
@@ -146,10 +164,9 @@ class ViewManager:
 
         """
 
-        for li, list_i in enumerate(list_indices):
+        for list_i in list_indices:
             # add optional parameters
-            kwargs = self._add_optional_representation_parameters(li, colors, opacities, color_magnitudes,
-                                                                  **cmap_kwargs)
+            kwargs = self._add_optional_representation_parameters(list_i, colors, opacities)
 
             self.plot_ith_frame(list_i, **kwargs)
 
