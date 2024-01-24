@@ -75,13 +75,13 @@ class TransitionPlot(RepresentationCollection):
 
     
     @plot_method
-    def plot_eigenvalues(self, num_eigenv=None):
+    def plot_eigenvalues(self, num_eigenv=None, index_tau=0):
         """
         Visualize the eigenvalues of rate matrix.
         """
 
         eigenvals, _ = self.transition_obj.get_eigenval_eigenvec()
-        eigenvals = np.array(eigenvals)[0]
+        eigenvals = np.array(eigenvals)[index_tau]
 
         if num_eigenv:
             eigenvals = eigenvals[:num_eigenv]
@@ -116,11 +116,11 @@ class TransitionPlot(RepresentationCollection):
         self.ax.set_title(f"Eigenv. {eigenvec_index}")
 
     @plot_method
-    def plot_one_eigenvector_flat(self, eigenvec_index: int = 1):
+    def plot_one_eigenvector_flat(self, eigenvec_index: int = 1, index_tau=0):
         eigenvals, eigenvecs = self.transition_obj.get_eigenval_eigenvec()
 
         # shape: (number_taus, number_cells, num_eigenvectors)
-        eigenvecs = eigenvecs[0]  # values for the first tau
+        eigenvecs = eigenvecs[index_tau]  # values for the first tau
 
         sns.lineplot(eigenvecs.T[eigenvec_index], ax=self.ax)
         self.ax.set_title(f"Eigenv. {eigenvec_index}")

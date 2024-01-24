@@ -5,15 +5,14 @@ A Pseudotrajectory takes a ParsedMolecule and a FullGrid and returns a generator
 all combinations of positions/orientations defined by the grid. This class does not deal with any file input/output.
 For this purpose, Writers in molgri.writers module are provided.
 """
-from copy import copy
 from typing import Tuple, Generator
 
 import numpy as np
-from molgri.space.rotations import grid2rotation, two_vectors2rot
 from scipy.spatial.transform import Rotation
 
 from molgri.molecules.parsers import ParsedMolecule
 from molgri.space.fullgrid import FullGrid
+from molgri.space.utils import normalise_vectors
 
 
 class Pseudotrajectory:
@@ -56,19 +55,17 @@ class Pseudotrajectory:
         for se3_coo in fg:
             position = se3_coo[:3]
             orientation = se3_coo[3:]
-            z_vector = np.array([0, 0, np.linalg.norm(position)])
             rotation_body = Rotation.from_quat(orientation)
-            rotation_origin = Rotation.from_matrix(two_vectors2rot(z_vector, position))
 
             # position and orient as desired
             self.molecule.rotate_about_body(rotation_body)
             self.molecule.translate_radially(np.linalg.norm(position))
-            self.molecule.double_rotate(position / np.linalg.norm(position))
+            self.molecule.double_rotate(normalise_vectors(position))
 
             yield self.current_frame, self.molecule
             self.current_frame += 1
             # rotate back
-            self.molecule.double_rotate(position / np.linalg.norm(position), inverse=True)
+            self.molecule.double_rotate(normalise_vectors(position), inverse=True)
             self.molecule.translate_radially(-np.linalg.norm(position))
             self.molecule.rotate_about_body(rotation_body, inverse=True)
 

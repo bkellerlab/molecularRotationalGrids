@@ -19,6 +19,7 @@ from scipy.spatial.transform import Rotation
 from scipy.constants import k as kB, N_A
 from tqdm import tqdm
 
+from molgri.molecules.writers import PtIOManager
 from molgri.space.translations import get_between_radii
 from molgri.space.voronoi import in_hull
 from molgri.wrappers import save_or_use_saved
@@ -53,9 +54,10 @@ class SimulationHistogram:
             second_molecule_selection (str): will be forwarded to trajectory_universe to identify the moving molecule
 
         """
-        if trajectory_name is None:
-            trajectory_name = "simulation_histogram"
         self.trajectory_name = trajectory_name
+        split_name = self.trajectory_name.strip().split("_")
+        self.m1_name = split_name[0]
+        self.m2_name = split_name[1]
         self.is_pt = is_pt
         self.use_saved = use_saved
         self.second_molecule_selection = second_molecule_selection
@@ -71,6 +73,9 @@ class SimulationHistogram:
         self.quaternion_assignments = None
         self.full_assignments = None
         self.transition_model = None
+
+    def __len__(self):
+        return len(self.trajectory_universe.trajectory)
 
     # noinspection PyMissingOrEmptyDocstring
     def get_name(self) -> str:
@@ -180,11 +185,13 @@ class SimulationHistogram:
                 self.transition_model = MSM(self, tau_array=tau_array, use_saved=self.use_saved)
         return self.transition_model
 
-    def _extract_universe_second_molecule(self) -> mda.Universe:
+    def _extract_universe_second_molecule(self, which_universe: mda.Universe = None) -> mda.Universe:
         """
         This function removes the first molecule and rotates the second one to the position [0, 0, 1]
         """
-        m2 = self.trajectory_universe.select_atoms(self.second_molecule_selection)
+        if which_universe is None:
+            which_universe = self.trajectory_universe
+        m2 = which_universe.select_atoms(self.second_molecule_selection)
 
         coordinates = AnalysisFromFunction(lambda ag: ag.positions.copy(), m2).run().results['timeseries']
         u2 = mda.Merge(m2)
@@ -226,10 +233,9 @@ class SimulationHistogram:
                 current_parsed.atoms.positions = current_positions
                 # do the exact opposite as in pt generation
                 rotation_body = Rotation.from_quat(available_quat)
+                current_parsed.double_rotate(position / np.linalg.norm(position), inverse=True)
+                current_parsed.translate_radially(-np.linalg.norm(position))
                 current_parsed.rotate_about_body(rotation_body, inverse=True)
-                rotation_origin = Rotation.from_matrix(two_vectors2rot(z_vector, position))
-                current_parsed.rotate_about_origin(rotation_origin, inverse=True)
-                current_parsed.translate_to_origin()
 
                 # now calculate the difference to initial input molecule
                 all_rmsd.append(rmsd(current_parsed.get_positions(), initial_u.atoms.positions)) #
@@ -331,7 +337,7 @@ class TransitionModel(ABC):
             tm = all_tms[tau_i]  # the transition matrix for this tau
             tm[np.isnan(tm)] = 0  # replace nans with zeros
             # in order to compute left eigenvectors, compute right eigenvectors of the transpose
-            eigenval, eigenvec = eigs(tm.T, num_eigenv, maxiter=100000, tol=0, which="LM", sigma=0, **kwargs)
+            eigenval, eigenvec = eigs(tm.T, num_eigenv, maxiter=100000, tol=0, which="LM", sigma=1, **kwargs)
             # don't need to deal with complex outputs in case all values are real
             # TODO: what happens here if we have negative imaginary components?
             if eigenvec.imag.max() == 0 and eigenval.imag.max() == 0:

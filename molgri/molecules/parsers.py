@@ -96,9 +96,14 @@ class ParsedMolecule:
         x = position[0]
         y = position[1]
         z = position[2]
-        b = np.sqrt(1-z**2)
+        b = np.sqrt(1 - z ** 2)
         first_matrix = Rotation.from_matrix(np.array([[z, 0, b], [0, 1, 0], [-b, 0, z]]))
-        second_matrix = Rotation.from_matrix(np.array([[x/b, -y/b, 0], [y/b, x/b, 0], [0, 0, 1]]))
+        # special cases z == +-1 -> b==0, x==0, y==0
+        if np.isclose(np.abs(z), 1):
+            assert np.allclose([x, y], 0)
+            second_matrix = Rotation.from_matrix(np.eye(3))
+        else:
+            second_matrix = Rotation.from_matrix(np.array([[x/b, -y/b, 0], [y/b, x/b, 0], [0, 0, 1]]))
         if inverse:
             self.rotate_about_origin(second_matrix, inverse=True)
             self.rotate_about_origin(first_matrix, inverse=True)
