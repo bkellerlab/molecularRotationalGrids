@@ -319,7 +319,7 @@ class TransitionModel(ABC):
         pass
 
     @save_or_use_saved
-    def get_eigenval_eigenvec(self, num_eigenv: int = 15, **kwargs) -> Tuple[NDArray, NDArray]:
+    def get_eigenval_eigenvec(self, num_eigenv: int = 8, **kwargs) -> Tuple[NDArray, NDArray]:
         """
         Obtain eigenvectors and eigenvalues of the transition matrices.
 
@@ -337,7 +337,7 @@ class TransitionModel(ABC):
             tm = all_tms[tau_i]  # the transition matrix for this tau
             tm[np.isnan(tm)] = 0  # replace nans with zeros
             # in order to compute left eigenvectors, compute right eigenvectors of the transpose
-            eigenval, eigenvec = eigs(tm.T, num_eigenv, maxiter=100000, tol=0, which="LM", sigma=1, **kwargs)
+            eigenval, eigenvec = eigs(tm.T, num_eigenv, maxiter=100000, tol=0, which="LM", **kwargs) #, sigma=1
             # don't need to deal with complex outputs in case all values are real
             # TODO: what happens here if we have negative imaginary components?
             if eigenvec.imag.max() == 0 and eigenval.imag.max() == 0:

@@ -9,15 +9,16 @@ import seaborn as sns
 import matplotlib.colors as colors
 
 from molgri.plotting.abstract import RepresentationCollection
-from molgri.molecules.transitions import TransitionModel
+from molgri.molecules.transitions import TransitionModel, SimulationHistogram
 from molgri.plotting.fullgrid_plots import FullGridPlot
 from molgri.wrappers import plot3D_method, plot_method
 
 
 class TransitionPlot(RepresentationCollection):
 
-    def __init__(self, transition_obj: TransitionModel, *args, **kwargs):
-        self.transition_obj = transition_obj
+    def __init__(self, transition_obj: SimulationHistogram, tau_array=None, *args, **kwargs):
+        self.simulation_histogram = transition_obj
+        self.transition_obj = transition_obj.get_transition_model(tau_array=tau_array)
         data_name = self.transition_obj.get_name()
         super().__init__(data_name, *args, **kwargs)
 
@@ -80,11 +81,8 @@ class TransitionPlot(RepresentationCollection):
         Visualize the eigenvalues of rate matrix.
         """
 
-        eigenvals, _ = self.transition_obj.get_eigenval_eigenvec()
+        eigenvals, _ = self.transition_obj.get_eigenval_eigenvec(num_eigenv=num_eigenv)
         eigenvals = np.array(eigenvals)[index_tau]
-
-        if num_eigenv:
-            eigenvals = eigenvals[:num_eigenv]
 
         xs = np.linspace(0, 1, num=len(eigenvals))
         self.ax.scatter(xs, eigenvals, s=5, c="black")
@@ -110,7 +108,7 @@ class TransitionPlot(RepresentationCollection):
         eigenvecs = eigenvecs[0]  # values for the first tau
         eigenvecs = eigenvecs.T
 
-        fgp = FullGridPlot(self.transition_obj.sim_hist.full_grid, default_complexity_level="half_empty")
+        fgp = FullGridPlot(self.simulation_histogram.full_grid, default_complexity_level="half_empty")
         fgp.plot_position_voronoi(ax=self.ax, fig=self.fig, plot_vertex_points=False, save=False)
         fgp.plot_positions(ax=self.ax, fig=self.fig, save=False, animate_rot=False) #, c=eigenvecs[eigenvec_index]
         self.ax.set_title(f"Eigenv. {eigenvec_index}")
@@ -118,10 +116,11 @@ class TransitionPlot(RepresentationCollection):
     @plot_method
     def plot_one_eigenvector_flat(self, eigenvec_index: int = 1, index_tau=0):
         eigenvals, eigenvecs = self.transition_obj.get_eigenval_eigenvec()
+        n_b = self.simulation_histogram.full_grid.b_rotations.get_N()
+        n_position_grid = len(self.simulation_histogram.full_grid.get_position_grid_as_array())
 
         # shape: (number_taus, number_cells, num_eigenvectors)
         eigenvecs = eigenvecs[index_tau]  # values for the first tau
-
         sns.lineplot(eigenvecs.T[eigenvec_index], ax=self.ax)
         self.ax.set_title(f"Eigenv. {eigenvec_index}")
 

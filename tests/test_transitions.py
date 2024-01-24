@@ -68,19 +68,18 @@ if __name__ == "__main__":
     #test_position_grid_assignments()
     #test_quaternion_grid_assignments()
     #test_full_grid_assignments()
-    fg_assigning = FullGrid("8", "12", "linspace(0.2, 1, 5)")
+    fg_assigning = FullGrid("8", "12", "linspace(0.3, 1, 5)")
+    fg_b = FullGrid("8", "1", "1")
     sh_traj = SimulationHistogram("H2O_H2O_0095_25000", is_pt=False, second_molecule_selection="bynum 4:6",
-                                  full_grid=fg_assigning, use_saved=False)
+                                  full_grid=fg_b, use_saved=False)
 
-    my_msm = sh_traj.get_transition_model(tau_array=np.array([2, 5, 7, 10, 20, 30, 40, 50, 70, 100, 200]))
+    my_msm = sh_traj.get_transition_model()
 
-    my_transition_matrices = my_msm.get_transitions_matrix()
-    #my_msm.get_eigenval_eigenvec()
 
     from molgri.plotting.transition_plots import TransitionPlot
-    tp = TransitionPlot(my_msm)
-    tp.plot_its(4)
-    tp.plot_eigenvalues(index_tau=4)
+    tp = TransitionPlot(sh_traj, tau_array=np.array([2, 5, 7, 10, 20, 25, 30, 35, 40, 50, 70, 100, 150, 200]))
+    tp.plot_its(8)
+    tp.plot_eigenvalues(num_eigenv=5, index_tau=4)
     for i in range(4):
         tp.plot_one_eigenvector_flat(i, index_tau=4)
     #for tm in my_transition_matrices:
