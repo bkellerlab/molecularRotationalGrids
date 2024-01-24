@@ -83,6 +83,30 @@ class ParsedMolecule:
     def translate(self, vector: np.ndarray):
         self.atoms.translate(vector)
 
+    def double_rotate(self, position:NDArray, inverse=False):
+        """
+        The starting position is at (0, 0, 1). We perform two rotations: first around the y-axis till the wished z-coo
+        is reached, then around z-axis till the wished x, y, z coordinates are reached.
+        Args:
+            position ():
+
+        Returns:
+
+        """
+        x = position[0]
+        y = position[1]
+        z = position[2]
+        b = np.sqrt(1-z**2)
+        first_matrix = Rotation.from_matrix(np.array([[z, 0, b], [0, 1, 0], [-b, 0, z]]))
+        second_matrix = Rotation.from_matrix(np.array([[x/b, -y/b, 0], [y/b, x/b, 0], [0, 0, 1]]))
+        if inverse:
+            self.rotate_about_origin(second_matrix, inverse=True)
+            self.rotate_about_origin(first_matrix, inverse=True)
+        else:
+            assert np.allclose(self.get_center_of_mass()[:2], [0, 0], atol=1e-5), f"{self.get_center_of_mass()[:2]}"
+            self.rotate_about_origin(first_matrix)
+            self.rotate_about_origin(second_matrix)
+
     def rotate_to(self, position: NDArray):
         """
         1) rotate around origin to get to a rotational position described by position

@@ -67,7 +67,7 @@ class Pseudotrajectory:
             yield self.current_frame, self.molecule
             self.current_frame += 1
             # rotate back
-            self.molecule.translate_radially(-np.linalg.norm(position))
             self.molecule.rotate_about_body(rotation_body, inverse=True)
             self.molecule.rotate_about_origin(rotation_origin, inverse=True)
+            self.molecule.translate_radially(-np.linalg.norm(position))
 

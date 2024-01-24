@@ -153,7 +153,7 @@ class ViewManager:
         display_all_views(all_views)
 
 
-    def plot_frames_overlapping(self, list_indices: list, colors: list = None, opacities: list = None):
+    def plot_frames_overlapping(self, list_indices: list, colors: list = None, opacities: list = None, **kwargs_plot):
         """
         Plot several frames of the self.u overlapping.
 
@@ -168,7 +168,7 @@ class ViewManager:
             # add optional parameters
             kwargs = self._add_optional_representation_parameters(list_i, colors, opacities)
 
-            self.plot_ith_frame(list_i, **kwargs)
+            self.plot_ith_frame(list_i, **kwargs, **kwargs_plot)
 
         return self.view
 

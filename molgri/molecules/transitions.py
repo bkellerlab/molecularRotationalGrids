@@ -20,11 +20,13 @@ from scipy.constants import k as kB, N_A
 from tqdm import tqdm
 
 from molgri.space.translations import get_between_radii
+from molgri.space.voronoi import in_hull
 from molgri.wrappers import save_or_use_saved
 from molgri.molecules.parsers import ParsedMolecule, XVGParser
 from molgri.space.fullgrid import FullGrid
 from molgri.paths import PATH_OUTPUT_AUTOSAVE, PATH_OUTPUT_ENERGIES, PATH_OUTPUT_LOGGING, PATH_OUTPUT_PT
-from molgri.space.utils import angle_between_vectors, k_argmin_in_array, norm_per_axis
+from molgri.space.utils import angle_between_vectors, dist_on_sphere, k_argmin_in_array, norm_per_axis, \
+    normalise_vectors
 from molgri.space.rotations import two_vectors2rot
 
 
@@ -57,7 +59,7 @@ class SimulationHistogram:
         self.is_pt = is_pt
         self.use_saved = use_saved
         self.second_molecule_selection = second_molecule_selection
-        self.energies = XVGParser(f"{PATH_OUTPUT_ENERGIES}{self.trajectory_name}.xvg").get_parsed_energy()
+        self.energies = None
         self.trajectory_universe = mda.Universe(f"{PATH_OUTPUT_PT}{trajectory_name}.gro",
                                                 f"{PATH_OUTPUT_PT}{trajectory_name}.xtc")
         if full_grid is None and self.is_pt:
@@ -119,7 +121,7 @@ class SimulationHistogram:
     """
 
     def get_indices_k_lowest_energies(self, k: int, energy_type: str):
-        all_energies = self.energies.get_energies(energy_type)
+        all_energies = self.get_magnitude_energy(energy_type)
         return k_argmin_in_array(all_energies, k)
 
     def get_indices_neighbours_of_cell_i(self, i: int) -> NDArray:
@@ -146,6 +148,8 @@ class SimulationHistogram:
     """
 
     def get_magnitude_energy(self, energy_type: str):
+        if self.energies is None:
+            self.energies = XVGParser(f"{PATH_OUTPUT_ENERGIES}{self.trajectory_name}.xvg").get_parsed_energy()
         return self.energies.get_energies(energy_type)
 
     def get_magnitude_ith_eigenvector(self, i: int):
@@ -196,6 +200,10 @@ class SimulationHistogram:
         initial_u = mda.Merge(trajectory_universe_m2.atoms)
         initial_u.atoms.translate(-initial_u.atoms.center_of_mass())
 
+        # determine index within layer
+        quaternions = self.full_grid.b_rotations.get_grid_as_array()
+        #indices_within_layer = np.argmin(dist_on_sphere(rot_points, normalise_vectors(points_vector)), axis=0)
+
         # calculate RMSD between each frame of real trajectory and all reference orientations from PT
         total_results = []
 
@@ -204,7 +212,7 @@ class SimulationHistogram:
             trajectory_universe_m2.trajectory[j]
 
             # first assign closest position grid point so you only consider additional rotation from that point
-            my_pos_assignment = int(self.position_assignments[j])
+            my_pos_assignment = int(self.get_position_assignments()[j])
             position = self.full_grid.get_position_grid_as_array()[my_pos_assignment]
             z_vector = np.array([0, 0, np.linalg.norm(position)])
 
@@ -232,6 +240,7 @@ class SimulationHistogram:
 
     def _assign_trajectory_2_position_grid(self) -> NDArray:
 
+
         coms = AnalysisFromFunction(lambda ag: ag.center_of_mass(),
                                    self.trajectory_universe.trajectory,
                                     self.trajectory_universe.select_atoms(self.second_molecule_selection))
@@ -239,10 +248,9 @@ class SimulationHistogram:
 
         points_vector = coms.results['timeseries']
 
+        # determine index within layer
         rot_points = self.full_grid.o_rotations.get_grid_as_array()
-        # this automatically select the one of angles that is < pi
-        angles = angle_between_vectors(points_vector, rot_points)
-        indices_within_layer = np.argmin(angles, axis=1)
+        indices_within_layer = np.argmin(dist_on_sphere(rot_points, normalise_vectors(points_vector)), axis=0)
 
         # determine radii of cells
         norms = norm_per_axis(points_vector)
@@ -250,6 +258,7 @@ class SimulationHistogram:
         vor_radii = get_between_radii(self.full_grid.t_grid.get_trans_grid())
 
         # find the index of the layer to which each point belongs
+
         for i, norm in enumerate(norms):
             for j, vor_rad in enumerate(vor_radii):
                 # because norm keeps the shape of the original array
@@ -434,9 +443,6 @@ class SQRA(TransitionModel):
         tau_array = np.array([1])
         self.energy_type = energy_type
         super().__init__(sim_hist, tau_array=tau_array, **kwargs)
-        len_fgrid = len(self.sim_hist.full_grid.get_full_grid_as_array())
-        if len(self.sim_hist.energies.get_energies(energy_type)) == len_fgrid:
-            self.assignments = np.arange(len_fgrid)
 
     @save_or_use_saved
     def get_transitions_matrix(self, D: float = 1, T=273) -> NDArray:
@@ -463,7 +469,7 @@ class SQRA(TransitionModel):
             # optimisation) or they are the arithmetic average of all energies of COM assigned to that cell.
             all_energies = np.empty(shape=(self.num_cells,))
             energy_counts = np.zeros(shape=(self.num_cells,))
-            obtained_energies = self.sim_hist.energies.get_energies(energy_type=self.energy_type)
+            obtained_energies = self.sim_hist.get_magnitude_energy(energy_type=self.energy_type)
             for a, e in zip(self.assignments, obtained_energies):
                 if not np.isnan(a):
                     all_energies[int(a)] += e
@@ -504,11 +510,17 @@ if __name__ == "__main__":
 
     evaluation_fg = FullGrid("40", "42", "linspace(0.2, 1.5, 10)")
 
-    # example with PT
-    my_pt_name = "H2O_H2O_0179"
+    fg_assigning = FullGrid("8", "12", "linspace(0.2, 1, 5)")
+    sh_pt = SimulationHistogram("H2O_H2O_0179", is_pt=True, second_molecule_selection="bynum 4:6",
+                                full_grid=fg_assigning, use_saved=True)
 
-    sh = SimulationHistogram(my_pt_name, full_grid=evaluation_fg, second_molecule_selection="bynum 4:6")
-    assignments = sh.get_full_assignments()
-    np.set_printoptions(threshold=sys.maxsize)
-    print(np.unique(assignments.astype(int), return_counts=True))
+    sh_traj = SimulationHistogram("H2O_H2O_0095_2000", is_pt=False, second_molecule_selection="bynum 4:6",
+                                  full_grid=fg_assigning, use_saved=True)
+
+    msm_matrix = sh_traj.get_transition_model()
+    sqra_matrix = sh_pt.get_transition_model()
+
+    sqra_eigenvectors = sqra_matrix.get_eigenval_eigenvec()
+    #msm_eigenvectors = msm_matrix.get_eigenval_eigenvec()
+
 

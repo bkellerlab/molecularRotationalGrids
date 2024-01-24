@@ -73,11 +73,15 @@ def dist_on_sphere(vector1: np.ndarray, vector2: np.ndarray) -> np.ndarray:
     Returns:
         an array the shape (n1, n2) containing distances between both sets of points on sphere
     """
+
     norm1 = norm_per_axis(vector1)
     norm2 = norm_per_axis(vector2)
-    assert np.allclose(norm1, norm2), "Both vectors/arrays of vectors don't have the same norms!"
+    # all norms the same
+    flat_norm = norm1.flatten()[0]
+    assert np.allclose(norm1, flat_norm)
+    assert np.allclose(norm2, flat_norm)
     angle = angle_between_vectors(vector1, vector2)
-    return angle * norm1
+    return angle * flat_norm
 
 
 def hemisphere_quaternion_set(quaternions: NDArray, upper=True) -> NDArray:
@@ -487,9 +491,9 @@ def _get_alpha_with_spherical_cosine_law(A: NDArray, B: NDArray, C: NDArray):
     B = normalise_vectors(B)
     C = normalise_vectors(C)
     # and lengths of the opposite sides a, b, c are
-    a = dist_on_sphere(B, C)[0]
-    b = dist_on_sphere(C, A)[0]
-    c = dist_on_sphere(A, B)[0]
+    a = dist_on_sphere(B, C)
+    b = dist_on_sphere(C, A)
+    c = dist_on_sphere(A, B)
     # using cosine law on spheres (need rounding so we don't numerically get over/under the range of arccos):
     alpha = np.arccos(np.round((np.cos(a) - np.cos(b) * np.cos(c)) / (np.sin(b) * np.sin(c)), 7))
     #print(a, b, c, (np.cos(a) - np.cos(b) * np.cos(c)) / (np.sin(b) * np.sin(c)), alpha)
