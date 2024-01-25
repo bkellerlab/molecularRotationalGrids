@@ -9,6 +9,7 @@ from typing import Tuple, Sequence, Any
 
 import numpy as np
 import MDAnalysis as mda
+from MDAnalysis.analysis import align
 from MDAnalysis.analysis.rms import rmsd
 from MDAnalysis.analysis.base import AnalysisFromFunction
 from MDAnalysis.coordinates.memory import MemoryReader
@@ -27,8 +28,10 @@ from molgri.wrappers import save_or_use_saved
 from molgri.molecules.parsers import ParsedMolecule, XVGParser
 from molgri.space.fullgrid import FullGrid
 from molgri.paths import PATH_OUTPUT_AUTOSAVE, PATH_OUTPUT_ENERGIES, PATH_OUTPUT_LOGGING, PATH_OUTPUT_PT
-from molgri.space.utils import angle_between_vectors, dist_on_sphere, k_argmin_in_array, norm_per_axis, \
-    normalise_vectors
+from molgri.space.utils import angle_between_vectors, dist_on_sphere, distance_between_quaternions, \
+    hemisphere_quaternion_set, k_argmin_in_array, \
+    norm_per_axis, \
+    normalise_vectors, q_in_upper_sphere
 from molgri.space.rotations import two_vectors2rot
 
 
@@ -208,8 +211,11 @@ class SimulationHistogram:
         initial_u = mda.Merge(trajectory_universe_m2.atoms)
         initial_u.atoms.translate(-initial_u.atoms.center_of_mass())
 
-        # determine index within layer
-        quaternions = self.full_grid.b_rotations.get_grid_as_array()
+        # prepare reference structure at each position grid point
+        #for position in self.full_grid.position_grid.get_position_grid_as_array():
+
+
+
         #indices_within_layer = np.argmin(dist_on_sphere(rot_points, normalise_vectors(points_vector)), axis=0)
 
         # calculate RMSD between each frame of real trajectory and all reference orientations from PT
@@ -222,30 +228,38 @@ class SimulationHistogram:
             # first assign closest position grid point so you only consider additional rotation from that point
             my_pos_assignment = int(self.get_position_assignments()[j])
             position = self.full_grid.get_position_grid_as_array()[my_pos_assignment]
-            z_vector = np.array([0, 0, np.linalg.norm(position)])
 
             # Important! Need to save it here in order to re-set it to same value every inner loop
             current_positions = trajectory_universe_m2.atoms.positions
 
             all_rmsd = []
-            for i, available_quat in enumerate(all_quaternions):
-                current_parsed = ParsedMolecule(trajectory_universe_m2.atoms)
-                # re-set positions
-                current_parsed.atoms.positions = current_positions
-                # do the exact opposite as in pt generation
-                rotation_body = Rotation.from_quat(available_quat)
-                current_parsed.double_rotate(position / np.linalg.norm(position), inverse=True)
-                current_parsed.translate_radially(-np.linalg.norm(position))
-                current_parsed.rotate_about_body(rotation_body, inverse=True)
-
-                # now calculate the difference to initial input molecule
-                all_rmsd.append(rmsd(current_parsed.get_positions(), initial_u.atoms.positions)) #
-                # weights=initial_u.atoms.masses)
-            total_results.append(np.argmin(all_rmsd))
-
+            current_parsed = ParsedMolecule(trajectory_universe_m2.atoms)
+            # re-set positions
+            current_parsed.atoms.positions = current_positions
+            # do the exact opposite as in pt generation
+            current_parsed.double_rotate(normalise_vectors(position), inverse=True)
+            current_parsed.translate_radially(-np.linalg.norm(position))
+            # TODO: determine the REQUIRED quaternion to do this rotation perfectly, then do cdist to available
+            #  quats
+            R_required = align.rotation_matrix(initial_u.atoms.positions, current_parsed.get_positions())
+            quaternion_required = Rotation.from_matrix(R_required[0]).as_quat()
+            if not q_in_upper_sphere(quaternion_required):
+                quaternion_required = -quaternion_required
+            quaternion_distances = cdist(all_quaternions, quaternion_required[np.newaxis, :],
+                            metric=distance_between_quaternions)
+            print(quaternion_distances.T[0]) #, np.argmin(quaternion_distances, axis=0).flatten()
+            total_results.append(np.argmin(quaternion_distances.T[0]))
+        #print(self.full_grid.b_rotations.get_grid_as_array())
+        #return
         return np.array(total_results, dtype=int)
 
     def _assign_trajectory_2_position_grid(self) -> NDArray:
+        """
+        Assign every frame of the trajectory (or PT) to a corresponding position cell of self.full_grid
+
+        Returns:
+            an array of position grid indices
+        """
         # step 1: determine the layer in t_grid from norm of the com
         norm_coms = AnalysisFromFunction(lambda ag: np.linalg.norm(ag.center_of_mass()),
                              self.trajectory_universe.trajectory,
@@ -260,12 +274,8 @@ class SimulationHistogram:
 
         # step 2: now using a normalized com and a metric on a sphere, determine which of self.o_grid is closest
         o_grid_points = self.full_grid.position_grid.get_o_grid().get_grid_as_array()
-
-        com = self.trajectory_universe.select_atoms(self.second_molecule_selection).center_of_mass()[np.newaxis, :]
-        self.trajectory_universe.trajectory[8*100]
-        com = self.trajectory_universe.select_atoms(self.second_molecule_selection).center_of_mass()[np.newaxis, :]
         o_selection = AnalysisFromFunction(lambda ag: np.argmin(cdist(o_grid_points, normalise_vectors(
-            ag.center_of_mass())[np.newaxis, :],metric="cos"), axis=0),
+            ag.center_of_mass())[np.newaxis, :], metric="cos"), axis=0),
                                          self.trajectory_universe.trajectory,
                                          self.trajectory_universe.select_atoms(self.second_molecule_selection))
         o_selection.run()
@@ -273,7 +283,7 @@ class SimulationHistogram:
 
         # step 3: sum up the layer index and o index correctly
         n_orientations = self.full_grid.get_o_N()
-        return layer_indices * n_orientations + o_indices
+        return np.array(layer_indices * n_orientations + o_indices, dtype=int)
 
     def _assign_trajectory_2_full_grid(self):
         num_quaternions = self.full_grid.b_rotations.get_N()

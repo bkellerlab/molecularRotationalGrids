@@ -17,13 +17,13 @@ def _create_sim_hist(m1="H2O", m2="H2O", o="15", b="9", t="[0.2, 0.3, 0.4]", sec
 
 def test_position_grid_assignments():
     # if I input a pt and same FullGrid, the first n_b assignments are to 0th position, then 1st ...
-    # sh_same_fg = _create_sim_hist()
-    # n_b = sh_same_fg.full_grid.b_rotations.get_N()
-    # n_position_grid = len(sh_same_fg.full_grid.get_position_grid_as_array())
-    # repeated_natural_num = np.repeat(np.arange(n_position_grid), n_b)
-    # assert np.all(repeated_natural_num==sh_same_fg.get_position_assignments())
+    sh_same_fg = _create_sim_hist()
+    n_b = sh_same_fg.full_grid.b_rotations.get_N()
+    n_position_grid = len(sh_same_fg.full_grid.get_position_grid_as_array())
+    repeated_natural_num = np.repeat(np.arange(n_position_grid), n_b)
+    assert np.all(repeated_natural_num==sh_same_fg.get_position_assignments())
     # with the same pt but a smaller fullgrid, I expect an equal number of structures in every cell
-    num_o = 100
+    num_o = 500
     sh_diff_fg = _create_sim_hist(o=f"{num_o}", b="8",
                                   full_grid=FullGrid(b_grid_name="8", o_grid_name="12", t_grid_name="[0.2, 0.3, "
                                                                                                       "0.4]"))
@@ -31,10 +31,11 @@ def test_position_grid_assignments():
     assert np.all(nums == np.arange(12*3))
     # counts approx the same
     expected_per_position = 8*num_o/12
+    # there will be errors from expected distribution, partially cause the areas are not of exactly the same size,
+    # but especially because there is a bunch of pt points exactly in the middle which we don't expect
     rel_errors = np.abs(counts-expected_per_position)/expected_per_position * 100
-    print(counts)
-    print(counts[::12], counts[1::12], counts[2::12])
     assert np.all(rel_errors < 20)
+
 
 def test_quaternion_grid_assignments():
     # if I input a pt and same FullGrid, assignments should be 0, 1, ... n_b, 0, 1... n_b, 0 ......
@@ -68,7 +69,7 @@ def test_full_grid_assignments():
 
 if __name__ == "__main__":
     test_position_grid_assignments()
-    #test_quaternion_grid_assignments()
+    test_quaternion_grid_assignments()
     #test_full_grid_assignments()
     # fg_assigning = FullGrid("8", "12", "linspace(0.3, 1, 5)")
     # fg_b = FullGrid("8", "1", "1")
