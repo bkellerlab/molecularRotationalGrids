@@ -21,6 +21,7 @@ from __future__ import annotations
 from typing import Tuple
 
 import numpy as np
+from numpy._typing import ArrayLike
 from numpy.typing import NDArray
 from scipy.spatial.transform import Rotation
 from scipy.constants import pi
@@ -74,6 +75,41 @@ class FullGrid:
     def __len__(self):
         """The length of the full grid is a product of lengths of all sub-grids"""
         return self.b_rotations.get_N() * len(self.get_position_grid())
+
+    def get_b_N(self) -> int:
+        """
+        Get number of points in quaternion grid.
+        """
+        return self.b_rotations.get_N()
+
+    def get_o_N(self) -> int:
+        """
+        Get number of points in positions-on-a-sphere grid.
+        """
+        return self.o_rotations.get_N()
+
+    def get_t_N(self) -> int:
+        """
+        Get number of points in translation grid.
+        """
+        return len(self.t_grid.get_trans_grid())
+
+    def get_quaternion_index(self, full_grid_indices: NDArray) -> NDArray:
+        """
+        For given indices of full grid, return to which position in quaternion/b-grid they belong
+        """
+        # this returns 0, 1, 2, ... n_b, 0, 1, 2, ... n_b  ... <- repeated n_t*n_o times
+        repeated_natural_num = np.tile(np.arange(self.get_b_N()), self.get_t_N()*self.get_o_N())
+        return repeated_natural_num[full_grid_indices]
+
+    def get_position_index(self, full_grid_indices: NDArray) -> NDArray:
+        """
+        For given indices of full grid, return to which position in position grid they belong.
+        """
+        # this returns 0, 0, 0  ... 0, 1, 1, 1, ... 1, 2 ... <- every number repeated n_b times
+        repeated_natural_num = np.repeat(np.arange(self.get_t_N()*self.get_o_N()), self.get_b_N())
+        return repeated_natural_num[full_grid_indices]
+
 
     def get_position_grid(self):
         return self.position_grid

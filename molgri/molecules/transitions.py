@@ -15,6 +15,7 @@ from MDAnalysis.coordinates.memory import MemoryReader
 from numpy.typing import NDArray
 from scipy.sparse import csr_array
 from scipy.sparse.linalg import eigs
+from scipy.spatial.distance import cdist
 from scipy.spatial.transform import Rotation
 from scipy.constants import k as kB, N_A
 from tqdm import tqdm
@@ -245,41 +246,34 @@ class SimulationHistogram:
         return np.array(total_results, dtype=int)
 
     def _assign_trajectory_2_position_grid(self) -> NDArray:
-
-
-        coms = AnalysisFromFunction(lambda ag: ag.center_of_mass(),
-                                   self.trajectory_universe.trajectory,
-                                    self.trajectory_universe.select_atoms(self.second_molecule_selection))
-        coms.run()
-
-        points_vector = coms.results['timeseries']
-
-        # determine index within layer
-        rot_points = self.full_grid.o_rotations.get_grid_as_array()
-        indices_within_layer = np.argmin(dist_on_sphere(rot_points, normalise_vectors(points_vector)), axis=0)
-
-        # determine radii of cells
-        norms = norm_per_axis(points_vector)
-        layers = np.zeros((len(points_vector),))
+        # step 1: determine the layer in t_grid from norm of the com
+        norm_coms = AnalysisFromFunction(lambda ag: np.linalg.norm(ag.center_of_mass()),
+                             self.trajectory_universe.trajectory,
+                             self.trajectory_universe.select_atoms(self.second_molecule_selection))
+        norm_coms.run()
+        norms_along_trajectory = norm_coms.results['timeseries']
+        # the bins that determine the upper bounds of t_grid layers
         vor_radii = get_between_radii(self.full_grid.t_grid.get_trans_grid())
+        # Return the indices of the bins to which each value in input array belongs.
+        # If larger than the last bin, last bin index will still be given
+        layer_indices = np.digitize(norms_along_trajectory, vor_radii, right=True)
 
-        # find the index of the layer to which each point belongs
+        # step 2: now using a normalized com and a metric on a sphere, determine which of self.o_grid is closest
+        o_grid_points = self.full_grid.position_grid.get_o_grid().get_grid_as_array()
 
-        for i, norm in enumerate(norms):
-            for j, vor_rad in enumerate(vor_radii):
-                # because norm keeps the shape of the original array
-                if norm[0] < vor_rad:
-                    layers[i] = j
-                    break
-            # if nowhere, use largest radius
-            else:
-                layers[i] = len(vor_radii) - 1 #previously nan
+        com = self.trajectory_universe.select_atoms(self.second_molecule_selection).center_of_mass()[np.newaxis, :]
+        self.trajectory_universe.trajectory[8*100]
+        com = self.trajectory_universe.select_atoms(self.second_molecule_selection).center_of_mass()[np.newaxis, :]
+        o_selection = AnalysisFromFunction(lambda ag: np.argmin(cdist(o_grid_points, normalise_vectors(
+            ag.center_of_mass())[np.newaxis, :],metric="cos"), axis=0),
+                                         self.trajectory_universe.trajectory,
+                                         self.trajectory_universe.select_atoms(self.second_molecule_selection))
+        o_selection.run()
+        o_indices = o_selection.results['timeseries'].flatten()
 
-        layer_len = len(rot_points)
-        indices = layers * layer_len + indices_within_layer
-
-        # determine the closest orientation
-        return np.array(indices, dtype=int)
+        # step 3: sum up the layer index and o index correctly
+        n_orientations = self.full_grid.get_o_N()
+        return layer_indices * n_orientations + o_indices
 
     def _assign_trajectory_2_full_grid(self):
         num_quaternions = self.full_grid.b_rotations.get_N()
