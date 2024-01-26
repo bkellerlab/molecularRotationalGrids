@@ -25,7 +25,7 @@ from molgri.molecules.writers import PtIOManager
 from molgri.space.translations import get_between_radii
 from molgri.space.voronoi import in_hull
 from molgri.wrappers import save_or_use_saved
-from molgri.molecules.parsers import ParsedMolecule, XVGParser
+from molgri.molecules.parsers import ParsedMolecule, XVGParser, FileParser
 from molgri.space.fullgrid import FullGrid
 from molgri.paths import PATH_OUTPUT_AUTOSAVE, PATH_OUTPUT_ENERGIES, PATH_OUTPUT_LOGGING, PATH_OUTPUT_PT
 from molgri.space.utils import angle_between_vectors, dist_on_sphere, distance_between_quaternions, \
@@ -203,55 +203,63 @@ class SimulationHistogram:
         return u2
 
     def _assign_trajectory_2_quaternion_grid(self):
-        all_quaternions = self.full_grid.b_rotations.get_grid_as_array()
-
-        # in the real trajectory, extract the second molecule and center it without rotating
+        # in the real trajectory, extract the second molecule
         trajectory_universe_m2 = self._extract_universe_second_molecule()
-        # get and center reference structure
-        initial_u = mda.Merge(trajectory_universe_m2.atoms)
-        initial_u.atoms.translate(-initial_u.atoms.center_of_mass())
 
-        # prepare reference structure at each position grid point
-        #for position in self.full_grid.position_grid.get_position_grid_as_array():
+        # prepare reference structure at each pt grid point
+        my_pt = PtIOManager(self.m1_name, self.m2_name, self.full_grid.o_grid_name, self.full_grid.b_grid_name,
+                            self.full_grid.t_grid_name)
+        my_pt.construct_pt()
+        my_pt_name = my_pt.get_name()
+        parsed_pt = mda.Universe(f"{PATH_OUTPUT_PT}{my_pt_name}.gro",
+                                                f"{PATH_OUTPUT_PT}{my_pt_name}.xtc")
+        parsed_pt_structure2 = self._extract_universe_second_molecule(parsed_pt)
 
+        # calculate all technically possible RMSDs
+        rmsd_every_referecnce = []
+        for ref_str_i in range(len(parsed_pt.trajectory)):
+            parsed_pt.trajectory[ref_str_i]
+            # prevent from superimposing
+            nonalign_rmsd = AnalysisFromFunction(lambda ag: align.rms.rmsd(ag.positions, parsed_pt.select_atoms(self.second_molecule_selection).positions, center=False),
+                                             self.trajectory_universe.trajectory, self.trajectory_universe.select_atoms(self.second_molecule_selection))
 
-
-        #indices_within_layer = np.argmin(dist_on_sphere(rot_points, normalise_vectors(points_vector)), axis=0)
+            #calc_rmsds = align.rms.RMSD(self.trajectory_universe, parsed_pt, select=self.second_molecule_selection)
+            nonalign_rmsd.run()
+            rmsd_every_referecnce.append(nonalign_rmsd.results["timeseries"])
+        # every row allignment for trajectory_universe to a particular pt reference
+        rmsd_every_referecnce = np.array(rmsd_every_referecnce)
+        # pick out only the ones allowed by position index
+        all_position_indices = self.get_position_assignments()
+        starting_full_index = all_position_indices * self.full_grid.get_b_N()
+        available_references = [np.arange(si, si + self.full_grid.get_b_N()) for si in starting_full_index]
+        # every row tells you which reference pt stuctures you are allowed to use for this frame
+        available_references = np.array(available_references)
+        allowed_rmsd = np.take_along_axis(rmsd_every_referecnce, available_references, axis=1)
+        # argmin among still available ones
+        optimal_rmsd = np.argmin(allowed_rmsd, axis=1)
+        print(optimal_rmsd)
+        return optimal_rmsd
 
         # calculate RMSD between each frame of real trajectory and all reference orientations from PT
-        total_results = []
-
-        # idea: inverse movement to what is done with pt generation for every
-        for j, ts2 in enumerate(trajectory_universe_m2.trajectory):
-            trajectory_universe_m2.trajectory[j]
-
-            # first assign closest position grid point so you only consider additional rotation from that point
-            my_pos_assignment = int(self.get_position_assignments()[j])
-            position = self.full_grid.get_position_grid_as_array()[my_pos_assignment]
-
-            # Important! Need to save it here in order to re-set it to same value every inner loop
-            current_positions = trajectory_universe_m2.atoms.positions
-
-            all_rmsd = []
-            current_parsed = ParsedMolecule(trajectory_universe_m2.atoms)
-            # re-set positions
-            current_parsed.atoms.positions = current_positions
-            # do the exact opposite as in pt generation
-            current_parsed.double_rotate(normalise_vectors(position), inverse=True)
-            current_parsed.translate_radially(-np.linalg.norm(position))
-            # TODO: determine the REQUIRED quaternion to do this rotation perfectly, then do cdist to available
-            #  quats
-            R_required = align.rotation_matrix(initial_u.atoms.positions, current_parsed.get_positions())
-            quaternion_required = Rotation.from_matrix(R_required[0]).as_quat()
-            if not q_in_upper_sphere(quaternion_required):
-                quaternion_required = -quaternion_required
-            quaternion_distances = cdist(all_quaternions, quaternion_required[np.newaxis, :],
-                            metric=distance_between_quaternions)
-            print(quaternion_distances.T[0]) #, np.argmin(quaternion_distances, axis=0).flatten()
-            total_results.append(np.argmin(quaternion_distances.T[0]))
-        #print(self.full_grid.b_rotations.get_grid_as_array())
-        #return
-        return np.array(total_results, dtype=int)
+        # total_results = []
+        #
+        # # idea: inverse movement to what is done with pt generation for every
+        # for j, ts2 in enumerate(trajectory_universe_m2.trajectory):
+        #     trajectory_universe_m2.trajectory[j]
+        #
+        #     # first assign the closest position grid point, so you only consider additional rotation from that point
+        #     my_pos_assignment = self.get_position_assignments()[j]
+        #     all_rmsds = []
+        #     starting_full_index = my_pos_assignment*self.full_grid.get_b_N()
+        #     available_references = np.arange(starting_full_index, starting_full_index + self.full_grid.get_b_N())
+        #     for available_reference_i in available_references:
+        #         parsed_pt_structure2.trajectory[available_reference_i]
+        #         assert np.allclose(trajectory_universe_m2.atoms.center_of_mass(), parsed_pt_structure2.atoms.center_of_mass(), atol=1e-5)
+        #         R_required = align.rotation_matrix(trajectory_universe_m2.atoms.positions,
+        #                                            parsed_pt_structure2.atoms.positions)
+        #         all_rmsds.append(R_required[1])
+        #     total_results.append(np.argmin(all_rmsds))
+        # return np.array(total_results, dtype=int)
 
     def _assign_trajectory_2_position_grid(self) -> NDArray:
         """

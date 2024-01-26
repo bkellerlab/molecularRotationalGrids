@@ -39,8 +39,8 @@ def test_position_grid_assignments():
 
 def test_quaternion_grid_assignments():
     # if I input a pt and same FullGrid, assignments should be 0, 1, ... n_b, 0, 1... n_b, 0 ......
-    sh_same_fg = _create_sim_hist(b="8", o="12",
-                                  full_grid=FullGrid(b_grid_name="8", o_grid_name="12", t_grid_name="[0.2, 0.3, 0.4]"))
+    sh_same_fg = _create_sim_hist(b="17", o="12",
+                                  full_grid=FullGrid(b_grid_name="17", o_grid_name="12", t_grid_name="[0.2, 0.3, 0.4]"))
     n_b = sh_same_fg.full_grid.b_rotations.get_N()
     n_position_grid = len(sh_same_fg.full_grid.get_position_grid_as_array())
     repeated_natural_num = np.tile(np.arange(n_position_grid), n_b)
