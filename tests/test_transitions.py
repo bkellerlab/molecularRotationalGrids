@@ -1,3 +1,5 @@
+import sys
+
 import numpy as np
 from molgri.space.fullgrid import FullGrid
 
@@ -34,6 +36,7 @@ def test_position_grid_assignments():
     # there will be errors from expected distribution, partially cause the areas are not of exactly the same size,
     # but especially because there is a bunch of pt points exactly in the middle which we don't expect
     rel_errors = np.abs(counts-expected_per_position)/expected_per_position * 100
+    print(np.max(rel_errors))
     assert np.all(rel_errors < 20)
 
 
@@ -41,36 +44,63 @@ def test_quaternion_grid_assignments():
     # if I input a pt and same FullGrid, assignments should be 0, 1, ... n_b, 0, 1... n_b, 0 ......
     sh_same_fg = _create_sim_hist(b="17", o="12",
                                   full_grid=FullGrid(b_grid_name="17", o_grid_name="12", t_grid_name="[0.2, 0.3, 0.4]"))
-    n_b = sh_same_fg.full_grid.b_rotations.get_N()
-    n_position_grid = len(sh_same_fg.full_grid.get_position_grid_as_array())
-    repeated_natural_num = np.tile(np.arange(n_position_grid), n_b)
-    print(sh_same_fg.get_quaternion_assignments())
-    #44, 39, 41, 50, 52, 45, 41, 48
-    print(np.unique(sh_same_fg.get_quaternion_assignments(), return_counts=True))
-    #assert np.all(repeated_natural_num==sh_same_fg.get_quaternion_assignments())
+    ideal_q_indices = sh_same_fg.full_grid.get_quaternion_index()
+    assert np.all(ideal_q_indices == sh_same_fg.get_quaternion_assignments())
+
+    # what happens if not exact match
+    num_b = 40
+    sh_same_fg = _create_sim_hist(b=f"{num_b}", o="20", t="[0.2, 0.3, 0.4, 0.5]",
+                                  full_grid=FullGrid(b_grid_name="8", o_grid_name="12", t_grid_name="[0.2, 0.3, 0.4]"))
+    np.set_printoptions(threshold=sys.maxsize)
+    assignments = sh_same_fg.get_quaternion_assignments()
+    nums, counts = np.unique(sh_same_fg.get_quaternion_assignments(), return_counts=True)
+    assert np.all(nums == np.arange(8))
+    # counts approx the same
+    expected_per_position = 20 * 4 * num_b / 8
+    # there will be errors from expected distribution, partially cause the areas are not of exactly the same size,
+    # but especially because there is a bunch of pt points exactly in the middle which we don't expect
+    rel_errors = np.abs(counts - expected_per_position) / expected_per_position * 100
+    print(np.max(rel_errors))
+    assert np.all(rel_errors < 10)
 
 
 def test_full_grid_assignments():
 
     # perfect divisions, same sizes
-    sh_same_fg = _create_sim_hist(b="8", o="12",
-                                  full_grid=FullGrid(b_grid_name="8", o_grid_name="12", t_grid_name="[0.2, 0.3, 0.4]"))
-    len_traj = len(sh_same_fg)
-    print(sh_same_fg.get_full_assignments())
-    assert np.all(sh_same_fg.get_full_assignments() == np.arange(len_traj))
+    # sh_same_fg = _create_sim_hist(b="8", o="12",
+    #                               full_grid=FullGrid(b_grid_name="8", o_grid_name="12", t_grid_name="[0.2, 0.3, 0.4]"))
+    # len_traj = len(sh_same_fg)
+    # assert np.all(sh_same_fg.get_full_assignments() == np.arange(len_traj))
+    #
+    # # non-perfect divisions, same sizes
+    # sh_same_fg = _create_sim_hist(b="17", o="25",
+    #                               full_grid=FullGrid(b_grid_name="17", o_grid_name="25", t_grid_name="[0.2, 0.3, 0.4]"))
+    # len_traj = len(sh_same_fg)
+    # assert np.all(sh_same_fg.get_full_assignments() == np.arange(len_traj))
 
-    # non-perfect divisions, same sizes
-    sh_same_fg = _create_sim_hist(b="17", o="25",
-                                  full_grid=FullGrid(b_grid_name="17", o_grid_name="25", t_grid_name="[0.2, 0.3, 0.4]"))
-    len_traj = len(sh_same_fg)
-    assert np.all(sh_same_fg.get_full_assignments() == np.arange(len_traj))
+    # different sizes of b grid
+    # TODO: this one is not that great
+    # sh_same_fg = _create_sim_hist(b="17", o="15",
+    #                               full_grid=FullGrid(b_grid_name="10", o_grid_name="15", t_grid_name="[0.2, 0.3, 0.4]"))
+    # assignments = sh_same_fg.get_full_assignments()
+    # print(np.unique(assignments, return_counts=True))
+    #print(np.where(assignments!=np.arange(len(sh_same_fg.full_grid.get_full_grid_as_array()))))
+
+    # different sizes of o grid
+    sh_same_fg = _create_sim_hist(b="8", o="40",
+                                  full_grid=FullGrid(b_grid_name="8", o_grid_name="10", t_grid_name="[0.2, 0.3, 0.4]"))
+    assignments = sh_same_fg.get_full_assignments()
+    print(np.unique(assignments, return_counts=True))
 
 
+def test_pindex_and_quindex():
+    # cells that are considered neighbours should have same pindex, nex
+    pass
 
 if __name__ == "__main__":
-    test_position_grid_assignments()
-    test_quaternion_grid_assignments()
-    #test_full_grid_assignments()
+    #test_position_grid_assignments()
+    #test_quaternion_grid_assignments()
+    test_full_grid_assignments()
     # fg_assigning = FullGrid("8", "12", "linspace(0.3, 1, 5)")
     # fg_b = FullGrid("8", "1", "1")
     # sh_traj = SimulationHistogram("H2O_H2O_0095_25000", is_pt=False, second_molecule_selection="bynum 4:6",

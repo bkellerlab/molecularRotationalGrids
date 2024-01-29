@@ -94,20 +94,27 @@ class FullGrid:
         """
         return len(self.t_grid.get_trans_grid())
 
-    def get_quaternion_index(self, full_grid_indices: NDArray) -> NDArray:
+    def get_quaternion_index(self, full_grid_indices: NDArray = None) -> NDArray:
         """
         For given indices of full grid, return to which position in quaternion/b-grid they belong
+
+        Args:
+            full_grid_indices: if None, the entire fullgrid indices are used
         """
         # this returns 0, 1, 2, ... n_b, 0, 1, 2, ... n_b  ... <- repeated n_t*n_o times
         repeated_natural_num = np.tile(np.arange(self.get_b_N()), self.get_t_N()*self.get_o_N())
+        if full_grid_indices is None:
+            full_grid_indices = np.arange(len(self))
         return repeated_natural_num[full_grid_indices]
 
-    def get_position_index(self, full_grid_indices: NDArray) -> NDArray:
+    def get_position_index(self, full_grid_indices: NDArray = None) -> NDArray:
         """
         For given indices of full grid, return to which position in position grid they belong.
         """
         # this returns 0, 0, 0  ... 0, 1, 1, 1, ... 1, 2 ... <- every number repeated n_b times
         repeated_natural_num = np.repeat(np.arange(self.get_t_N()*self.get_o_N()), self.get_b_N())
+        if full_grid_indices is None:
+            full_grid_indices = np.arange(len(self))
         return repeated_natural_num[full_grid_indices]
 
 

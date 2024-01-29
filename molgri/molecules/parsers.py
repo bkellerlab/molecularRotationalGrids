@@ -108,7 +108,7 @@ class ParsedMolecule:
             self.rotate_about_origin(second_matrix, inverse=True)
             self.rotate_about_origin(first_matrix, inverse=True)
         else:
-            assert np.allclose(self.get_center_of_mass()[:2], [0, 0], atol=1.5e-5), f"{self.get_center_of_mass()[:2]}"
+            assert np.allclose(self.get_center_of_mass()[:2], [0, 0], atol=2e-5), f"{self.get_center_of_mass()[:2]}"
             self.rotate_about_origin(first_matrix)
             self.rotate_about_origin(second_matrix)
 

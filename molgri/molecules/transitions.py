@@ -203,9 +203,6 @@ class SimulationHistogram:
         return u2
 
     def _assign_trajectory_2_quaternion_grid(self):
-        # in the real trajectory, extract the second molecule
-        trajectory_universe_m2 = self._extract_universe_second_molecule()
-
         # prepare reference structure at each pt grid point
         my_pt = PtIOManager(self.m1_name, self.m2_name, self.full_grid.o_grid_name, self.full_grid.b_grid_name,
                             self.full_grid.t_grid_name)
@@ -213,53 +210,27 @@ class SimulationHistogram:
         my_pt_name = my_pt.get_name()
         parsed_pt = mda.Universe(f"{PATH_OUTPUT_PT}{my_pt_name}.gro",
                                                 f"{PATH_OUTPUT_PT}{my_pt_name}.xtc")
-        parsed_pt_structure2 = self._extract_universe_second_molecule(parsed_pt)
-
         # calculate all technically possible RMSDs
         rmsd_every_referecnce = []
         for ref_str_i in range(len(parsed_pt.trajectory)):
             parsed_pt.trajectory[ref_str_i]
-            # prevent from superimposing
-            nonalign_rmsd = AnalysisFromFunction(lambda ag: align.rms.rmsd(ag.positions, parsed_pt.select_atoms(self.second_molecule_selection).positions, center=False),
+            # you can't use align.rms.RMSD because it automatically rotationally aligns)
+            nonalign_rmsd = AnalysisFromFunction(lambda ag: align.rms.rmsd(ag.positions, parsed_pt.select_atoms(self.second_molecule_selection).positions, center=True),
                                              self.trajectory_universe.trajectory, self.trajectory_universe.select_atoms(self.second_molecule_selection))
-
-            #calc_rmsds = align.rms.RMSD(self.trajectory_universe, parsed_pt, select=self.second_molecule_selection)
             nonalign_rmsd.run()
             rmsd_every_referecnce.append(nonalign_rmsd.results["timeseries"])
         # every row allignment for trajectory_universe to a particular pt reference
         rmsd_every_referecnce = np.array(rmsd_every_referecnce)
         # pick out only the ones allowed by position index
-        all_position_indices = self.get_position_assignments()
-        starting_full_index = all_position_indices * self.full_grid.get_b_N()
-        available_references = [np.arange(si, si + self.full_grid.get_b_N()) for si in starting_full_index]
+        #all_position_indices = self.full_grid.get_position_index()
+        available_references = np.arange(len(self.full_grid)).reshape((-1, self.full_grid.get_b_N()))
         # every row tells you which reference pt stuctures you are allowed to use for this frame
-        available_references = np.array(available_references)
-        allowed_rmsd = np.take_along_axis(rmsd_every_referecnce, available_references, axis=1)
+        position_assignments = self.get_position_assignments()
+        final_allowed_indices = available_references[position_assignments]
+        allowed_rmsd = np.take_along_axis(rmsd_every_referecnce.T, final_allowed_indices, axis=1)
         # argmin among still available ones
-        optimal_rmsd = np.argmin(allowed_rmsd, axis=1)
-        print(optimal_rmsd)
+        optimal_rmsd = np.argmin(allowed_rmsd.T, axis=0)
         return optimal_rmsd
-
-        # calculate RMSD between each frame of real trajectory and all reference orientations from PT
-        # total_results = []
-        #
-        # # idea: inverse movement to what is done with pt generation for every
-        # for j, ts2 in enumerate(trajectory_universe_m2.trajectory):
-        #     trajectory_universe_m2.trajectory[j]
-        #
-        #     # first assign the closest position grid point, so you only consider additional rotation from that point
-        #     my_pos_assignment = self.get_position_assignments()[j]
-        #     all_rmsds = []
-        #     starting_full_index = my_pos_assignment*self.full_grid.get_b_N()
-        #     available_references = np.arange(starting_full_index, starting_full_index + self.full_grid.get_b_N())
-        #     for available_reference_i in available_references:
-        #         parsed_pt_structure2.trajectory[available_reference_i]
-        #         assert np.allclose(trajectory_universe_m2.atoms.center_of_mass(), parsed_pt_structure2.atoms.center_of_mass(), atol=1e-5)
-        #         R_required = align.rotation_matrix(trajectory_universe_m2.atoms.positions,
-        #                                            parsed_pt_structure2.atoms.positions)
-        #         all_rmsds.append(R_required[1])
-        #     total_results.append(np.argmin(all_rmsds))
-        # return np.array(total_results, dtype=int)
 
     def _assign_trajectory_2_position_grid(self) -> NDArray:
         """
@@ -278,6 +249,7 @@ class SimulationHistogram:
         vor_radii = get_between_radii(self.full_grid.t_grid.get_trans_grid())
         # Return the indices of the bins to which each value in input array belongs.
         # If larger than the last bin, last bin index will still be given
+        norms_along_trajectory[norms_along_trajectory > vor_radii[-1]] = vor_radii[-1]
         layer_indices = np.digitize(norms_along_trajectory, vor_radii, right=True)
 
         # step 2: now using a normalized com and a metric on a sphere, determine which of self.o_grid is closest
@@ -349,7 +321,13 @@ class TransitionModel(ABC):
             tm = all_tms[tau_i]  # the transition matrix for this tau
             tm[np.isnan(tm)] = 0  # replace nans with zeros
             # in order to compute left eigenvectors, compute right eigenvectors of the transpose
-            eigenval, eigenvec = eigs(tm.T, num_eigenv, maxiter=100000, tol=0, which="LM", **kwargs) #, sigma=1
+            if isinstance(self, MSM):
+                sigma=0 # or nothing??
+            elif isinstance(self, SQRA):
+                sigma=1
+            else:
+                raise TypeError(f"When not MSM and not SQRA, what then? {type(self)}")
+            eigenval, eigenvec = eigs(tm.T, num_eigenv, maxiter=100000, tol=0, which="LM", sigma=sigma, **kwargs) #, sigma=1
             # don't need to deal with complex outputs in case all values are real
             # TODO: what happens here if we have negative imaginary components?
             if eigenvec.imag.max() == 0 and eigenval.imag.max() == 0:
