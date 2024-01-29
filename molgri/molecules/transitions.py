@@ -113,8 +113,7 @@ class SimulationHistogram:
         input_names = input_names.split(" ")
         t_input = " ".join(input_names[2:])
         fg = FullGrid(o_grid_name=input_names[0], b_grid_name=input_names[1], t_grid_name=t_input,
-                      use_saved=True)
-
+                      use_saved=self.use_saved)
         # second step: load the .npy file with the found name
         used_grid = np.load(f"{PATH_OUTPUT_AUTOSAVE}get_full_grid_as_array_{full_grid_name}.npy")
 
@@ -504,19 +503,22 @@ class SQRA(TransitionModel):
 if __name__ == "__main__":
     import sys
 
-    evaluation_fg = FullGrid("40", "42", "linspace(0.2, 1.5, 10)")
 
-    fg_assigning = FullGrid("8", "12", "linspace(0.2, 1, 5)")
-    sh_pt = SimulationHistogram("H2O_H2O_0179", is_pt=True, second_molecule_selection="bynum 4:6",
-                                full_grid=fg_assigning, use_saved=True)
+    fg_assigning = FullGrid("8", "1", "linspace(0.2, 1, 5)", use_saved=False)
+    sh_pt = SimulationHistogram("H2O_H2O_0281", is_pt=True, second_molecule_selection="bynum 4:6",
+                                full_grid=fg_assigning, use_saved=False)
 
-    sh_traj = SimulationHistogram("H2O_H2O_0095_2000", is_pt=False, second_molecule_selection="bynum 4:6",
-                                  full_grid=fg_assigning, use_saved=True)
 
-    msm_matrix = sh_traj.get_transition_model()
-    sqra_matrix = sh_pt.get_transition_model()
+    #sh_traj = SimulationHistogram("H2O_H2O_0095_25000", is_pt=False, second_molecule_selection="bynum 4:6",
+    #                              full_grid=fg_assigning, use_saved=True)
 
-    sqra_eigenvectors = sqra_matrix.get_eigenval_eigenvec()
-    #msm_eigenvectors = msm_matrix.get_eigenval_eigenvec()
+    from molgri.plotting.transition_plots import TransitionPlot
+
+    #for sh in [sh_pt]:
+    tp = TransitionPlot(sh_pt, tau_array=np.array([2, 5, 7, 10, 20, 25, 30, 35, 40, 50]))
+    tp.plot_its(5, as_line=True)
+    tp.plot_eigenvalues(num_eigenv=5, index_tau=0)
+    for i in range(4):
+        tp.plot_one_eigenvector_flat(i, index_tau=0)
 
 

@@ -139,10 +139,14 @@ class ViewManager:
             - opacities: a list of opacities (must be same length as list_indices) or None (default)
         """
         all_views = []
-        for list_i in list_indices:
+        for li, list_i in enumerate(list_indices):
             self.fresh_view()
             # add optional parameters
-            kwargs = self._add_optional_representation_parameters(list_i, colors, opacities)
+            if colors and len(colors)==len(list_indices):
+                forward_index = li
+            else:
+                forward_index = list_i
+            kwargs = self._add_optional_representation_parameters(forward_index, colors, opacities)
             neig_view = self.plot_ith_frame(list_i, **kwargs)
             # this is also important for nice arragement of figures
             neig_view.layout.width = "200px"
@@ -164,10 +168,13 @@ class ViewManager:
 
         """
 
-        for list_i in list_indices:
+        for li, list_i in enumerate(list_indices):
             # add optional parameters
-            kwargs = self._add_optional_representation_parameters(list_i, colors, opacities)
-
+            if colors and len(colors)==len(list_indices):
+                forward_index = li
+            else:
+                forward_index = list_i
+            kwargs = self._add_optional_representation_parameters(forward_index, colors, opacities)
             self.plot_ith_frame(list_i, **kwargs, **kwargs_plot)
 
         return self.view

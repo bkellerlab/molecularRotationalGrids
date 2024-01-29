@@ -28,7 +28,7 @@ from molgri.space.utils import (find_inverse_quaternion, random_quaternions, ran
 from molgri.constants import UNIQUE_TOL, NAME2PRETTY_NAME, SMALL_NS
 from molgri.paths import PATH_OUTPUT_AUTOSAVE
 from molgri.space.polytopes import Cube4DPolytope, IcosahedronPolytope, Cube3DPolytope
-from molgri.space.voronoi import RotobjVoronoi, AbstractVoronoi, HalfRotobjVoronoi
+from molgri.space.voronoi import RotobjVoronoi, AbstractVoronoi, HalfRotobjVoronoi, MikroVoronoi
 from molgri.wrappers import time_method, save_or_use_saved
 
 
@@ -101,11 +101,11 @@ class SphereGridNDim(ABC):
         # the corresponding voronoi
         if self.dimensions == 3 and self.N >= 4:
             self.spherical_voronoi = RotobjVoronoi(self.grid)
-        elif self.dimensions == 4  and self.N >= 4:
+        elif self.dimensions == 4 and self.N >= 4:
             self.spherical_voronoi = HalfRotobjVoronoi(self.grid)
         else:
-            print("Warning! Voronoi objects can only be created for >=4 points")
-            self.spherical_voronoi = None
+            print("Warning! For <=4 points, volumes, areas etc are only estimated.")
+            self.spherical_voronoi = MikroVoronoi(dimensions=self.dimensions, N_points=self.get_N())
         return self.grid
 
     @save_or_use_saved

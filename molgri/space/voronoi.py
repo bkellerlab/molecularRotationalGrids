@@ -11,6 +11,7 @@ from typing import List, Optional, Tuple
 
 import numpy as np
 from numpy.typing import NDArray
+from scipy.constants import pi
 from scipy.linalg import svd
 from scipy.sparse import coo_array
 from scipy.spatial import SphericalVoronoi, ConvexHull, Delaunay
@@ -393,6 +394,52 @@ class HalfRotobjVoronoi(RotobjVoronoi):
             extracted_arr = extracted_arr[:, valid_columns]
             adj_matrix = extracted_arr
         return coo_array(adj_matrix)
+
+
+class MikroVoronoi(AbstractVoronoi):
+
+    def _create_centers_vertices_regions(self) -> Tuple:
+        pass
+
+    def __init__(self, dimensions, N_points):
+        self.dimensions = dimensions
+        assert self.dimensions in [3, 4]
+        self.N_points = N_points
+
+    def get_voronoi_volumes(self, **kwargs) -> NDArray:
+        if self.dimensions == 3:
+            # area of unit sphere divided into  N parts
+            return np.array([4*pi/self.N_points]*self.N_points)
+        else:
+            # hyperarea of half unit hypersphere  divided into  N parts
+            return np.array([2 * pi**2 /2 / self.N_points] * self.N_points)
+
+    def get_voronoi_adjacency(self, **kwargs) -> coo_array:
+        result = np.eye(self.N_points)
+        # invert 0s and 1s
+        result =1 - result
+        return coo_array(result)
+
+    def get_center_distances(self, **kwargs) -> coo_array:
+        """
+        For points that are Voronoi neighbours, calculate the distance between them and save them in a sparse NxN
+        format.
+
+        Returns:
+
+        """
+        return self.get_voronoi_adjacency()
+
+    def get_cell_borders(self, **kwargs) -> coo_array:
+        """
+        For points that are Voronoi neighbours, calculate the distance between them and save them in a sparse NxN
+        format.
+
+        Returns:
+
+        """
+        return self.get_voronoi_adjacency()
+
 
 def in_hull(p, hull):
     """

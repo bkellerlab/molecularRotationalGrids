@@ -67,16 +67,16 @@ def test_quaternion_grid_assignments():
 def test_full_grid_assignments():
 
     # perfect divisions, same sizes
-    # sh_same_fg = _create_sim_hist(b="8", o="12",
-    #                               full_grid=FullGrid(b_grid_name="8", o_grid_name="12", t_grid_name="[0.2, 0.3, 0.4]"))
-    # len_traj = len(sh_same_fg)
-    # assert np.all(sh_same_fg.get_full_assignments() == np.arange(len_traj))
-    #
-    # # non-perfect divisions, same sizes
-    # sh_same_fg = _create_sim_hist(b="17", o="25",
-    #                               full_grid=FullGrid(b_grid_name="17", o_grid_name="25", t_grid_name="[0.2, 0.3, 0.4]"))
-    # len_traj = len(sh_same_fg)
-    # assert np.all(sh_same_fg.get_full_assignments() == np.arange(len_traj))
+    sh_same_fg = _create_sim_hist(b="8", o="12",
+                                  full_grid=FullGrid(b_grid_name="8", o_grid_name="12", t_grid_name="[0.2, 0.3, 0.4]"))
+    len_traj = len(sh_same_fg)
+    assert np.all(sh_same_fg.get_full_assignments() == np.arange(len_traj))
+
+    # non-perfect divisions, same sizes
+    sh_same_fg = _create_sim_hist(b="17", o="25",
+                                  full_grid=FullGrid(b_grid_name="17", o_grid_name="25", t_grid_name="[0.2, 0.3, 0.4]"))
+    len_traj = len(sh_same_fg)
+    assert np.all(sh_same_fg.get_full_assignments() == np.arange(len_traj))
 
     # different sizes of b grid
     # TODO: this one is not that great
@@ -98,21 +98,7 @@ def test_pindex_and_quindex():
     pass
 
 if __name__ == "__main__":
-    #test_position_grid_assignments()
-    #test_quaternion_grid_assignments()
+    test_position_grid_assignments()
+    test_quaternion_grid_assignments()
     test_full_grid_assignments()
-    # fg_assigning = FullGrid("8", "12", "linspace(0.3, 1, 5)")
-    # fg_b = FullGrid("8", "1", "1")
-    # sh_traj = SimulationHistogram("H2O_H2O_0095_25000", is_pt=False, second_molecule_selection="bynum 4:6",
-    #                               full_grid=fg_b, use_saved=False)
-    #
-    # my_msm = sh_traj.get_transition_model()
-    #
-    #
-    # from molgri.plotting.transition_plots import TransitionPlot
-    # tp = TransitionPlot(sh_traj, tau_array=np.array([2, 5, 7, 10, 20, 25, 30, 35, 40, 50, 70, 100, 150, 200]))
-    # tp.plot_its(8)
-    # tp.plot_eigenvalues(num_eigenv=5, index_tau=4)
-    # for i in range(4):
-    #     tp.plot_one_eigenvector_flat(i, index_tau=4)
 

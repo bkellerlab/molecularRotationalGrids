@@ -116,8 +116,6 @@ class TransitionPlot(RepresentationCollection):
     @plot_method
     def plot_one_eigenvector_flat(self, eigenvec_index: int = 1, index_tau=0):
         eigenvals, eigenvecs = self.transition_obj.get_eigenval_eigenvec()
-        n_b = self.simulation_histogram.full_grid.b_rotations.get_N()
-        n_position_grid = len(self.simulation_histogram.full_grid.get_position_grid_as_array())
 
         # shape: (number_taus, number_cells, num_eigenvectors)
         eigenvecs = eigenvecs[index_tau]  # values for the first tau
