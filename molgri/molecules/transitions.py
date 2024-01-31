@@ -321,7 +321,7 @@ class TransitionModel(ABC):
             tm[np.isnan(tm)] = 0  # replace nans with zeros
             # in order to compute left eigenvectors, compute right eigenvectors of the transpose
             if isinstance(self, MSM):
-                sigma=0 # or nothing??
+                sigma=None # or nothing??
             elif isinstance(self, SQRA):
                 sigma=1
             else:
@@ -470,7 +470,6 @@ class SQRA(TransitionModel):
                     all_energies[int(a)] += e
                     energy_counts[int(a)] += 1
             # in both cases avoiding division with zero
-            # TODO: instead of averaging find the most central point
             all_energies = np.divide(all_energies, energy_counts, out=np.zeros_like(all_energies),
                                      where=energy_counts != 0)
             self.transition_matrix = np.divide(D * all_surfaces, all_distances, out=np.zeros_like(D * all_surfaces),
