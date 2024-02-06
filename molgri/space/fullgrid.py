@@ -276,7 +276,6 @@ class PositionGrid:
         radius_above = get_between_radii(self.t_grid.get_trans_grid())
         radius_below = np.concatenate(([0, ], radius_above[:-1]))
         s_vor = self.get_o_grid().get_spherical_voronoi()
-        print(self.use_saved, s_vor)
         area = s_vor.get_voronoi_volumes()
         cumulative_volumes = (_t_and_o_2_positions(o_property=area/3, t_property=radius_above**3) -
                               _t_and_o_2_positions(o_property=area/3, t_property=radius_below**3))

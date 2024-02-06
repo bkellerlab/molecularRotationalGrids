@@ -282,8 +282,8 @@ class TransitionModel(ABC):
             tau_array = np.array([2, 5, 7, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100, 110, 130, 150, 180, 200])
         self.tau_array = tau_array
         self.use_saved = use_saved
-        self.assignments = self.sim_hist.get_full_assignments()
-        self.num_cells = len(self.sim_hist.full_grid.get_full_grid_as_array())
+        self.assignments = None
+        self.num_cells = len(self.sim_hist.full_grid)
         self.num_tau = len(self.tau_array)
         self.transition_matrix = None
 
@@ -502,22 +502,24 @@ class SQRA(TransitionModel):
 if __name__ == "__main__":
     import sys
 
+    fg_full = FullGrid("20", "42", "linspace(0.25, 0.35, 5)", use_saved=False)
+    fg_position = FullGrid("1", "42", "linspace(0.25, 0.35, 5)", use_saved=False)
+    fg_orientation = FullGrid("20", "1", "1", use_saved=False)
 
-    fg_assigning = FullGrid("8", "1", "linspace(0.2, 1, 5)", use_saved=False)
-    sh_pt = SimulationHistogram("H2O_H2O_0281", is_pt=True, second_molecule_selection="bynum 4:6",
-                                full_grid=fg_assigning, use_saved=False)
+    pt_used = "H2O_H2O_0402"
+    sh = SimulationHistogram(pt_used, is_pt=True, second_molecule_selection="bynum 4:6",
+                             full_grid=fg_full, use_saved=False)
 
+    #sh.get_full_assignments()
+    #print("done assigning")
 
-    #sh_traj = SimulationHistogram("H2O_H2O_0095_25000", is_pt=False, second_molecule_selection="bynum 4:6",
-    #                              full_grid=fg_assigning, use_saved=True)
+    sqra = SQRA(sh)
+    sqra.assignments =  np.arange(0, len(sh.full_grid))
+    print("assignment done")
+    sqra.get_transitions_matrix()
+    print("done transition matrix")
+    sqra.get_eigenval_eigenvec(8)
+    print("done")
 
-    from molgri.plotting.transition_plots import TransitionPlot
-
-    #for sh in [sh_pt]:
-    tp = TransitionPlot(sh_pt, tau_array=np.array([2, 5, 7, 10, 20, 25, 30, 35, 40, 50]))
-    tp.plot_its(5, as_line=True)
-    tp.plot_eigenvalues(num_eigenv=5, index_tau=0)
-    for i in range(4):
-        tp.plot_one_eigenvector_flat(i, index_tau=0)
 
 

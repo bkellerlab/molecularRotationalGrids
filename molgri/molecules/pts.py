@@ -58,14 +58,13 @@ class Pseudotrajectory:
             rotation_body = Rotation.from_quat(orientation)
 
             # position and orient as desired
+            self.molecule.translate(position)
             self.molecule.rotate_about_body(rotation_body)
-            self.molecule.translate_radially(np.linalg.norm(position))
-            self.molecule.double_rotate(normalise_vectors(position))
 
             yield self.current_frame, self.molecule
             self.current_frame += 1
             # rotate back
-            self.molecule.double_rotate(normalise_vectors(position), inverse=True)
-            self.molecule.translate_radially(-np.linalg.norm(position))
             self.molecule.rotate_about_body(rotation_body, inverse=True)
+            self.molecule.translate_to_origin()
+
 
