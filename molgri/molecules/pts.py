@@ -51,20 +51,48 @@ class Pseudotrajectory:
         fg = self.full_grid.get_full_grid_as_array()
         # center second molecule if not centered yet
         self.molecule.translate_to_origin()
+        self.molecule.atoms.align_principal_axis(0, [1, 0, 0])
+        #self.molecule.atoms.align_principal_axis(1, [0, 1, 0])
+        self.molecule.atoms.align_principal_axis(2, [0, 1, 0])
+        print("start", np.round(self.molecule.atoms.principal_axes().T, 3))
 
         for se3_coo in fg:
             position = se3_coo[:3]
             orientation = se3_coo[3:]
             rotation_body = Rotation.from_quat(orientation)
 
-            # position and orient as desired
-            self.molecule.translate(position)
-            self.molecule.rotate_about_body(rotation_body)
+            QR = self.molecule.atoms.principal_axes().T
+            R = rotation_body.as_matrix()
+            #print("QR", np.round(QR, 3))
+            print("R", np.round(R, 3))
 
+            self.molecule.atoms.rotate(rotation_body.as_matrix(), point=self.molecule.atoms.center_of_mass())
+            self.molecule.atoms.translate(position)
+
+            QC = self.molecule.atoms.principal_axes().T
+            produkt = R@QR
+            #print("QC", np.round(QC, 3))
+            #print("produkt", np.round(produkt, 3))
+
+            mom_inertia = self.molecule.atoms.moment_of_inertia()
+            eigenval, eigenvec = np.linalg.eig(mom_inertia)
+            #print(eigenval)
+            print(np.round(eigenvec, 3))
+
+            from MDAnalysis.analysis import align
+
+            #print(np.round(align.rotation_matrix(QR, rotation_body.apply(QC))[0], 3))
+
+            #self.molecule.rotate_about_body(rotation_body)
+            #print("(Rc@inv(QR))", np.round((QC @ np.linalg.inv(QR)), 3))
             yield self.current_frame, self.molecule
             self.current_frame += 1
             # rotate back
-            self.molecule.rotate_about_body(rotation_body, inverse=True)
-            self.molecule.translate_to_origin()
+            rotation_body_i = rotation_body.inv()
+
+            self.molecule.atoms.translate(-position)
+            self.molecule.atoms.rotate(rotation_body_i.as_matrix(), point=self.molecule.atoms.center_of_mass())
+            #self.molecule.rotate_about_body(rotation_body, inverse=True)
+
 
 
