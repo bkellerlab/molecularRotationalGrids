@@ -220,7 +220,8 @@ class PtWriter:
             path_trajectory: where trajectory should be saved
             path_structure: where topology should be saved
         """
-        trajectory_writer = mda.Writer(path_trajectory, multiframe=True)
+        n_atoms = len(self.central_molecule.atoms) + len(pt.molecule.atoms)
+        trajectory_writer = mda.Writer(path_trajectory, n_atoms=n_atoms, multiframe=True)
         last_i = 0
         for i, _ in pt.generate_pseudotrajectory():
             # for the first frame write out topology

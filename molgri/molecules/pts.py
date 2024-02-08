@@ -74,7 +74,7 @@ class Pseudotrajectory:
         starting_positions = self.molecule.atoms.positions
         initial_direction = self.determine_positive_directions()
         print(initial_direction)
-        # TODO: force starting principal axes to be np.eye?
+
         print("start", np.round(self.molecule.atoms.principal_axes().T, 3))
         for se3_coo in fg:
             self.molecule.atoms.positions = starting_positions
@@ -84,31 +84,26 @@ class Pseudotrajectory:
             R = rotation_body.as_matrix()
 
             QR = self.molecule.atoms.principal_axes().T
-            print("quat", np.round(orientation, 3))
+            #print("quat", np.round(orientation, 3))
             #print("QR", np.round(QR, 3))
             #print("R", np.round(R, 3))
 
             self.molecule.atoms.rotate(rotation_body.as_matrix(), point=self.molecule.atoms.center_of_mass())
+
             self.molecule.atoms.translate(position)
 
             QC = self.molecule.atoms.principal_axes().T
+            print(QC)
 
-            direction = self.determine_positive_directions()
-            #direction = np.tile(direction, (3, 1))
-            #print("direction", np.array(direction), np.array(initial_direction))
-            #print("R@QR", direction[0]*np.round(R@QR, 3)[:, 0])
-            #print("QC", np.round(QC, 3)[:, 0])
-            #print(np.allclose(direction[2]*np.round(R@QR, 3)[:, 2], np.round(QC, 3)[:, 2]))
-            #print("missing factor", np.round(QC.T @ np.linalg.inv(R@QR).T, 3))
-            #print("R", rotation_body.as_matrix())
+            direction = np.array(self.determine_positive_directions()) * np.array(initial_direction)
+
             produkt = np.multiply(QC, np.tile(direction, (3, 1))) @ np.linalg.inv(QR)
             calc_quat = np.round(Rotation.from_matrix(produkt).as_quat(), 3)
             if not q_in_upper_sphere(calc_quat):
                 calc_quat = -calc_quat
-            print("end", calc_quat)
+            #print("end", calc_quat)
             print(np.allclose(orientation, calc_quat, atol=1e-3, rtol=1e-3))
             yield self.current_frame, self.molecule
             self.current_frame += 1
-
 
 
