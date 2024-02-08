@@ -511,10 +511,10 @@ class ParsedTrajectory:
 if __name__ == "__main__":
     from molgri.paths import PATH_INPUT_BASEGRO
     from scipy.spatial.transform import Rotation
-    my_molecule = FileParser(f"{PATH_INPUT_BASEGRO}ts_symmetric.gro").as_parsed_molecule()
+    my_molecule = FileParser(f"{PATH_INPUT_BASEGRO}H2O.gro").as_parsed_molecule()
     rr = Rotation.random()
     print(rr.as_matrix())
     print(my_molecule.atoms.masses)
     my_molecule.rotate_about_body(rr)
-    print(my_molecule.get_positions())
+    print(np.round(my_molecule.get_positions()/10, 3))
 
