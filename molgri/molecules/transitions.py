@@ -14,7 +14,7 @@ from MDAnalysis.analysis.rms import rmsd
 from MDAnalysis.analysis.base import AnalysisFromFunction
 from MDAnalysis.coordinates.memory import MemoryReader
 from numpy.typing import NDArray
-from scipy.sparse import csr_array
+from scipy.sparse import csr_array, diags
 from scipy.sparse.linalg import eigs
 from scipy.sparse import dok_array
 from scipy.spatial.distance import cdist
@@ -28,12 +28,38 @@ from molgri.space.voronoi import in_hull
 from molgri.wrappers import save_or_use_saved
 from molgri.molecules.parsers import ParsedMolecule, XVGParser, FileParser
 from molgri.space.fullgrid import FullGrid
-from molgri.paths import PATH_OUTPUT_AUTOSAVE, PATH_OUTPUT_ENERGIES, PATH_OUTPUT_LOGGING, PATH_OUTPUT_PT
+from molgri.paths import PATH_OUTPUT_AUTOSAVE, PATH_OUTPUT_ENERGIES, PATH_OUTPUT_LOGGING, PATH_OUTPUT_PT, \
+    PATH_INPUT_BASEGRO
 from molgri.space.utils import angle_between_vectors, dist_on_sphere, distance_between_quaternions, \
     hemisphere_quaternion_set, k_argmin_in_array, \
     norm_per_axis, \
     normalise_vectors, q_in_upper_sphere
 
+
+def determine_positive_directions(current_universe, second_molecule):
+    pas = current_universe.select_atoms(second_molecule).principal_axes()
+    com = current_universe.select_atoms(second_molecule).center_of_mass()
+    directions = [0, 0, 0]
+    for atom_pos in current_universe.select_atoms(second_molecule).positions:
+        for i, pa in enumerate(pas):
+            # need to round to avoid problems - assigning direction with atoms very close to 0
+            cosalpha = np.round(pa.dot(atom_pos-com), 6)
+            directions[i] = np.sign(cosalpha)
+        if not np.any(np.isclose(directions,0)):
+            break
+    # TODO: if exactly one unknown use the other two and properties of righthanded systems to get third
+    if np.sum(np.isclose(directions,0)) == 1:
+        # only these combinations of directions are possible in righthanded coordinate systems
+        allowed_righthanded = [[1, 1, 1], [-1, 1, -1], [1, -1, -1], [-1, -1, 1]]
+        for ar in allowed_righthanded:
+            # exactly two identical (and the third is zero)
+            if np.sum(np.isclose(ar, directions)) == 2:
+                directions = ar
+                break
+    # if two (or three - that would just be an atom) unknowns raise an error
+    elif np.sum(np.isclose(directions,0)) > 1:
+        raise ValueError("All atoms perpendicular to at least one of principal axes, can´t determine direction.")
+    return np.array(directions)
 
 class SimulationHistogram:
 
@@ -42,7 +68,7 @@ class SimulationHistogram:
     step can be assigned to a cell and the occupancy of those cells evaluated.
     """
 
-    def __init__(self, trajectory_name: str, is_pt: bool, second_molecule_selection: str, full_grid: FullGrid = None,
+    def __init__(self, trajectory_name: str, reference_name: str, is_pt: bool, second_molecule_selection: str, full_grid: FullGrid = None,
                  use_saved=True):
         """
         Situation: you have created a (pseudo)trajectory (.gro and .xtc files in PATH_OUTPUT_PT) and calculated the
@@ -68,6 +94,7 @@ class SimulationHistogram:
         self.energies = None
         self.trajectory_universe = mda.Universe(f"{PATH_OUTPUT_PT}{trajectory_name}.gro",
                                                 f"{PATH_OUTPUT_PT}{trajectory_name}.xtc")
+        self.reference_universe = mda.Universe(f"{PATH_INPUT_BASEGRO}{reference_name}.gro")
         if full_grid is None and self.is_pt:
             full_grid = self.read_fg_PT()
         self.full_grid = full_grid
@@ -188,85 +215,84 @@ class SimulationHistogram:
                 self.transition_model = MSM(self, tau_array=tau_array, use_saved=self.use_saved)
         return self.transition_model
 
-    def _extract_universe_second_molecule(self, which_universe: mda.Universe = None) -> mda.Universe:
-        """
-        This function removes the first molecule and rotates the second one to the position [0, 0, 1]
-        """
-        if which_universe is None:
-            which_universe = self.trajectory_universe
-        m2 = which_universe.select_atoms(self.second_molecule_selection)
-
-        coordinates = AnalysisFromFunction(lambda ag: ag.positions.copy(), m2).run().results['timeseries']
-        u2 = mda.Merge(m2)
-        u2.load_new(coordinates, format=MemoryReader)
-        return u2
 
     def _assign_trajectory_2_quaternion_grid(self):
-        # prepare reference structure at each pt grid point
-        my_pt = PtIOManager(self.m1_name, self.m2_name, self.full_grid.o_grid_name, self.full_grid.b_grid_name,
-                            self.full_grid.t_grid_name)
-        my_pt.construct_pt()
-        my_pt_name = my_pt.get_name()
-        parsed_pt = mda.Universe(f"{PATH_OUTPUT_PT}{my_pt_name}.gro",
-                                                f"{PATH_OUTPUT_PT}{my_pt_name}.xtc")
-        # calculate all technically possible RMSDs
-        rmsd_every_referecnce = []
-        for ref_str_i in range(len(parsed_pt.trajectory)):
-            parsed_pt.trajectory[ref_str_i]
-            # you can't use align.rms.RMSD because it automatically rotationally aligns)
-            nonalign_rmsd = AnalysisFromFunction(lambda ag: align.rms.rmsd(ag.positions, parsed_pt.select_atoms(self.second_molecule_selection).positions, center=True),
-                                             self.trajectory_universe.trajectory, self.trajectory_universe.select_atoms(self.second_molecule_selection))
-            nonalign_rmsd.run()
-            rmsd_every_referecnce.append(nonalign_rmsd.results["timeseries"])
-        # every row allignment for trajectory_universe to a particular pt reference
-        rmsd_every_referecnce = np.array(rmsd_every_referecnce)
-        # pick out only the ones allowed by position index
-        #all_position_indices = self.full_grid.get_position_index()
-        available_references = np.arange(len(self.full_grid)).reshape((-1, self.full_grid.get_b_N()))
-        # every row tells you which reference pt stuctures you are allowed to use for this frame
-        position_assignments = self.get_position_assignments()
-        final_allowed_indices = available_references[position_assignments]
-        allowed_rmsd = np.take_along_axis(rmsd_every_referecnce.T, final_allowed_indices, axis=1)
-        # argmin among still available ones
-        optimal_rmsd = np.argmin(allowed_rmsd.T, axis=0)
-        return optimal_rmsd
-
-    def _assign_trajectory_2_position_grid(self) -> NDArray:
         """
-        Assign every frame of the trajectory (or PT) to a corresponding position cell of self.full_grid
+        Assign every frame of the trajectory to the closest quaternion from the b_grid_points.
+        """
+        # find PA and direction of reference structure
+        reference_principal_axes = self.reference_universe.atoms.principal_axes().T
+        inverse_pa = np.linalg.inv(reference_principal_axes)
+        reference_direction = determine_positive_directions(self.reference_universe, "all")
+
+        # find PA and direction along trajectory
+        pa_frames = AnalysisFromFunction(lambda ag: ag.principal_axes().T, self.trajectory_universe.trajectory,
+                                         self.trajectory_universe.select_atoms(self.second_molecule_selection))
+        pa_frames.run()
+        pa_frames = pa_frames.results['timeseries']
+
+        direction_frames = AnalysisFromFunction(lambda ag: np.tile(determine_positive_directions(ag, "all"), (3, 1)),
+                                                self.trajectory_universe.trajectory,
+                                                self.trajectory_universe.select_atoms(self.second_molecule_selection))
+        direction_frames.run()
+        direction_frames = direction_frames.results['timeseries']
+        directed_pas = np.multiply(pa_frames, direction_frames)
+        produkt = np.matmul(directed_pas, inverse_pa)
+        # get the quaternions that caused the rotation from reference to each frame
+        calc_quat = np.round(Rotation.from_matrix(produkt).as_quat(), 6)
+        # now using a quaternion metric, determine which of b_grid_points is closest
+
+        b_grid_points = self.full_grid.b_rotations.get_grid_as_array()
+        b_indices = np.argmin(cdist(b_grid_points, calc_quat, metric=distance_between_quaternions), axis=0)
+        # almost everything correct but the order is somehow mixed???
+        return b_indices
+
+    def _assign_trajectory_2_t_grid(self) -> NDArray:
+        """
+        Given a trajectoryand an array of available radial (t-grid) points, assign each frame of the trajectory
+        to the closest radial point.
+
+        Returns:
+            an integer array as long as the trajectory, each element an index of the closest point of the radial grid
+            like [0, 0, 0, 1, 1, 1, 2 ...] (for a PT with 3 orientations)
+        """
+        t_grid_points = self.full_grid.get_radii()
+        t_selection = AnalysisFromFunction(
+            lambda ag: np.argmin(np.abs(t_grid_points - np.linalg.norm(ag.center_of_mass())), axis=0),
+            self.trajectory_universe.trajectory,
+            self.trajectory_universe.select_atoms(self.second_molecule_selection))
+        t_selection.run()
+        t_indices = t_selection.results['timeseries'].flatten()
+        return t_indices
+
+    def _assign_trajectory_2_o_grid(self) -> NDArray:
+        """
+        Assign every frame of the trajectory (or PT) to the best fitting point of position grid
 
         Returns:
             an array of position grid indices
         """
-        # step 1: determine the layer in t_grid from norm of the com
-        norm_coms = AnalysisFromFunction(lambda ag: np.linalg.norm(ag.center_of_mass()),
-                             self.trajectory_universe.trajectory,
-                             self.trajectory_universe.select_atoms(self.second_molecule_selection))
-        norm_coms.run()
-        norms_along_trajectory = norm_coms.results['timeseries']
-        # the bins that determine the upper bounds of t_grid layers
-        vor_radii = get_between_radii(self.full_grid.t_grid.get_trans_grid())
-        # Return the indices of the bins to which each value in input array belongs.
-        # If larger than the last bin, last bin index will still be given
-        norms_along_trajectory[norms_along_trajectory > vor_radii[-1]] = vor_radii[-1]
-        layer_indices = np.digitize(norms_along_trajectory, vor_radii, right=True)
-
-        # step 2: now using a normalized com and a metric on a sphere, determine which of self.o_grid is closest
-        o_grid_points = self.full_grid.position_grid.get_o_grid().get_grid_as_array()
+        o_grid_points = self.full_grid.position_grid.o_rotations.get_grid_as_array()
+        # now using a normalized com and a metric on a sphere, determine which of o_grid_points is closest
         o_selection = AnalysisFromFunction(lambda ag: np.argmin(cdist(o_grid_points, normalise_vectors(
             ag.center_of_mass())[np.newaxis, :], metric="cos"), axis=0),
-                                         self.trajectory_universe.trajectory,
-                                         self.trajectory_universe.select_atoms(self.second_molecule_selection))
+                                           self.trajectory_universe.trajectory,
+                                           self.trajectory_universe.select_atoms(self.second_molecule_selection))
         o_selection.run()
         o_indices = o_selection.results['timeseries'].flatten()
+        return o_indices
 
-        # step 3: sum up the layer index and o index correctly
-        n_orientations = self.full_grid.get_o_N()
-        return np.array(layer_indices * n_orientations + o_indices, dtype=int)
+    def _assign_trajectory_2_position_grid(self):
+        """
+        Combine assigning to t_grid and o_grid.
+        """
+        t_assignments = self._assign_trajectory_2_t_grid()
+        o_assignments = self._assign_trajectory_2_o_grid()
+        # sum up the layer index and o index correctly
+        return np.array(t_assignments * self.full_grid.get_o_N() + o_assignments, dtype=int)
 
     def _assign_trajectory_2_full_grid(self):
-        num_quaternions = self.full_grid.b_rotations.get_N()
-        return self.get_position_assignments() * num_quaternions + self.get_quaternion_assignments()
+        return self.get_position_assignments() * self.full_grid.get_b_N() + self.get_quaternion_assignments()
 
 
 
@@ -282,7 +308,7 @@ class TransitionModel(ABC):
             tau_array = np.array([2, 5, 7, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100, 110, 130, 150, 180, 200])
         self.tau_array = tau_array
         self.use_saved = use_saved
-        self.assignments = None
+        self.assignments = sim_hist.get_full_assignments()
         self.num_cells = len(self.sim_hist.full_grid)
         self.num_tau = len(self.tau_array)
         self.transition_matrix = None
@@ -318,7 +344,7 @@ class TransitionModel(ABC):
         all_eigenvec = np.zeros((self.num_tau, self.num_cells, num_eigenv))
         for tau_i, tau in enumerate(tqdm(self.tau_array)):
             tm = all_tms[tau_i]  # the transition matrix for this tau
-            tm[np.isnan(tm)] = 0  # replace nans with zeros
+            #tm[np.isnan(tm)] = 0  # replace nans with zeros
             # in order to compute left eigenvectors, compute right eigenvectors of the transpose
             if isinstance(self, MSM):
                 sigma=None # or nothing??
@@ -400,7 +426,7 @@ class MSM(TransitionModel):
             return window(seq, len_window, step=len_window)
 
         if self.transition_matrix is None:
-            #self.transition_matrix = np.zeros(shape=(self.num_tau, self.num_cells, self.num_cells))
+            self.transition_matrix = np.zeros(shape=(self.num_tau,), dtype=object)
             for tau_i, tau in enumerate(tqdm(self.tau_array)):
                 sparse_count_matrix = dok_array((self.num_cells, self.num_cells))
                 # save the number of transitions between cell with index i and cell with index j
@@ -411,21 +437,24 @@ class MSM(TransitionModel):
                     window_cell = noncorr_window(self.assignments, int(tau))
                 for cell_slice in window_cell:
                     try:
-                        sparse_count_matrix[cell_slice] += 1
+                        el1, el2 = cell_slice
+                        sparse_count_matrix[el1, el2] += 1
+                        # enforce detailed balance
+                        sparse_count_matrix[el2, el1] += 1
                     except KeyError:
                         # the point is outside the grid and assigned to NaN - ignore for now
                         pass
-                print(sparse_count_matrix)
-        #         for key, value in count_per_cell.items():
-        #             start_cell, end_cell = key
-        #             self.transition_matrix[tau_i, start_cell, end_cell] += value
-        #             # enforce detailed balance
-        #             self.transition_matrix[tau_i, end_cell, start_cell] += value
-        #         # divide each row of each matrix by the sum of that row
-        #         sums = self.transition_matrix[tau_i].sum(axis=-1, keepdims=True)
-        #         sums[sums == 0] = 1
-        #         self.transition_matrix[tau_i] = self.transition_matrix[tau_i] / sums
-        # return self.transition_matrix
+                sparse_count_matrix = sparse_count_matrix.tocsr()
+                sums = sparse_count_matrix.sum(axis=1)
+                # to avoid dividing by zero
+                sums[sums == 0] = 1
+                # now dividing with counts (actually multiplying with inverse)
+                diagonal_values = np.reciprocal(sums)
+                diagonal_matrix = diags(diagonal_values, format='csr')
+
+                # Left multiply the CSR matrix with the diagonal matrix
+                self.transition_matrix[tau_i] = diagonal_matrix.dot(sparse_count_matrix)
+        return self.transition_matrix
 
 
 class SQRA(TransitionModel):
@@ -502,25 +531,15 @@ class SQRA(TransitionModel):
 
 
 if __name__ == "__main__":
-    import sys
+    fg = FullGrid(b_grid_name="40", o_grid_name="42", t_grid_name="linspace(0.2, 1, 20)")
+    water_sh = SimulationHistogram(trajectory_name="H2O_H2O_0095_25000", is_pt=False,
+                                   reference_name="H2O",
+                                   second_molecule_selection="bynum 4:6",
+                                   full_grid=fg, use_saved=False)
 
-    fg_full = FullGrid("20", "42", "linspace(0.25, 0.35, 5)", use_saved=False)
-    fg_position = FullGrid("1", "42", "linspace(0.25, 0.35, 5)", use_saved=False)
-    fg_orientation = FullGrid("20", "1", "1", use_saved=False)
-
-    pt_used = "H2O_H2O_0402"
-    sh = SimulationHistogram(pt_used, is_pt=True, second_molecule_selection="bynum 4:6",
-                             full_grid=fg_full, use_saved=False)
-
-    #sh.get_full_assignments()
-    #print("done assigning")
-
-    sqra = SQRA(sh)
-    sqra.assignments =  np.arange(0, len(sh.full_grid))
-    print("assignment done")
-    sqra.get_transitions_matrix()
-    print("done transition matrix")
-    sqra.get_eigenval_eigenvec(8)
+    water_MSM = MSM(water_sh)
+    water_MSM.get_transitions_matrix()
+    water_MSM.get_eigenval_eigenvec(8)
     print("done")
 
 
