@@ -16,6 +16,7 @@ from MDAnalysis.coordinates.memory import MemoryReader
 from numpy.typing import NDArray
 from scipy.sparse import csr_array
 from scipy.sparse.linalg import eigs
+from scipy.sparse import dok_array
 from scipy.spatial.distance import cdist
 from scipy.spatial.transform import Rotation
 from scipy.constants import k as kB, N_A
@@ -32,7 +33,6 @@ from molgri.space.utils import angle_between_vectors, dist_on_sphere, distance_b
     hemisphere_quaternion_set, k_argmin_in_array, \
     norm_per_axis, \
     normalise_vectors, q_in_upper_sphere
-from molgri.space.rotations import two_vectors2rot
 
 
 class SimulationHistogram:
@@ -400,30 +400,32 @@ class MSM(TransitionModel):
             return window(seq, len_window, step=len_window)
 
         if self.transition_matrix is None:
-            self.transition_matrix = np.zeros(shape=(self.num_tau, self.num_cells, self.num_cells))
+            #self.transition_matrix = np.zeros(shape=(self.num_tau, self.num_cells, self.num_cells))
             for tau_i, tau in enumerate(tqdm(self.tau_array)):
+                sparse_count_matrix = dok_array((self.num_cells, self.num_cells))
                 # save the number of transitions between cell with index i and cell with index j
-                count_per_cell = {(i, j): 0 for i in range(self.num_cells) for j in range(self.num_cells)}
+                #count_per_cell = {(i, j): 0 for i in range(self.num_cells) for j in range(self.num_cells)}
                 if not noncorr:
                     window_cell = window(self.assignments, int(tau))
                 else:
                     window_cell = noncorr_window(self.assignments, int(tau))
                 for cell_slice in window_cell:
                     try:
-                        count_per_cell[cell_slice] += 1
+                        sparse_count_matrix[cell_slice] += 1
                     except KeyError:
                         # the point is outside the grid and assigned to NaN - ignore for now
                         pass
-                for key, value in count_per_cell.items():
-                    start_cell, end_cell = key
-                    self.transition_matrix[tau_i, start_cell, end_cell] += value
-                    # enforce detailed balance
-                    self.transition_matrix[tau_i, end_cell, start_cell] += value
-                # divide each row of each matrix by the sum of that row
-                sums = self.transition_matrix[tau_i].sum(axis=-1, keepdims=True)
-                sums[sums == 0] = 1
-                self.transition_matrix[tau_i] = self.transition_matrix[tau_i] / sums
-        return self.transition_matrix
+                print(sparse_count_matrix)
+        #         for key, value in count_per_cell.items():
+        #             start_cell, end_cell = key
+        #             self.transition_matrix[tau_i, start_cell, end_cell] += value
+        #             # enforce detailed balance
+        #             self.transition_matrix[tau_i, end_cell, start_cell] += value
+        #         # divide each row of each matrix by the sum of that row
+        #         sums = self.transition_matrix[tau_i].sum(axis=-1, keepdims=True)
+        #         sums[sums == 0] = 1
+        #         self.transition_matrix[tau_i] = self.transition_matrix[tau_i] / sums
+        # return self.transition_matrix
 
 
 class SQRA(TransitionModel):
