@@ -93,8 +93,11 @@ class SimulationHistogram:
         self.second_molecule_selection = second_molecule_selection
         self.energies = None
         self.trajectory_universe = mda.Universe(f"{PATH_OUTPUT_PT}{trajectory_name}.gro",
-                                                f"{PATH_OUTPUT_PT}{trajectory_name}.xtc")
-        self.reference_universe = mda.Universe(f"{PATH_INPUT_BASEGRO}{reference_name}.gro")
+                                                f"{PATH_OUTPUT_PT}{trajectory_name}.trr")
+        try:
+            self.reference_universe = mda.Universe(f"{PATH_INPUT_BASEGRO}{reference_name}.gro")
+        except:
+            self.reference_universe = mda.Universe(f"{PATH_INPUT_BASEGRO}{reference_name}.xyz")
         if full_grid is None and self.is_pt:
             full_grid = self.read_fg_PT()
         self.full_grid = full_grid
@@ -231,7 +234,7 @@ class SimulationHistogram:
         pa_frames.run()
         pa_frames = pa_frames.results['timeseries']
 
-        direction_frames = AnalysisFromFunction(lambda ag: np.tile(determine_positive_directions(ag, "all"), (3, 1)),
+        direction_frames = AnalysisFromFunction(lambda ag: np.tile(reference_direction*determine_positive_directions(ag, "all"), (3, 1)),
                                                 self.trajectory_universe.trajectory,
                                                 self.trajectory_universe.select_atoms(self.second_molecule_selection))
         direction_frames.run()
@@ -531,16 +534,13 @@ class SQRA(TransitionModel):
 
 
 if __name__ == "__main__":
-    fg = FullGrid(b_grid_name="40", o_grid_name="42", t_grid_name="linspace(0.2, 1, 20)")
-    water_sh = SimulationHistogram(trajectory_name="H2O_H2O_0095_25000", is_pt=False,
-                                   reference_name="H2O",
-                                   second_molecule_selection="bynum 4:6",
-                                   full_grid=fg, use_saved=False)
+    #H2O_full_grid = FullGrid(b_grid_name="25", o_grid_name="1", t_grid_name="0.4", use_saved=True)
+    H2O_sh = SimulationHistogram("H2O_H2O_0493", "H2O", is_pt=True, full_grid=None,
+                                 second_molecule_selection="bynum 4:6")
+    quat_assignents = H2O_sh.get_quaternion_assignments()
+    print(quat_assignents)
+    print(H2O_sh.full_grid.get_quaternion_index())
 
-    water_MSM = MSM(water_sh)
-    water_MSM.get_transitions_matrix()
-    water_MSM.get_eigenval_eigenvec(8)
-    print("done")
 
 
 

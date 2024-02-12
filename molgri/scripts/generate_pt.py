@@ -62,8 +62,6 @@ def run_generate_pt():
                           t_grid_name=my_args.transgrid)
     manager.construct_pt_and_time(as_dir=my_args.as_dir, extension_trajectory=my_args.extension_trajectory,
                                   extension_structure=my_args.extension_structure, print_messages=True)
-
-
 if __name__ == '__main__':
     run_generate_pt()
 
