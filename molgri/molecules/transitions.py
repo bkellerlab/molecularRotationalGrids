@@ -9,10 +9,7 @@ from typing import Tuple, Sequence, Any
 
 import numpy as np
 import MDAnalysis as mda
-from MDAnalysis.analysis import align
-from MDAnalysis.analysis.rms import rmsd
 from MDAnalysis.analysis.base import AnalysisFromFunction
-from MDAnalysis.coordinates.memory import MemoryReader
 from numpy.typing import NDArray
 from scipy.sparse import csr_array, diags
 from scipy.sparse.linalg import eigs
@@ -22,18 +19,12 @@ from scipy.spatial.transform import Rotation
 from scipy.constants import k as kB, N_A
 from tqdm import tqdm
 
-from molgri.molecules.writers import PtIOManager
-from molgri.space.translations import get_between_radii
-from molgri.space.voronoi import in_hull
 from molgri.wrappers import save_or_use_saved
-from molgri.molecules.parsers import ParsedMolecule, XVGParser, FileParser
+from molgri.molecules.parsers import XVGParser
 from molgri.space.fullgrid import FullGrid
 from molgri.paths import PATH_OUTPUT_AUTOSAVE, PATH_OUTPUT_ENERGIES, PATH_OUTPUT_LOGGING, PATH_OUTPUT_PT, \
     PATH_INPUT_BASEGRO
-from molgri.space.utils import angle_between_vectors, dist_on_sphere, distance_between_quaternions, \
-    hemisphere_quaternion_set, k_argmin_in_array, \
-    norm_per_axis, \
-    normalise_vectors, q_in_upper_sphere
+from molgri.space.utils import distance_between_quaternions, k_argmin_in_array, normalise_vectors
 
 
 def determine_positive_directions(current_universe, second_molecule):
@@ -89,11 +80,19 @@ class SimulationHistogram:
         self.m1_name = split_name[0]
         self.m2_name = split_name[1]
         self.is_pt = is_pt
+        if self.is_pt:
+            self.structure_name = self.trajectory_name
+        else:
+            self.structure_name = "_".join(self.trajectory_name.split("_")[:-1])
         self.use_saved = use_saved
         self.second_molecule_selection = second_molecule_selection
         self.energies = None
-        self.trajectory_universe = mda.Universe(f"{PATH_OUTPUT_PT}{trajectory_name}.gro",
-                                                f"{PATH_OUTPUT_PT}{trajectory_name}.trr")
+        try:
+            self.trajectory_universe = mda.Universe(f"{PATH_OUTPUT_PT}{self.structure_name}.gro",
+                                                    f"{PATH_OUTPUT_PT}{self.trajectory_name}.trr")
+        except:
+            self.trajectory_universe = mda.Universe(f"{PATH_OUTPUT_PT}{self.structure_name}.gro",
+                                                    f"{PATH_OUTPUT_PT}{self.trajectory_name}.xtc")
         try:
             self.reference_universe = mda.Universe(f"{PATH_INPUT_BASEGRO}{reference_name}.gro")
         except:
@@ -331,7 +330,7 @@ class TransitionModel(ABC):
         pass
 
     @save_or_use_saved
-    def get_eigenval_eigenvec(self, num_eigenv: int = 8, **kwargs) -> Tuple[NDArray, NDArray]:
+    def get_eigenval_eigenvec(self, num_eigenv: int = 8, sigma=None, which="LM", **kwargs) -> Tuple[NDArray, NDArray]:
         """
         Obtain eigenvectors and eigenvalues of the transition matrices.
 
@@ -349,13 +348,13 @@ class TransitionModel(ABC):
             tm = all_tms[tau_i]  # the transition matrix for this tau
             #tm[np.isnan(tm)] = 0  # replace nans with zeros
             # in order to compute left eigenvectors, compute right eigenvectors of the transpose
-            if isinstance(self, MSM):
+            if isinstance(self, MSM) and sigma is None:
                 sigma=None # or nothing??
-            elif isinstance(self, SQRA):
+            elif isinstance(self, SQRA) and sigma is None:
                 sigma=1
             else:
                 raise TypeError(f"When not MSM and not SQRA, what then? {type(self)}")
-            eigenval, eigenvec = eigs(tm.T, num_eigenv, maxiter=100000, tol=0, which="LM", sigma=sigma, **kwargs) #, sigma=1
+            eigenval, eigenvec = eigs(tm.T, num_eigenv, maxiter=100000, tol=0, which=which, sigma=sigma, **kwargs) #, sigma=1
             # don't need to deal with complex outputs in case all values are real
             # TODO: what happens here if we have negative imaginary components?
             if eigenvec.imag.max() == 0 and eigenval.imag.max() == 0:
@@ -378,7 +377,7 @@ class MSM(TransitionModel):
     """
 
     @save_or_use_saved
-    def get_transitions_matrix(self, noncorr: bool = False) -> NDArray:
+    def get_transitions_matrix(self, noncorr: bool = False, ignore_last_r=True) -> NDArray:
         """
         Obtain a set of transition matrices for different tau-s specified in self.tau_array.
 
@@ -428,6 +427,9 @@ class MSM(TransitionModel):
             # in this case, only use every len_window-th element for MSM. Faster but loses a lot of data
             return window(seq, len_window, step=len_window)
 
+        if ignore_last_r:
+            self.num_cells = (self.sim_hist.full_grid.get_t_N() -1) * self.sim_hist.full_grid.get_b_N() * self.sim_hist.full_grid.get_o_N()
+
         if self.transition_matrix is None:
             self.transition_matrix = np.zeros(shape=(self.num_tau,), dtype=object)
             for tau_i, tau in enumerate(tqdm(self.tau_array)):
@@ -444,9 +446,12 @@ class MSM(TransitionModel):
                         sparse_count_matrix[el1, el2] += 1
                         # enforce detailed balance
                         sparse_count_matrix[el2, el1] += 1
-                    except KeyError:
-                        # the point is outside the grid and assigned to NaN - ignore for now
-                        pass
+                    except IndexError:
+                        if ignore_last_r:
+                            # this is okay because we want to ignore points beyond last radius
+                            pass
+                        else:
+                            raise IndexError("Assignments outside of FullGrid borders")
                 sparse_count_matrix = sparse_count_matrix.tocsr()
                 sums = sparse_count_matrix.sum(axis=1)
                 # to avoid dividing by zero
@@ -534,12 +539,18 @@ class SQRA(TransitionModel):
 
 
 if __name__ == "__main__":
-    #H2O_full_grid = FullGrid(b_grid_name="25", o_grid_name="1", t_grid_name="0.4", use_saved=True)
-    H2O_sh = SimulationHistogram("H2O_H2O_0493", "H2O", is_pt=True, full_grid=None,
-                                 second_molecule_selection="bynum 4:6")
-    quat_assignents = H2O_sh.get_quaternion_assignments()
-    print(quat_assignents)
-    print(H2O_sh.full_grid.get_quaternion_index())
+    sh = SimulationHistogram("H2O_H2O_0095_25000", "H2O", is_pt=False,
+                                 full_grid=FullGrid(b_grid_name="40", o_grid_name="42",
+                                                    t_grid_name="linspace(0.2, 1, 20)"),
+                             second_molecule_selection = "bynum 4:6")
+
+    print(f"Assigning 25000 frames to 40 quaternions")
+
+    quaternion_assignments = sh.get_quaternion_assignments()
+
+    water_MSM = MSM(sh)
+    water_MSM.get_transitions_matrix(ignore_last_r=True)
+    print(water_MSM.get_eigenval_eigenvec(8))
 
 
 
