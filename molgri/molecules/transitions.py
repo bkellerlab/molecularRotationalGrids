@@ -217,12 +217,7 @@ class SimulationHistogram:
                 self.transition_model = MSM(self, tau_array=tau_array, use_saved=self.use_saved)
         return self.transition_model
 
-
-    def _assign_trajectory_2_quaternion_grid(self):
-        """
-        Assign every frame of the trajectory to the closest quaternion from the b_grid_points.
-        """
-        # find PA and direction of reference structure
+    def _determine_quaternions(self):
         reference_principal_axes = self.reference_universe.atoms.principal_axes().T
         inverse_pa = np.linalg.inv(reference_principal_axes)
         reference_direction = determine_positive_directions(self.reference_universe, "all")
@@ -233,7 +228,8 @@ class SimulationHistogram:
         pa_frames.run()
         pa_frames = pa_frames.results['timeseries']
 
-        direction_frames = AnalysisFromFunction(lambda ag: np.tile(reference_direction*determine_positive_directions(ag, "all"), (3, 1)),
+        direction_frames = AnalysisFromFunction(lambda ag: np.tile(determine_positive_directions(
+            ag, "all") / reference_direction, (3, 1)),
                                                 self.trajectory_universe.trajectory,
                                                 self.trajectory_universe.select_atoms(self.second_molecule_selection))
         direction_frames.run()
@@ -243,6 +239,14 @@ class SimulationHistogram:
         # get the quaternions that caused the rotation from reference to each frame
         calc_quat = np.round(Rotation.from_matrix(produkt).as_quat(), 6)
         # now using a quaternion metric, determine which of b_grid_points is closest
+        return calc_quat
+
+    def _assign_trajectory_2_quaternion_grid(self):
+        """
+        Assign every frame of the trajectory to the closest quaternion from the b_grid_points.
+        """
+        # find PA and direction of reference structure
+        calc_quat=self._determine_quaternions()
 
         b_grid_points = self.full_grid.b_rotations.get_grid_as_array()
         b_indices = np.argmin(cdist(b_grid_points, calc_quat, metric=distance_between_quaternions), axis=0)
@@ -540,17 +544,21 @@ class SQRA(TransitionModel):
 
 if __name__ == "__main__":
     sh = SimulationHistogram("H2O_H2O_0095_25000", "H2O", is_pt=False,
-                                 full_grid=FullGrid(b_grid_name="40", o_grid_name="42",
+                                 full_grid=FullGrid(b_grid_name="80", o_grid_name="42",
                                                     t_grid_name="linspace(0.2, 1, 20)"),
-                             second_molecule_selection = "bynum 4:6")
+                             second_molecule_selection = "bynum 4:6", use_saved=False)
 
-    print(f"Assigning 25000 frames to 40 quaternions")
-
+    print("All available quaternions\n", sh.full_grid.b_rotations.get_grid_as_array(), "\n------ END----")
+    # plot some frames of a real trajectory that belong to the same quaternion grid point
+    # plot a selection (because too many) that are all assigned to grid point
     quaternion_assignments = sh.get_quaternion_assignments()
+    all_quats = sh._determine_quaternions()
+    for i in range(8):
+        print(f"Quaternion {i}")
+        all_group = np.where(quaternion_assignments == i)[0]
+        print(list(np.random.choice(all_group, 30)))
+        print(np.average(all_quats[all_group], axis=0))
 
-    water_MSM = MSM(sh)
-    water_MSM.get_transitions_matrix(ignore_last_r=True)
-    print(water_MSM.get_eigenval_eigenvec(8))
 
 
 
