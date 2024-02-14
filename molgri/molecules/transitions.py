@@ -24,7 +24,7 @@ from molgri.molecules.parsers import XVGParser
 from molgri.space.fullgrid import FullGrid
 from molgri.paths import PATH_OUTPUT_AUTOSAVE, PATH_OUTPUT_ENERGIES, PATH_OUTPUT_LOGGING, PATH_OUTPUT_PT, \
     PATH_INPUT_BASEGRO
-from molgri.space.utils import distance_between_quaternions, k_argmin_in_array, normalise_vectors
+from molgri.space.utils import distance_between_quaternions, k_argmin_in_array, normalise_vectors, q_in_upper_sphere
 
 
 def determine_positive_directions(current_universe, second_molecule):
@@ -544,20 +544,57 @@ class SQRA(TransitionModel):
 
 if __name__ == "__main__":
     sh = SimulationHistogram("H2O_H2O_0095_25000", "H2O", is_pt=False,
-                                 full_grid=FullGrid(b_grid_name="80", o_grid_name="42",
+                                 full_grid=FullGrid(b_grid_name="8", o_grid_name="42",
                                                     t_grid_name="linspace(0.2, 1, 20)"),
-                             second_molecule_selection = "bynum 4:6", use_saved=False)
+                             second_molecule_selection = "bynum 4:6", use_saved=True)
 
-    print("All available quaternions\n", sh.full_grid.b_rotations.get_grid_as_array(), "\n------ END----")
+    import numpy
+    import numpy.matlib as npm
+
+
+    # Q is a Nx4 numpy matrix and contains the quaternions to average in the rows.
+    # The quaternions are arranged as (w,x,y,z), with w being the scalar
+    # The result will be the average quaternion of the input. Note that the signs
+    # of the output quaternion can be reversed, since q and -q describe the same orientation
+    def averageQuaternions(Q):
+        # Number of quaternions to average
+        M = Q.shape[0]
+        A = npm.zeros(shape=(4, 4))
+
+        for i in range(0, M):
+            q = Q[i, :]
+            # multiply q with its transposed version q' and add A
+            A = numpy.outer(q, q) + A
+
+        # scale
+        A = (1.0 / M) * A
+        # compute eigenvalues and -vectors
+        eigenValues, eigenVectors = numpy.linalg.eig(A)
+        # Sort by largest eigenvalue
+        eigenVectors = eigenVectors[:, eigenValues.argsort()[::-1]]
+        # return the real part of the largest eigenvector (has only real part)
+        return numpy.real(eigenVectors[:, 0].A1)
+
+    #print("All available quaternions\n", sh.full_grid.b_rotations.get_grid_as_array(), "\n------ END----")
     # plot some frames of a real trajectory that belong to the same quaternion grid point
     # plot a selection (because too many) that are all assigned to grid point
     quaternion_assignments = sh.get_quaternion_assignments()
     all_quats = sh._determine_quaternions()
+
+    import matplotlib.pyplot as plt
+    fig, ax = plt.subplots(1, 1, subplot_kw={"projection": "3d"})
+    colors = ["red", "green", "blue", "black", "orange", "pink", "white", "yellow"]
     for i in range(8):
         print(f"Quaternion {i}")
         all_group = np.where(quaternion_assignments == i)[0]
-        print(list(np.random.choice(all_group, 30)))
-        print(np.average(all_quats[all_group], axis=0))
+        average_q = averageQuaternions(all_quats[all_group])
+        if not q_in_upper_sphere(average_q):
+            average_q = - average_q
+        print(np.round(average_q, 3), np.round(
+            sh.full_grid.b_rotations.get_grid_as_array()[i], 3))
+        ax.scatter(*(np.multiply(np.tile(all_quats[all_group][:, 0], (-1, 3)), all_quats[all_group][:, 1:])).T,
+                   color=colors[i])
+    plt.show()
 
 
 

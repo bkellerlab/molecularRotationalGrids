@@ -124,4 +124,17 @@ class TransitionPlot(RepresentationCollection):
 
 
 if __name__ == "__main__":
-    pass
+    from molgri.space.fullgrid import FullGrid
+    sh = SimulationHistogram("H2O_H2O_0095_300000", "H2O", is_pt=False,
+                             full_grid=FullGrid(b_grid_name="160", o_grid_name="42",
+                                                t_grid_name="linspace(0.2, 1, 20)"),
+                             second_molecule_selection="bynum 4:6", use_saved=False)
+
+    tp = TransitionPlot(sh, tau_array=np.array([30, 40, 50, 60, 70, 80, 90, 100, 110, 130, 150, 180, 200, 220,
+                                                250, 270, 300]))
+    import matplotlib.pyplot as plt
+    fig, ax = plt.subplots(1, 1, figsize=(15, 10))
+    ax.set_ylim(0, 300)
+    tp.plot_its(ax=ax, fig=fig)
+    for i in range(5):
+        tp.plot_one_eigenvector_flat(eigenvec_index=i, index_tau=5)
