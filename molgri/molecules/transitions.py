@@ -324,7 +324,7 @@ class TransitionModel(ABC):
         return self.sim_hist.get_name()
 
     @abstractmethod
-    def get_transitions_matrix(self) -> NDArray:
+    def get_transitions_matrix(self, nstxout=1) -> NDArray:
         """For MSM, generate the transition matrix from simulation data. For SQRA, generate rate matrix from the
         point energy calculations.
 
@@ -334,7 +334,7 @@ class TransitionModel(ABC):
         pass
 
     @save_or_use_saved
-    def get_eigenval_eigenvec(self, num_eigenv: int = 8, sigma=None, which="LM", **kwargs) -> Tuple[NDArray, NDArray]:
+    def get_eigenval_eigenvec(self, num_eigenv: int = 8, sigma=None, which="LR", **kwargs) -> Tuple[NDArray, NDArray]:
         """
         Obtain eigenvectors and eigenvalues of the transition matrices.
 
@@ -381,7 +381,7 @@ class MSM(TransitionModel):
     """
 
     @save_or_use_saved
-    def get_transitions_matrix(self, noncorr: bool = False, ignore_last_r=True) -> NDArray:
+    def get_transitions_matrix(self, noncorr: bool = False, ignore_last_r=True, nstxout=1) -> NDArray:
         """
         Obtain a set of transition matrices for different tau-s specified in self.tau_array.
 
@@ -543,60 +543,23 @@ class SQRA(TransitionModel):
 
 
 if __name__ == "__main__":
-    sh = SimulationHistogram("H2O_H2O_0095_25000", "H2O", is_pt=False,
-                                 full_grid=FullGrid(b_grid_name="8", o_grid_name="42",
-                                                    t_grid_name="linspace(0.2, 1, 20)"),
-                             second_molecule_selection = "bynum 4:6", use_saved=True)
+    water_sh = SimulationHistogram("H2O_H2O_0095_30000000", "H2O", is_pt=False,
+                                   full_grid=FullGrid(b_grid_name="42", o_grid_name="40",
+                                                      t_grid_name="linspace(0.2, 0.6, 20)"),
+                                   second_molecule_selection="bynum 4:6", use_saved=False)
+    tau_array = np.array([70, 80, 90, 100, 110, 130, 150, 180, 200, 220,
+                          250, 270, 300, 400, 600, 700, 850, 1000
+                             , 1100, 1200, 1300, 1400, 1500,
+                          2000, 3000, 4000, 5000, 7000, 10000])
+    msm = MSM(water_sh, tau_array=tau_array)
+    msm.get_eigenval_eigenvec(12, which="LR")
 
-    import numpy
-    import numpy.matlib as npm
-
-
-    # Q is a Nx4 numpy matrix and contains the quaternions to average in the rows.
-    # The quaternions are arranged as (w,x,y,z), with w being the scalar
-    # The result will be the average quaternion of the input. Note that the signs
-    # of the output quaternion can be reversed, since q and -q describe the same orientation
-    def averageQuaternions(Q):
-        # Number of quaternions to average
-        M = Q.shape[0]
-        A = npm.zeros(shape=(4, 4))
-
-        for i in range(0, M):
-            q = Q[i, :]
-            # multiply q with its transposed version q' and add A
-            A = numpy.outer(q, q) + A
-
-        # scale
-        A = (1.0 / M) * A
-        # compute eigenvalues and -vectors
-        eigenValues, eigenVectors = numpy.linalg.eig(A)
-        # Sort by largest eigenvalue
-        eigenVectors = eigenVectors[:, eigenValues.argsort()[::-1]]
-        # return the real part of the largest eigenvector (has only real part)
-        return numpy.real(eigenVectors[:, 0].A1)
-
-    #print("All available quaternions\n", sh.full_grid.b_rotations.get_grid_as_array(), "\n------ END----")
-    # plot some frames of a real trajectory that belong to the same quaternion grid point
-    # plot a selection (because too many) that are all assigned to grid point
-    quaternion_assignments = sh.get_quaternion_assignments()
-    all_quats = sh._determine_quaternions()
-
-    import matplotlib.pyplot as plt
-    fig, ax = plt.subplots(1, 1, subplot_kw={"projection": "3d"})
-    colors = ["red", "green", "blue", "black", "orange", "pink", "white", "yellow"]
-    for i in range(8):
-        print(f"Quaternion {i}")
-        all_group = np.where(quaternion_assignments == i)[0]
-        average_q = averageQuaternions(all_quats[all_group])
-        if not q_in_upper_sphere(average_q):
-            average_q = - average_q
-        print(np.round(average_q, 3), np.round(
-            sh.full_grid.b_rotations.get_grid_as_array()[i], 3))
-        ax.scatter(*(np.multiply(np.tile(all_quats[all_group][:, 0], (-1, 3)), all_quats[all_group][:, 1:])).T,
-                   color=colors[i])
-    plt.show()
-
-
+    tau_array = np.array([70, 80, 90, 100, 110, 130, 150, 180, 200, 220,
+                          250, 270, 300, 400, 600, 700, 850, 1000
+                             , 1100, 1200, 1300, 1400, 1500,
+                          2000, 3000, 4000, 5000, 7000, 10000])
+    msm = MSM(water_sh, tau_array=tau_array, use_saved=False)
+    msm.get_eigenval_eigenvec(12, which="LR")
 
 
 

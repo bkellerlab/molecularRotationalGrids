@@ -125,16 +125,28 @@ class TransitionPlot(RepresentationCollection):
 
 if __name__ == "__main__":
     from molgri.space.fullgrid import FullGrid
-    sh = SimulationHistogram("H2O_H2O_0095_300000", "H2O", is_pt=False,
-                             full_grid=FullGrid(b_grid_name="160", o_grid_name="42",
-                                                t_grid_name="linspace(0.2, 1, 20)"),
-                             second_molecule_selection="bynum 4:6", use_saved=False)
-
-    tp = TransitionPlot(sh, tau_array=np.array([30, 40, 50, 60, 70, 80, 90, 100, 110, 130, 150, 180, 200, 220,
-                                                250, 270, 300]))
+    from molgri.molecules.transitions import MSM
     import matplotlib.pyplot as plt
-    fig, ax = plt.subplots(1, 1, figsize=(15, 10))
-    ax.set_ylim(0, 300)
-    tp.plot_its(ax=ax, fig=fig)
+
+    water_sh = SimulationHistogram("H2O_H2O_0095_30000000", "H2O", is_pt=False,
+                                   full_grid=FullGrid(b_grid_name="42", o_grid_name="40",
+                                                      t_grid_name="linspace(0.2, 0.6, 20)"),
+                                   second_molecule_selection="bynum 4:6", use_saved=False)
+    tau_array = np.array([70, 80, 90, 100, 110, 130, 150, 180, 200, 220,
+                          250, 270, 300, 400, 600, 700, 850, 1000
+                             , 1100, 1200, 1300, 1400, 1500,
+                          2000, 3000, 4000, 5000, 7000, 10000])
+
+    msm = MSM(water_sh, tau_array=tau_array, use_saved=False)
+    msm.get_eigenval_eigenvec(12, which="LR")
+
+    tp = TransitionPlot(water_sh, tau_array=tau_array)
+    tp.transition_obj = msm
+    tp.transition_obj.use_saved = True
+    fig, ax = plt.subplots(1, 2, sharex=False, sharey=False, figsize=(10, 5))
+    ax[1].set_ylim(0, 20000)
+    tp.plot_eigenvalues(num_eigenv=6, index_tau=17, save=False, fig=fig, ax=ax[0])
+    tp.plot_its(6, as_line=False, save=True, fig=fig, ax=ax[1])
+
     for i in range(5):
         tp.plot_one_eigenvector_flat(eigenvec_index=i, index_tau=5)
