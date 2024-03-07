@@ -204,6 +204,7 @@ class SimulationHistogram:
             self.quaternion_assignments = self._assign_trajectory_2_quaternion_grid()
         return self.quaternion_assignments
 
+    @save_or_use_saved
     def get_full_assignments(self):
         if self.full_assignments is None:
             self.full_assignments = self._assign_trajectory_2_full_grid()
