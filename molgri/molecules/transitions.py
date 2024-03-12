@@ -18,6 +18,8 @@ from scipy.spatial.distance import cdist
 from scipy.spatial.transform import Rotation
 from scipy.constants import k as kB, N_A
 from tqdm import tqdm
+from deeptime.markov import TransitionCountEstimator
+from deeptime.markov.msm import MaximumLikelihoodMSM
 
 from molgri.wrappers import save_or_use_saved
 from molgri.molecules.parsers import XVGParser
@@ -109,6 +111,28 @@ class SimulationHistogram:
 
     def __len__(self):
         return len(self.trajectory_universe.trajectory)
+
+    @save_or_use_saved
+    def get_markov_model_for_taus(self, tau_array):
+        all_msms = []
+        for tau in tau_array:
+            # 2) build a  count estimator with TransitionCountEstimator
+            count_estimator = TransitionCountEstimator(lagtime=tau, count_mode="sliding",
+                                                       sparse=True)  # n_states=len_fullgrid,
+
+            # 3) get a TransitionCountModel with NXN states by fitting assignments to an estimator
+            count_model = count_estimator.fit(self.get_full_assignments()).fetch_model()
+
+            # 4) now build a MaximumLikelihoodMSM estimator
+            estimator = MaximumLikelihoodMSM(reversible=True,
+                                             sparse=True,
+                                             )
+
+            # 5) fit a TransitionCountModel to it to obtain MarkovStateModel
+            markov_model = estimator.fit_from_counts(count_model).fetch_model()
+
+            all_msms.append(markov_model)
+        return all_msms
 
     # noinspection PyMissingOrEmptyDocstring
     def get_name(self) -> str:
@@ -544,23 +568,22 @@ class SQRA(TransitionModel):
 
 
 if __name__ == "__main__":
+
+
+
     water_sh = SimulationHistogram("H2O_H2O_0095_30000000", "H2O", is_pt=False,
                                    full_grid=FullGrid(b_grid_name="42", o_grid_name="40",
-                                                      t_grid_name="linspace(0.2, 0.6, 20)"),
+                                                      t_grid_name="linspace(0.2, 0.9, 20)"),
                                    second_molecule_selection="bynum 4:6", use_saved=False)
-    tau_array = np.array([70, 80, 90, 100, 110, 130, 150, 180, 200, 220,
-                          250, 270, 300, 400, 600, 700, 850, 1000
-                             , 1100, 1200, 1300, 1400, 1500,
-                          2000, 3000, 4000, 5000, 7000, 10000])
-    msm = MSM(water_sh, tau_array=tau_array)
-    msm.get_eigenval_eigenvec(12, which="LR")
+    assignments = water_sh.get_full_assignments()
 
-    tau_array = np.array([70, 80, 90, 100, 110, 130, 150, 180, 200, 220,
-                          250, 270, 300, 400, 600, 700, 850, 1000
-                             , 1100, 1200, 1300, 1400, 1500,
-                          2000, 3000, 4000, 5000, 7000, 10000])
-    msm = MSM(water_sh, tau_array=tau_array, use_saved=False)
-    msm.get_eigenval_eigenvec(12, which="LR")
+
+
+
+    taus = np.array([1, 2, 3, 5, 7, 10, 15, 20, 30, 40, 50, 70, 80, 90, 100, 110, 130, 150, 180, 200, 220,
+                     250, 270, 300])
+    # explain the n states edgecase?????
+    msms = water_sh.get_markov_model_for_taus(tau_array=taus)
 
 
 
