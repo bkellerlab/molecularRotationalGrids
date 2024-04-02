@@ -118,7 +118,10 @@ class TransitionPlot(RepresentationCollection):
         eigenvals, eigenvecs = self.transition_obj.get_eigenval_eigenvec()
 
         # shape: (number_taus, number_cells, num_eigenvectors)
-        eigenvecs = eigenvecs[index_tau]  # values for the first tau
+        try:
+            eigenvecs = eigenvecs[index_tau]  # values for the first tau
+        except IndexError:
+            eigenvecs = eigenvecs
         sns.lineplot(eigenvecs.T[eigenvec_index], ax=self.ax)
         self.ax.set_title(f"Eigenv. {eigenvec_index}")
 
@@ -129,9 +132,8 @@ if __name__ == "__main__":
     import matplotlib.pyplot as plt
 
     #"H2O_H2O_0095_40000001"
-    water_sh = SimulationHistogram("H2O_H2O_0531", "H2O", is_pt=True,
-                                   full_grid=FullGrid(b_grid_name="42", o_grid_name="40",
-                                                      t_grid_name="linspace(0.2, 0.9, 20)"),
+    #full_grid=FullGrid(b_grid_name="42", o_grid_name="40", t_grid_name="linspace(0.2, 0.9, 20)")
+    water_sh = SimulationHistogram("H2O_H2O_0535", "H2O", is_pt=True,
                                    second_molecule_selection="bynum 4:6", use_saved=False)
     #taus = np.array([1, 2, 3, 5, 7, 10, 15, 20, 30, 40, 50, 70, 80, 90, 100, 110, 130, 150, 180, 200, 220,
     #                 250, 270, 300])
@@ -157,8 +159,8 @@ if __name__ == "__main__":
     #tp.transition_obj.use_saved = True
     fig, ax = plt.subplots(1, 2, sharex=False, sharey=False, figsize=(10, 5))
     tp.plot_its(6, as_line=True, save=False, fig=fig, ax=ax[1])
-    ax[1].set_xlim(0, 100)
-    ax[1].set_ylim(0, 100)
+    #ax[1].set_xlim(0, 100)
+    #ax[1].set_ylim(0, 100)
     tp.plot_eigenvalues(num_eigenv=6, save=True, fig=fig, ax=ax[0]) #index_tau=10,
 
 

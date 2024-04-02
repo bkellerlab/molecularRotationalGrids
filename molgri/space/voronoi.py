@@ -19,7 +19,8 @@ from scipy.spatial.distance import cdist
 
 from molgri.constants import UNIQUE_TOL
 from molgri.space.utils import (dist_on_sphere, distance_between_quaternions,
-                                exact_area_of_spherical_polygon, k_is_a_row, q_in_upper_sphere, random_quaternions,
+                                exact_area_of_spherical_polygon, k_is_a_row, normalise_vectors, q_in_upper_sphere,
+                                random_quaternions,
                                 random_sphere_points, sort_points_on_sphere_ccw, which_row_is_k)
 
 
@@ -212,7 +213,8 @@ class RotobjVoronoi(AbstractVoronoi):
     def __init__(self, my_array: NDArray, using_detailed_grid: bool = True):
         self.my_array = my_array
         self.using_detailed_grid = using_detailed_grid
-        self.spherical_voronoi = SphericalVoronoi(my_array, radius=1, threshold=10 ** -UNIQUE_TOL)
+        norm = np.linalg.norm(my_array, axis=1)[0]
+        self.spherical_voronoi = SphericalVoronoi(my_array, radius=norm, threshold=10**-UNIQUE_TOL) #radius=,
         try:
             self.spherical_voronoi.sort_vertices_of_regions()
         except TypeError:
@@ -220,7 +222,7 @@ class RotobjVoronoi(AbstractVoronoi):
         dimensions = my_array.shape[1]
         np.random.seed(1)
         if using_detailed_grid and dimensions == 3:
-            dense_points = random_sphere_points(3000)
+            dense_points = normalise_vectors(random_sphere_points(3000), length=norm)
         elif using_detailed_grid and dimensions == 4:
             dense_points = random_quaternions(3000)
         else:

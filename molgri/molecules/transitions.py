@@ -537,7 +537,7 @@ class SQRA(TransitionModel):
             #energy_counts = np.zeros(shape=(self.num_cells,))
             obtained_energies = self.sim_hist.get_magnitude_energy(energy_type=self.energy_type)
             # for sqra demand that each energy corresponds to exactly one cell
-            assert len(obtained_energies) == len(all_volumes)
+            assert len(obtained_energies) == len(all_volumes), f"{len(obtained_energies)} != {len(all_volumes)}"
 
             # for a, e in zip(self.assignments, obtained_energies):
             #     if not np.isnan(a):

@@ -76,10 +76,10 @@ class VoronoiPlot(RepresentationCollection):
         regions = self.get_all_voronoi_regions(reduced=reduced)
 
         for i, region in enumerate(regions):
-            self._plot_one_region(index_center=i, color=color)
+            self.plot_one_region(index_center=i, color=color)
 
-
-    def _plot_one_region(self, index_center: int, color=None, alpha=0.5):
+    @plot3D_method
+    def plot_one_region(self, index_center: int, color=None, alpha=0.5):
         relevant_points = self.get_convex_hulls()[index_center].points
         #self.ax.scatter(*relevant_points.T, s=2)
         triangles = self.get_convex_hulls()[index_center].simplices
@@ -110,7 +110,7 @@ class VoronoiPlot(RepresentationCollection):
             for ic, point in enumerate(vertices_of_i):
                 self.ax.text(*point[:3], s=f"{indices_of_i[ic]}", c=color)
         if region:
-            self._plot_one_region(index_center=index_center, color=color, alpha=alpha)
+            self.plot_one_region(index_center=index_center, color=color, alpha=alpha)
         self._set_axis_limits()
         self._equalize_axes()
 
@@ -144,17 +144,52 @@ class VoronoiPlot(RepresentationCollection):
 if __name__ == "__main__":
     from molgri.space.rotobj import SphereGrid3DFactory
     from molgri.space.fullgrid import PositionGrid
+    from molgri.space.voronoi import RotobjVoronoi
     from molgri.space.utils import normalise_vectors, random_sphere_points, random_quaternions
     import matplotlib.pyplot as plt
     np.random.seed(1)
     my_points = SphereGrid3DFactory.create(alg_name="ico", N=12)
 
-    vp = VoronoiPlot(my_points.get_spherical_voronoi())
+    voronoi1 = my_points.get_spherical_voronoi()
+    voronoi2 = RotobjVoronoi(normalise_vectors(my_points.get_grid_as_array(), length=1.5))
+
+    vp = VoronoiPlot(voronoi1, default_complexity_level="empty")
+    vp2 = VoronoiPlot(voronoi2, default_complexity_level="empty")
     vp.plot_adjacency_heatmap()
     vp.plot_border_heatmap()
 
-    vp.plot_centers(save=False)
+    my_point = 7
+
+    vp.plot_centers(save=False, labels=False)
+    vp.plot_one_region(my_point, "blue", save=False, fig=vp.fig, ax=vp.ax)
     vp.plot_borders(save=False, fig=vp.fig, ax=vp.ax)
+
+    vp2.plot_centers(save=False, labels=False, fig=vp.fig, ax=vp.ax)
+    vp2.plot_borders(save=False, fig=vp.fig, ax=vp.ax)
+    vp2.plot_one_region(my_point, "blue", save=False, fig=vp.fig, ax=vp.ax)
+
+
+    # plot sides
+    coo1 = voronoi1.get_all_voronoi_vertices()[voronoi1.get_all_voronoi_regions()[my_point]]
+    coo1 = sort_points_on_sphere_ccw(coo1)
+
+    coo2 = voronoi2.get_all_voronoi_vertices()[voronoi2.get_all_voronoi_regions()[my_point]]
+    coo2 = sort_points_on_sphere_ccw(coo2)
+    print("sorted twice")
+
+    x = [coo1[0][0], coo1[1][0], coo2[1][0], coo2[0][0]]
+    y = [coo1[0][1], coo1[1][1], coo2[1][1], coo2[0][1]]
+    z = [coo1[0][2], coo1[1][2], coo2[1][2], coo2[0][2]]
+    verts = [list(zip(x, y, z))]
+    my_coll = Poly3DCollection(verts)
+    my_coll.set_color("blue")
+    vp.ax.add_collection3d(my_coll)
+
+
+    mylim = 1.5
+    vp.ax.set_xlim(-mylim, mylim)
+    vp.ax.set_ylim(-mylim, mylim)
+    vp.ax.set_zlim(-mylim, mylim)
     plt.show()
 
 

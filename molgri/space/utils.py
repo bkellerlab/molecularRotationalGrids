@@ -420,8 +420,8 @@ def sort_points_on_sphere_ccw(points: NDArray) -> NDArray:
         # checks if the smaller interior angle for the great circles connecting u-v and v-w is CCW (counter-clockwise)
         return (np.dot(np.cross(v_c - v_0, v_i - v_c), v_i) < 0)
 
-    all_row_norms_equal_k(points, 1), "Not points on a unit sphere"
-    vector_center = normalise_vectors(np.average(points, axis=0))
+    #all_row_norms_equal_k(points, 1), "Not points on a unit sphere"
+    vector_center = normalise_vectors(np.average(points, axis=0), length=np.linalg.norm(points, axis=1)[0])
     N = len(points)
     # angle between first point, center point, and each additional point
     alpha = np.zeros(N)  # initialize array
