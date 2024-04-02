@@ -22,13 +22,14 @@ from mpl_toolkits.mplot3d.axes3d import Axes3D
 from mpl_toolkits.mplot3d.art3d import Poly3DCollection
 from numpy.typing import NDArray
 from IPython import display
-from scipy.spatial import geometric_slerp
+from scipy.spatial import ConvexHull, geometric_slerp
 from scipy.spatial.distance import cdist
 
 from molgri.constants import DIM_SQUARE, DEFAULT_DPI, EXTENSION_FIGURES, DEFAULT_DPI_MULTI, EXTENSION_ANIMATIONS
 from molgri.logfiles import paths_free_4_all
 from molgri.paths import PATH_OUTPUT_PLOTS, PATH_OUTPUT_ANIS
-from molgri.space.utils import normalise_vectors, random_sphere_points
+from molgri.space.utils import normalise_vectors, random_sphere_points, sort_points_on_sphere_ccw, \
+    triangle_order_for_ccw_polygons
 
 
 def _set_style_and_context(context: str = None, color_style: str = None):
@@ -412,8 +413,29 @@ def show_anim_in_jupyter(anim):
     # necessary to not create an extra empty window
     plt.close()
 
+def get_convex_hulls(sv):
+    """
+    In the same order as self.get_all_centers(), get convex hulls using the point, the vertices and possibly
+    additional points that belong into this region. Used for approximating volumes, areas ...
+    """
+    all_points = sv.points
+    all_vertices = sv.vertices
+    all_regions = sv.regions
+    #additional_assignments = self._additional_points_per_cell()
+    all_hulls = []
+    # in first approximation, take the volume of convex hull of vertices belonging to a point
+    for i, region in enumerate(all_regions):
+        # In the region there are vertices, central point and possibly additional point
+        associated_vertices = all_vertices[region]
+        within_region = np.vstack([all_points[i], associated_vertices])
+        #if np.any(additional_assignments[i]):
+        #    within_region = np.vstack([additional_assignments[i], within_region])
+        my_convex_hull = ConvexHull(within_region, qhull_options='QJ')
+        all_hulls.append(my_convex_hull)
+    return np.array(all_hulls)
 
-def plot_voronoi_cells(sv, ax, plot_vertex_points=True, colors=None):
+
+def plot_voronoi_cells(sv, ax, plot_vertex_points=True, colors=None, alphas=None):
     sv.sort_vertices_of_regions()
     t_vals = np.linspace(0, 1, 2000)
 
@@ -439,8 +461,19 @@ def plot_voronoi_cells(sv, ax, plot_vertex_points=True, colors=None):
             ax.plot(norm * result[..., 0], norm * result[..., 1], norm * result[..., 2], c='k')
 
         if colors:
+            relevant_points = get_convex_hulls(sv)[i].points
+            # self.ax.scatter(*relevant_points.T, s=2)
+            triangles = get_convex_hulls(sv)[i].simplices
+
+            # don't move this to one line since it may have 4 components (hyperspheres)
+            X = relevant_points.T[0]
+            Y = relevant_points.T[1]
+            Z = relevant_points.T[2]
+
             to_plot = np.array(my_p[i]) #np.vstack([my_p[i], sv.vertices[region]])
-            ax.plot_trisurf(*to_plot.T, color=colors[i], linewidth=0, alpha=0.5)
+            sorted_to_plot = sort_points_on_sphere_ccw(to_plot)
+            triangles = triangle_order_for_ccw_polygons(len(sorted_to_plot))
+            ax.plot_trisurf(X, Y, color=colors[i], alpha=alphas[i], linewidth=0, triangles=triangles, Z=Z)
             #polygon = Poly3DCollection([sv.vertices[region],], alpha=0.5)
             #polygon.set_color(colors[i])
             #ax.add_collection3d(polygon)
