@@ -25,7 +25,7 @@ from numpy._typing import ArrayLike
 from numpy.typing import NDArray
 from scipy.spatial.transform import Rotation
 from scipy.constants import pi
-from scipy.sparse import bmat, coo_array, diags
+from scipy.sparse import bmat, coo_array, diags, block_array
 import pandas as pd
 
 from molgri.constants import SMALL_NS
@@ -218,7 +218,7 @@ class FullGrid:
             my_blocks = my_blocks[:-(n_t * n_o)]
             my_blocks = np.array(my_blocks, dtype=object)
             my_blocks = my_blocks.reshape((n_t * n_o), (n_t * n_o))
-            same_position_neighbours = bmat(my_blocks, dtype=float)
+            same_position_neighbours = block_array(my_blocks, dtype=float, format="coo")
         else:
             return coo_array(orientation_adjacency)
         all_neighbours = same_position_neighbours + same_orientation_neighbours

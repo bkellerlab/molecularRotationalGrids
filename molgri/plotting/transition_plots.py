@@ -125,26 +125,41 @@ class TransitionPlot(RepresentationCollection):
 
 if __name__ == "__main__":
     from molgri.space.fullgrid import FullGrid
-    from molgri.molecules.transitions import MSM
+    from molgri.molecules.transitions import MSM, SQRA
     import matplotlib.pyplot as plt
 
-    water_sh = SimulationHistogram("H2O_H2O_0095_50000000", "H2O", is_pt=False,
+    #"H2O_H2O_0095_40000001"
+    water_sh = SimulationHistogram("H2O_H2O_0531", "H2O", is_pt=True,
                                    full_grid=FullGrid(b_grid_name="42", o_grid_name="40",
-                                                      t_grid_name="linspace(0.2, 1.2, 20)"),
-                                   second_molecule_selection="bynum 4:6", use_saved=True)
-    taus = np.array([1, 2, 3, 5, 7, 10, 15, 20, 30, 40, 50, 70, 80, 90, 100, 110, 130, 150, 180, 200, 220,
-                     250, 270, 300, 400, 600, 700, 850, 1000])
+                                                      t_grid_name="linspace(0.2, 0.9, 20)"),
+                                   second_molecule_selection="bynum 4:6", use_saved=False)
+    #taus = np.array([1, 2, 3, 5, 7, 10, 15, 20, 30, 40, 50, 70, 80, 90, 100, 110, 130, 150, 180, 200, 220,
+    #                 250, 270, 300])
 
-    msm = MSM(water_sh, tau_array=taus, use_saved=True)
+    msm = SQRA(water_sh, use_saved=False)
 
-    tp = TransitionPlot(water_sh, tau_array=taus)
+    # msms = water_sh.get_markov_model_for_taus(tau_array=taus)
+    #
+    # from deeptime.plots import plot_implied_timescales
+    # from deeptime.util.validation import ImpliedTimescales
+    #
+    # fig, ax = plt.subplots(1, 1, figsize=(10, 10))
+    #
+    # its = ImpliedTimescales(lagtimes=taus, its=[msm.timescales(k=10) for msm in msms])
+    # plot_implied_timescales(data=its, ax=ax)
+    # ax.set_ylim(0, 300)
+    # ax.set_xlim(0, 300)
+    # plt.show()
+
+
+    tp = TransitionPlot(water_sh)
     tp.transition_obj = msm
-    tp.transition_obj.use_saved = True
+    #tp.transition_obj.use_saved = True
     fig, ax = plt.subplots(1, 2, sharex=False, sharey=False, figsize=(10, 5))
-    tp.plot_its(6, as_line=False, save=False, fig=fig, ax=ax[1])
+    tp.plot_its(6, as_line=True, save=False, fig=fig, ax=ax[1])
     ax[1].set_xlim(0, 100)
-    ax[1].set_ylim(0, 300)
-    tp.plot_eigenvalues(num_eigenv=6, index_tau=10, save=True, fig=fig, ax=ax[0])
+    ax[1].set_ylim(0, 100)
+    tp.plot_eigenvalues(num_eigenv=6, save=True, fig=fig, ax=ax[0]) #index_tau=10,
 
 
     for i in range(5):

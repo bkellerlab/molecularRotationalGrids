@@ -11,7 +11,7 @@ import numpy as np
 import MDAnalysis as mda
 from MDAnalysis.analysis.base import AnalysisFromFunction
 from numpy.typing import NDArray
-from scipy.sparse import csr_array, diags
+from scipy.sparse import coo_array, csr_array, diags
 from scipy.sparse.linalg import eigs
 from scipy.sparse import dok_array
 from scipy.spatial.distance import cdist
@@ -374,7 +374,10 @@ class TransitionModel(ABC):
         all_eigenval = np.zeros((self.num_tau, num_eigenv))
         all_eigenvec = np.zeros((self.num_tau, self.num_cells, num_eigenv))
         for tau_i, tau in enumerate(tqdm(self.tau_array)):
-            tm = all_tms[tau_i]  # the transition matrix for this tau
+            try:
+                tm = all_tms[tau_i]  # the transition matrix for this tau
+            except NotImplementedError:
+                tm = all_tms # sqra
             #tm[np.isnan(tm)] = 0  # replace nans with zeros
             # in order to compute left eigenvectors, compute right eigenvectors of the transpose
             if isinstance(self, MSM) and sigma is None:
@@ -524,66 +527,118 @@ class SQRA(TransitionModel):
             is expanded to be compatible with the MSM model)
         """
         if self.transition_matrix is None:
-            all_volumes = self.sim_hist.full_grid.get_total_volumes()
+            all_volumes = np.array(self.sim_hist.full_grid.get_total_volumes())
             # TODO: move your work to sparse matrices at some point?
-            all_surfaces = self.sim_hist.full_grid.get_full_borders().toarray()
-            all_distances = self.sim_hist.full_grid.get_full_distances().toarray()
+            all_surfaces = self.sim_hist.full_grid.get_full_borders()
+            all_distances = self.sim_hist.full_grid.get_full_distances()
             # energies are either NaN (calculation in that cell was not completed or the particle left the cell during
             # optimisation) or they are the arithmetic average of all energies of COM assigned to that cell.
-            all_energies = np.empty(shape=(self.num_cells,))
-            energy_counts = np.zeros(shape=(self.num_cells,))
+            #all_energies = np.empty(shape=(self.num_cells,))
+            #energy_counts = np.zeros(shape=(self.num_cells,))
             obtained_energies = self.sim_hist.get_magnitude_energy(energy_type=self.energy_type)
-            for a, e in zip(self.assignments, obtained_energies):
-                if not np.isnan(a):
-                    all_energies[int(a)] += e
-                    energy_counts[int(a)] += 1
-            # in both cases avoiding division with zero
-            all_energies = np.divide(all_energies, energy_counts, out=np.zeros_like(all_energies),
-                                     where=energy_counts != 0)
-            self.transition_matrix = np.divide(D * all_surfaces, all_distances, out=np.zeros_like(D * all_surfaces),
-                                    where=all_distances!=0)
+            # for sqra demand that each energy corresponds to exactly one cell
+            assert len(obtained_energies) == len(all_volumes)
+
+            # for a, e in zip(self.assignments, obtained_energies):
+            #     if not np.isnan(a):
+            #         all_energies[int(a)] += e
+            #         energy_counts[int(a)] += 1
+            # # in both cases avoiding division with zero
+            # all_energies = np.divide(all_energies, energy_counts, out=np.zeros_like(all_energies),
+            #                          where=energy_counts != 0)
 
 
-            for i, _ in enumerate(self.transition_matrix):
-                divide_by = all_volumes[i]
-                self.transition_matrix[i] = np.divide(self.transition_matrix[i], divide_by,
-                                                      out=np.zeros_like(self.transition_matrix[i]),
-                                         where=(divide_by != 0 and divide_by != np.NaN))
 
-            for j, _ in enumerate(self.transition_matrix):
-                for i, _ in enumerate(self.transition_matrix):
-                    # gromacs uses kJ/mol as energy unit, boltzmann constant is J/K
-                    multiply_with = np.exp((all_energies[i]-all_energies[j])*1000/(2*kB*N_A*T))
-                    self.transition_matrix[i, j] = np.multiply(self.transition_matrix[i, j], multiply_with,
-                                                               out=np.zeros_like(self.transition_matrix[i, j]),
-                                               where=multiply_with != np.NaN)
+            # you cannot multiply or divide directly in a coo format
+            self.transition_matrix = D * all_surfaces #/ all_distances
+
+
+            self.transition_matrix = self.transition_matrix.tocoo()
+
+            self.transition_matrix.data /= all_distances.tocoo().data
+
+
+            # Divide every row of transition_matrix with the corresponding volume
+            #self.transition_matrix /= all_volumes[:, None]
+            self.transition_matrix.data /= all_volumes[self.transition_matrix.row]
+
+
+            # multiply with sqrt(pi_j/pi_i) = e**((V_i-V_j)*1000/(2*k_B*N_A*T))
+            # gromacs uses kJ/mol as energy unit, boltzmann constant is J/K
+
+            self.transition_matrix.data *= np.exp((obtained_energies[self.transition_matrix.row]-obtained_energies[
+                self.transition_matrix.col])*1000/(2*kB*N_A*T))
+
+            #self.transition_matrix = np.divide(D * all_surfaces, all_distances,
+            #                        where=all_distances!=0) #out=np.zeros_like(D * all_surfaces),
+
+
+            # for i, _ in enumerate(self.transition_matrix):
+            #     divide_by = all_volumes[i]
+            #     self.transition_matrix[i] = np.divide(self.transition_matrix[i], divide_by,
+            #                                           out=np.zeros_like(self.transition_matrix[i]),
+            #                              where=(divide_by != 0 and divide_by != np.NaN))
+            #
+            # for j, _ in enumerate(self.transition_matrix):
+            #     for i, _ in enumerate(self.transition_matrix):
+            #         # gromacs uses kJ/mol as energy unit, boltzmann constant is J/K
+            #         multiply_with = np.exp((all_energies[i]-all_energies[j])*1000/(2*kB*N_A*T))
+            #         self.transition_matrix[i, j] = np.multiply(self.transition_matrix[i, j], multiply_with,
+            #                                                    out=np.zeros_like(self.transition_matrix[i, j]),
+            #                                    where=multiply_with != np.NaN)
 
             # normalise rows
-            sums = np.sum(self.transition_matrix, axis=1)
-            np.fill_diagonal(self.transition_matrix, -sums)
+            sums = self.transition_matrix.sum(axis=1)
+            print(sums)
+            all_i = np.arange(len(self.sim_hist.full_grid))
+            print(all_i)
+            diagonal_array = coo_array((-sums, (all_i, all_i)), shape=(len(all_i), len(all_i)))
+            self.transition_matrix = self.transition_matrix.tocsr() + diagonal_array.tocsr()
+            #np.fill_diagonal(self.transition_matrix, -sums)
             # additional axis
-            self.transition_matrix = self.transition_matrix[np.newaxis, :]
-            assert self.transition_matrix.shape == (1, self.num_cells, self.num_cells)
+            #self.transition_matrix = self.transition_matrix[np.newaxis, :]
         return self.transition_matrix
 
 
 if __name__ == "__main__":
+    from time import time
+    import matplotlib.pyplot as plt
 
-
-
-    water_sh = SimulationHistogram("H2O_H2O_0095_30000000", "H2O", is_pt=False,
+    len_traj = 40000001
+    water_sh = SimulationHistogram(f"H2O_H2O_0095_{len_traj}", "H2O", is_pt=False,
                                    full_grid=FullGrid(b_grid_name="42", o_grid_name="40",
                                                       t_grid_name="linspace(0.2, 0.9, 20)"),
-                                   second_molecule_selection="bynum 4:6", use_saved=False)
+                                   second_molecule_selection="bynum 4:6", use_saved=True)
+    actual_len = len(water_sh.trajectory_universe.trajectory)
+    t1 = time()
     assignments = water_sh.get_full_assignments()
+    t2 = time()
 
-
-
-
+    t3 = time()
     taus = np.array([1, 2, 3, 5, 7, 10, 15, 20, 30, 40, 50, 70, 80, 90, 100, 110, 130, 150, 180, 200, 220,
                      250, 270, 300])
     # explain the n states edgecase?????
     msms = water_sh.get_markov_model_for_taus(tau_array=taus)
+    t4 = time()
+
+    # then you can use eigenvalues and eigenvectors of msm
+    #for msm in msms:
+    #    print(msm.eigenvectors_left(10))
+    #    print(msm.eigenvalues(10))
+    #    print(msm.pcca(4))
+
+    print(f"Assignment time per trajectory step is {(t2-t1)/actual_len} s, total {t2-t1}s = {(t2-t1)/60}min = {(t2-t1)/60/60}h")
+    print(f"MSM time per trajectory step is {(t2-t1)/actual_len} is in total {t4 - t3}s = {(t4 - t3) / 60}min = {(t4 - t3) / 60 / 60}h")
 
 
 
+    from deeptime.plots import plot_implied_timescales
+    from deeptime.util.validation import ImpliedTimescales
+
+    fig, ax = plt.subplots(1, 1, figsize=(10, 10))
+
+    its = ImpliedTimescales(lagtimes=taus, its=[msm.timescales(k=10) for msm in msms])
+    plot_implied_timescales(data=its, ax=ax)
+    ax.set_ylim(0, 100)
+    ax.set_xlim(0, 100)
+    plt.show()
