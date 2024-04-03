@@ -215,7 +215,8 @@ class RotobjVoronoi(AbstractVoronoi):
     def __init__(self, my_array: NDArray, using_detailed_grid: bool = True):
         self.my_array = my_array
         self.using_detailed_grid = using_detailed_grid
-        self.spherical_voronoi = SphericalVoronoi(my_array, radius=1, threshold=10 ** -UNIQUE_TOL)
+        norm = np.linalg.norm(self.my_array, axis=1)[0]
+        self.spherical_voronoi = SphericalVoronoi(my_array, radius=norm, threshold=10 ** -UNIQUE_TOL)
         try:
             self.spherical_voronoi.sort_vertices_of_regions()
         except TypeError:
@@ -223,7 +224,7 @@ class RotobjVoronoi(AbstractVoronoi):
         dimensions = my_array.shape[1]
         np.random.seed(1)
         if using_detailed_grid and dimensions == 3:
-            dense_points = random_sphere_points(3000)
+            dense_points = normalise_vectors(random_sphere_points(3000), length=norm)
         elif using_detailed_grid and dimensions == 4:
             dense_points = random_quaternions(3000)
         else:
@@ -399,129 +400,130 @@ class HalfRotobjVoronoi(RotobjVoronoi):
         return coo_array(adj_matrix)
 
 
-# class PositionVoronoi(AbstractVoronoi):
-#
-#     """
-#     This object consists of several layers of spherical voronoi cells one above the other in several shells
-#     """
-#
-#     def __init__(self, o_grid: NDArray, point_radii: NDArray, using_detailed_grid: bool = True, **kwargs):
-#         self.o_grid = o_grid
-#         self.using_detailed_grid = using_detailed_grid
-#         self.point_radii = point_radii
-#         self.n_o = len(self.o_grid)
-#         self.n_t = len(self.point_radii)
-#         self.unit_sph_voronoi = SphericalVoronoi(self.o_grid, radius=1, threshold=10 ** -UNIQUE_TOL)
-#         if self.using_detailed_grid:
-#             dense_points = random_sphere_points(5000)
-#         else:
-#             dense_points = None
-#         super().__init__(additional_points=dense_points, **kwargs)
-#
-#     def _additional_points_per_cell(self) -> List:
-#         """
-#         Returns a list (len=num of centers) of lists in which there are additional points that are associated with
-#         each region (or empty list if there are none)
-#         """
-#         all_points = self.get_all_voronoi_centers()
-#         if self.additional_points is not None:
-#             # first belongings of unit_sph_voronoi are determined
-#             result = []
-#             unit_points_belongings = np.argmin(cdist(self.additional_points,
-#                                                      self.unit_sph_voronoi.points,
-#                                                       metric="cos"), axis=1)
-#
-#             between_radii = get_between_radii(self.point_radii, include_zero=True)
-#
-#             for i, _ in enumerate(all_points):
-#                 down_index = np.max([i//self.n_o, 0])
-#                 top_index = np.min([(i // self.n_o) + 1, self.n_t+2])
-#                 subresult_1 = list(normalise_vectors(self.additional_points[
-#                                                          unit_points_belongings==i%self.n_o],
-#                 length=between_radii[down_index]))
-#                 subresult_2 = list(normalise_vectors(self.additional_points[unit_points_belongings ==
-#                                                                             i%self.n_o],
-#                                                      length=between_radii[top_index]))
-#                 subresult_1.extend(subresult_2)
-#                 result.append(subresult_1)
-#             return result
-#         else:
-#             return [[] for _ in range(len(all_points))]
-#
-#     def _create_centers_vertices_regions(self) -> Tuple:
-#         all_sv = [self._change_voronoi_radius(self.unit_sph_voronoi, r) for r in self.point_radii]
-#         centers = np.concatenate([sv.points for sv in all_sv])
-#
-#         all_vertices_sv = [self._change_voronoi_radius(self.unit_sph_voronoi, r) for r in self.get_voronoi_radii()]
-#         # TODO: remove redundant vertices
-#         vertices = np.concatenate([sv.vertices for sv in all_vertices_sv])
-#
-#         # first get regions associated with points in the same layer
-#         base_regions = self.unit_sph_voronoi.regions
-#         # vertices that in the end belong to a point are the "base points" in layers above and below
-#         num_base_vertices = len(all_vertices_sv[0].vertices)
-#         all_regions = []
-#
-#         for point_i, point in enumerate(centers):
-#             point_regions = []
-#             layer = point_i // self.n_o
-#             index_within_layer = point_i % self.n_o
-#             base_region = base_regions[index_within_layer]
-#             # points below
-#             point_regions.extend([x+layer*num_base_vertices for x in base_region])
-#             # points above
-#             point_regions.extend([x + (layer + 1) * num_base_vertices for x in base_region])
-#             all_regions.append(point_regions)
-#         return centers, vertices, all_regions
-#
-#     def _calculate_center_distances(self, index_1: int, index_2: int):
-#         v1 = self.get_all_voronoi_centers()[index_1]
-#         v2 = self.get_all_voronoi_centers()[index_2]
-#         # same-level neighbours
-#         if np.isclose(np.linalg.norm(v1), np.linalg.norm(v2)):
-#             dist = dist_on_sphere(v1, v2)[0]
-#         # ray neighbours
-#         else:
-#             dist = np.linalg.norm(np.abs(v2-v1))
-#         return dist
-#
-#     def _calculate_borders(self, index_1: int, index_2: int):
-#         #print("simplices", self.get_convex_hulls()[index_1].simplices, self.get_convex_hulls()[index_2].simplices)
-#
-#         # here the points are the voronoi indices that both cells share
-#         reduced_vertices = self.get_all_voronoi_vertices(reduced=True)
-#         reduced_regions = self.get_all_voronoi_regions(reduced=True)
-#         set_1 = set(reduced_regions[index_1])
-#         set_2 = set(reduced_regions[index_2])
-#         indices_border = list(set_1.intersection(set_2))
-#
-#         shared_vertices = reduced_vertices[indices_border]
-#
-#         simplices1 = self.get_convex_hulls()[index_1].simplices
-#         vertex_per_simplex1 = self.get_convex_hulls()[index_1].points[simplices1]
-#         print(vertex_per_simplex1.shape)
-#         simplices2 = self.get_convex_hulls()[index_2].simplices
-#         vertex_per_simplex2 = self.get_convex_hulls()[index_2].points[simplices2]
-#         set_1 = set([tuple(map(tuple, x)) for x in vertex_per_simplex1])
-#         set_2 = set([tuple(map(tuple, x)) for x in vertex_per_simplex2])
-#         indices_simpl = list(set_1.intersection(set_2))
-#         print(indices_simpl)
-#
-#         area = 0
-#         return area
-#
-#     def get_voronoi_radii(self):
-#         return get_between_radii(self.point_radii, include_zero=True)
-#
-#     def _change_voronoi_radius(self, sv: SphericalVoronoi, new_radius: float) -> SphericalVoronoi:
-#         """
-#         This is a helper function. Since a FullGrid consists of several layers of spheres in which the points are at
-#         exactly same places (just at different radii), it makes sense not to recalculate, but just to scale the radius,
-#         vertices and points out of which the SphericalVoronoi consists to a new radius.
-#         """
-#         # important that it's a copy!
-#         sv = copy(sv)
-#         sv.radius = new_radius
-#         sv.vertices = normalise_vectors(sv.vertices, length=new_radius)
-#         sv.points = normalise_vectors(sv.points, length=new_radius)
-#         return sv
+# only use this for plotting
+class PositionVoronoi(AbstractVoronoi):
+
+    """
+    This object consists of several layers of spherical voronoi cells one above the other in several shells
+    """
+
+    def __init__(self, o_grid: NDArray, point_radii: NDArray, using_detailed_grid: bool = True, **kwargs):
+        self.o_grid = o_grid
+        self.using_detailed_grid = using_detailed_grid
+        self.point_radii = point_radii
+        self.n_o = len(self.o_grid)
+        self.n_t = len(self.point_radii)
+        self.unit_sph_voronoi = SphericalVoronoi(self.o_grid, radius=1, threshold=10 ** -UNIQUE_TOL)
+        if self.using_detailed_grid:
+            dense_points = random_sphere_points(5000)
+        else:
+            dense_points = None
+        super().__init__(additional_points=dense_points, **kwargs)
+
+    def _additional_points_per_cell(self) -> List:
+        """
+        Returns a list (len=num of centers) of lists in which there are additional points that are associated with
+        each region (or empty list if there are none)
+        """
+        all_points = self.get_all_voronoi_centers()
+        if self.additional_points is not None:
+            # first belongings of unit_sph_voronoi are determined
+            result = []
+            unit_points_belongings = np.argmin(cdist(self.additional_points,
+                                                     self.unit_sph_voronoi.points,
+                                                      metric="cos"), axis=1)
+
+            between_radii = get_between_radii(self.point_radii, include_zero=True)
+
+            for i, _ in enumerate(all_points):
+                down_index = np.max([i//self.n_o, 0])
+                top_index = np.min([(i // self.n_o) + 1, self.n_t+2])
+                subresult_1 = list(normalise_vectors(self.additional_points[
+                                                         unit_points_belongings==i%self.n_o],
+                length=between_radii[down_index]))
+                subresult_2 = list(normalise_vectors(self.additional_points[unit_points_belongings ==
+                                                                            i%self.n_o],
+                                                     length=between_radii[top_index]))
+                subresult_1.extend(subresult_2)
+                result.append(subresult_1)
+            return result
+        else:
+            return [[] for _ in range(len(all_points))]
+
+    def _create_centers_vertices_regions(self) -> Tuple:
+        all_sv = [self._change_voronoi_radius(self.unit_sph_voronoi, r) for r in self.point_radii]
+        centers = np.concatenate([sv.points for sv in all_sv])
+
+        all_vertices_sv = [self._change_voronoi_radius(self.unit_sph_voronoi, r) for r in self.get_voronoi_radii()]
+        # TODO: remove redundant vertices
+        vertices = np.concatenate([sv.vertices for sv in all_vertices_sv])
+
+        # first get regions associated with points in the same layer
+        base_regions = self.unit_sph_voronoi.regions
+        # vertices that in the end belong to a point are the "base points" in layers above and below
+        num_base_vertices = len(all_vertices_sv[0].vertices)
+        all_regions = []
+
+        for point_i, point in enumerate(centers):
+            point_regions = []
+            layer = point_i // self.n_o
+            index_within_layer = point_i % self.n_o
+            base_region = base_regions[index_within_layer]
+            # points below
+            point_regions.extend([x+layer*num_base_vertices for x in base_region])
+            # points above
+            point_regions.extend([x + (layer + 1) * num_base_vertices for x in base_region])
+            all_regions.append(point_regions)
+        return centers, vertices, all_regions
+
+    def _calculate_center_distances(self, index_1: int, index_2: int):
+        v1 = self.get_all_voronoi_centers()[index_1]
+        v2 = self.get_all_voronoi_centers()[index_2]
+        # same-level neighbours
+        if np.isclose(np.linalg.norm(v1), np.linalg.norm(v2)):
+            dist = dist_on_sphere(v1, v2)[0]
+        # ray neighbours
+        else:
+            dist = np.linalg.norm(np.abs(v2-v1))
+        return dist
+
+    def _calculate_borders(self, index_1: int, index_2: int):
+        #print("simplices", self.get_convex_hulls()[index_1].simplices, self.get_convex_hulls()[index_2].simplices)
+
+        # here the points are the voronoi indices that both cells share
+        reduced_vertices = self.get_all_voronoi_vertices(reduced=True)
+        reduced_regions = self.get_all_voronoi_regions(reduced=True)
+        set_1 = set(reduced_regions[index_1])
+        set_2 = set(reduced_regions[index_2])
+        indices_border = list(set_1.intersection(set_2))
+
+        shared_vertices = reduced_vertices[indices_border]
+
+        simplices1 = self.get_convex_hulls()[index_1].simplices
+        vertex_per_simplex1 = self.get_convex_hulls()[index_1].points[simplices1]
+        print(vertex_per_simplex1.shape)
+        simplices2 = self.get_convex_hulls()[index_2].simplices
+        vertex_per_simplex2 = self.get_convex_hulls()[index_2].points[simplices2]
+        set_1 = set([tuple(map(tuple, x)) for x in vertex_per_simplex1])
+        set_2 = set([tuple(map(tuple, x)) for x in vertex_per_simplex2])
+        indices_simpl = list(set_1.intersection(set_2))
+        print(indices_simpl)
+
+        area = 0
+        return area
+
+    def get_voronoi_radii(self):
+        return get_between_radii(self.point_radii, include_zero=True)
+
+    def _change_voronoi_radius(self, sv: SphericalVoronoi, new_radius: float) -> SphericalVoronoi:
+        """
+        This is a helper function. Since a FullGrid consists of several layers of spheres in which the points are at
+        exactly same places (just at different radii), it makes sense not to recalculate, but just to scale the radius,
+        vertices and points out of which the SphericalVoronoi consists to a new radius.
+        """
+        # important that it's a copy!
+        sv = copy(sv)
+        sv.radius = new_radius
+        sv.vertices = normalise_vectors(sv.vertices, length=new_radius)
+        sv.points = normalise_vectors(sv.points, length=new_radius)
+        return sv
