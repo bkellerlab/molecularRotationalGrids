@@ -359,7 +359,7 @@ class TransitionModel(ABC):
         pass
 
     @save_or_use_saved
-    def get_eigenval_eigenvec(self, num_eigenv: int = 8, sigma=None, which="LR", **kwargs) -> Tuple[NDArray, NDArray]:
+    def get_eigenval_eigenvec(self, num_eigenv: int = 6, sigma=None, which="LR", **kwargs) -> Tuple[NDArray, NDArray]:
         """
         Obtain eigenvectors and eigenvalues of the transition matrices.
 
@@ -380,18 +380,26 @@ class TransitionModel(ABC):
                 tm = all_tms # sqra
             #tm[np.isnan(tm)] = 0  # replace nans with zeros
             # in order to compute left eigenvectors, compute right eigenvectors of the transpose
-            if isinstance(self, MSM) and sigma is None:
-                sigma=None # or nothing??
-            elif isinstance(self, SQRA) and sigma is None:
-                sigma=1
+            if isinstance(self, MSM):
+                #sigma=None # or nothing??
+                #sigma = None
+                #which = "LR"
+                sigma = 1
+                which = "SM"
+            elif isinstance(self, SQRA):
+                sigma = 0
+                which = "SR"
             else:
                 raise TypeError(f"When not MSM and not SQRA, what then? {type(self)}")
-            eigenval, eigenvec = eigs(tm.T, num_eigenv, maxiter=100000, tol=0, which=which, sigma=sigma, **kwargs) #, sigma=1
+            eigenval, eigenvec = eigs(tm.T, num_eigenv, maxiter=200000, which=which, sigma=sigma, **kwargs) #,
+            # sigma=1
             # don't need to deal with complex outputs in case all values are real
             # TODO: what happens here if we have negative imaginary components?
             if eigenvec.imag.max() == 0 and eigenval.imag.max() == 0:
                 eigenvec = eigenvec.real
                 eigenval = eigenval.real
+
+            print(np.max(eigenval.imag))
             # sort eigenvectors according to their eigenvalues
             idx = eigenval.argsort()[::-1]
             eigenval = eigenval[idx]

@@ -279,6 +279,7 @@ def test_rotobj_voronoi_4D():
         all_volumes = my_voronoi.get_voronoi_volumes()
         half_volumes = half_voronoi.get_voronoi_volumes()
         # sum makes sense
+        print(np.sum(all_volumes), HYPERSPHERE_SURFACE)
         assert np.isclose(np.sum(all_volumes), HYPERSPHERE_SURFACE, atol=1, rtol=0.025)
         assert np.isclose(np.sum(half_volumes), HYPERSPHERE_SURFACE/2, atol=0.3, rtol=0.025)
         # averages make sense
@@ -372,5 +373,30 @@ if __name__ == "__main__":
     #test_full_and_half()   # done
     #test_rotobj_voronoi_3D_non_exact()  # done
     #test_rotobj_voronoi_3D_exact()  # done
-    test_rotobj_voronoi_4D()
+    #test_rotobj_voronoi_4D()
 
+    N = 200
+    hypersphere = SphereGrid4DFactory.create(DEFAULT_ALGORITHM_B, N, use_saved=False)
+    # uncomment for plotting
+    from molgri.plotting.spheregrid_plots import EightCellsPlot, SphereGridPlot
+    my_voronoi = RotobjVoronoi(hypersphere.get_grid_as_array(only_upper=False), using_detailed_grid=True)
+    half_voronoi = my_voronoi.get_related_half_voronoi()
+
+    # plotting voronoi
+    # from molgri.plotting.voronoi_plots import VoronoiPlot
+    # import matplotlib.pyplot as plt
+    # vp = VoronoiPlot(my_voronoi)
+    # vp.plot_centers(save=False)
+    # vp.plot_vertices(ax=vp.ax, fig=vp.fig, save=False, alpha=0.5, labels=False)
+    # vp.plot_borders(ax=vp.ax, fig=vp.fig, save=False, animate_rot=False, reduced=True)
+    # plt.show()
+
+    # plotting eight cells
+    # ep = EightCellsPlot(hypersphere.polytope, only_half_of_cube=False)
+    # ep.make_all_8cell_neighbours(node_index=15, animate_rot=False)
+
+    # volumes
+    all_volumes = my_voronoi.get_voronoi_volumes()
+    half_volumes = half_voronoi.get_voronoi_volumes()
+    # sum makes sense
+    print(np.sum(all_volumes), "ideal: ", HYPERSPHERE_SURFACE)

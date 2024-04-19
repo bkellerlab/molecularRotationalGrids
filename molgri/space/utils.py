@@ -65,6 +65,8 @@ def angle_between_vectors(central_vec: np.ndarray, side_vector: np.ndarray) -> n
 
 def dist_on_sphere(vector1: np.ndarray, vector2: np.ndarray) -> np.ndarray:
     """
+    Distance between two points on a sphere is a product of the radius (has to be the same for both) and angle
+    between them.
 
     Args:
         vector1: vector shape (n1, d) or (d,)

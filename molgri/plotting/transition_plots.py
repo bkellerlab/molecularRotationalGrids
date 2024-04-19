@@ -130,15 +130,17 @@ if __name__ == "__main__":
     from molgri.space.fullgrid import FullGrid
     from molgri.molecules.transitions import MSM, SQRA
     import matplotlib.pyplot as plt
+    from time import time
+    from datetime import timedelta
 
     #"H2O_H2O_0095_40000001"
     #full_grid=FullGrid(b_grid_name="42", o_grid_name="40", t_grid_name="linspace(0.2, 0.9, 20)")
-    water_sh = SimulationHistogram("H2O_H2O_0535", "H2O", is_pt=True,
-                                   second_molecule_selection="bynum 4:6", use_saved=False)
+    #water_sh = SimulationHistogram("H2O_H2O_0543", "H2O", is_pt=True,
+    #                               second_molecule_selection="bynum 4:6", use_saved=False)
     #taus = np.array([1, 2, 3, 5, 7, 10, 15, 20, 30, 40, 50, 70, 80, 90, 100, 110, 130, 150, 180, 200, 220,
     #                 250, 270, 300])
 
-    msm = SQRA(water_sh, use_saved=False)
+    #msm = SQRA(water_sh, use_saved=False)
 
     # msms = water_sh.get_markov_model_for_taus(tau_array=taus)
     #
@@ -153,16 +155,38 @@ if __name__ == "__main__":
     # ax.set_xlim(0, 300)
     # plt.show()
 
+    # input parameters
+    msm_name = "H2O_H2O_0095_50000000"
+    #msm_name = "H2O_H2O_0095_25000"
+    msm_fullgrid = full_grid = FullGrid(b_grid_name="40", o_grid_name="42",
+                                        t_grid_name="linspace(0.2, 0.6, 20)")
 
-    tp = TransitionPlot(water_sh)
+    msm_use_saved = False
+    tau_array = np.array([1, 2, 3, 5, 7, 10, 15, 20, 30, 40, 50, 70, 80, 90, 100, 110, 130, 150, 180, 200, 220,
+                          250, 270, 300])
+    index_tau = 17
+
+    t1 = time()
+    water_msm_sh = SimulationHistogram(msm_name, "H2O", is_pt=False, full_grid=msm_fullgrid,
+                                       second_molecule_selection="bynum 4:6", use_saved=msm_use_saved)
+    msm = MSM(water_msm_sh, tau_array=tau_array, use_saved=msm_use_saved)
+
+    msm.get_eigenval_eigenvec(6)
+
+    tp = TransitionPlot(water_msm_sh)
     tp.transition_obj = msm
-    #tp.transition_obj.use_saved = True
+    tp.simulation_histogram.use_saved = True
+    tp.transition_obj.use_saved = True
     fig, ax = plt.subplots(1, 2, sharex=False, sharey=False, figsize=(10, 5))
-    tp.plot_its(6, as_line=True, save=False, fig=fig, ax=ax[1])
-    #ax[1].set_xlim(0, 100)
-    #ax[1].set_ylim(0, 100)
-    tp.plot_eigenvalues(num_eigenv=6, save=True, fig=fig, ax=ax[0]) #index_tau=10,
-
+    tp.plot_its(6, as_line=False, save=False, fig=fig, ax=ax[1])
+    ax[1].set_xlim(0, 300)
+    ax[1].set_ylim(0, 300)
+    tp.plot_eigenvalues(num_eigenv=6, save=True, fig=fig, ax=ax[0], index_tau=index_tau) #index_tau=10,
 
     for i in range(5):
-        tp.plot_one_eigenvector_flat(eigenvec_index=i, index_tau=10)
+        tp.plot_one_eigenvector_flat(eigenvec_index=i, index_tau=index_tau) #, index_tau=10
+
+
+    t2 = time()
+    print(f"Timing for MSM: ", end="")
+    print(f"{timedelta(seconds=t2 - t1)} hours:minutes:seconds")

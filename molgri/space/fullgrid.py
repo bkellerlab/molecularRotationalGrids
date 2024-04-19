@@ -207,9 +207,14 @@ class FullGrid:
                         row.append(n_b * i + k)
                         col.append(n_b * j + k)
                         values.append(el)
-        same_orientation_neighbours = coo_array((values, (row, col)), shape=(n_total, n_total),
-                                                dtype=bool)
 
+        if sel_property == "adjacency":
+            dtype = bool
+        else:
+            dtype = float
+        same_orientation_neighbours = coo_array((values, (row, col)), shape=(n_total, n_total),
+                                                dtype=dtype)
+        #print(same_orientation_neighbours)
         # along the diagonal blocks of size n_o*n_t that are neighbours exactly if their quaternions are neighbours
         if n_t * n_o > 1:
             my_blocks = [orientation_adjacency]
@@ -277,6 +282,8 @@ class PositionGrid:
         radius_below = np.concatenate(([0, ], radius_above[:-1]))
         s_vor = self.get_o_grid().get_spherical_voronoi()
         area = s_vor.get_voronoi_volumes()
+        print("area", np.sum(area), radius_above, radius_below) # TODO: why is the sum not the area of UNIT sphere
+        # but of rad 2?????
         cumulative_volumes = (_t_and_o_2_positions(o_property=area/3, t_property=radius_above**3) -
                               _t_and_o_2_positions(o_property=area/3, t_property=radius_below**3))
         return cumulative_volumes
@@ -330,7 +337,7 @@ class PositionGrid:
                                           format="coo")
         same_ray_neighbours += diags(my_diags, offsets=-n_o, shape=(n_points, n_points), dtype=my_dtype,
                                           format="coo")
-
+        #print("same ray", sel_property, my_dtype, same_ray_neighbours)
         # Now we also want neighbours on the same level based on Voronoi discretisation
         # We first focus on the first n_o points since the set-up repeats at every radius
 
@@ -360,6 +367,8 @@ class PositionGrid:
         else:
             same_radius_neighbours = coo_array(neig) * multiply
         all_neighbours = same_ray_neighbours + same_radius_neighbours
+        #print("same_ray", type(same_ray_neighbours.data))
+        #print("same_radius", type(same_radius_neighbours.data))
         return all_neighbours
 
     def get_adjacency_of_position_grid(self) -> coo_array:
@@ -471,30 +480,35 @@ def _t_and_o_2_positions(o_property, t_property):
 
 
 if __name__ == "__main__":
-    b_grid = "8"
-    o_grid = "12"
-    t_grid = "linspace(0.1, 0.4, 3)"
-    fg = FullGrid(b_grid_name=b_grid, o_grid_name=o_grid, t_grid_name=t_grid, use_saved=True)
-    np.set_printoptions(precision=3)
-    my_vols = fg.get_total_volumes()
-    print(get_between_radii(fg.get_t_grid().get_trans_grid()))
-    print(np.sum(my_vols))
-    my_pos_dis = fg.get_position_grid().get_distances_of_position_grid()
-    my_ori_dis = fg.b_rotations.get_spherical_voronoi().get_center_distances()
-    print("Pos dist", my_pos_dis)
-    print("Ori dist", my_ori_dis)
-
-    import seaborn as sns
     import matplotlib.pyplot as plt
+    import seaborn as sns
 
-    my_array = fg.get_full_adjacency().toarray()
+    o_grid = 1000
+    HALF_HYPERSPHERE_SURFACE = pi ** 2
 
-    sns.heatmap(my_array, cmap="gray", xticklabels=False, yticklabels=False)
-    plt.show()
 
-    my_array = fg.get_full_distances().toarray()
+    available_fgs = [FullGrid(o_grid_name=f"{o_grid}", b_grid_name="1", t_grid_name="[0.5]", use_saved=True),
+                     FullGrid(o_grid_name="1", b_grid_name=f"{o_grid}", t_grid_name="[0.5]", use_saved=True),
+                     #FullGrid(o_grid_name="1", b_grid_name="1", t_grid_name="linspace(0.1, 1.1, 1000)",
+                     # use_saved=True)
+                     ]
 
-    sns.heatmap(my_array, cmap="plasma", xticklabels=False, yticklabels=False)
+    fig, ax = plt.subplots(len(available_fgs), 3, figsize=(15, len(available_fgs) * 5))
+    for i, my_full_grid in enumerate(available_fgs):
+        all_volumes = my_full_grid.get_total_volumes()
+        if i==0 or i==1:
+            ideal_volume_o_total = 4/ 3 * pi * my_full_grid.get_between_radii()[0]**3 *HALF_HYPERSPHERE_SURFACE
+            ideal_volume_o = ideal_volume_o_total / o_grid #HALF_HYPERSPHERE_SURFACE *
+            ax[i][0].vlines(x=ideal_volume_o, ymin=0, ymax=0.25, colors="red")
+        sns.histplot(all_volumes, ax=ax[i][0], stat="probability")
+        all_borders = my_full_grid.get_full_borders()
+        #print(my_full_grid.position_grid.get_borders_of_position_grid())
+        sns.histplot(all_borders.data, ax=ax[i][1], stat="probability")
+        all_dist = my_full_grid.get_full_distances()
+        sns.histplot(all_dist.data, ax=ax[i][2], bins=30, stat="probability")
+        ax[0][0].set_title("Volumes")
+        ax[0][1].set_title("Border areas")
+        ax[0][2].set_title("Center distances")
     plt.show()
 
 

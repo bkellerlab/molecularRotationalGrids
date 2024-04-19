@@ -128,6 +128,10 @@ class PtIOManager:
         logger.info(f"translation grid [A]: {self.pt.get_full_grid().get_radii()}")
         logger.info(f"quaternions for rot around the body: {self.pt.get_full_grid().get_body_rotations().as_quat()}")
         logger.info(f"positions on a sphere for origin rot: {self.pt.get_full_grid().o_positions}")
+        logger.info(f"volumes of FullGrid cells: {self.pt.get_full_grid().get_total_volumes()}")
+        logger.info(f"adjacencies of FullGrid cells (sparse array): {self.pt.get_full_grid().get_full_adjacency()}")
+        logger.info(f"borders of FullGrid cells (sparse array): {self.pt.get_full_grid().get_full_borders()}")
+        logger.info(f"center distances of FullGrid cells (sparse array): {self.pt.get_full_grid().get_full_distances()}")
         # generate a pt
         if as_dir:
             selected_function = self.writer.write_frames_in_directory
