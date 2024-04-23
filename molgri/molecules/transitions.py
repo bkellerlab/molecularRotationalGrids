@@ -535,76 +535,23 @@ class SQRA(TransitionModel):
             is expanded to be compatible with the MSM model)
         """
         if self.transition_matrix is None:
-            all_volumes = np.array(self.sim_hist.full_grid.get_total_volumes())
-            # TODO: move your work to sparse matrices at some point?
-            all_surfaces = self.sim_hist.full_grid.get_full_borders()
-            all_distances = self.sim_hist.full_grid.get_full_distances()
+            self.transition_matrix = D * self.sim_hist.full_grid.get_full_prefactors()
             # energies are either NaN (calculation in that cell was not completed or the particle left the cell during
             # optimisation) or they are the arithmetic average of all energies of COM assigned to that cell.
             #all_energies = np.empty(shape=(self.num_cells,))
             #energy_counts = np.zeros(shape=(self.num_cells,))
             obtained_energies = self.sim_hist.get_magnitude_energy(energy_type=self.energy_type)
             # for sqra demand that each energy corresponds to exactly one cell
-            assert len(obtained_energies) == len(all_volumes), f"{len(obtained_energies)} != {len(all_volumes)}"
-
-            # for a, e in zip(self.assignments, obtained_energies):
-            #     if not np.isnan(a):
-            #         all_energies[int(a)] += e
-            #         energy_counts[int(a)] += 1
-            # # in both cases avoiding division with zero
-            # all_energies = np.divide(all_energies, energy_counts, out=np.zeros_like(all_energies),
-            #                          where=energy_counts != 0)
-
-
-
-            # you cannot multiply or divide directly in a coo format
-            self.transition_matrix = D * all_surfaces #/ all_distances
-
-
-            self.transition_matrix = self.transition_matrix.tocoo()
-
-            self.transition_matrix.data /= all_distances.tocoo().data
-
-
-            # Divide every row of transition_matrix with the corresponding volume
-            #self.transition_matrix /= all_volumes[:, None]
-            self.transition_matrix.data /= all_volumes[self.transition_matrix.row]
-
-
-            # multiply with sqrt(pi_j/pi_i) = e**((V_i-V_j)*1000/(2*k_B*N_A*T))
-            # gromacs uses kJ/mol as energy unit, boltzmann constant is J/K
+            assert len(obtained_energies) == len(self.sim_hist.full_grid)
 
             self.transition_matrix.data *= np.exp((obtained_energies[self.transition_matrix.row]-obtained_energies[
                 self.transition_matrix.col])*1000/(2*kB*N_A*T))
 
-            #self.transition_matrix = np.divide(D * all_surfaces, all_distances,
-            #                        where=all_distances!=0) #out=np.zeros_like(D * all_surfaces),
-
-
-            # for i, _ in enumerate(self.transition_matrix):
-            #     divide_by = all_volumes[i]
-            #     self.transition_matrix[i] = np.divide(self.transition_matrix[i], divide_by,
-            #                                           out=np.zeros_like(self.transition_matrix[i]),
-            #                              where=(divide_by != 0 and divide_by != np.NaN))
-            #
-            # for j, _ in enumerate(self.transition_matrix):
-            #     for i, _ in enumerate(self.transition_matrix):
-            #         # gromacs uses kJ/mol as energy unit, boltzmann constant is J/K
-            #         multiply_with = np.exp((all_energies[i]-all_energies[j])*1000/(2*kB*N_A*T))
-            #         self.transition_matrix[i, j] = np.multiply(self.transition_matrix[i, j], multiply_with,
-            #                                                    out=np.zeros_like(self.transition_matrix[i, j]),
-            #                                    where=multiply_with != np.NaN)
-
             # normalise rows
             sums = self.transition_matrix.sum(axis=1)
-            print(sums)
             all_i = np.arange(len(self.sim_hist.full_grid))
-            print(all_i)
             diagonal_array = coo_array((-sums, (all_i, all_i)), shape=(len(all_i), len(all_i)))
             self.transition_matrix = self.transition_matrix.tocsr() + diagonal_array.tocsr()
-            #np.fill_diagonal(self.transition_matrix, -sums)
-            # additional axis
-            #self.transition_matrix = self.transition_matrix[np.newaxis, :]
         return self.transition_matrix
 
 

@@ -57,6 +57,9 @@ class FullGrid:
             t_grid_name: of the form '[1, 3, 4.5]'
             use_saved: try to obtain saved data if possible
         """
+        # this is supposed to be a scaling factor to make metric of SO(3) comparable to R3
+        # will be applied as self.factor**3 to volumes, self.factor**2 to areas and self.factor to distances
+        self.factor = 2
         self.b_grid_name = b_grid_name
         self.o_grid_name = o_grid_name
         self.t_grid_name = t_grid_name
@@ -121,6 +124,7 @@ class FullGrid:
     def get_position_grid(self):
         return self.position_grid
 
+    @save_or_use_saved
     def get_total_volumes(self):
         """
         Return 6D volume of a particular point obtained from multiplying position space region and orientation space
@@ -133,7 +137,7 @@ class FullGrid:
         all_volumes = []
         for o_rot in pos_volumes:
             for b_rot in ori_volumes:
-                all_volumes.append(o_rot*b_rot)
+                all_volumes.append(o_rot*(self.factor**3)*b_rot)
         return all_volumes
 
     def get_between_radii(self):
@@ -151,7 +155,6 @@ class FullGrid:
         """Get a Rotation object (may encapsulate a list of rotations) from the body grid."""
         return Rotation.from_quat(self.b_rotations.get_grid_as_array())
 
-    @save_or_use_saved
     def get_full_grid_as_array(self) -> NDArray:
         """
         Return an array of shape (n_t*n_o_n_b, 7) where for every sequential step of pt, the first 3 coordinates
@@ -174,12 +177,34 @@ class FullGrid:
                 current_index += 1
         return result
 
+    @save_or_use_saved
+    def get_full_prefactors(self):
+        """
+        Get the sparse array A_ij/(V_i*h_ij)
+        Returns:
+
+        """
+        all_volumes = np.array(self.get_total_volumes())
+        all_surfaces = self.get_full_borders()
+        all_distances = self.get_full_distances()
+        prefactor_matrix = all_surfaces
+        prefactor_matrix = prefactor_matrix.tocoo()
+        prefactor_matrix.data /= all_distances.tocoo().data
+
+        # Divide every row of transition_matrix with the corresponding volume
+        # self.transition_matrix /= all_volumes[:, None]
+        prefactor_matrix.data /= all_volumes[prefactor_matrix.row]
+        return prefactor_matrix
+
+    @save_or_use_saved
     def get_full_adjacency(self):
         return self._get_N_N(sel_property="adjacency")
 
+    @save_or_use_saved
     def get_full_distances(self):
         return self._get_N_N(sel_property="center_distances")
 
+    @save_or_use_saved
     def get_full_borders(self):
         return self._get_N_N(sel_property="border_len")
 
@@ -210,11 +235,20 @@ class FullGrid:
 
         if sel_property == "adjacency":
             dtype = bool
+            my_factor = 1
+        elif sel_property == "border_len":
+            dtype = float
+            my_factor = self.factor**2
+        elif sel_property == "center_distances":
+            dtype = float
+            my_factor = self.factor
         else:
             dtype = float
-        same_orientation_neighbours = coo_array((values, (row, col)), shape=(n_total, n_total),
+            my_factor = 1
+
+        same_orientation_neighbours = coo_array(([v*my_factor for v in values], (row, col)), shape=(n_total, n_total),
                                                 dtype=dtype)
-        #print(same_orientation_neighbours)
+
         # along the diagonal blocks of size n_o*n_t that are neighbours exactly if their quaternions are neighbours
         if n_t * n_o > 1:
             my_blocks = [orientation_adjacency]
@@ -223,7 +257,7 @@ class FullGrid:
             my_blocks = my_blocks[:-(n_t * n_o)]
             my_blocks = np.array(my_blocks, dtype=object)
             my_blocks = my_blocks.reshape((n_t * n_o), (n_t * n_o))
-            same_position_neighbours = block_array(my_blocks, dtype=float, format="coo")
+            same_position_neighbours = bmat(my_blocks, dtype=float) #block_array(my_blocks, dtype=dtype, format="coo")
         else:
             return coo_array(orientation_adjacency)
         all_neighbours = same_position_neighbours + same_orientation_neighbours
@@ -337,7 +371,7 @@ class PositionGrid:
                                           format="coo")
         same_ray_neighbours += diags(my_diags, offsets=-n_o, shape=(n_points, n_points), dtype=my_dtype,
                                           format="coo")
-        #print("same ray", sel_property, my_dtype, same_ray_neighbours)
+
         # Now we also want neighbours on the same level based on Voronoi discretisation
         # We first focus on the first n_o points since the set-up repeats at every radius
 

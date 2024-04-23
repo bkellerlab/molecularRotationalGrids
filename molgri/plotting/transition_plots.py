@@ -156,7 +156,8 @@ if __name__ == "__main__":
     # plt.show()
 
     # input parameters
-    msm_name = "H2O_H2O_0095_50000000"
+    msm_name = "H2O_H2O_0095_30000012"
+    #msm_name = "H2O_H2O_0095_50000000"
     #msm_name = "H2O_H2O_0095_25000"
     msm_fullgrid = full_grid = FullGrid(b_grid_name="40", o_grid_name="42",
                                         t_grid_name="linspace(0.2, 0.6, 20)")

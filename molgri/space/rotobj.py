@@ -108,7 +108,6 @@ class SphereGridNDim(ABC):
             self.spherical_voronoi = MikroVoronoi(dimensions=self.dimensions, N_points=self.get_N())
         return self.grid
 
-    @save_or_use_saved
     def get_grid_as_array(self, only_upper: bool = False) -> NDArray:
         """
         Get a numpy array in which every row is a point on a (hyper)(half)sphere.

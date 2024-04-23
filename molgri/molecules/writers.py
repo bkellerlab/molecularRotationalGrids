@@ -10,6 +10,7 @@ import os
 import MDAnalysis as mda
 from MDAnalysis import Merge
 import numpy as np
+import pandas as pd
 
 from molgri.constants import EXTENSION_TRAJECTORY, EXTENSION_TOPOLOGY, EXTENSION_LOGGING
 from molgri.logfiles import PtLogger, paths_free_4_all
@@ -128,10 +129,20 @@ class PtIOManager:
         logger.info(f"translation grid [A]: {self.pt.get_full_grid().get_radii()}")
         logger.info(f"quaternions for rot around the body: {self.pt.get_full_grid().get_body_rotations().as_quat()}")
         logger.info(f"positions on a sphere for origin rot: {self.pt.get_full_grid().o_positions}")
-        logger.info(f"volumes of FullGrid cells: {self.pt.get_full_grid().get_total_volumes()}")
-        logger.info(f"adjacencies of FullGrid cells (sparse array): {self.pt.get_full_grid().get_full_adjacency()}")
-        logger.info(f"borders of FullGrid cells (sparse array): {self.pt.get_full_grid().get_full_borders()}")
-        logger.info(f"center distances of FullGrid cells (sparse array): {self.pt.get_full_grid().get_full_distances()}")
+        volumes = self.pt.get_full_grid().get_total_volumes()
+        df_volumes = pd.DataFrame(volumes)
+        logger.info(f"volumes of FullGrid cells: {df_volumes.describe()}")
+        adjacency = self.pt.get_full_grid().get_full_adjacency()
+        #logger.info(f"adjacencies of FullGrid cells (sparse array): {}")
+        borders = self.pt.get_full_grid().get_full_borders()
+        df_borders = pd.DataFrame(borders.data)
+        logger.info(f"borders of FullGrid cells (sparse array): {df_borders.describe()}")
+        distances = self.pt.get_full_grid().get_full_distances()
+        df_distances = pd.DataFrame(distances.data)
+        logger.info(f"center distances of FullGrid cells (sparse array): {df_distances.describe()}")
+        prefactors = self.pt.get_full_grid().get_full_prefactors()
+        df_prefactors = pd.DataFrame(prefactors.data)
+        logger.info(f"prefactors (sparse_array): {df_prefactors.describe()}")
         # generate a pt
         if as_dir:
             selected_function = self.writer.write_frames_in_directory
