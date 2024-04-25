@@ -10,6 +10,7 @@ from typing import Tuple, Sequence, Any
 import numpy as np
 import MDAnalysis as mda
 from MDAnalysis.analysis.base import AnalysisFromFunction
+from molgri.logfiles import PtLogger
 from numpy.typing import NDArray
 from scipy.sparse import coo_array, csr_array, diags
 from scipy.sparse.linalg import eigs
@@ -344,6 +345,14 @@ class TransitionModel(ABC):
         self.num_tau = len(self.tau_array)
         self.transition_matrix = None
 
+        self.logger = PtLogger(f"{PATH_OUTPUT_LOGGING}TransitionModel_{self.sim_hist.trajectory_name}.log")
+        self.logger.log_set_up(self)
+        self.logger.logger.info(f"trajectory: {self.sim_hist.trajectory_name}")
+        self.logger.logger.info(f"input grid parameters: {self.sim_hist.full_grid.o_grid_name} "
+                    f"{self.sim_hist.full_grid.b_grid_name}"
+                    f" {self.sim_hist.full_grid.t_grid_name}")
+        self.logger.logger.info(f"full grid name: {self.sim_hist.full_grid.get_name()}")
+
     # noinspection PyMissingOrEmptyDocstring
     def get_name(self) -> str:
         return self.sim_hist.get_name()
@@ -359,7 +368,7 @@ class TransitionModel(ABC):
         pass
 
     @save_or_use_saved
-    def get_eigenval_eigenvec(self, num_eigenv: int = 6, sigma=None, which="LR", **kwargs) -> Tuple[NDArray, NDArray]:
+    def get_eigenval_eigenvec(self, num_eigenv: int = 6, sigma=None, which=None, **kwargs) -> Tuple[NDArray, NDArray]:
         """
         Obtain eigenvectors and eigenvalues of the transition matrices.
 
@@ -386,20 +395,21 @@ class TransitionModel(ABC):
                 #which = "LR"
                 sigma = 1
                 which = "SM"
-            elif isinstance(self, SQRA):
+            elif isinstance(self, SQRA) and sigma is None and which is None:
+                #sigma = None
+                #which = "SR"
                 sigma = 0
-                which = "SR"
-            else:
-                raise TypeError(f"When not MSM and not SQRA, what then? {type(self)}")
-            eigenval, eigenvec = eigs(tm.T, num_eigenv, maxiter=200000, which=which, sigma=sigma, **kwargs) #,
+                which = "LM"
+            self.logger.logger.info(f"num_eigenv: {num_eigenv}")
+            self.logger.logger.info(f"sigma: {sigma}")
+            self.logger.logger.info(f"which: {which}")
+            eigenval, eigenvec = eigs(tm.T, num_eigenv, tol=1e-5, maxiter=100000, which=which, sigma=sigma, **kwargs) #,
             # sigma=1
             # don't need to deal with complex outputs in case all values are real
             # TODO: what happens here if we have negative imaginary components?
             if eigenvec.imag.max() == 0 and eigenval.imag.max() == 0:
                 eigenvec = eigenvec.real
                 eigenval = eigenval.real
-
-            print(np.max(eigenval.imag))
             # sort eigenvectors according to their eigenvalues
             idx = eigenval.argsort()[::-1]
             eigenval = eigenval[idx]
@@ -536,6 +546,7 @@ class SQRA(TransitionModel):
         """
         if self.transition_matrix is None:
             self.transition_matrix = D * self.sim_hist.full_grid.get_full_prefactors()
+            self.transition_matrix = self.transition_matrix.tocoo()
             # energies are either NaN (calculation in that cell was not completed or the particle left the cell during
             # optimisation) or they are the arithmetic average of all energies of COM assigned to that cell.
             #all_energies = np.empty(shape=(self.num_cells,))
