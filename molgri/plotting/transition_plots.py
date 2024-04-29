@@ -16,9 +16,11 @@ from molgri.wrappers import plot3D_method, plot_method
 
 class TransitionPlot(RepresentationCollection):
 
-    def __init__(self, transition_obj: SimulationHistogram, tau_array=None, *args, **kwargs):
-        self.simulation_histogram = transition_obj
-        self.transition_obj = transition_obj.get_transition_model(tau_array=tau_array)
+    def __init__(self, transition_obj: (SimulationHistogram, TransitionModel), tau_array=None, *args, **kwargs):
+        self.simulation_histogram = transition_obj[0]
+        self.transition_obj = transition_obj[1]
+        self.simulation_histogram.use_saved = True
+        self.transition_obj.use_saved = True
         data_name = self.transition_obj.get_name()
         super().__init__(data_name, *args, **kwargs)
 
@@ -129,25 +131,26 @@ class TransitionPlot(RepresentationCollection):
 if __name__ == "__main__":
     from molgri.space.fullgrid import FullGrid
     from molgri.molecules.transitions import MSM, SQRA
+    from molgri.space.utils import k_argmax_in_array
     import matplotlib.pyplot as plt
     from time import time
     from datetime import timedelta
 
-    sqra_name = "H2O_H2O_0577"
+    sqra_name = "H2O_H2O_0581"
     sqra_use_saved = False
 
     t1 = time()
 
-    water_sqra_sh = SimulationHistogram(sqra_name, "H2O", is_pt=True,
+    full_grid = FullGrid(b_grid_name="40", o_grid_name="42", t_grid_name="linspace(0.25, 0.6, 20)",
+                         use_saved=sqra_use_saved)
+
+    water_sqra_sh = SimulationHistogram(sqra_name, "H2O", is_pt=True, full_grid=full_grid,
                                         second_molecule_selection="bynum 4:6", use_saved=sqra_use_saved)
 
     sqra = SQRA(water_sqra_sh, use_saved=sqra_use_saved)
-    sqra.get_eigenval_eigenvec(6, which="SM", sigma=0)
+    eigenval, eigenvec = sqra.get_eigenval_eigenvec(6, which="LM", sigma=0)
 
-    sqra_tp = TransitionPlot(water_sqra_sh)
-    sqra_tp.transition_obj = sqra
-    sqra_tp.transition_obj.use_saved = True
-    sqra_tp.simulation_histogram.use_saved = True
+    sqra_tp = TransitionPlot((water_sqra_sh, sqra))
     fig, ax = plt.subplots(1, 2, sharex=False, sharey=False, figsize=(10, 5))
     sqra_tp.plot_its(6, as_line=True, save=False, fig=fig, ax=ax[1])
     sqra_tp.plot_eigenvalues(num_eigenv=6, save=True, fig=fig, ax=ax[0])
@@ -165,6 +168,17 @@ if __name__ == "__main__":
     t2 = time()
     print(f"Timing for SQRA: ", end="")
     print(f"{timedelta(seconds=t2 - t1)} hours:minutes:seconds")
+
+    num_extremes = 15
+    for eigenvector_i in range(1, 5):
+        magnitudes = eigenvec[0].T[eigenvector_i]
+        most_positive = k_argmax_in_array(magnitudes, num_extremes)
+        most_negative = k_argmax_in_array(-magnitudes, num_extremes)
+
+
+        print(f"In {eigenvector_i}. eigenvector {num_extremes} most positive cells are {list(most_positive)} and most negative {list(most_negative)}.")
+        # now assign these to trajectory frames
+
 
     # # input parameters
     # msm_name = "H2O_H2O_0095_30000012"
