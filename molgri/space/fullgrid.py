@@ -25,7 +25,7 @@ from numpy._typing import ArrayLike
 from numpy.typing import NDArray
 from scipy.spatial.transform import Rotation
 from scipy.constants import pi
-from scipy.sparse import bmat, coo_array, diags, block_array
+from scipy.sparse import bmat, coo_array, diags
 import pandas as pd
 
 from molgri.constants import SMALL_NS

@@ -19,8 +19,8 @@ from scipy.spatial.distance import cdist
 from scipy.spatial.transform import Rotation
 from scipy.constants import k as kB, N_A
 from tqdm import tqdm
-from deeptime.markov import TransitionCountEstimator
-from deeptime.markov.msm import MaximumLikelihoodMSM
+#from deeptime.markov import TransitionCountEstimator
+#from deeptime.markov.msm import MaximumLikelihoodMSM
 
 from molgri.wrappers import save_or_use_saved
 from molgri.molecules.parsers import XVGParser
@@ -113,27 +113,27 @@ class SimulationHistogram:
     def __len__(self):
         return len(self.trajectory_universe.trajectory)
 
-    @save_or_use_saved
-    def get_markov_model_for_taus(self, tau_array):
-        all_msms = []
-        for tau in tau_array:
-            # 2) build a  count estimator with TransitionCountEstimator
-            count_estimator = TransitionCountEstimator(lagtime=tau, count_mode="sliding",
-                                                       sparse=True)  # n_states=len_fullgrid,
-
-            # 3) get a TransitionCountModel with NXN states by fitting assignments to an estimator
-            count_model = count_estimator.fit(self.get_full_assignments()).fetch_model()
-
-            # 4) now build a MaximumLikelihoodMSM estimator
-            estimator = MaximumLikelihoodMSM(reversible=True,
-                                             sparse=True,
-                                             )
-
-            # 5) fit a TransitionCountModel to it to obtain MarkovStateModel
-            markov_model = estimator.fit_from_counts(count_model).fetch_model()
-
-            all_msms.append(markov_model)
-        return all_msms
+    # @save_or_use_saved
+    # def get_markov_model_for_taus(self, tau_array):
+    #     all_msms = []
+    #     for tau in tau_array:
+    #         # 2) build a  count estimator with TransitionCountEstimator
+    #         count_estimator = TransitionCountEstimator(lagtime=tau, count_mode="sliding",
+    #                                                    sparse=True)  # n_states=len_fullgrid,
+    #
+    #         # 3) get a TransitionCountModel with NXN states by fitting assignments to an estimator
+    #         count_model = count_estimator.fit(self.get_full_assignments()).fetch_model()
+    #
+    #         # 4) now build a MaximumLikelihoodMSM estimator
+    #         estimator = MaximumLikelihoodMSM(reversible=True,
+    #                                          sparse=True,
+    #                                          )
+    #
+    #         # 5) fit a TransitionCountModel to it to obtain MarkovStateModel
+    #         markov_model = estimator.fit_from_counts(count_model).fetch_model()
+    #
+    #         all_msms.append(markov_model)
+    #     return all_msms
 
     # noinspection PyMissingOrEmptyDocstring
     def get_name(self) -> str:
@@ -380,13 +380,15 @@ class TransitionModel(ABC):
             Eigenval is of shape (num_tau, num_columns), eigenvec of shape (num_tau, num_cells, num_columns)
         """
         all_tms = self.get_transitions_matrix()
+        print("all_tsm", all_tms.shape)
         all_eigenval = np.zeros((self.num_tau, num_eigenv))
         all_eigenvec = np.zeros((self.num_tau, self.num_cells, num_eigenv))
         for tau_i, tau in enumerate(tqdm(self.tau_array)):
-            try:
+            if isinstance(self, MSM):
                 tm = all_tms[tau_i]  # the transition matrix for this tau
-            except NotImplementedError:
+            else:
                 tm = all_tms # sqra
+            print("tm", tm.shape)
             #tm[np.isnan(tm)] = 0  # replace nans with zeros
             # in order to compute left eigenvectors, compute right eigenvectors of the transpose
             if isinstance(self, MSM):
@@ -528,7 +530,6 @@ class SQRA(TransitionModel):
         self.energy_type = energy_type
         super().__init__(sim_hist, tau_array=tau_array, **kwargs)
 
-    @save_or_use_saved
     def get_transitions_matrix(self, D: float = 1, T=273) -> NDArray:
         """
         Return the rate matrix as calculated by the SqRA formula:
@@ -587,11 +588,11 @@ class SQRA(TransitionModel):
             #                                    where=multiply_with != np.NaN)
             # normalise rows
             sums = self.transition_matrix.sum(axis=1)
-            print(sums)
+            sums = np.array(sums).squeeze()
             all_i = np.arange(len(self.sim_hist.full_grid))
-            print(all_i)
             diagonal_array = coo_array((-sums, (all_i, all_i)), shape=(len(all_i), len(all_i)))
             self.transition_matrix = self.transition_matrix.tocsr() + diagonal_array.tocsr()
+            print(self.transition_matrix.shape, diagonal_array.shape)
             #np.fill_diagonal(self.transition_matrix, -sums)
             # additional axis
             #self.transition_matrix = self.transition_matrix[np.newaxis, :]
