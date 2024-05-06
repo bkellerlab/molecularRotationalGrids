@@ -279,6 +279,7 @@ def test_rotobj_voronoi_4D():
         all_volumes = my_voronoi.get_voronoi_volumes()
         half_volumes = half_voronoi.get_voronoi_volumes()
         # sum makes sense
+        print(np.sum(all_volumes), HYPERSPHERE_SURFACE)
         assert np.isclose(np.sum(all_volumes), HYPERSPHERE_SURFACE, atol=1, rtol=0.025)
         assert np.isclose(np.sum(half_volumes), HYPERSPHERE_SURFACE/2, atol=0.3, rtol=0.025)
         # averages make sense
@@ -340,22 +341,22 @@ def test_full_and_half():
 
             # test adjacency, lengths, borders
             for my_property in ["adjacency", "center_distances", "border_len"]:
-                adj_full = my_voronoi_full._calculate_N_N_array(property=my_property).toarray()
-                adj_half = my_voronoi_half._calculate_N_N_array(property=my_property).toarray()
+                adj_full = my_voronoi_full._calculate_N_N_array(sel_property=my_property).toarray()
+                adj_half = my_voronoi_half._calculate_N_N_array(sel_property=my_property).toarray()
                 assert adj_full.shape == (2*size, 2*size)
                 assert adj_half.shape == (size, size)
                 # num of neighbours on average same in full sphere and half sphere with opposite neighbours
                 assert np.isclose(np.average(np.sum(adj_full, axis=0)), np.average(np.sum(adj_half, axis=0)), atol=0.2,
                                   rtol=0.01)
                 # if you select only_upper=False, include_opposing_neighbours=False, it's the same as full grid
-                option2 = my_voronoi_half._calculate_N_N_array(property=my_property,
+                option2 = my_voronoi_half._calculate_N_N_array(sel_property=my_property,
                                                                only_upper=False,
                                                                include_opposing_neighbours=False).toarray()
                 assert np.allclose(option2, adj_full)
                 # if you select only_upper=True, include_opposing_neighbours=False, you should get the upper left
                 # corner of full
                 # adjacency array
-                option3 = my_voronoi_half._calculate_N_N_array(property=my_property, only_upper=True,
+                option3 = my_voronoi_half._calculate_N_N_array(sel_property=my_property, only_upper=True,
                                                                 include_opposing_neighbours=False).toarray()
                 assert np.allclose(option3, adj_full[:size, :size])
 
@@ -372,5 +373,30 @@ if __name__ == "__main__":
     #test_full_and_half()   # done
     #test_rotobj_voronoi_3D_non_exact()  # done
     #test_rotobj_voronoi_3D_exact()  # done
-    test_rotobj_voronoi_4D()
+    #test_rotobj_voronoi_4D()
 
+    N = 200
+    hypersphere = SphereGrid4DFactory.create(DEFAULT_ALGORITHM_B, N, use_saved=False)
+    # uncomment for plotting
+    from molgri.plotting.spheregrid_plots import EightCellsPlot, SphereGridPlot
+    my_voronoi = RotobjVoronoi(hypersphere.get_grid_as_array(only_upper=False), using_detailed_grid=True)
+    half_voronoi = my_voronoi.get_related_half_voronoi()
+
+    # plotting voronoi
+    # from molgri.plotting.voronoi_plots import VoronoiPlot
+    # import matplotlib.pyplot as plt
+    # vp = VoronoiPlot(my_voronoi)
+    # vp.plot_centers(save=False)
+    # vp.plot_vertices(ax=vp.ax, fig=vp.fig, save=False, alpha=0.5, labels=False)
+    # vp.plot_borders(ax=vp.ax, fig=vp.fig, save=False, animate_rot=False, reduced=True)
+    # plt.show()
+
+    # plotting eight cells
+    # ep = EightCellsPlot(hypersphere.polytope, only_half_of_cube=False)
+    # ep.make_all_8cell_neighbours(node_index=15, animate_rot=False)
+
+    # volumes
+    all_volumes = my_voronoi.get_voronoi_volumes()
+    half_volumes = half_voronoi.get_voronoi_volumes()
+    # sum makes sense
+    print(np.sum(all_volumes), "ideal: ", HYPERSPHERE_SURFACE)

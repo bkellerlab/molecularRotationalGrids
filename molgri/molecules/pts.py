@@ -5,15 +5,14 @@ A Pseudotrajectory takes a ParsedMolecule and a FullGrid and returns a generator
 all combinations of positions/orientations defined by the grid. This class does not deal with any file input/output.
 For this purpose, Writers in molgri.writers module are provided.
 """
-from copy import copy
 from typing import Tuple, Generator
 
 import numpy as np
-from molgri.space.rotations import grid2rotation, two_vectors2rot
 from scipy.spatial.transform import Rotation
 
 from molgri.molecules.parsers import ParsedMolecule
 from molgri.space.fullgrid import FullGrid
+from molgri.space.utils import normalise_vectors, q_in_upper_sphere
 
 
 class Pseudotrajectory:
@@ -52,22 +51,15 @@ class Pseudotrajectory:
         fg = self.full_grid.get_full_grid_as_array()
         # center second molecule if not centered yet
         self.molecule.translate_to_origin()
-
+        starting_positions = self.molecule.atoms.positions
         for se3_coo in fg:
+            self.molecule.atoms.positions = starting_positions
             position = se3_coo[:3]
             orientation = se3_coo[3:]
-            z_vector = np.array([0, 0, np.linalg.norm(position)])
             rotation_body = Rotation.from_quat(orientation)
-            rotation_origin = Rotation.from_matrix(two_vectors2rot(z_vector, position))
-
-            # first position in original orientation and z-direction at radius
-            self.molecule.translate_radially(np.linalg.norm(position))
-            self.molecule.rotate_about_origin(rotation_origin)
-            self.molecule.rotate_about_body(rotation_body)
+            self.molecule.atoms.rotate(rotation_body.as_matrix(), point=self.molecule.atoms.center_of_mass())
+            self.molecule.atoms.translate(position)
             yield self.current_frame, self.molecule
             self.current_frame += 1
-            # rotate back
-            self.molecule.translate_radially(-np.linalg.norm(position))
-            self.molecule.rotate_about_body(rotation_body, inverse=True)
-            self.molecule.rotate_about_origin(rotation_origin, inverse=True)
+
 

@@ -6,7 +6,7 @@ import ast
 
 import numpy as np
 
-from molgri.paths import PATH_INPUT_ENERGIES, PATH_OUTPUT_PT
+from molgri.paths import PATH_OUTPUT_ENERGIES, PATH_OUTPUT_PT
 from molgri.scripts.set_up_io import freshly_create_all_folders
 
 from molgri.plotting.molecule_plots import TrajectoryPlot, ConvergenceMultiCollectionPlot
@@ -31,7 +31,7 @@ Visualisation types:
 """)
 requiredNamed = parser.add_argument_group('required named arguments')
 requiredNamed.add_argument('-xvg', type=str, nargs='?', required=True,
-                           help=f'name of the .xvg file in the {PATH_INPUT_ENERGIES} folder, extension not necessary')
+                           help=f'name of the .xvg file in the {PATH_OUTPUT_ENERGIES} folder, extension not necessary')
 parser.add_argument("--structure", default=None, type=str, help=f"name of the structure file if different from xvg name")
 parser.add_argument("--trajectory", default=None, type=str, help=f"name of the trajectory file if different from xvg name")
 parser.add_argument('--Ns_o', type=str, default=None,
@@ -73,7 +73,7 @@ def run_generate_energy():
         my_args.trajectory = data_name
     fp = FileParser(path_topology=f"{PATH_OUTPUT_PT}{my_args.structure}",
                     path_trajectory=f"{PATH_OUTPUT_PT}{my_args.trajectory}",
-                    path_energy=f"{PATH_INPUT_ENERGIES}{data_name}")
+                    path_energy=f"{PATH_OUTPUT_ENERGIES}{data_name}")
     traj = fp.get_parsed_trajectory()
 
     if my_args.convergence:

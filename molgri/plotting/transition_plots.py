@@ -9,15 +9,18 @@ import seaborn as sns
 import matplotlib.colors as colors
 
 from molgri.plotting.abstract import RepresentationCollection
-from molgri.molecules.transitions import TransitionModel
+from molgri.molecules.transitions import TransitionModel, SimulationHistogram
 from molgri.plotting.fullgrid_plots import FullGridPlot
 from molgri.wrappers import plot3D_method, plot_method
 
 
 class TransitionPlot(RepresentationCollection):
 
-    def __init__(self, transition_obj: TransitionModel, *args, **kwargs):
-        self.transition_obj = transition_obj
+    def __init__(self, transition_obj: (SimulationHistogram, TransitionModel), tau_array=None, *args, **kwargs):
+        self.simulation_histogram = transition_obj[0]
+        self.transition_obj = transition_obj[1]
+        self.simulation_histogram.use_saved = True
+        self.transition_obj.use_saved = True
         data_name = self.transition_obj.get_name()
         super().__init__(data_name, *args, **kwargs)
 
@@ -36,12 +39,12 @@ class TransitionPlot(RepresentationCollection):
             norm = None
         else:
             cmap = "bwr"
-            norm = colors.TwoSlopeNorm(vcenter=0)
+            norm = colors.TwoSlopeNorm(vcenter=0, vmax=5, vmin=-5)
         sns.heatmap(transition_matrix, cmap=cmap, ax=self.ax, xticklabels=False, yticklabels=False, norm=norm)
         self._equalize_axes()
 
     @plot_method
-    def plot_its(self, num_eigenv=6, as_line=False):
+    def plot_its(self, num_eigenv=6, as_line=False, dt=1):
         """
         Plot iterative timescales.
         """
@@ -49,7 +52,7 @@ class TransitionPlot(RepresentationCollection):
         tau_array = self.transition_obj.tau_array
         eigenvals, eigenvecs = self.transition_obj.get_eigenval_eigenvec(num_eigenv=num_eigenv)
         eigenvals = np.array(eigenvals)
-        dt = self.transition_obj.sim_hist.parsed_trajectory.dt
+        dt = dt
 
         if not as_line:
             for j in range(1, num_eigenv):
@@ -75,16 +78,13 @@ class TransitionPlot(RepresentationCollection):
 
     
     @plot_method
-    def plot_eigenvalues(self, num_eigenv=None):
+    def plot_eigenvalues(self, num_eigenv=None, index_tau=0):
         """
         Visualize the eigenvalues of rate matrix.
         """
 
-        eigenvals, _ = self.transition_obj.get_eigenval_eigenvec()
-        eigenvals = np.array(eigenvals)[0]
-
-        if num_eigenv:
-            eigenvals = eigenvals[:num_eigenv]
+        eigenvals, _ = self.transition_obj.get_eigenval_eigenvec(num_eigenv=num_eigenv)
+        eigenvals = np.array(eigenvals)[index_tau]
 
         xs = np.linspace(0, 1, num=len(eigenvals))
         self.ax.scatter(xs, eigenvals, s=5, c="black")
@@ -110,37 +110,108 @@ class TransitionPlot(RepresentationCollection):
         eigenvecs = eigenvecs[0]  # values for the first tau
         eigenvecs = eigenvecs.T
 
-        fgp = FullGridPlot(self.transition_obj.sim_hist.full_grid, default_complexity_level="half_empty")
+        fgp = FullGridPlot(self.simulation_histogram.full_grid, default_complexity_level="half_empty")
         fgp.plot_position_voronoi(ax=self.ax, fig=self.fig, plot_vertex_points=False, save=False)
-        fgp.plot_positions(ax=self.ax, fig=self.fig, save=False, c=eigenvecs[eigenvec_index], animate_rot=False)
+        fgp.plot_positions(ax=self.ax, fig=self.fig, save=False, animate_rot=False) #, c=eigenvecs[eigenvec_index]
+        self.ax.set_title(f"Eigenv. {eigenvec_index}")
+
+    @plot_method
+    def plot_one_eigenvector_flat(self, eigenvec_index: int = 1, index_tau=0):
+        eigenvals, eigenvecs = self.transition_obj.get_eigenval_eigenvec()
+
+        # shape: (number_taus, number_cells, num_eigenvectors)
+        try:
+            eigenvecs = eigenvecs[index_tau]  # values for the first tau
+        except IndexError:
+            eigenvecs = eigenvecs
+        sns.lineplot(eigenvecs.T[eigenvec_index], ax=self.ax)
         self.ax.set_title(f"Eigenv. {eigenvec_index}")
 
 
 if __name__ == "__main__":
-    from molgri.molecules._load_examples import load_molgri_data, load_simulation_data
     from molgri.space.fullgrid import FullGrid
-    from molgri.molecules.transitions import MSM, SQRA, SimulationHistogram
+    from molgri.molecules.transitions import MSM, SQRA
+    from molgri.space.utils import k_argmax_in_array
+    import matplotlib.pyplot as plt
+    from time import time
+    from datetime import timedelta
 
-    USE_SAVED = False
-
-    # TRANSITION MATRIX
-    parsed_sim = load_simulation_data()
-    # define some full grid to assign to
-    full_grid = FullGrid(t_grid_name="linspace(3, 13, 4)", o_grid_name="ico_20", b_grid_name="zero")
-
-    combined_sim = SimulationHistogram(parsed_sim, full_grid)
-    msm = MSM(combined_sim, use_saved=True)
-    tp_msm = TransitionPlot(msm, default_context="talk")
-    tp_msm.create_all_plots()
-
+    # sqra_name = "H2O_H2O_0581"
+    # sqra_use_saved = False
     #
-    # # RATE MATRIX
-    # molgri_pt = load_molgri_data()
-    # full_grid_m = FullGrid(t_grid_name="linspace(0.8, 1.5, 1)", o_grid_name="ico_5", b_grid_name="zero")
-    # #full_grid_m = FullGrid(t_grid_name="linspace(0.8, 1.5, 10)", o_grid_name="ico_50", b_grid_name="zero")
-    # combined_molgri = SimulationHistogram(molgri_pt, full_grid_m)
-    # sqra = SQRA(combined_molgri, energy_type="Potential Energy", use_saved=USE_SAVED)
-    # tp_sqra = TransitionPlot(sqra, default_context="talk")
+    # t1 = time()
     #
-    # print(sqra.get_transitions_matrix())
-    # tp_sqra.create_all_plots()
+    # full_grid = FullGrid(b_grid_name="40", o_grid_name="42", t_grid_name="linspace(0.25, 0.6, 20)",
+    #                      use_saved=sqra_use_saved)
+    #
+    # water_sqra_sh = SimulationHistogram(sqra_name, "H2O", is_pt=True, full_grid=full_grid,
+    #                                     second_molecule_selection="bynum 4:6", use_saved=sqra_use_saved)
+    #
+    # sqra = SQRA(water_sqra_sh, use_saved=sqra_use_saved)
+    # eigenval, eigenvec = sqra.get_eigenval_eigenvec(6, which="LM", sigma=0)
+    #
+    # sqra_tp = TransitionPlot((water_sqra_sh, sqra))
+    # fig, ax = plt.subplots(1, 2, sharex=False, sharey=False, figsize=(10, 5))
+    # sqra_tp.plot_its(6, as_line=True, save=False, fig=fig, ax=ax[1])
+    # sqra_tp.plot_eigenvalues(num_eigenv=6, save=True, fig=fig, ax=ax[0])
+    # # x-values are irrelevant, they are just horizontal lines
+    # ax[1].set_xlabel("")
+    # ax[1].set_xticks([])
+    #
+    # fig, ax = plt.subplots(5, sharex=True, sharey=True, figsize=(5, 12.5))
+    # save=False
+    # for i in range(5):
+    #     if i==4:
+    #         save = True
+    #     sqra_tp.plot_one_eigenvector_flat(i, save=save, fig=fig, ax=ax[i])
+    #
+    # t2 = time()
+    # print(f"Timing for SQRA: ", end="")
+    # print(f"{timedelta(seconds=t2 - t1)} hours:minutes:seconds")
+    #
+    # num_extremes = 15
+    # for eigenvector_i in range(1, 5):
+    #     magnitudes = eigenvec[0].T[eigenvector_i]
+    #     most_positive = k_argmax_in_array(magnitudes, num_extremes)
+    #     most_negative = k_argmax_in_array(-magnitudes, num_extremes)
+
+
+
+    # # input parameters
+    #msm_name = "H2O_H2O_0095_100007"
+    msm_name = "H2O_H2O_0095_50000000"
+    #msm_name = "H2O_H2O_0095_25000"
+
+    msm_fullgrid = full_grid = FullGrid(b_grid_name="20", o_grid_name="20",
+                                        t_grid_name="linspace(0.2, 0.6, 10)")
+    #msm_fullgrid = FullGrid(b_grid_name="80", o_grid_name="80", t_grid_name="linspace(0.25, 0.35, 10)",
+    #                     use_saved=False)
+
+    msm_use_saved = True
+    tau_array = np.array([1, 2, 3, 5, 7, 10, 15, 20, 30, 40, 50, 70, 80, 90, 100, 110, 130, 150, 180, 200, 220,
+                          250, 270, 300])
+    index_tau = 5
+
+    t1 = time()
+    water_msm_sh = SimulationHistogram(msm_name, "H2O", is_pt=False, full_grid=msm_fullgrid,
+                                       second_molecule_selection="bynum 4:6", use_saved=msm_use_saved)
+    msm = MSM(water_msm_sh, tau_array=tau_array, use_saved=msm_use_saved)
+
+    msm.get_eigenval_eigenvec(6, sigma=None, which = "LR")
+
+    tp = TransitionPlot((water_msm_sh, msm))
+    tp.simulation_histogram.use_saved = True
+    tp.transition_obj.use_saved = True
+    fig, ax = plt.subplots(1, 2, sharex=False, sharey=False, figsize=(10, 5))
+    tp.plot_its(6, as_line=False, save=False, fig=fig, ax=ax[1])
+    ax[1].set_xlim(0, 100)
+    ax[1].set_ylim(0, 100)
+    tp.plot_eigenvalues(num_eigenv=6, save=True, fig=fig, ax=ax[0], index_tau=index_tau) #index_tau=10,
+
+    for i in range(5):
+        tp.plot_one_eigenvector_flat(eigenvec_index=i, index_tau=index_tau) #, index_tau=10
+
+
+    t2 = time()
+    print(f"Timing for MSM: ", end="")
+    print(f"{timedelta(seconds=t2 - t1)} hours:minutes:seconds")

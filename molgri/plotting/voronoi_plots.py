@@ -82,6 +82,7 @@ class VoronoiPlot(RepresentationCollection):
                                  save=False)
         self.plot_borders(ax=self.ax, fig=self.fig, save=False)
 
+
     @plot3D_method
     def plot_one_region(self, index_center: int, color=None, alpha=0.5):
         relevant_points = self.get_convex_hulls()[index_center].points
@@ -113,7 +114,7 @@ class VoronoiPlot(RepresentationCollection):
             for ic, point in enumerate(vertices_of_i):
                 self.ax.text(*point[:3], s=f"{indices_of_i[ic]}", c=color)
         if region:
-            self._plot_one_region(index_center=index_center, color=color, alpha=alpha)
+            self.plot_one_region(index_center=index_center, color=color, alpha=alpha)
         self._set_axis_limits()
         self._equalize_axes()
 
@@ -145,54 +146,7 @@ class VoronoiPlot(RepresentationCollection):
 
 
 if __name__ == "__main__":
-
-    from molgri.space.voronoi import RotobjVoronoi, PositionVoronoi, HalfRotobjVoronoi
-    from molgri.space.utils import normalise_vectors, random_sphere_points, random_quaternions
-    from molgri.space.rotobj import SphereGrid3DFactory
-    import matplotlib.pyplot as plt
-    np.random.seed(1)
-    my_points = SphereGrid3DFactory().create("ico", 42).get_grid_as_array()
-    #my_points = random_sphere_points(16)
-    dists = np.array([0.11, 0.15])
-
-
-    my_voronoi = PositionVoronoi(my_points, dists)
-    my_voronoi1 = HalfRotobjVoronoi(normalise_vectors(my_points, length=(dists[1]-dists[0])/2+dists[0]))
-    my_voronoi2 = HalfRotobjVoronoi(normalise_vectors(my_points, length=(dists[1]-dists[0])/2+dists[1]))
-    vp = VoronoiPlot(my_voronoi, default_complexity_level="empty")
-    vp1 = VoronoiPlot(my_voronoi1, default_complexity_level="empty")
-    vp2 = VoronoiPlot(my_voronoi2, default_complexity_level="empty")
-    #vp.plot_adjacency_heatmap()
-    #vp.plot_border_heatmap()
-    #vp.plot_center_distances_heatmap()
-
-    #vp1.plot_borders(color="black", save=False, reduced=True)
-
-    #vp.plot_vertices(labels=False, color="black", ax=vp1.ax, fig=vp1.fig, save=False)
-
-    vp.plot_one_region(31, color="orange", save=False, alpha=1)
-    #colors = ["white"] * len(my_points)
-    #colors[13] = "red"
-    #alphas = [0.0]* len(my_points)
-    #alphas[13] = 0.7
-
-    #vp.plot_centers(labels=True, ax=vp.ax, fig=vp.fig, save=False)
-
-    #vp.plot_regions(colors=colors, alphas=alphas, save=True, ax=vp.ax, fig=vp.fig)
-    vp1.plot_borders(color="gray", save=False, reduced=True, ax=vp.ax, fig=vp.fig)
-
-    vp1.ax.view_init(0, 0)
-    vp.plot_one_region(73, color="#00ccff", ax=vp.ax, fig=vp.fig,  save=False, alpha=0.7)
-
-
-    #colors = ["white"] * len(my_points)
-    #colors[4] = "yellow"
-    #alphas = [0.1]* len(my_points)
-    #alphas[4] = 0.5
-    #vp1.plot_centers(labels=False, ax=vp1.ax, fig=vp1.fig, save=True)
-    #vp2.plot_regions(colors=colors, alphas=alphas, save=False, ax=vp1.ax, fig=vp1.fig)
-    vp2.plot_borders(color="black", ax=vp.ax, fig=vp.fig, save=True, reduced=True)
-    plt.show()
+    pass
 
 
 

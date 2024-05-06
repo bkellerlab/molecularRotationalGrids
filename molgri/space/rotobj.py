@@ -25,10 +25,10 @@ from scipy.spatial.transform import Rotation
 from molgri.space.analysis import prepare_statistics, write_statistics
 from molgri.space.utils import (find_inverse_quaternion, random_quaternions, random_sphere_points,
                                 hemisphere_quaternion_set, q_in_upper_sphere)
-from molgri.constants import UNIQUE_TOL, EXTENSION_GRID_FILES, NAME2PRETTY_NAME, SMALL_NS
-from molgri.paths import PATH_OUTPUT_ROTGRIDS, PATH_OUTPUT_STAT
+from molgri.constants import UNIQUE_TOL, NAME2PRETTY_NAME, SMALL_NS
+from molgri.paths import PATH_OUTPUT_AUTOSAVE
 from molgri.space.polytopes import Cube4DPolytope, IcosahedronPolytope, Cube3DPolytope
-from molgri.space.voronoi import RotobjVoronoi, AbstractVoronoi, HalfRotobjVoronoi
+from molgri.space.voronoi import RotobjVoronoi, AbstractVoronoi, HalfRotobjVoronoi, MikroVoronoi
 from molgri.wrappers import time_method, save_or_use_saved
 
 
@@ -101,11 +101,11 @@ class SphereGridNDim(ABC):
         # the corresponding voronoi
         if self.dimensions == 3 and self.N >= 4:
             self.spherical_voronoi = RotobjVoronoi(self.grid)
-        elif self.dimensions == 4  and self.N >= 4:
+        elif self.dimensions == 4 and self.N >= 4:
             self.spherical_voronoi = HalfRotobjVoronoi(self.grid)
         else:
-            print("Warning! Voronoi objects can only be created for >=4 points")
-            self.spherical_voronoi = None
+            print("Warning! For <=4 points, volumes, areas etc are only estimated.")
+            self.spherical_voronoi = MikroVoronoi(dimensions=self.dimensions, N_points=self.get_N())
         return self.grid
 
     def get_grid_as_array(self, only_upper: bool = False) -> NDArray:
@@ -159,13 +159,10 @@ class SphereGridNDim(ABC):
         """Name used in printing and decorators, not suitable for file names."""
         return f"{NAME2PRETTY_NAME[self.gen_algorithm]} algorithm, {self.N} points"
 
-    def get_grid_path(self, extension=EXTENSION_GRID_FILES) -> str:
-        """Get the entire path to where the fullgrid is saved."""
-        return f"{PATH_OUTPUT_ROTGRIDS}{self.get_name(with_dim=True)}.{extension}"
 
     def get_statistics_path(self, extension) -> str:
         """get the entire path to where the statistics are saved."""
-        return f"{PATH_OUTPUT_STAT}{self.get_name(with_dim=True)}.{extension}"
+        return f"{PATH_OUTPUT_AUTOSAVE}{self.get_name(with_dim=True)}.{extension}"
 
     ##################################################################################################################
     #                      useful methods
@@ -188,15 +185,8 @@ class SphereGridNDim(ABC):
         """
         Get the dataframe necessary to draw violin plots showing how uniform different generation algorithms are.
         """
-        # recalculate if: 1) self.use_saved_data = False OR 2) no saved data exists
-        if not self.use_saved or not os.path.exists(self.get_statistics_path("csv")):
-            self.save_uniformity_statistics(alphas=alphas)
+        self.save_uniformity_statistics(alphas=alphas)
         ratios_df = pd.read_csv(self.get_statistics_path("csv"), dtype=float)
-        # OR 3) provided alphas don't match those in the found file
-        saved_alphas = set(ratios_df["alphas"])
-        if saved_alphas != alphas:
-            self.save_uniformity_statistics(alphas=alphas)
-            ratios_df = pd.read_csv(self.get_statistics_path("csv"), dtype=float)
         return ratios_df
 
     @save_or_use_saved

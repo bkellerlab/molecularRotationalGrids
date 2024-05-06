@@ -26,7 +26,7 @@ def example_cube_graph() -> nx.Graph:
     nx.set_node_attributes(G, set(), name="face")
     nx.set_node_attributes(G, {node: G.nodes[node]["polytope_point"]/np.linalg.norm(G.nodes[node]["polytope_point"])
                                for node in G.nodes}, name="projection")
-    dist = {(n1, n2): dist_on_sphere(G.nodes[n1]["projection"], G.nodes[n2]["projection"])[0] for n1, n2 in G.edges}
+    dist = {(n1, n2): dist_on_sphere(G.nodes[n1]["projection"], G.nodes[n2]["projection"]) for n1, n2 in G.edges}
     nx.set_edge_attributes(G, dist, name="length")
     side_len = 1
     nx.set_edge_attributes(G, side_len, name="p_dist")

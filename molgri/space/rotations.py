@@ -204,3 +204,13 @@ def N_eye_matrices(N: int, d: int = 3):
     idx = np.arange(shape[1])
     identity_d[:, idx, idx] = 1
     return identity_d
+
+
+if __name__ == "__main__":
+    z_vector = np.array([0, 0, 1])
+    np.random.seed(5)
+    position = np.random.random((3,))
+    position = position/np.linalg.norm(position)
+    my_rot = two_vectors2rot(z_vector, position)
+    my_rot2 = two_vectors2rot(position, z_vector)
+    print(np.round(my_rot @ my_rot2, 2))

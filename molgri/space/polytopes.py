@@ -349,7 +349,7 @@ class Polytope(ABC):
                     # check distance criterion
                     if np.isclose(node_dist, edge_len):
                         length = dist_on_sphere(self.G.nodes[tuple(new_node)]["projection"],
-                                                self.G.nodes[tuple(other_node)]["projection"])[0]
+                                                self.G.nodes[tuple(other_node)]["projection"])
                         self.G.add_edge(new_node, other_node, p_dist=edge_len, length=length)
 
 
@@ -399,7 +399,7 @@ class Polytope(ABC):
                 for n in old_points:
                     distance = np.linalg.norm(new_point - n)
                     length = dist_on_sphere(self.G.nodes[tuple(new_point)]["projection"], self.G.nodes[tuple(n)][
-                        "projection"])[0]
+                        "projection"])
                     self.G.add_edge(tuple(new_point), tuple(n), p_dist=distance, length=length)
 
 ########################################################################################################################

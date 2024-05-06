@@ -10,6 +10,7 @@ ParsedTrajectory. Those are the objects that other modules should access.
 """
 
 import os
+from copy import copy
 from pathlib import Path
 from typing import Generator, Tuple, List, Callable
 
@@ -23,9 +24,8 @@ import MDAnalysis as mda
 from MDAnalysis.core import AtomGroup
 
 from molgri.constants import EXTENSIONS_STR, EXTENSIONS_TRJ
-from molgri.paths import PATH_INPUT_ENERGIES
+from molgri.paths import PATH_OUTPUT_ENERGIES
 from molgri.space.rotations import two_vectors2rot
-from molgri.space.fullgrid import FullGrid
 
 
 class ParsedMolecule:
@@ -82,6 +82,36 @@ class ParsedMolecule:
 
     def translate(self, vector: np.ndarray):
         self.atoms.translate(vector)
+
+    def double_rotate(self, position:NDArray, inverse=False):
+        """
+        The starting position is at (0, 0, 1). We perform two rotations: first around the y-axis till the wished z-coo
+        is reached, then around z-axis till the wished x, y, z coordinates are reached.
+        Args:
+            position ():
+
+        Returns:
+
+        """
+        x = position[0]
+        y = position[1]
+        z = position[2]
+        b = np.sqrt(1 - z ** 2)
+        first_matrix = Rotation.from_matrix(np.array([[z, 0, b], [0, 1, 0], [-b, 0, z]]))
+        # special cases z == +-1 -> b==0, x==0, y==0
+        if np.isclose(np.abs(z), 1):
+            assert np.allclose([x, y], 0)
+            second_matrix = Rotation.from_matrix(np.eye(3))
+        else:
+            second_matrix = Rotation.from_matrix(np.array([[x/b, -y/b, 0], [y/b, x/b, 0], [0, 0, 1]]))
+        if inverse:
+            self.rotate_about_origin(second_matrix, inverse=True)
+            self.rotate_about_origin(first_matrix, inverse=True)
+        else:
+            # TODO: wtf is happening here
+            #assert np.allclose(self.get_center_of_mass()[:2], [0, 0], atol=2e-5), f"{self.get_center_of_mass()[:2]}"
+            self.rotate_about_origin(first_matrix)
+            self.rotate_about_origin(second_matrix)
 
     def rotate_to(self, position: NDArray):
         """
@@ -158,7 +188,7 @@ class FileParser:
             name_getters = [self.get_topology_file_name(), self.get_trajectory_file_name()]
             for proposed_name in name_getters:
                 if proposed_name is not None:
-                    proposed_path = f"{PATH_INPUT_ENERGIES}{proposed_name}.xvg"
+                    proposed_path = f"{PATH_OUTPUT_ENERGIES}{proposed_name}.xvg"
                     if os.path.isfile(proposed_path):
                         return proposed_path
         return None
@@ -327,7 +357,7 @@ class XVGParser(object):
         return self.all_values
 
     def get_all_labels(self) -> tuple:
-        result = []
+        result = ["None"]
         with open(self.path_name, "r") as f:
             for line in f:
                 # parse column number
@@ -368,6 +398,7 @@ class XVGParser(object):
                   f"column instead.")
             column_label = "XVG column 1"
             correct_column = 1
+        print(column_label, correct_column)
         return column_label, correct_column
 
 
@@ -388,32 +419,6 @@ class ParsedTrajectory:
         if atom_selection is None:
             atom_selection = self.default_atom_selection
         return len(self.get_unique_com(energy_type=energy_type, atom_selection=atom_selection)[0])
-
-    def assign_coms_2_grid_points(self, full_grid: FullGrid, atom_selection=None, coms=None,
-                                  nan_free=False) -> Tuple[NDArray, NDArray]:
-        """
-        Given a simulation, select centres of mass of a subset of atoms (eg. one of the molecules and assign them
-        to the Voronoi cells of a selected position grid. This is useful to see what part of position space a
-        classical simulation has covered or to see which molecules moved out of their original grid point area
-        after a short optimisation.
-
-        Args:
-            full_grid: to which full grid the COMs should be fitted
-            atom_selection: used to select the atom belonging to the wished group
-
-        Returns:
-            an array of numbers, length the same as the length of the parsed trajectory, each number represents the
-            index of the point in the flattened position grid of the full_grid that is closest to this COM.
-        """
-        if atom_selection is None:
-            atom_selection = self.default_atom_selection
-        if coms is None:
-            coms = self.get_all_COM(atom_selection=atom_selection)
-        if nan_free:
-            # remove NaNs and convert the rest to int
-            return full_grid.nan_free_assignments(coms)
-        else:
-            return coms, full_grid.point2cell_position_grid(coms)
 
     def set_c_r(self, c_num: int, r_num: int):
         self.c_num = c_num
@@ -504,35 +509,12 @@ class ParsedTrajectory:
 
 
 if __name__ == "__main__":
-    import matplotlib.pyplot as plt
-    # SIMULATION
-    path_energy = "/home/mdglasius/Modelling/trypsin_normal/nobackup/outputs/data.txt"
-    df = pd.read_csv(path_energy)
-    energies = df['Potential Energy (kJ/mole)'].to_numpy()[:, np.newaxis]
-    pe = ParsedEnergy(energies=energies, labels=["Potential Energy"], unit="(kJ/mole)")
-    pt_parser = FileParser(
-             path_topology="/home/mdglasius/Modelling/trypsin_normal/inputs/trypsin_probe.pdb",
-             path_trajectory="/home/mdglasius/Modelling/trypsin_normal/nobackup/outputs/aligned_traj.dcd")
-    print(pt_parser.get_dt())
-    parsed_trajectory = pt_parser.get_parsed_trajectory()
-    parsed_trajectory.energies = pe
-    #fg = FullGrid(t_grid_name="linspace(0.8, 2.5, 8)", o_grid_name="ico_512", b_grid_name="zero")
-    fg = FullGrid(t_grid_name="[5, 10, 15]", o_grid_name="ico_100", b_grid_name="zero")
-    coms, assignments = parsed_trajectory.assign_coms_2_grid_points(full_grid=fg, atom_selection="segid B")
-    num_cells_visited = len(np.unique(assignments))
-    num_cells_total = len(fg.get_flat_position_grid())
-    print(f"Percentage of non-empty cells: {np.round(num_cells_visited/num_cells_total * 100, 2)}%")
-    # import seaborn as sns
-    # import matplotlib.pyplot as plt
-    # bins = np.arange(0, len(fg.get_flat_position_grid()))
-    # sns.histplot(assignments, bins=bins)
-    # sns.scatterplot(x=assignments, y=energies.squeeze(), ax=plt.gca().twinx())
-    # plt.show()
-    # from molgri.plotting.molecule_plots import TrajectoryPlot
-    # from molgri.plotting.fullgrid_plots import PositionGridPlot
-    # tp = TrajectoryPlot(parsed_trajectory)
-    # #tp.make_COM_plot(atom_selection="segid B", animate_rot=True)
-    # tp.make_energy_COM_plot(atom_selection="segid B", animate_rot=False, energy_type="Potential Energy",
-    #                         projection="3d", save=False)
-    # fg = PositionGridPlot(fg)
-    # fg.make_full_voronoi_plot(ax=tp.ax, fig=tp.fig, animate_rot=True, plot_vertex_points=False)
+    from molgri.paths import PATH_INPUT_BASEGRO
+    from scipy.spatial.transform import Rotation
+    my_molecule = FileParser(f"{PATH_INPUT_BASEGRO}H2O.gro").as_parsed_molecule()
+    rr = Rotation.random()
+    print(rr.as_matrix())
+    print(my_molecule.atoms.masses)
+    my_molecule.rotate_about_body(rr)
+    print(np.round(my_molecule.get_positions()/10, 3))
+

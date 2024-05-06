@@ -148,8 +148,8 @@ dmypy.json
 *.sh
 
 sandbox.py
-jupyter/*
 
+../../notebooks/jupyter/
 molgri/molecules/_load_examples.py
 playground.py
 src/

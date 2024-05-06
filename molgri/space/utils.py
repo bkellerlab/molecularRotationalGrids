@@ -65,6 +65,8 @@ def angle_between_vectors(central_vec: np.ndarray, side_vector: np.ndarray) -> n
 
 def dist_on_sphere(vector1: np.ndarray, vector2: np.ndarray) -> np.ndarray:
     """
+    Distance between two points on a sphere is a product of the radius (has to be the same for both) and angle
+    between them.
 
     Args:
         vector1: vector shape (n1, d) or (d,)
@@ -73,11 +75,15 @@ def dist_on_sphere(vector1: np.ndarray, vector2: np.ndarray) -> np.ndarray:
     Returns:
         an array the shape (n1, n2) containing distances between both sets of points on sphere
     """
+
     norm1 = norm_per_axis(vector1)
     norm2 = norm_per_axis(vector2)
-    assert np.allclose(norm1, norm2), "Both vectors/arrays of vectors don't have the same norms!"
+    # all norms the same
+    flat_norm = norm1.flatten()[0]
+    assert np.allclose(norm1, flat_norm)
+    assert np.allclose(norm2, flat_norm)
     angle = angle_between_vectors(vector1, vector2)
-    return angle * norm1
+    return angle * flat_norm
 
 
 def hemisphere_quaternion_set(quaternions: NDArray, upper=True) -> NDArray:
@@ -416,8 +422,8 @@ def sort_points_on_sphere_ccw(points: NDArray) -> NDArray:
         # checks if the smaller interior angle for the great circles connecting u-v and v-w is CCW (counter-clockwise)
         return (np.dot(np.cross(v_c - v_0, v_i - v_c), v_i) < 0)
 
-    all_row_norms_equal_k(points, 1), "Not points on a unit sphere"
-    vector_center = normalise_vectors(np.average(points, axis=0))
+    #all_row_norms_equal_k(points, 1), "Not points on a unit sphere"
+    vector_center = normalise_vectors(np.average(points, axis=0), length=np.linalg.norm(points, axis=1)[0])
     N = len(points)
     # angle between first point, center point, and each additional point
     alpha = np.zeros(N)  # initialize array
@@ -487,9 +493,9 @@ def _get_alpha_with_spherical_cosine_law(A: NDArray, B: NDArray, C: NDArray):
     B = normalise_vectors(B)
     C = normalise_vectors(C)
     # and lengths of the opposite sides a, b, c are
-    a = dist_on_sphere(B, C)[0]
-    b = dist_on_sphere(C, A)[0]
-    c = dist_on_sphere(A, B)[0]
+    a = dist_on_sphere(B, C)
+    b = dist_on_sphere(C, A)
+    c = dist_on_sphere(A, B)
     # using cosine law on spheres (need rounding so we don't numerically get over/under the range of arccos):
     alpha = np.arccos(np.round((np.cos(a) - np.cos(b) * np.cos(c)) / (np.sin(b) * np.sin(c)), 7))
     #print(a, b, c, (np.cos(a) - np.cos(b) * np.cos(c)) / (np.sin(b) * np.sin(c)), alpha)
@@ -522,3 +528,33 @@ def exact_area_of_spherical_polygon(vertices: NDArray, r: float = 1) -> float:
         area = 4 * pi * r**2 - area
     assert area >= 0, f"Area cannot be negative!"
     return area
+
+
+def k_argmin_in_array(my_array: NDArray, k: int):
+    """
+    Of all the values in the array, find the indices of the k smallest values.
+
+    Args:
+        my_array (): array in which to search
+        k (): number of results
+
+    Returns:
+        k indices indicating smallest item, second smallest etc
+    """
+
+    idx = np.argpartition(my_array, k)
+    return idx[:k]
+
+
+def k_argmax_in_array(my_array: NDArray, k: int):
+    """
+    Of all the values in the array, find the indices of the k largest values.
+
+    Args:
+        my_array (): array in which to search
+        k (): number of results
+
+    Returns:
+        k indices indicating larges item, second largest etc
+    """
+    return np.argpartition(my_array, -k)[-k:]

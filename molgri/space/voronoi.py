@@ -14,16 +14,15 @@ from numpy.typing import NDArray
 from scipy.constants import pi
 from scipy.linalg import svd
 from scipy.sparse import coo_array
-from scipy.spatial import SphericalVoronoi, ConvexHull
+from scipy.spatial import SphericalVoronoi, ConvexHull, Delaunay
 from scipy.spatial.distance import cdist
 
 from molgri.constants import UNIQUE_TOL
 from molgri.space.translations import get_between_radii
-from molgri.space.utils import (all_row_norms_similar, dist_on_sphere, distance_between_quaternions,
-                                exact_area_of_spherical_polygon,
-                                find_inverse_quaternion, k_is_a_row,
-                                normalise_vectors, q_in_upper_sphere, random_quaternions, random_sphere_points,
-                                sort_points_on_sphere_ccw, which_row_is_k)
+from molgri.space.utils import (dist_on_sphere, distance_between_quaternions,
+                                exact_area_of_spherical_polygon, k_is_a_row, normalise_vectors, q_in_upper_sphere,
+                                random_quaternions,
+                                random_sphere_points, sort_points_on_sphere_ccw, which_row_is_k)
 
 
 class AbstractVoronoi(ABC):
@@ -126,7 +125,7 @@ class AbstractVoronoi(ABC):
         else:
             return [[] for _ in range(len(all_points))]
 
-    def get_convex_hulls(self):
+    def get_convex_hulls(self, including_additional=True):
         """
         In the same order as self.get_all_centers(), get convex hulls using the point, the vertices and possibly
         additional points that belong into this region. Used for approximating volumes, areas ...
@@ -134,25 +133,27 @@ class AbstractVoronoi(ABC):
         all_points = self.get_all_voronoi_centers()
         all_vertices = self.get_all_voronoi_vertices(reduced=True)
         all_regions = self.get_all_voronoi_regions(reduced=True)
-        additional_assignments = self._additional_points_per_cell()
+        if including_additional:
+            additional_assignments = self._additional_points_per_cell()
         all_hulls = []
         # in first approximation, take the volume of convex hull of vertices belonging to a point
         for i, region in enumerate(all_regions):
-            # In the region there are vertices, central point and possibly additional point
-            associated_vertices = all_vertices[region]
-            within_region = np.vstack([all_points[i], associated_vertices])
-            if np.any(additional_assignments[i]):
+            # In the region there are vertices and possibly additional points, right now ignoring central point
+            #associated_vertices = all_vertices[region]
+            within_region = all_vertices[region] #np.vstack([all_points[i], associated_vertices])
+            if including_additional and np.any(additional_assignments[i]):
                 within_region = np.vstack([additional_assignments[i], within_region])
             my_convex_hull = ConvexHull(within_region, qhull_options='QJ')
             all_hulls.append(my_convex_hull)
         return np.array(all_hulls)
 
     def get_voronoi_volumes(self, **kwargs) -> NDArray:
-        all_hulls = self.get_convex_hulls()
-        return np.array([my_convex_hull.area / 2 for my_convex_hull in all_hulls])
+        # this is basically only used in 4D for volumes (which should be though of more as hypersurfaces)
+        all_hulls_detailed = self.get_convex_hulls(including_additional=True)
+        return np.array([detailed.area / 2.0 for detailed in all_hulls_detailed])
 
     def get_voronoi_adjacency(self, **kwargs) -> coo_array:
-        return self._calculate_N_N_array(property="adjacency", **kwargs)
+        return self._calculate_N_N_array(sel_property="adjacency", **kwargs)
 
     def get_center_distances(self, **kwargs) -> coo_array:
         """
@@ -162,7 +163,7 @@ class AbstractVoronoi(ABC):
         Returns:
 
         """
-        return self._calculate_N_N_array(property="center_distances", **kwargs)
+        return self._calculate_N_N_array(sel_property="center_distances", **kwargs)
 
     def get_cell_borders(self, **kwargs) -> coo_array:
         """
@@ -172,7 +173,7 @@ class AbstractVoronoi(ABC):
         Returns:
 
         """
-        return self._calculate_N_N_array(property="border_len", **kwargs)
+        return self._calculate_N_N_array(sel_property="border_len", **kwargs)
 
     def _calculate_center_distances(self, index_1: int, index_2: int):
         pass
@@ -180,7 +181,7 @@ class AbstractVoronoi(ABC):
     def _calculate_borders(self, index_1: int, index_2: int):
         pass
 
-    def _calculate_N_N_array(self, property="adjacency", **kwargs):
+    def _calculate_N_N_array(self, sel_property="adjacency", **kwargs):
         reduced_regions = self.get_all_voronoi_regions(reduced=True)
 
         # prepare for adjacency matrix
@@ -195,16 +196,16 @@ class AbstractVoronoi(ABC):
             if len(set_1.intersection(set_2)) >= self.get_dim() - 1:
                 rows.extend([index_tuple[0], index_tuple[1]])
                 columns.extend([index_tuple[1], index_tuple[0]])
-                if property == "adjacency":
+                if sel_property == "adjacency":
                     elements.extend([True, True])
-                elif property == "center_distances":
+                elif sel_property == "center_distances":
                     dist = self._calculate_center_distances(*index_tuple)
                     elements.extend([dist, dist])
-                elif property == "border_len":
+                elif sel_property == "border_len":
                     dist = self._calculate_borders(*index_tuple)
                     elements.extend([dist, dist])
                 else:
-                    raise ValueError(f"Didn't understand the argument property={property}.")
+                    raise ValueError(f"Didn't understand the argument property={sel_property}.")
         N = len(self.get_all_voronoi_centers())
         adj_matrix = coo_array((elements, (rows, columns)), shape=(N, N))
         return adj_matrix
@@ -215,8 +216,8 @@ class RotobjVoronoi(AbstractVoronoi):
     def __init__(self, my_array: NDArray, using_detailed_grid: bool = True):
         self.my_array = my_array
         self.using_detailed_grid = using_detailed_grid
-        norm = np.linalg.norm(self.my_array, axis=1)[0]
-        self.spherical_voronoi = SphericalVoronoi(my_array, radius=norm, threshold=10 ** -UNIQUE_TOL)
+        norm = np.linalg.norm(my_array, axis=1)[0]
+        self.spherical_voronoi = SphericalVoronoi(my_array, radius=norm, threshold=10**-UNIQUE_TOL)
         try:
             self.spherical_voronoi.sort_vertices_of_regions()
         except TypeError:
@@ -226,7 +227,7 @@ class RotobjVoronoi(AbstractVoronoi):
         if using_detailed_grid and dimensions == 3:
             dense_points = normalise_vectors(random_sphere_points(3000), length=norm)
         elif using_detailed_grid and dimensions == 4:
-            dense_points = random_quaternions(3000)
+            dense_points = random_quaternions(5000)
         else:
             dense_points = None
         super().__init__(additional_points=dense_points)
@@ -260,7 +261,7 @@ class RotobjVoronoi(AbstractVoronoi):
         v1 = self.get_all_voronoi_centers()[index_1]
         v2 = self.get_all_voronoi_centers()[index_2]
         if self.get_dim() == 3:
-            dist = dist_on_sphere(v1, v2)[0]
+            dist = dist_on_sphere(v1, v2)
         else:
             dist = distance_between_quaternions(v1, v2)
         return dist
@@ -286,7 +287,7 @@ class RotobjVoronoi(AbstractVoronoi):
 
         # print(np.round(np.dot(shared_vertices, vh.T), 3))
         if self.get_dim() == 3:
-            return dist_on_sphere(border_full_rank_points[0], border_full_rank_points[1])[0]
+            return dist_on_sphere(border_full_rank_points[0], border_full_rank_points[1])
         else:
             border_full_rank_points = sort_points_on_sphere_ccw(border_full_rank_points)
             area = exact_area_of_spherical_polygon(border_full_rank_points)
@@ -362,9 +363,9 @@ class HalfRotobjVoronoi(RotobjVoronoi):
         all_volumes = self.full_voronoi.get_voronoi_volumes(approx=approx)
         return np.array([all_volumes[i] for i in self._get_upper_indices()])
 
-    def _calculate_N_N_array(self, property="adjacency", only_upper=True, include_opposing_neighbours=True):
+    def _calculate_N_N_array(self, sel_property="adjacency", only_upper=True, include_opposing_neighbours=True):
         # warning! here use self.full_voronoi NOT super() to calculate the adj on full sphere
-        adj_matrix = self.full_voronoi._calculate_N_N_array(property=property).toarray()
+        adj_matrix = self.full_voronoi._calculate_N_N_array(sel_property=sel_property).toarray()
 
         if include_opposing_neighbours:
             all_grid = self.spherical_voronoi.points
@@ -398,6 +399,7 @@ class HalfRotobjVoronoi(RotobjVoronoi):
             extracted_arr = extracted_arr[:, valid_columns]
             adj_matrix = extracted_arr
         return coo_array(adj_matrix)
+
 
 
 # only use this for plotting
@@ -527,3 +529,62 @@ class PositionVoronoi(AbstractVoronoi):
         sv.vertices = normalise_vectors(sv.vertices, length=new_radius)
         sv.points = normalise_vectors(sv.points, length=new_radius)
         return sv
+
+class MikroVoronoi(AbstractVoronoi):
+
+    def _create_centers_vertices_regions(self) -> Tuple:
+        pass
+
+    def __init__(self, dimensions, N_points):
+        self.dimensions = dimensions
+        assert self.dimensions in [3, 4]
+        self.N_points = N_points
+
+    def get_voronoi_volumes(self, **kwargs) -> NDArray:
+        if self.dimensions == 3:
+            # area of unit sphere divided into  N parts
+            return np.array([4*pi/self.N_points]*self.N_points)
+        else:
+            # hyperarea of half unit hypersphere  divided into  N parts
+            return np.array([2 * pi**2 /2 / self.N_points] * self.N_points)
+
+    def get_voronoi_adjacency(self, **kwargs) -> coo_array:
+        result = np.eye(self.N_points)
+        # invert 0s and 1s
+        result =1 - result
+        return coo_array(result)
+
+    def get_center_distances(self, **kwargs) -> coo_array:
+        """
+        For points that are Voronoi neighbours, calculate the distance between them and save them in a sparse NxN
+        format.
+
+        Returns:
+
+        """
+        return self.get_voronoi_adjacency()
+
+    def get_cell_borders(self, **kwargs) -> coo_array:
+        """
+        For points that are Voronoi neighbours, calculate the distance between them and save them in a sparse NxN
+        format.
+
+        Returns:
+
+        """
+        return self.get_voronoi_adjacency()
+
+
+def in_hull(p, hull):
+    """
+    Test if points in `p` are in `hull`
+
+    `p` should be a `NxK` coordinates of `N` points in `K` dimensions
+    `hull` is either a scipy.spatial.Delaunay object or the `MxK` array of the
+    coordinates of `M` points in `K`dimensions for which Delaunay triangulation
+    will be computed
+    """
+    if not isinstance(hull,Delaunay):
+        hull = Delaunay(hull)
+
+    return hull.find_simplex(p)>=0
