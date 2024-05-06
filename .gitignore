@@ -149,7 +149,7 @@ dmypy.json
 
 sandbox.py
 
-
+../../notebooks/jupyter/
 molgri/molecules/_load_examples.py
 playground.py
 src/
