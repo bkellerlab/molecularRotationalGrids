@@ -76,15 +76,16 @@ class VoronoiPlot(RepresentationCollection):
         regions = self.get_all_voronoi_regions(reduced=reduced)
         if alphas is None:
             alphas = [0.5]*len(regions)
+        if colors is None:
+            colors = ["white"]*len(regions)
 
         for i, region in enumerate(regions):
             self.plot_one_region(index_center=i, color=colors[i], alpha=alphas[i], ax=self.ax, fig=self.fig,
                                  save=False)
         self.plot_borders(ax=self.ax, fig=self.fig, save=False)
 
-
     @plot3D_method
-    def plot_one_region(self, index_center: int, color=None, alpha=0.5):
+    def plot_one_region(self, index_center: int = 0, color=None, alpha=0.5):
         relevant_points = self.get_convex_hulls()[index_center].points
         #self.ax.scatter(*relevant_points.T, s=2)
         triangles = self.get_convex_hulls()[index_center].simplices

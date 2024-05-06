@@ -12,7 +12,7 @@ def _create_sim_hist(m1="H2O", m2="H2O", o="15", b="9", t="[0.2, 0.3, 0.4]", sec
     my_pt_generator.construct_pt()
     my_pt_name = my_pt_generator.get_name()
 
-    my_sh = SimulationHistogram(my_pt_name, is_pt=True, second_molecule_selection=second_molecule_selection,
+    my_sh = SimulationHistogram(my_pt_name, m2, is_pt=True, second_molecule_selection=second_molecule_selection,
                                 full_grid=full_grid, use_saved = False)
     return my_sh
 
@@ -52,7 +52,6 @@ def test_quaternion_grid_assignments():
     sh_same_fg = _create_sim_hist(b=f"{num_b}", o="20", t="[0.2, 0.3, 0.4, 0.5]",
                                   full_grid=FullGrid(b_grid_name="8", o_grid_name="12", t_grid_name="[0.2, 0.3, 0.4]"))
     np.set_printoptions(threshold=sys.maxsize)
-    assignments = sh_same_fg.get_quaternion_assignments()
     nums, counts = np.unique(sh_same_fg.get_quaternion_assignments(), return_counts=True)
     assert np.all(nums == np.arange(8))
     # counts approx the same
@@ -60,7 +59,7 @@ def test_quaternion_grid_assignments():
     # there will be errors from expected distribution, partially cause the areas are not of exactly the same size,
     # but especially because there is a bunch of pt points exactly in the middle which we don't expect
     rel_errors = np.abs(counts - expected_per_position) / expected_per_position * 100
-    print(np.max(rel_errors))
+    print(counts, expected_per_position)
     assert np.all(rel_errors < 10)
 
 
@@ -101,4 +100,5 @@ if __name__ == "__main__":
     test_position_grid_assignments()
     test_quaternion_grid_assignments()
     test_full_grid_assignments()
+    test_pindex_and_quindex()
 

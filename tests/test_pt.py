@@ -172,6 +172,7 @@ def test_pt_rotations_origin():
         vec_atom2 = m2.atoms[1].position - vec_com
         vec_atom3 = m2.atoms[2].position - vec_com
 
+        print(angle_between_vectors(vec_com, vec_atom1), angle_start_1)
         assert np.isclose(angle_between_vectors(vec_com, vec_atom1), angle_start_1, atol=0.03)
         assert np.isclose(angle_between_vectors(vec_com, vec_atom2), angle_start_2, atol=0.03)
         assert np.isclose(angle_between_vectors(vec_com, vec_atom3), angle_start_3, atol=0.03)

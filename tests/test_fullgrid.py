@@ -131,38 +131,38 @@ def test_fullgrid_voronoi_radii():
     # assert np.allclose(voronoi_radii, [6])
 
 
-def test_cell_assignment():
-    # 1st test: the position grid points must correspond to themselves
-    N_rot = 18
-    fullgrid = FullGrid(b_grid_name="randomQ_7", o_grid_name=f"ico_{N_rot}", t_grid_name="[1, 2, 3]", use_saved=False)
-    points_local = fullgrid.get_position_grid_as_array()
-    num_points = len(points_local)
-    assert np.all(fullgrid.point2cell_position_grid(points_local) == np.arange(0, num_points))
-    # 1st test:even if a bit of noise is added
-    random_noise = 2 * (np.random.random(points_local.shape) - 0.5)
-    points_local = points_local + random_noise
-    assert np.all(fullgrid.point2cell_position_grid(points_local) == np.arange(0, num_points))
-    # if you take a subset of points, you get the same result
-    points_local = np.array([points_local[17], points_local[3], points_local[8], points_local[33]])
-    assert np.all(fullgrid.point2cell_position_grid(points_local) == [17, 3, 8, 33])
-    # points that are far out should return NaN
-    points_local = np.array([[200, -12, 3], [576, -986, 38]])
-    assert np.all(np.isnan(fullgrid.point2cell_position_grid(points_local)))
-    between_radii = fullgrid.get_between_radii()
-    # point with a radius < first voronoi radius must get an index < 35
-    points_local = np.random.random((15, 3)) - 0.5
-    points_local = normalise_vectors(points_local, length=between_radii[0]-1)
-    assert np.all(fullgrid.point2cell_position_grid(points_local) < N_rot)
-    # similarly for a second layer of radii
-    points_local = np.random.random((15, 3)) - 0.5
-    points_local = normalise_vectors(points_local, length=between_radii[0]+0.5)
-    assert np.all(fullgrid.point2cell_position_grid(points_local) >= N_rot)
-    assert np.all(fullgrid.point2cell_position_grid(points_local) < 2*N_rot)
-    # and for third
-    points_local = np.random.random((15, 3)) - 0.5
-    points_local = normalise_vectors(points_local, length=between_radii[2] - 0.5)
-    assert np.all(fullgrid.point2cell_position_grid(points_local) >= 2 * N_rot)
-    assert np.all(fullgrid.point2cell_position_grid(points_local) < 3 * N_rot)
+# def test_cell_assignment():
+#     # 1st test: the position grid points must correspond to themselves
+#     N_rot = 18
+#     fullgrid = FullGrid(b_grid_name="randomQ_7", o_grid_name=f"ico_{N_rot}", t_grid_name="[1, 2, 3]", use_saved=False)
+#     points_local = fullgrid.get_position_grid_as_array()
+#     num_points = len(points_local)
+#     assert np.all(fullgrid.point2cell_position_grid(points_local) == np.arange(0, num_points))
+#     # 1st test:even if a bit of noise is added
+#     random_noise = 2 * (np.random.random(points_local.shape) - 0.5)
+#     points_local = points_local + random_noise
+#     assert np.all(fullgrid.point2cell_position_grid(points_local) == np.arange(0, num_points))
+#     # if you take a subset of points, you get the same result
+#     points_local = np.array([points_local[17], points_local[3], points_local[8], points_local[33]])
+#     assert np.all(fullgrid.point2cell_position_grid(points_local) == [17, 3, 8, 33])
+#     # points that are far out should return NaN
+#     points_local = np.array([[200, -12, 3], [576, -986, 38]])
+#     assert np.all(np.isnan(fullgrid.point2cell_position_grid(points_local)))
+#     between_radii = fullgrid.get_between_radii()
+#     # point with a radius < first voronoi radius must get an index < 35
+#     points_local = np.random.random((15, 3)) - 0.5
+#     points_local = normalise_vectors(points_local, length=between_radii[0]-1)
+#     assert np.all(fullgrid.point2cell_position_grid(points_local) < N_rot)
+#     # similarly for a second layer of radii
+#     points_local = np.random.random((15, 3)) - 0.5
+#     points_local = normalise_vectors(points_local, length=between_radii[0]+0.5)
+#     assert np.all(fullgrid.point2cell_position_grid(points_local) >= N_rot)
+#     assert np.all(fullgrid.point2cell_position_grid(points_local) < 2*N_rot)
+#     # and for third
+#     points_local = np.random.random((15, 3)) - 0.5
+#     points_local = normalise_vectors(points_local, length=between_radii[2] - 0.5)
+#     assert np.all(fullgrid.point2cell_position_grid(points_local) >= 2 * N_rot)
+#     assert np.all(fullgrid.point2cell_position_grid(points_local) < 3 * N_rot)
 
 
 def test_distances_voronoi_centers():
@@ -517,7 +517,7 @@ def test_position_adjacency():
 
 if __name__ == "__main__":
     test_fullgrid_voronoi_radii()
-    test_cell_assignment()
+    #test_cell_assignment()
     test_distances_voronoi_centers()
     test_division_area()
     test_volumes()

@@ -220,7 +220,7 @@ class FullGrid:
         if n_b > 1:
             orientation_adjacency = self.b_rotations.get_spherical_voronoi()._calculate_N_N_array(sel_property=sel_property)
         else:
-            orientation_adjacency = coo_array([False], shape=(1, 1))
+            orientation_adjacency = coo_array([[False]], shape=(1, 1))
 
         row = []
         col = []
