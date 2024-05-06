@@ -396,7 +396,7 @@ class TransitionModel(ABC):
                 #sigma = None
                 #which = "LR"
                 sigma = 1
-                which = "LM"
+                which = "LR"
             elif isinstance(self, SQRA) and sigma is None and which is None:
                 #sigma = None
                 #which = "SR"

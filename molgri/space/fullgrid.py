@@ -155,6 +155,7 @@ class FullGrid:
         """Get a Rotation object (may encapsulate a list of rotations) from the body grid."""
         return Rotation.from_quat(self.b_rotations.get_grid_as_array())
 
+    @save_or_use_saved
     def get_full_grid_as_array(self) -> NDArray:
         """
         Return an array of shape (n_t*n_o_n_b, 7) where for every sequential step of pt, the first 3 coordinates
