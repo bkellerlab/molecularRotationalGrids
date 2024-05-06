@@ -136,83 +136,82 @@ if __name__ == "__main__":
     from time import time
     from datetime import timedelta
 
-    sqra_name = "H2O_H2O_0581"
-    sqra_use_saved = False
+    # sqra_name = "H2O_H2O_0581"
+    # sqra_use_saved = False
+    #
+    # t1 = time()
+    #
+    # full_grid = FullGrid(b_grid_name="40", o_grid_name="42", t_grid_name="linspace(0.25, 0.6, 20)",
+    #                      use_saved=sqra_use_saved)
+    #
+    # water_sqra_sh = SimulationHistogram(sqra_name, "H2O", is_pt=True, full_grid=full_grid,
+    #                                     second_molecule_selection="bynum 4:6", use_saved=sqra_use_saved)
+    #
+    # sqra = SQRA(water_sqra_sh, use_saved=sqra_use_saved)
+    # eigenval, eigenvec = sqra.get_eigenval_eigenvec(6, which="LM", sigma=0)
+    #
+    # sqra_tp = TransitionPlot((water_sqra_sh, sqra))
+    # fig, ax = plt.subplots(1, 2, sharex=False, sharey=False, figsize=(10, 5))
+    # sqra_tp.plot_its(6, as_line=True, save=False, fig=fig, ax=ax[1])
+    # sqra_tp.plot_eigenvalues(num_eigenv=6, save=True, fig=fig, ax=ax[0])
+    # # x-values are irrelevant, they are just horizontal lines
+    # ax[1].set_xlabel("")
+    # ax[1].set_xticks([])
+    #
+    # fig, ax = plt.subplots(5, sharex=True, sharey=True, figsize=(5, 12.5))
+    # save=False
+    # for i in range(5):
+    #     if i==4:
+    #         save = True
+    #     sqra_tp.plot_one_eigenvector_flat(i, save=save, fig=fig, ax=ax[i])
+    #
+    # t2 = time()
+    # print(f"Timing for SQRA: ", end="")
+    # print(f"{timedelta(seconds=t2 - t1)} hours:minutes:seconds")
+    #
+    # num_extremes = 15
+    # for eigenvector_i in range(1, 5):
+    #     magnitudes = eigenvec[0].T[eigenvector_i]
+    #     most_positive = k_argmax_in_array(magnitudes, num_extremes)
+    #     most_negative = k_argmax_in_array(-magnitudes, num_extremes)
 
-    t1 = time()
-
-    full_grid = FullGrid(b_grid_name="40", o_grid_name="42", t_grid_name="linspace(0.25, 0.6, 20)",
-                         use_saved=sqra_use_saved)
-
-    water_sqra_sh = SimulationHistogram(sqra_name, "H2O", is_pt=True, full_grid=full_grid,
-                                        second_molecule_selection="bynum 4:6", use_saved=sqra_use_saved)
-
-    sqra = SQRA(water_sqra_sh, use_saved=sqra_use_saved)
-    eigenval, eigenvec = sqra.get_eigenval_eigenvec(6, which="LM", sigma=0)
-
-    sqra_tp = TransitionPlot((water_sqra_sh, sqra))
-    fig, ax = plt.subplots(1, 2, sharex=False, sharey=False, figsize=(10, 5))
-    sqra_tp.plot_its(6, as_line=True, save=False, fig=fig, ax=ax[1])
-    sqra_tp.plot_eigenvalues(num_eigenv=6, save=True, fig=fig, ax=ax[0])
-    # x-values are irrelevant, they are just horizontal lines
-    ax[1].set_xlabel("")
-    ax[1].set_xticks([])
-
-    fig, ax = plt.subplots(5, sharex=True, sharey=True, figsize=(5, 12.5))
-    save=False
-    for i in range(5):
-        if i==4:
-            save = True
-        sqra_tp.plot_one_eigenvector_flat(i, save=save, fig=fig, ax=ax[i])
-
-    t2 = time()
-    print(f"Timing for SQRA: ", end="")
-    print(f"{timedelta(seconds=t2 - t1)} hours:minutes:seconds")
-
-    num_extremes = 15
-    for eigenvector_i in range(1, 5):
-        magnitudes = eigenvec[0].T[eigenvector_i]
-        most_positive = k_argmax_in_array(magnitudes, num_extremes)
-        most_negative = k_argmax_in_array(-magnitudes, num_extremes)
-
-
-        print(f"In {eigenvector_i}. eigenvector {num_extremes} most positive cells are {list(most_positive)} and most negative {list(most_negative)}.")
-        # now assign these to trajectory frames
 
 
     # # input parameters
-    # msm_name = "H2O_H2O_0095_30000012"
-    # #msm_name = "H2O_H2O_0095_50000000"
-    # #msm_name = "H2O_H2O_0095_25000"
-    # msm_fullgrid = full_grid = FullGrid(b_grid_name="40", o_grid_name="42",
-    #                                     t_grid_name="linspace(0.2, 0.6, 20)")
-    #
-    # msm_use_saved = False
-    # tau_array = np.array([1, 2, 3, 5, 7, 10, 15, 20, 30, 40, 50, 70, 80, 90, 100, 110, 130, 150, 180, 200, 220,
-    #                       250, 270, 300])
-    # index_tau = 17
-    #
-    # t1 = time()
-    # water_msm_sh = SimulationHistogram(msm_name, "H2O", is_pt=False, full_grid=msm_fullgrid,
-    #                                    second_molecule_selection="bynum 4:6", use_saved=msm_use_saved)
-    # msm = MSM(water_msm_sh, tau_array=tau_array, use_saved=msm_use_saved)
-    #
-    # msm.get_eigenval_eigenvec(6)
-    #
-    # tp = TransitionPlot(water_msm_sh)
-    # tp.transition_obj = msm
-    # tp.simulation_histogram.use_saved = True
-    # tp.transition_obj.use_saved = True
-    # fig, ax = plt.subplots(1, 2, sharex=False, sharey=False, figsize=(10, 5))
-    # tp.plot_its(6, as_line=False, save=False, fig=fig, ax=ax[1])
-    # ax[1].set_xlim(0, 300)
-    # ax[1].set_ylim(0, 300)
-    # tp.plot_eigenvalues(num_eigenv=6, save=True, fig=fig, ax=ax[0], index_tau=index_tau) #index_tau=10,
-    #
-    # for i in range(5):
-    #     tp.plot_one_eigenvector_flat(eigenvec_index=i, index_tau=index_tau) #, index_tau=10
-    #
-    #
-    # t2 = time()
-    # print(f"Timing for MSM: ", end="")
-    # print(f"{timedelta(seconds=t2 - t1)} hours:minutes:seconds")
+    #msm_name = "H2O_H2O_0095_100007"
+    msm_name = "H2O_H2O_0095_50000000"
+    #msm_name = "H2O_H2O_0095_25000"
+
+    msm_fullgrid = full_grid = FullGrid(b_grid_name="20", o_grid_name="20",
+                                        t_grid_name="linspace(0.2, 0.6, 10)")
+    #msm_fullgrid = FullGrid(b_grid_name="80", o_grid_name="80", t_grid_name="linspace(0.25, 0.35, 10)",
+    #                     use_saved=False)
+
+    msm_use_saved = True
+    tau_array = np.array([1, 2, 3, 5, 7, 10, 15, 20, 30, 40, 50, 70, 80, 90, 100, 110, 130, 150, 180, 200, 220,
+                          250, 270, 300])
+    index_tau = 5
+
+    t1 = time()
+    water_msm_sh = SimulationHistogram(msm_name, "H2O", is_pt=False, full_grid=msm_fullgrid,
+                                       second_molecule_selection="bynum 4:6", use_saved=msm_use_saved)
+    msm = MSM(water_msm_sh, tau_array=tau_array, use_saved=msm_use_saved)
+
+    msm.get_eigenval_eigenvec(6, sigma=None, which = "LR")
+
+    tp = TransitionPlot((water_msm_sh, msm))
+    tp.simulation_histogram.use_saved = True
+    tp.transition_obj.use_saved = True
+    fig, ax = plt.subplots(1, 2, sharex=False, sharey=False, figsize=(10, 5))
+    tp.plot_its(6, as_line=False, save=False, fig=fig, ax=ax[1])
+    ax[1].set_xlim(0, 100)
+    ax[1].set_ylim(0, 100)
+    tp.plot_eigenvalues(num_eigenv=6, save=True, fig=fig, ax=ax[0], index_tau=index_tau) #index_tau=10,
+
+    for i in range(5):
+        tp.plot_one_eigenvector_flat(eigenvec_index=i, index_tau=index_tau) #, index_tau=10
+
+
+    t2 = time()
+    print(f"Timing for MSM: ", end="")
+    print(f"{timedelta(seconds=t2 - t1)} hours:minutes:seconds")

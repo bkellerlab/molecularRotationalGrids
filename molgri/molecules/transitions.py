@@ -391,12 +391,12 @@ class TransitionModel(ABC):
             print("tm", tm.shape)
             #tm[np.isnan(tm)] = 0  # replace nans with zeros
             # in order to compute left eigenvectors, compute right eigenvectors of the transpose
-            if isinstance(self, MSM):
+            if isinstance(self, MSM) and sigma is None and which is None:
                 #sigma=None # or nothing??
                 #sigma = None
                 #which = "LR"
                 sigma = 1
-                which = "SM"
+                which = "LM"
             elif isinstance(self, SQRA) and sigma is None and which is None:
                 #sigma = None
                 #which = "SR"
@@ -405,19 +405,22 @@ class TransitionModel(ABC):
             self.logger.logger.info(f"num_eigenv: {num_eigenv}")
             self.logger.logger.info(f"sigma: {sigma}")
             self.logger.logger.info(f"which: {which}")
-            eigenval, eigenvec = eigs(tm.T, num_eigenv, tol=1e-5, maxiter=100000, which=which, sigma=sigma, **kwargs) #,
-            # sigma=1
-            # don't need to deal with complex outputs in case all values are real
-            # TODO: what happens here if we have negative imaginary components?
-            if eigenvec.imag.max() == 0 and eigenval.imag.max() == 0:
-                eigenvec = eigenvec.real
-                eigenval = eigenval.real
-            # sort eigenvectors according to their eigenvalues
-            idx = eigenval.argsort()[::-1]
-            eigenval = eigenval[idx]
-            eigenvec = eigenvec[:, idx]
-            all_eigenval[tau_i] = eigenval
-            all_eigenvec[tau_i] = eigenvec
+            try:
+                eigenval, eigenvec = eigs(tm.T, num_eigenv, tol=1e-5, maxiter=100000, which=which, sigma=sigma, **kwargs) #,
+                # sigma=1
+                # don't need to deal with complex outputs in case all values are real
+                # TODO: what happens here if we have negative imaginary components?
+                if eigenvec.imag.max() == 0 and eigenval.imag.max() == 0:
+                    eigenvec = eigenvec.real
+                    eigenval = eigenval.real
+                # sort eigenvectors according to their eigenvalues
+                idx = eigenval.argsort()[::-1]
+                eigenval = eigenval[idx]
+                eigenvec = eigenvec[:, idx]
+                all_eigenval[tau_i] = eigenval
+                all_eigenvec[tau_i] = eigenvec
+            except RuntimeError:
+                print(f"Not possible for tau={tau}")
         return all_eigenval, all_eigenvec
 
 
@@ -569,8 +572,9 @@ class SQRA(TransitionModel):
             self.transition_matrix.data /= all_volumes[self.transition_matrix.row]
             # multiply with sqrt(pi_j/pi_i) = e**((V_i-V_j)*1000/(2*k_B*N_A*T))
             # gromacs uses kJ/mol as energy unit, boltzmann constant is J/K
-            self.transition_matrix.data *= np.exp((obtained_energies[self.transition_matrix.row]-obtained_energies[
-                self.transition_matrix.col])*1000/(2*kB*N_A*T))
+            self.transition_matrix.data *= np.exp(np.round((obtained_energies[
+                                                             self.transition_matrix.row]-obtained_energies[
+                self.transition_matrix.col]), 14)*1000/(2*kB*N_A*T))
             #self.transition_matrix = np.divide(D * all_surfaces, all_distances,
             #                        where=all_distances!=0) #out=np.zeros_like(D * all_surfaces),
             # for i, _ in enumerate(self.transition_matrix):
