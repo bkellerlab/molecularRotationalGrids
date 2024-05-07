@@ -273,9 +273,11 @@ class SimulationHistogram:
         """
         # find PA and direction of reference structure
         calc_quat=self._determine_quaternions()
-
+        print(calc_quat[-10:])
         b_grid_points = self.full_grid.b_rotations.get_grid_as_array()
+        print(cdist(b_grid_points, calc_quat[-10:], metric=distance_between_quaternions))
         b_indices = np.argmin(cdist(b_grid_points, calc_quat, metric=distance_between_quaternions), axis=0)
+        print(b_indices)
         # almost everything correct but the order is somehow mixed???
         return b_indices
 
