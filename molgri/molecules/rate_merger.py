@@ -49,7 +49,10 @@ def merge_sublists(input_list: list[list[Any]]) -> list[list[Any]]:
         indices_group = list(find_el_within_nested_list(copy_input_list, first_element))
         previous_len = len(indices_group) - 1
         # these are actual elements discovered so far
-        entire_group = list(np.unique([copy_input_list[i] for i in indices_group]))
+        in_group = []
+        for i in indices_group:
+            in_group.extend(copy_input_list[i])
+        entire_group = list(np.unique(in_group))
         # now by transitive property interested in groups of other members
         # repeat as long as we are adding new group members
         while len(indices_group) > previous_len:
@@ -114,8 +117,7 @@ def merge_matrix_cells(my_matrix: NDArray | csr_array, all_to_join: list[list],
 
     # my_matrix must be a 2D quadratic, symmetric matrix that is sqra-normalized
     assert len(my_matrix.shape) == 2 and my_matrix.shape[0] == my_matrix.shape[1], "input not 2D or not quadratic"
-    # assert np.allclose(my_matrix, my_matrix.T), "input not symmetric"
-    # assert np.allclose(my_matrix.sum(axis=1), 0), "input not sqra-normalized"
+    assert np.allclose(my_matrix.sum(axis=1), 0), "input not sqra-normalized"
 
     # sub-elements of to_join must be at least 2 integers
     assert np.all([len(to_join) >= 2 for to_join in all_to_join]), "need at least to integers in to_join"
@@ -161,24 +163,19 @@ def merge_matrix_cells(my_matrix: NDArray | csr_array, all_to_join: list[list],
 
     assert result.shape[0] == my_matrix.shape[0] - len(flat_merged_indices), "len(result) not len(input) - len(my_j)"
     assert len(result.shape) == 2 and result.shape[0] == result.shape[1], "result not 2D or not quadratic"
-    assert np.allclose(result, result.T), "result not symmetric"
     assert np.allclose(result.sum(axis=1), 0), f"result not sqra-normalized: {result}"
-
-    # delete the redundand indices in inverse order (and be super careful not to mess up inexing in the process)
-    to_append = [[] for _ in merged_indices]
-    flat_merged_indices.sort()
-    for mi in flat_merged_indices[::-1]:
-        which_subappend = find_el_within_nested_list(merged_indices, mi)[0]
-        internal_index_list.pop(mi)
-        to_append[which_subappend].append(mi)
 
     # expand the collective index
     for i, ci in enumerate(collective_index):
-        where_append = find_el_within_nested_list(internal_index_list, ci)[0]
-        internal_index_list[where_append].extend(to_append[i])
-
+        for mi in merged_indices[i]:
+            internal_index_list[ci].extend(internal_index_list[mi])
         # sort to keep everything neat
-        internal_index_list[where_append].sort()
+        internal_index_list[ci].sort()
+
+    # delete the redundand indices in inverse order (to not mess up inexing in the process)
+    flat_merged_indices.sort()
+    for mi in flat_merged_indices[::-1]:
+        internal_index_list.pop(mi)
 
     return result, internal_index_list
 
@@ -203,5 +200,64 @@ if __name__ == "__main__":
 
     merge_test1 = merge_matrix_cells(A, [[0, 0], [0, 1], [3, 0], [2, 4]])
     assert np.allclose(merge_test1[0], np.array([[-26.,  26.], [ 26., -26.]]))
-    assert np.all(merge_test1[1] == [[0, 1, 3], [2, 4]])
+    assert np.all(merge_test1[1] == [[0, 1, 3], [2, 4]]), merge_test1[1]
+
+    merge_test2 = merge_matrix_cells(A, [[0, 3]])
+    expected2 = np.array([[-25, 5, 15, 5],
+                         [5, -11, 1, 5],
+                         [15, 1, -23, 7],
+                         [5, 5, 7, -17]])
+    expected_index2 = [[0, 3], [1], [2], [4]]
+    assert np.allclose(merge_test2[0], expected2)
+    assert np.all(merge_test2[1] == expected_index2)
+
+    # testing merging with sparse matrices
+    A_sparse = csr_array(A)
+    step1s, index1s = merge_matrix_cells(my_matrix=A_sparse, all_to_join=[[0, 3]], index_list=None)
+    assert np.allclose(step1s.todense(), expected2)
+    assert np.all(index1s == expected_index2)
+
+    merge_test3 = merge_matrix_cells(A, [[1, 3, 0]])
+    expected3 = np.array([[-26, 16, 10],
+                          [16, -23, 7],
+                          [10, 7, -17]])
+    expected_index3 = [[0, 1, 3], [2], [4]]
+    assert np.allclose(merge_test3[0], expected3)
+    assert np.all(merge_test3[1] == expected_index3)
+
+    # testing merges in multiple steps
+    step1, index1 = merge_matrix_cells(my_matrix=A, all_to_join=[[0, 1]], index_list=None)
+    expected4 = np.array([[-27,   8, 10,   9],
+                           [ 8, -23,   8,   7],
+                           [10,   8, -19,   1],
+                          [ 9,   7,   1, -17]])
+    expected_index4 = [[0, 1], [2], [3], [4]]
+    assert np.allclose(step1, expected4)
+    assert np.all(index1 == expected_index4)
+    step2, index2 = merge_matrix_cells(my_matrix=step1, all_to_join=[[3, 4]], index_list=index1)
+    expected5 = np.array( [[-27.,   8.,  19.],
+                           [  8., -23.,  15.],
+                           [ 19.,  15., -34.]])
+    expected_index5 = [[0, 1], [2], [3, 4]]
+    assert np.allclose(step2, expected5)
+    assert np.all(index2 == expected_index5)
+
+    # this should work whether we specify [1, 3], [3, 0], [1, 3, 4], [0, 1, 3, 4] and similar
+    step3a, index3a = merge_matrix_cells(my_matrix=step2, all_to_join=[[1, 3]], index_list=index2)
+    expected6 = np.array([[-23, 23],
+                          [23, -23]])
+    expected_index6 = [[0, 1, 3, 4], [2]]
+    assert np.allclose(step3a, expected6)
+    assert np.all(index3a == expected_index6)
+    step3b, index3b = merge_matrix_cells(my_matrix=step2, all_to_join=[[3, 0]], index_list=index2)
+    assert np.allclose(step3b, expected6)
+    assert np.all(index3b == expected_index6)
+    step3c, index3c = merge_matrix_cells(my_matrix=step2, all_to_join=[[3, 4, 1], [1, 0], [3, 1]], index_list=index2)
+    assert np.allclose(step3c, expected6)
+    assert np.all(index3c == expected_index6)
+    step3d, index3d = merge_matrix_cells(my_matrix=step2, all_to_join=[[1, 0, 3, 4]], index_list=index2)
+    assert np.allclose(step3d, expected6)
+    assert np.all(index3d == expected_index6)
+
+
 
