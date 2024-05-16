@@ -8,8 +8,13 @@ from copy import deepcopy
 from typing import Any, Optional
 
 import numpy as np
+from molgri.space.fullgrid import FullGrid
+
+from molgri.molecules.transitions import SQRA, SimulationHistogram
 from numpy.typing import NDArray
 from scipy.sparse import csr_array
+from scipy.sparse.linalg import eigs
+from scipy.constants import k as kB, N_A
 
 # helper functions
 def find_el_within_nested_list(my_list: list[list[Any]], my_el: Any) -> NDArray:
@@ -180,6 +185,22 @@ def merge_matrix_cells(my_matrix: NDArray | csr_array, all_to_join: list[list],
     return result, internal_index_list
 
 
+# working with rate matrices
+def determine_rate_cells_to_join(my_sh: SimulationHistogram, bottom_treshold=0.001, T=273):
+    # calculate delta Vs
+    h_ij = my_sh.full_grid.get_full_distances().tocoo()
+    row_indices = h_ij.row
+    column_indices = h_ij.col
+    potentials = my_sh.get_magnitude_energy(energy_type="Potential")
+    delta_potentials = np.abs((potentials[row_indices] - potentials[
+        column_indices]) * 1000) / (kB * N_A * T)
+
+    # get pairs of cells to join
+    high_e_frames = np.where(delta_potentials < bottom_treshold)[0]
+    high_cell_pairs = [[r, c] for r, c in zip(row_indices[high_e_frames], column_indices[high_e_frames])]
+
+    return high_cell_pairs
+
 
 if __name__ == "__main__":
     assert np.allclose(find_el_within_nested_list([[0, 2], [7], [13, 4]], 18), np.array([]))
@@ -259,5 +280,78 @@ if __name__ == "__main__":
     assert np.allclose(step3d, expected6)
     assert np.all(index3d == expected_index6)
 
+    # rate matrix
+    import matplotlib.pyplot as plt
+    import seaborn as sns
+    from molgri.space.utils import k_argmax_in_array
+    from time import time
+    from datetime import timedelta
+
+    # sqra_name = "H2O_H2O_0630"
+    # sqra_use_saved = False
+    # full_grid = FullGrid(b_grid_name="10", o_grid_name="10", t_grid_name="linspace(0.25, 0.9, 15)",
+    #                      use_saved=False)
+
+    sqra_name = "H2O_H2O_0585"
+    sqra_use_saved = False
+    full_grid = FullGrid(o_grid_name="80", b_grid_name="80", t_grid_name="linspace(0.25, 0.35, 10)",
+                          use_saved=False)
+    water_sqra_sh = SimulationHistogram(sqra_name, "H2O", is_pt=True, full_grid=full_grid,
+                                        second_molecule_selection="bynum 4:6", use_saved=sqra_use_saved)
+    sqra = SQRA(water_sqra_sh, use_saved=sqra_use_saved)
+    rate_matrix = sqra.get_transitions_matrix()
+
+    # initial eigenval, eigenvec
+    def analyse(ratemat, index_list=None):
+        print("######################  NEW ANALYSIS #############################")
+        if index_list is None:
+            index_list = [[i] for i in range(ratemat.shape[0])]
+
+        eigenval, eigenvec = eigs(ratemat.T, 6, tol=1e-5, maxiter=100000, which="LM", sigma=0)
+        eigenval = eigenval.real
+        eigenvec = eigenvec.real
+
+        print(np.round(eigenval, 4))
+        for i in range(5):
+            num_extremes = 40
+            magnitudes = eigenvec.T[i]
+            most_positive = k_argmax_in_array(magnitudes, num_extremes)
+            original_index_positive = []
+            for mp in most_positive:
+                original_index_positive.extend(index_list[mp])
+            original_index_positive = np.array(original_index_positive)
+            most_negative = k_argmax_in_array(-magnitudes, num_extremes)
+            original_index_negative = []
+            for mn in most_negative:
+                original_index_negative.extend(index_list[mn])
+            original_index_negative = np.array(original_index_negative)
+            print(f"In {i}.coverage eigenvector {num_extremes} most positive cells are "
+                  f"{list(original_index_positive + 1)}")
+            print(f"and most negative {list(original_index_negative + 1)}.")
+
+    t1 = time()
+    analyse(rate_matrix)
+    t2 = time()
+
+    # now joining
+    t3 = time()
+    rate_to_join = determine_rate_cells_to_join(water_sqra_sh, bottom_treshold=0.001)
+    new_rate_matrix, new_ind = merge_matrix_cells(my_matrix=rate_matrix, all_to_join=rate_to_join)
+    t4 = time()
+
+    t5 = time()
+    analyse(new_rate_matrix, index_list=new_ind)
+    t6 = time()
+
+    print(f"Size of original rate matrix is {rate_matrix.shape}, of reduced rate matrix {new_rate_matrix.shape}.")
+
+    print(f"Eigendecomposition original matrix: ", end="")
+    print(f"{timedelta(seconds=t2 - t1)} hours:minutes:seconds")
 
 
+    print(f"Construction of merge matrix: ", end="")
+    print(f"{timedelta(seconds=t4 - t3)} hours:minutes:seconds")
+
+
+    print(f"Eigendecomposition reduced matrix: ", end="")
+    print(f"{timedelta(seconds=t6 - t5)} hours:minutes:seconds")
