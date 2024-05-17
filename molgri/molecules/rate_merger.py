@@ -106,37 +106,27 @@ def merge_matrix_cells(my_matrix: NDArray | csr_array, all_to_join: list[list],
 
     Merge matrix P is applied to the starting matrix M as: P^T M P
     """
-    tc = time()
+    all_to_join = merge_sublists(all_to_join)
     # ALL ASSERTIONS AND PREPARATIONS HERE
 
     if index_list is None:
         internal_index_list = [[i] for i in range(my_matrix.shape[0])]
+        reindexing_to_join = deepcopy(all_to_join)
     else:
         # don't wanna change the input
         internal_index_list = deepcopy(index_list)
+        # Note: since elements may have been dropped already, we don't use to_join integers to index my_matrix directly
+        # but always search for integers within sublists of index_list
+        reindexing_to_join = []
+        for to_join in all_to_join:
+            reindexing_sublist = []
+            for my_i in to_join:
+                reindexing_sublist.extend(find_el_within_nested_list(internal_index_list, my_i))
+            # sort and remove duplicates that may occur after reindexing
+            reindexing_to_join.append(list(np.unique(reindexing_sublist)))
 
     assert len(internal_index_list) == my_matrix.shape[0], "Len of index list must be same as len of matrix"
 
-    # my_matrix must be a 2D quadratic, symmetric matrix that is sqra-normalized
-    #assert len(my_matrix.shape) == 2 and my_matrix.shape[0] == my_matrix.shape[1], "input not 2D or not quadratic"
-
-    # sub-elements of to_join must be at least 2 integers
-    #assert np.all([len(to_join) >= 2 for to_join in all_to_join]), "need at least to integers in to_join"
-    # if elements occur in several sublists, merge these in one (transitive property)
-    all_to_join = merge_sublists(all_to_join)
-
-    # Note: since elements may have been dropped already, we don't use to_join integers to index my_matrix directly
-    # but always search for integers within sublists of index_list
-    reindexing_to_join = []
-    for to_join in all_to_join:
-        reindexing_sublist = []
-        for my_i in to_join:
-            reindexing_sublist.extend(find_el_within_nested_list(internal_index_list, my_i))
-        # sort and remove duplicates that may occur after reindexing
-        reindexing_to_join.append(list(np.unique(reindexing_sublist)))
-    td = time()
-    print(f"Start time: ", end="")
-    print(f"{timedelta(seconds=td - tc)} hours:minutes:seconds")
 
     # CREATE AND APPLY A MERGE MATRIX
 
@@ -169,14 +159,6 @@ def merge_matrix_cells(my_matrix: NDArray | csr_array, all_to_join: list[list],
     result = my_matrix.dot(merge_matrix)
     result = merge_matrix.T.dot(result)
 
-    # FINAL CHECKS
-
-    ta = time()
-
-    #assert result.shape[0] == my_matrix.shape[0] - len(flat_merged_indices), "len(result) not len(input) - len(my_j)"
-    #assert len(result.shape) == 2 and result.shape[0] == result.shape[1], "result not 2D or not quadratic"
-    #assert np.allclose(result.sum(axis=1), 0), f"result not sqra-normalized: {result}"
-
     # expand the collective index
     for i, ci in enumerate(collective_index):
         for mi in merged_indices[i]:
@@ -188,11 +170,6 @@ def merge_matrix_cells(my_matrix: NDArray | csr_array, all_to_join: list[list],
     flat_merged_indices.sort()
     for mi in flat_merged_indices[::-1]:
         internal_index_list.pop(mi)
-
-    tb = time()
-    print(f"End time: ", end="")
-    print(f"{timedelta(seconds=tb - ta)} hours:minutes:seconds")
-
 
     return result, internal_index_list
 
@@ -218,7 +195,7 @@ if __name__ == "__main__":
     assert np.allclose(find_el_within_nested_list([[0, 2], [7], [13, 4]], 18), np.array([]))
     assert np.allclose(find_el_within_nested_list([[0, 2], [7], [13, 18, 4]], 18), np.array([2]))
     assert np.allclose(find_el_within_nested_list([[-7, 0, 2], [7], [13, 4], [-7]], -7), np.array([0, 3]))
-    print(list(merge_sublists([[0, 7], [2, 7, 3], [6, 8], [3, 1]])))
+
     assert np.all(merge_sublists([[0, 7], [2, 7, 3], [6, 8], [3, 1]]) == [[0, 1, 2, 3, 7], [6, 8]])
     assert np.all(merge_sublists([[8, 6], [2, 7, 3], [6, 8], [3, 1]]) == [[6, 8], [1, 2, 3, 7]])
 
@@ -298,12 +275,10 @@ if __name__ == "__main__":
     from molgri.space.utils import k_argmax_in_array
 
 
-    sqra_name = "H2O_H2O_0632"
+    #sqra_name = "H2O_H2O_0632"
+    #sqra_use_saved = False
+    sqra_name = "H2O_H2O_0585"
     sqra_use_saved = False
-    # sqra_name = "H2O_H2O_0585"
-    # sqra_use_saved = False
-    # full_grid = FullGrid(o_grid_name="80", b_grid_name="80", t_grid_name="linspace(0.25, 0.35, 10)",
-    #                       use_saved=False)
     water_sqra_sh = SimulationHistogram(sqra_name, "H2O", is_pt=True,
                                         second_molecule_selection="bynum 4:6", use_saved=sqra_use_saved)
     sqra = SQRA(water_sqra_sh, use_saved=sqra_use_saved)
@@ -327,42 +302,95 @@ if __name__ == "__main__":
         eigenvec = eigenvec.real
 
         print(np.round(eigenval, 4))
-        # for i in range(5):
-        #     num_extremes = 40
-        #     magnitudes = eigenvec.T[i]
-        #     most_positive = k_argmax_in_array(magnitudes, num_extremes)
-        #     original_index_positive = []
-        #     for mp in most_positive:
-        #         original_index_positive.extend(index_list[mp])
-        #     original_index_positive = np.array(original_index_positive)
-        #     most_negative = k_argmax_in_array(-magnitudes, num_extremes)
-        #     original_index_negative = []
-        #     for mn in most_negative:
-        #         original_index_negative.extend(index_list[mn])
-        #     original_index_negative = np.array(original_index_negative)
-        #     print(f"In {i}.coverage eigenvector {num_extremes} most positive cells are "
-        #           f"{list(original_index_positive + 1)}")
-        #     print(f"and most negative {list(original_index_negative + 1)}.")
+        for i in range(5):
+            num_extremes = 40
+            magnitudes = eigenvec.T[i]
+            most_positive = k_argmax_in_array(magnitudes, num_extremes)
+            original_index_positive = []
+            for mp in most_positive:
+                original_index_positive.extend(index_list[mp])
+            original_index_positive = np.array(original_index_positive)
+            most_negative = k_argmax_in_array(-magnitudes, num_extremes)
+            original_index_negative = []
+            for mn in most_negative:
+                original_index_negative.extend(index_list[mn])
+            original_index_negative = np.array(original_index_negative)
+            print(f"In {i}.coverage eigenvector {num_extremes} most positive cells are "
+                  f"{list(original_index_positive + 1)}")
+            print(f"and most negative {list(original_index_negative + 1)}.")
+        return eigenval
 
-    analyse(rate_matrix)
+    #analyse(rate_matrix)
 
-    # now joining
-    rate_to_join = determine_rate_cells_to_join(water_sqra_sh, bottom_treshold=0.01)
+    bottom_tresholds = [0.001, 0.01, 0.05, 0.1, 0.5]
+    eigenvalues = []
+    total_times = []
+    num_cells = []
 
-    print(f"Determined {len(rate_to_join)} pairs of cells to join")
+    for bt in bottom_tresholds:
+        t4 = time()
+        # now joining
+        rate_to_join = determine_rate_cells_to_join(water_sqra_sh, bottom_treshold=0.05)
+
+        print(f"Determined {len(rate_to_join)} pairs of cells to join")
+
+        new_rate_matrix, new_ind = merge_matrix_cells(my_matrix=rate_matrix, all_to_join=rate_to_join)
+        t5 = time()
+
+        print(f"Construction of merge matrix: ", end="")
+        print(f"{timedelta(seconds=t5 - t4)} hours:minutes:seconds")
+
+        eigenvalues.append(analyse(new_rate_matrix, index_list=new_ind))
+
+        t6 = time()
+        total_times.append(t6-t4)
+        num_cells.append(new_rate_matrix.shape[0])
+
+        print(f"Size of original rate matrix is {rate_matrix.shape}, of reduced rate matrix {new_rate_matrix.shape}.")
+
+
+    # TODO: make a plot of eigenvalues vs (time/bottom_treshold/number of cells
+
+    fig, ax = plt.subplots(1, 3, figsize=(20, 8))
+    for bottom_treshold in bottom_tresholds:
+        sns.lineplot(x=bottom_treshold, y=eigenvalues, ax=ax[0])
+        sns.lineplot(x=bottom_treshold, y=total_times, ax=ax[1])
+        sns.lineplot(x=bottom_treshold, y=num_cells, ax=ax[2])
+    plt.savefig(f"output/plotting/test_rate_merger_{sqra_name}")
 
 
 
-    new_rate_matrix, new_ind = merge_matrix_cells(my_matrix=rate_matrix, all_to_join=rate_to_join)
-    t5 = time()
-
-    print(f"Construction of merge matrix: ", end="")
-    print(f"{timedelta(seconds=t5 - t4)} hours:minutes:seconds")
-
-    analyse(new_rate_matrix, index_list=new_ind)
 
 
-    print(f"Size of original rate matrix is {rate_matrix.shape}, of reduced rate matrix {new_rate_matrix.shape}.")
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
