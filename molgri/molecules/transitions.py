@@ -593,7 +593,7 @@ class SQRA(TransitionModel):
             all_i = np.arange(len(self.sim_hist.full_grid))
             diagonal_array = coo_array((-sums, (all_i, all_i)), shape=(len(all_i), len(all_i)))
             self.transition_matrix = self.transition_matrix.tocsr() + diagonal_array.tocsr()
-            print(f"Am I sqra-normalized? {np.max(np.abs(self.transition_matrix.sum(axis=1)))}")
+            #print(f"Am I sqra-normalized? {np.max(np.abs(self.transition_matrix.sum(axis=1)))}")
             #np.fill_diagonal(self.transition_matrix, -sums)
             # additional axis
             #self.transition_matrix = self.transition_matrix[np.newaxis, :]

@@ -15,7 +15,7 @@ from networkx.algorithms.components.connected import connected_components
 
 from molgri.molecules.transitions import SQRA, SimulationHistogram
 from numpy.typing import NDArray
-from scipy.sparse import csr_array
+from scipy.sparse import csr_array, coo_array
 from scipy.sparse.linalg import eigs
 from scipy.constants import k as kB, N_A
 
@@ -106,7 +106,7 @@ def merge_matrix_cells(my_matrix: NDArray | csr_array, all_to_join: list[list],
 
     Merge matrix P is applied to the starting matrix M as: P^T M P
     """
-
+    tc = time()
     # ALL ASSERTIONS AND PREPARATIONS HERE
 
     if index_list is None:
@@ -119,17 +119,11 @@ def merge_matrix_cells(my_matrix: NDArray | csr_array, all_to_join: list[list],
 
     # my_matrix must be a 2D quadratic, symmetric matrix that is sqra-normalized
     #assert len(my_matrix.shape) == 2 and my_matrix.shape[0] == my_matrix.shape[1], "input not 2D or not quadratic"
-    print(f"Input sqra-normalized? {np.max(np.abs(my_matrix.sum(axis=1)))}")
 
     # sub-elements of to_join must be at least 2 integers
     #assert np.all([len(to_join) >= 2 for to_join in all_to_join]), "need at least to integers in to_join"
     # if elements occur in several sublists, merge these in one (transitive property)
-    t11 = time()
     all_to_join = merge_sublists(all_to_join)
-
-    t12 = time()
-    print(f"Merging sublists time: ", end="")
-    print(f"{timedelta(seconds=t12 - t11)} hours:minutes:seconds")
 
     # Note: since elements may have been dropped already, we don't use to_join integers to index my_matrix directly
     # but always search for integers within sublists of index_list
@@ -140,39 +134,44 @@ def merge_matrix_cells(my_matrix: NDArray | csr_array, all_to_join: list[list],
             reindexing_sublist.extend(find_el_within_nested_list(internal_index_list, my_i))
         # sort and remove duplicates that may occur after reindexing
         reindexing_to_join.append(list(np.unique(reindexing_sublist)))
+    td = time()
+    print(f"Start time: ", end="")
+    print(f"{timedelta(seconds=td - tc)} hours:minutes:seconds")
 
     # CREATE AND APPLY A MERGE MATRIX
 
-    t9 = time()
-    merge_matrix = np.eye(my_matrix.shape[0])
+    # first build merge matrix as coo-array
+    rows = list(range(my_matrix.shape[0]))
+    columns = list(range(my_matrix.shape[0]))
 
-    # we use the smallest index of each sublist as collective index
     collective_index = [to_join[0] for to_join in reindexing_to_join]
 
     # the rest of the indices will be added to the collective index
     merged_indices = [to_join[1:] for to_join in reindexing_to_join]
     flat_merged_indices = [a for to_join in reindexing_to_join for a in to_join[1:]]
 
-    # in columns of collective indices add 1 in rows of corresponding merged indices
     for i, ci in enumerate(collective_index):
         for mi in merged_indices[i]:
-            merge_matrix[mi][ci] = 1
+            rows.append(mi)
+            columns.append(ci)
 
-    # delete columns of merged_indices (this must happen after you added ones!)
-    merge_matrix = np.delete(merge_matrix, flat_merged_indices, axis=1)
+    merge_matrix = coo_array(([1,]*len(rows), (rows, columns)), dtype=bool)
+    merge_matrix = merge_matrix.tocsc()
 
-    if isinstance(my_matrix, csr_array):
-        merge_matrix = csr_array(merge_matrix)
+    # as csr matrix delete relevant columns
+    to_keep = list(set(range(my_matrix.shape[1])) - set(flat_merged_indices))
+    merge_matrix = merge_matrix[:, to_keep]
 
-    t10 = time()
-    print(f"Construction of merge matrix: ", end="")
-    print(f"{timedelta(seconds=t10 - t9)} hours:minutes:seconds")
+    if not isinstance(my_matrix, csr_array):
+        merge_matrix = merge_matrix.todense()
 
     # now apply merge_matrix^T @ my_matrix @ merge_matrix -> this is a fast operation
     result = my_matrix.dot(merge_matrix)
     result = merge_matrix.T.dot(result)
 
     # FINAL CHECKS
+
+    ta = time()
 
     #assert result.shape[0] == my_matrix.shape[0] - len(flat_merged_indices), "len(result) not len(input) - len(my_j)"
     #assert len(result.shape) == 2 and result.shape[0] == result.shape[1], "result not 2D or not quadratic"
@@ -190,7 +189,10 @@ def merge_matrix_cells(my_matrix: NDArray | csr_array, all_to_join: list[list],
     for mi in flat_merged_indices[::-1]:
         internal_index_list.pop(mi)
 
-    print(f"Output sqra-normalized? {np.max(np.abs(result.sum(axis=1)))}")
+    tb = time()
+    print(f"End time: ", end="")
+    print(f"{timedelta(seconds=tb - ta)} hours:minutes:seconds")
+
 
     return result, internal_index_list
 
@@ -345,14 +347,10 @@ if __name__ == "__main__":
     analyse(rate_matrix)
 
     # now joining
-    t3 = time()
     rate_to_join = determine_rate_cells_to_join(water_sqra_sh, bottom_treshold=0.01)
-    t4 = time()
 
     print(f"Determined {len(rate_to_join)} pairs of cells to join")
 
-    print(f"Determinations of cells to join: ", end="")
-    print(f"{timedelta(seconds=t4 - t3)} hours:minutes:seconds")
 
 
     new_rate_matrix, new_ind = merge_matrix_cells(my_matrix=rate_matrix, all_to_join=rate_to_join)
