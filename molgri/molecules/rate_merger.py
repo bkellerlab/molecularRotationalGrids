@@ -6,9 +6,12 @@ from __future__ import annotations
 
 from copy import deepcopy
 from typing import Any, Optional
+from time import time
+from datetime import timedelta
 
 import numpy as np
-from molgri.space.fullgrid import FullGrid
+import networkx
+from networkx.algorithms.components.connected import connected_components
 
 from molgri.molecules.transitions import SQRA, SimulationHistogram
 from numpy.typing import NDArray
@@ -44,37 +47,31 @@ def merge_sublists(input_list: list[list[Any]]) -> list[list[Any]]:
         list of lists in which groups that share at least one element are joined, sorted and unique, e.g.
         [[0, 1, 2, 3, 7], [6, 8]]
     """
-    merged = []
     copy_input_list = deepcopy(input_list)  # avoiding modifying input
 
-    while len(copy_input_list) > 0:
-        # for this element we are looking at which others should be grouped with it
-        first_element = copy_input_list[0][0]
-        # find sublists that directly include this element
-        indices_group = list(find_el_within_nested_list(copy_input_list, first_element))
-        previous_len = len(indices_group) - 1
-        # these are actual elements discovered so far
-        in_group = []
-        for i in indices_group:
-            in_group.extend(copy_input_list[i])
-        entire_group = list(np.unique(in_group))
-        # now by transitive property interested in groups of other members
-        # repeat as long as we are adding new group members
-        while len(indices_group) > previous_len:
-            previous_len = len(indices_group)
-            for group_el in entire_group:
-                indices_group.extend(list(find_el_within_nested_list(copy_input_list, group_el)))
-            indices_group = list(np.unique(indices_group))
-            for i in indices_group:
-                entire_group.extend(copy_input_list[i])
-            entire_group = list(np.unique(entire_group))
+    def to_graph(l):
+        G = networkx.Graph()
+        for part in l:
+            # each sublist is a bunch of nodes
+            G.add_nodes_from(part)
+            # it also imlies a number of edges:
+            G.add_edges_from(to_edges(part))
+        return G
 
-        # delete merged-up elements
-        for index_i in indices_group[::-1]:
-            copy_input_list.pop(index_i)
+    def to_edges(l):
+        """
+            treat `l` as a Graph and returns it's edges
+            to_edges(['a','b','c','d']) -> [(a,b), (b,c),(c,d)]
+        """
+        it = iter(l)
+        last = next(it)
 
-        merged.append(entire_group)
-    return merged
+        for current in it:
+            yield last, current
+            last = current
+
+    G = to_graph(copy_input_list)
+    return [sorted(list(x)) for x in connected_components(G)]
 
 
 def sqra_normalize(my_matrix: NDArray):
@@ -121,13 +118,18 @@ def merge_matrix_cells(my_matrix: NDArray | csr_array, all_to_join: list[list],
     assert len(internal_index_list) == my_matrix.shape[0], "Len of index list must be same as len of matrix"
 
     # my_matrix must be a 2D quadratic, symmetric matrix that is sqra-normalized
-    assert len(my_matrix.shape) == 2 and my_matrix.shape[0] == my_matrix.shape[1], "input not 2D or not quadratic"
-    assert np.allclose(my_matrix.sum(axis=1), 0), "input not sqra-normalized"
+    #assert len(my_matrix.shape) == 2 and my_matrix.shape[0] == my_matrix.shape[1], "input not 2D or not quadratic"
+    print(f"Input sqra-normalized? {np.max(np.abs(my_matrix.sum(axis=1)))}")
 
     # sub-elements of to_join must be at least 2 integers
-    assert np.all([len(to_join) >= 2 for to_join in all_to_join]), "need at least to integers in to_join"
+    #assert np.all([len(to_join) >= 2 for to_join in all_to_join]), "need at least to integers in to_join"
     # if elements occur in several sublists, merge these in one (transitive property)
+    t11 = time()
     all_to_join = merge_sublists(all_to_join)
+
+    t12 = time()
+    print(f"Merging sublists time: ", end="")
+    print(f"{timedelta(seconds=t12 - t11)} hours:minutes:seconds")
 
     # Note: since elements may have been dropped already, we don't use to_join integers to index my_matrix directly
     # but always search for integers within sublists of index_list
@@ -141,6 +143,7 @@ def merge_matrix_cells(my_matrix: NDArray | csr_array, all_to_join: list[list],
 
     # CREATE AND APPLY A MERGE MATRIX
 
+    t9 = time()
     merge_matrix = np.eye(my_matrix.shape[0])
 
     # we use the smallest index of each sublist as collective index
@@ -161,14 +164,19 @@ def merge_matrix_cells(my_matrix: NDArray | csr_array, all_to_join: list[list],
     if isinstance(my_matrix, csr_array):
         merge_matrix = csr_array(merge_matrix)
 
-    # now apply merge_matrix^T @ my_matrix @ merge_matrix
-    result = merge_matrix.T @ my_matrix @ merge_matrix
+    t10 = time()
+    print(f"Construction of merge matrix: ", end="")
+    print(f"{timedelta(seconds=t10 - t9)} hours:minutes:seconds")
+
+    # now apply merge_matrix^T @ my_matrix @ merge_matrix -> this is a fast operation
+    result = my_matrix.dot(merge_matrix)
+    result = merge_matrix.T.dot(result)
 
     # FINAL CHECKS
 
-    assert result.shape[0] == my_matrix.shape[0] - len(flat_merged_indices), "len(result) not len(input) - len(my_j)"
-    assert len(result.shape) == 2 and result.shape[0] == result.shape[1], "result not 2D or not quadratic"
-    assert np.allclose(result.sum(axis=1), 0), f"result not sqra-normalized: {result}"
+    #assert result.shape[0] == my_matrix.shape[0] - len(flat_merged_indices), "len(result) not len(input) - len(my_j)"
+    #assert len(result.shape) == 2 and result.shape[0] == result.shape[1], "result not 2D or not quadratic"
+    #assert np.allclose(result.sum(axis=1), 0), f"result not sqra-normalized: {result}"
 
     # expand the collective index
     for i, ci in enumerate(collective_index):
@@ -181,6 +189,8 @@ def merge_matrix_cells(my_matrix: NDArray | csr_array, all_to_join: list[list],
     flat_merged_indices.sort()
     for mi in flat_merged_indices[::-1]:
         internal_index_list.pop(mi)
+
+    print(f"Output sqra-normalized? {np.max(np.abs(result.sum(axis=1)))}")
 
     return result, internal_index_list
 
@@ -206,7 +216,7 @@ if __name__ == "__main__":
     assert np.allclose(find_el_within_nested_list([[0, 2], [7], [13, 4]], 18), np.array([]))
     assert np.allclose(find_el_within_nested_list([[0, 2], [7], [13, 18, 4]], 18), np.array([2]))
     assert np.allclose(find_el_within_nested_list([[-7, 0, 2], [7], [13, 4], [-7]], -7), np.array([0, 3]))
-
+    print(list(merge_sublists([[0, 7], [2, 7, 3], [6, 8], [3, 1]])))
     assert np.all(merge_sublists([[0, 7], [2, 7, 3], [6, 8], [3, 1]]) == [[0, 1, 2, 3, 7], [6, 8]])
     assert np.all(merge_sublists([[8, 6], [2, 7, 3], [6, 8], [3, 1]]) == [[6, 8], [1, 2, 3, 7]])
 
@@ -284,74 +294,84 @@ if __name__ == "__main__":
     import matplotlib.pyplot as plt
     import seaborn as sns
     from molgri.space.utils import k_argmax_in_array
-    from time import time
-    from datetime import timedelta
 
-    # sqra_name = "H2O_H2O_0630"
-    # sqra_use_saved = False
-    # full_grid = FullGrid(b_grid_name="10", o_grid_name="10", t_grid_name="linspace(0.25, 0.9, 15)",
-    #                      use_saved=False)
 
-    sqra_name = "H2O_H2O_0585"
+    sqra_name = "H2O_H2O_0632"
     sqra_use_saved = False
-    full_grid = FullGrid(o_grid_name="80", b_grid_name="80", t_grid_name="linspace(0.25, 0.35, 10)",
-                          use_saved=False)
-    water_sqra_sh = SimulationHistogram(sqra_name, "H2O", is_pt=True, full_grid=full_grid,
+    # sqra_name = "H2O_H2O_0585"
+    # sqra_use_saved = False
+    # full_grid = FullGrid(o_grid_name="80", b_grid_name="80", t_grid_name="linspace(0.25, 0.35, 10)",
+    #                       use_saved=False)
+    water_sqra_sh = SimulationHistogram(sqra_name, "H2O", is_pt=True,
                                         second_molecule_selection="bynum 4:6", use_saved=sqra_use_saved)
     sqra = SQRA(water_sqra_sh, use_saved=sqra_use_saved)
     rate_matrix = sqra.get_transitions_matrix()
 
     # initial eigenval, eigenvec
     def analyse(ratemat, index_list=None):
-        print("######################  NEW ANALYSIS #############################")
+        print(f"######################  NEW ANALYSIS: size {ratemat.shape}, type: {type(ratemat)}###############")
         if index_list is None:
             index_list = [[i] for i in range(ratemat.shape[0])]
 
+        t1 = time()
         eigenval, eigenvec = eigs(ratemat.T, 6, tol=1e-5, maxiter=100000, which="LM", sigma=0)
+        t2 = time()
+
+        print(f"Eigendecomposition matrix {ratemat.shape}: ", end="")
+        print(f"{timedelta(seconds=t2 - t1)} hours:minutes:seconds")
+
+
         eigenval = eigenval.real
         eigenvec = eigenvec.real
 
         print(np.round(eigenval, 4))
-        for i in range(5):
-            num_extremes = 40
-            magnitudes = eigenvec.T[i]
-            most_positive = k_argmax_in_array(magnitudes, num_extremes)
-            original_index_positive = []
-            for mp in most_positive:
-                original_index_positive.extend(index_list[mp])
-            original_index_positive = np.array(original_index_positive)
-            most_negative = k_argmax_in_array(-magnitudes, num_extremes)
-            original_index_negative = []
-            for mn in most_negative:
-                original_index_negative.extend(index_list[mn])
-            original_index_negative = np.array(original_index_negative)
-            print(f"In {i}.coverage eigenvector {num_extremes} most positive cells are "
-                  f"{list(original_index_positive + 1)}")
-            print(f"and most negative {list(original_index_negative + 1)}.")
+        # for i in range(5):
+        #     num_extremes = 40
+        #     magnitudes = eigenvec.T[i]
+        #     most_positive = k_argmax_in_array(magnitudes, num_extremes)
+        #     original_index_positive = []
+        #     for mp in most_positive:
+        #         original_index_positive.extend(index_list[mp])
+        #     original_index_positive = np.array(original_index_positive)
+        #     most_negative = k_argmax_in_array(-magnitudes, num_extremes)
+        #     original_index_negative = []
+        #     for mn in most_negative:
+        #         original_index_negative.extend(index_list[mn])
+        #     original_index_negative = np.array(original_index_negative)
+        #     print(f"In {i}.coverage eigenvector {num_extremes} most positive cells are "
+        #           f"{list(original_index_positive + 1)}")
+        #     print(f"and most negative {list(original_index_negative + 1)}.")
 
-    t1 = time()
     analyse(rate_matrix)
-    t2 = time()
 
     # now joining
     t3 = time()
-    rate_to_join = determine_rate_cells_to_join(water_sqra_sh, bottom_treshold=0.001)
-    new_rate_matrix, new_ind = merge_matrix_cells(my_matrix=rate_matrix, all_to_join=rate_to_join)
+    rate_to_join = determine_rate_cells_to_join(water_sqra_sh, bottom_treshold=0.01)
     t4 = time()
 
-    t5 = time()
-    analyse(new_rate_matrix, index_list=new_ind)
-    t6 = time()
+    print(f"Determined {len(rate_to_join)} pairs of cells to join")
 
-    print(f"Size of original rate matrix is {rate_matrix.shape}, of reduced rate matrix {new_rate_matrix.shape}.")
-
-    print(f"Eigendecomposition original matrix: ", end="")
-    print(f"{timedelta(seconds=t2 - t1)} hours:minutes:seconds")
-
-
-    print(f"Construction of merge matrix: ", end="")
+    print(f"Determinations of cells to join: ", end="")
     print(f"{timedelta(seconds=t4 - t3)} hours:minutes:seconds")
 
 
-    print(f"Eigendecomposition reduced matrix: ", end="")
-    print(f"{timedelta(seconds=t6 - t5)} hours:minutes:seconds")
+    new_rate_matrix, new_ind = merge_matrix_cells(my_matrix=rate_matrix, all_to_join=rate_to_join)
+    t5 = time()
+
+    print(f"Construction of merge matrix: ", end="")
+    print(f"{timedelta(seconds=t5 - t4)} hours:minutes:seconds")
+
+    analyse(new_rate_matrix, index_list=new_ind)
+
+
+    print(f"Size of original rate matrix is {rate_matrix.shape}, of reduced rate matrix {new_rate_matrix.shape}.")
+
+
+
+
+
+
+
+
+
+

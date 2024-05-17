@@ -273,11 +273,8 @@ class SimulationHistogram:
         """
         # find PA and direction of reference structure
         calc_quat=self._determine_quaternions()
-        print(calc_quat[-10:])
         b_grid_points = self.full_grid.b_rotations.get_grid_as_array()
-        print(cdist(b_grid_points, calc_quat[-10:], metric=distance_between_quaternions))
         b_indices = np.argmin(cdist(b_grid_points, calc_quat, metric=distance_between_quaternions), axis=0)
-        print(b_indices)
         # almost everything correct but the order is somehow mixed???
         return b_indices
 
@@ -382,7 +379,6 @@ class TransitionModel(ABC):
             Eigenval is of shape (num_tau, num_columns), eigenvec of shape (num_tau, num_cells, num_columns)
         """
         all_tms = self.get_transitions_matrix()
-        print("all_tsm", all_tms.shape)
         all_eigenval = np.zeros((self.num_tau, num_eigenv))
         all_eigenvec = np.zeros((self.num_tau, self.num_cells, num_eigenv))
         for tau_i, tau in enumerate(tqdm(self.tau_array)):
@@ -390,7 +386,6 @@ class TransitionModel(ABC):
                 tm = all_tms[tau_i]  # the transition matrix for this tau
             else:
                 tm = all_tms # sqra
-            print("tm", tm.shape)
             #tm[np.isnan(tm)] = 0  # replace nans with zeros
             # in order to compute left eigenvectors, compute right eigenvectors of the transpose
             if isinstance(self, MSM) and sigma is None and which is None:
@@ -598,7 +593,7 @@ class SQRA(TransitionModel):
             all_i = np.arange(len(self.sim_hist.full_grid))
             diagonal_array = coo_array((-sums, (all_i, all_i)), shape=(len(all_i), len(all_i)))
             self.transition_matrix = self.transition_matrix.tocsr() + diagonal_array.tocsr()
-            print(self.transition_matrix.shape, diagonal_array.shape)
+            print(f"Am I sqra-normalized? {np.max(np.abs(self.transition_matrix.sum(axis=1)))}")
             #np.fill_diagonal(self.transition_matrix, -sums)
             # additional axis
             #self.transition_matrix = self.transition_matrix[np.newaxis, :]

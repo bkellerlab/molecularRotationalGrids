@@ -317,7 +317,6 @@ class PositionGrid:
         radius_below = np.concatenate(([0, ], radius_above[:-1]))
         s_vor = self.get_o_grid().get_spherical_voronoi()
         area = s_vor.get_voronoi_volumes()
-        print("area", np.sum(area), radius_above, radius_below) # TODO: why is the sum not the area of UNIT sphere
         # but of rad 2?????
         cumulative_volumes = (_t_and_o_2_positions(o_property=area/3, t_property=radius_above**3) -
                               _t_and_o_2_positions(o_property=area/3, t_property=radius_below**3))
@@ -402,8 +401,6 @@ class PositionGrid:
         else:
             same_radius_neighbours = coo_array(neig) * multiply
         all_neighbours = same_ray_neighbours + same_radius_neighbours
-        #print("same_ray", type(same_ray_neighbours.data))
-        #print("same_radius", type(same_radius_neighbours.data))
         return all_neighbours
 
     def get_adjacency_of_position_grid(self) -> coo_array:
