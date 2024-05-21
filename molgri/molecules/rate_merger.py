@@ -190,6 +190,77 @@ def determine_rate_cells_to_join(my_sh: SimulationHistogram, bottom_treshold=0.0
 
     return high_cell_pairs
 
+def get_graph_from_rate_matrix(my_matrix: NDArray):
+    """
+    From a (sparse) nxn matrix get a graph of n nodes where the
+
+    Args:
+        my_matrix ():
+
+    Returns:
+
+    """
+    pass
+
+def determine_rate_cells_with_too_high_energy(my_energies, energy_limit: float = 10, T: float = 273):
+    return np.where(my_energies*1000/(kB*N_A*T) > energy_limit)[0]
+
+def delete_rate_cells_with_high_energy(my_matrix: NDArray | csr_array, to_remove: list,
+                                       index_list: list = None):
+    """
+    Another method to make a rate matrix smaller. Determine cells with high energies and remove them as rows and
+    columns of the rate matrix.
+
+    Args:
+        my_matrix ():
+        my_energies: as output of GROMACS[kJ/mol]
+        energy_limit (): unitless, as a multiple of k_BT
+
+    Returns:
+
+    """
+
+    # ALL ASSERTIONS AND PREPARATIONS HERE
+
+    if index_list is None:
+        internal_index_list = [[i] for i in range(my_matrix.shape[0])]
+        reindexing_to_join = deepcopy(to_remove)
+    else:
+        # don't wanna change the input
+        internal_index_list = deepcopy(index_list)
+        # Note: since elements may have been dropped already, we don't use to_join integers to index my_matrix directly
+        # but always search for integers within sublists of index_list
+        reindexing_to_join = []
+        for to_join in to_remove:
+            reindexing_sublist = []
+            for my_i in to_join:
+                reindexing_sublist.extend(find_el_within_nested_list(internal_index_list, my_i))
+            # sort and remove duplicates that may occur after reindexing
+            reindexing_to_join.append(list(np.unique(reindexing_sublist)))
+
+    print(reindexing_to_join)
+
+
+    # DROP ROWS AND COLUMNS FROM RATE MATRIX
+    # as csr matrix delete relevant columns
+    result = my_matrix.tocsr()
+    to_keep = list(set(range(my_matrix.shape[1])) - set(to_remove))
+    result = result[:, to_keep]
+    # as csc array delete relevant rows
+    result = result.tocsc()
+    result = result[to_keep, :]
+
+    if not isinstance(my_matrix, csr_array):
+        result = result.todense()
+
+    # re-normalize
+    result = sqra_normalize(result)
+
+    # drop elemets from internal index list
+    internal_index_list = [x for i, x in enumerate(internal_index_list) if i in to_keep]
+
+    return result, internal_index_list
+
 
 if __name__ == "__main__":
     assert np.allclose(find_el_within_nested_list([[0, 2], [7], [13, 4]], 18), np.array([]))
@@ -269,15 +340,19 @@ if __name__ == "__main__":
     assert np.allclose(step3d, expected6)
     assert np.all(index3d == expected_index6)
 
+
+    # test deleting cells
+    output1, reindex1 = delete_rate_cells_with_high_energy(A, to_remove=[0])
+    print(output1, reindex1)
+
     # rate matrix
     import matplotlib.pyplot as plt
     import seaborn as sns
     from molgri.space.utils import k_argmax_in_array
 
 
-    #sqra_name = "H2O_H2O_0632"
-    #sqra_use_saved = False
-    sqra_name = "H2O_H2O_0585"
+    sqra_name = "H2O_H2O_0634"
+    #sqra_name = "H2O_H2O_0585"
     sqra_use_saved = False
     water_sqra_sh = SimulationHistogram(sqra_name, "H2O", is_pt=True,
                                         second_molecule_selection="bynum 4:6", use_saved=sqra_use_saved)
@@ -292,6 +367,8 @@ if __name__ == "__main__":
 
         t1 = time()
         eigenval, eigenvec = eigs(ratemat.T, 6, tol=1e-5, maxiter=100000, which="LM", sigma=0)
+        np.save(f"eigenval_{sqra_name}", eigenval)
+        np.save(f"eigenvec_{sqra_name}", eigenvec)
         t2 = time()
 
         print(f"Eigendecomposition matrix {ratemat.shape}: ", end="")
@@ -318,69 +395,73 @@ if __name__ == "__main__":
             print(f"In {i}.coverage eigenvector {num_extremes} most positive cells are "
                   f"{list(original_index_positive + 1)}")
             print(f"and most negative {list(original_index_negative + 1)}.")
-        return eigenval
+        return [x for x in eigenval]
 
     #analyse(rate_matrix)
+    t4 = time()
+    # now joining
+    rate_to_join = determine_rate_cells_to_join(water_sqra_sh, bottom_treshold=0.07)
 
-    bottom_tresholds = [0.001, 0.01, 0.05, 0.1, 0.5]
-    eigenvalues = []
-    total_times = []
-    num_cells = []
+    print(f"Determined {len(rate_to_join)} pairs of cells to join")
 
-    for bt in bottom_tresholds:
-        t4 = time()
-        # now joining
-        rate_to_join = determine_rate_cells_to_join(water_sqra_sh, bottom_treshold=0.05)
+    new_rate_matrix, new_ind = merge_matrix_cells(my_matrix=rate_matrix, all_to_join=rate_to_join)
+    t5 = time()
 
-        print(f"Determined {len(rate_to_join)} pairs of cells to join")
+    print(f"Construction of merge matrix: ", end="")
+    print(f"{timedelta(seconds=t5 - t4)} hours:minutes:seconds")
 
-        new_rate_matrix, new_ind = merge_matrix_cells(my_matrix=rate_matrix, all_to_join=rate_to_join)
-        t5 = time()
+    print(f"Size of original rate matrix is {rate_matrix.shape}, of reduced rate matrix {new_rate_matrix.shape}.")
 
-        print(f"Construction of merge matrix: ", end="")
-        print(f"{timedelta(seconds=t5 - t4)} hours:minutes:seconds")
+    t6 = time()
+    analyse(new_rate_matrix, index_list=new_ind)
+    t7 = time()
 
-        eigenvalues.append(analyse(new_rate_matrix, index_list=new_ind))
-
-        t6 = time()
-        total_times.append(t6-t4)
-        num_cells.append(new_rate_matrix.shape[0])
-
-        print(f"Size of original rate matrix is {rate_matrix.shape}, of reduced rate matrix {new_rate_matrix.shape}.")
-
-
-    # TODO: make a plot of eigenvalues vs (time/bottom_treshold/number of cells
-
-    fig, ax = plt.subplots(1, 3, figsize=(20, 8))
-    for bottom_treshold in bottom_tresholds:
-        sns.lineplot(x=bottom_treshold, y=eigenvalues, ax=ax[0])
-        sns.lineplot(x=bottom_treshold, y=total_times, ax=ax[1])
-        sns.lineplot(x=bottom_treshold, y=num_cells, ax=ax[2])
-    plt.savefig(f"output/plotting/test_rate_merger_{sqra_name}")
+    print(f"Eigendecomposition of new rate matrix: ", end="")
+    print(f"{timedelta(seconds=t7 - t6)} hours:minutes:seconds")
 
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+    # bottom_tresholds = [0.001, 0.01, 0.05, 0.1, 0.5]
+    # eigenvalues = []
+    # total_times = []
+    # num_cells = []
+    #
+    # for bt in bottom_tresholds:
+    #     t4 = time()
+    #     # now joining
+    #     rate_to_join = determine_rate_cells_to_join(water_sqra_sh, bottom_treshold=bt)
+    #
+    #     print(f"Determined {len(rate_to_join)} pairs of cells to join")
+    #
+    #     new_rate_matrix, new_ind = merge_matrix_cells(my_matrix=rate_matrix, all_to_join=rate_to_join)
+    #     t5 = time()
+    #
+    #     print(f"Construction of merge matrix: ", end="")
+    #     print(f"{timedelta(seconds=t5 - t4)} hours:minutes:seconds")
+    #
+    #     eigenvalues.append(analyse(new_rate_matrix, index_list=new_ind))
+    #
+    #     t6 = time()
+    #     total_times.append(t6-t4)
+    #     num_cells.append(new_rate_matrix.shape[0])
+    #
+    #     print(f"Size of original rate matrix is {rate_matrix.shape}, of reduced rate matrix {new_rate_matrix.shape}.")
+    #
+    #
+    # # TODO: make a plot of eigenvalues vs (time/bottom_treshold/number of cells
+    # eigenvalues = np.array(eigenvalues)
+    # fig, ax = plt.subplots(1, 3, figsize=(20, 8))
+    # for eigv in eigenvalues.T:
+    #     ax[0].plot(bottom_tresholds, eigv)
+    # ax[1].plot(bottom_tresholds, total_times)
+    # ax[2].plot(bottom_tresholds, num_cells)
+    #
+    # ax[0].set_title("Eigenvalues")
+    # ax[1].set_title("Time")
+    # ax[2].set_title("Matrix size")
+    #
+    # print(total_times, num_cells, eigenvalues)
+    # plt.savefig(f"output/figures/test_rate_merger_{sqra_name}")
 
 
 
