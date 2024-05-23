@@ -205,8 +205,9 @@ def get_graph_from_rate_matrix(my_matrix: NDArray):
 def determine_rate_cells_with_too_high_energy(my_energies, energy_limit: float = 10, T: float = 273):
     return np.where(my_energies*1000/(kB*N_A*T) > energy_limit)[0]
 
-def delete_rate_cells_with_high_energy(my_matrix: NDArray | csr_array, to_remove: list,
-                                       index_list: list = None):
+
+def delete_rate_cells(my_matrix: NDArray | csr_array, to_remove: list,
+                      index_list: list = None):
     """
     Another method to make a rate matrix smaller. Determine cells with high energies and remove them as rows and
     columns of the rate matrix.
@@ -231,27 +232,25 @@ def delete_rate_cells_with_high_energy(my_matrix: NDArray | csr_array, to_remove
         # Note: since elements may have been dropped already, we don't use to_join integers to index my_matrix directly
         # but always search for integers within sublists of index_list
         reindexing_to_join = []
-        for to_join in to_remove:
-            reindexing_sublist = []
-            for my_i in to_join:
-                reindexing_sublist.extend(find_el_within_nested_list(internal_index_list, my_i))
+        for el_to_remove in to_remove:
+            reindexing_to_join.extend(find_el_within_nested_list(internal_index_list, el_to_remove))
             # sort and remove duplicates that may occur after reindexing
-            reindexing_to_join.append(list(np.unique(reindexing_sublist)))
+        reindexing_to_join = list(np.unique(reindexing_to_join))
 
     print(reindexing_to_join)
 
 
     # DROP ROWS AND COLUMNS FROM RATE MATRIX
     # as csr matrix delete relevant columns
-    result = my_matrix.tocsr()
-    to_keep = list(set(range(my_matrix.shape[1])) - set(to_remove))
+
+    result = my_matrix.copy()  #.tocsr()
+    to_keep = list(set(range(my_matrix.shape[1])) - set(reindexing_to_join))
     result = result[:, to_keep]
     # as csc array delete relevant rows
-    result = result.tocsc()
+    if isinstance(my_matrix, csr_array):
+        result = result.tocsc()
     result = result[to_keep, :]
 
-    if not isinstance(my_matrix, csr_array):
-        result = result.todense()
 
     # re-normalize
     result = sqra_normalize(result)
@@ -263,165 +262,88 @@ def delete_rate_cells_with_high_energy(my_matrix: NDArray | csr_array, to_remove
 
 
 if __name__ == "__main__":
-    assert np.allclose(find_el_within_nested_list([[0, 2], [7], [13, 4]], 18), np.array([]))
-    assert np.allclose(find_el_within_nested_list([[0, 2], [7], [13, 18, 4]], 18), np.array([2]))
-    assert np.allclose(find_el_within_nested_list([[-7, 0, 2], [7], [13, 4], [-7]], -7), np.array([0, 3]))
-
-    assert np.all(merge_sublists([[0, 7], [2, 7, 3], [6, 8], [3, 1]]) == [[0, 1, 2, 3, 7], [6, 8]])
-    assert np.all(merge_sublists([[8, 6], [2, 7, 3], [6, 8], [3, 1]]) == [[6, 8], [1, 2, 3, 7]])
-
-    # we have cells 0, 1, 2, 3, 4 and rates between all combinations
-    A = np.array([[0, 3, 7, 8, 4],
-                  [3, 0, 1, 2, 5],
-                  [7, 1, 0, 8, 7],
-                  [8, 2, 8, 0, 1],
-                  [4, 5, 7, 1, 0]])
-
-    A = sqra_normalize(A)
-
-    merge_test1 = merge_matrix_cells(A, [[0, 0], [0, 1], [3, 0], [2, 4]])
-    assert np.allclose(merge_test1[0], np.array([[-26.,  26.], [ 26., -26.]]))
-    assert np.all(merge_test1[1] == [[0, 1, 3], [2, 4]]), merge_test1[1]
-
-    merge_test2 = merge_matrix_cells(A, [[0, 3]])
-    expected2 = np.array([[-25, 5, 15, 5],
-                         [5, -11, 1, 5],
-                         [15, 1, -23, 7],
-                         [5, 5, 7, -17]])
-    expected_index2 = [[0, 3], [1], [2], [4]]
-    assert np.allclose(merge_test2[0], expected2)
-    assert np.all(merge_test2[1] == expected_index2)
-
-    # testing merging with sparse matrices
-    A_sparse = csr_array(A)
-    step1s, index1s = merge_matrix_cells(my_matrix=A_sparse, all_to_join=[[0, 3]], index_list=None)
-    assert np.allclose(step1s.todense(), expected2)
-    assert np.all(index1s == expected_index2)
-
-    merge_test3 = merge_matrix_cells(A, [[1, 3, 0]])
-    expected3 = np.array([[-26, 16, 10],
-                          [16, -23, 7],
-                          [10, 7, -17]])
-    expected_index3 = [[0, 1, 3], [2], [4]]
-    assert np.allclose(merge_test3[0], expected3)
-    assert np.all(merge_test3[1] == expected_index3)
-
-    # testing merges in multiple steps
-    step1, index1 = merge_matrix_cells(my_matrix=A, all_to_join=[[0, 1]], index_list=None)
-    expected4 = np.array([[-27,   8, 10,   9],
-                           [ 8, -23,   8,   7],
-                           [10,   8, -19,   1],
-                          [ 9,   7,   1, -17]])
-    expected_index4 = [[0, 1], [2], [3], [4]]
-    assert np.allclose(step1, expected4)
-    assert np.all(index1 == expected_index4)
-    step2, index2 = merge_matrix_cells(my_matrix=step1, all_to_join=[[3, 4]], index_list=index1)
-    expected5 = np.array( [[-27.,   8.,  19.],
-                           [  8., -23.,  15.],
-                           [ 19.,  15., -34.]])
-    expected_index5 = [[0, 1], [2], [3, 4]]
-    assert np.allclose(step2, expected5)
-    assert np.all(index2 == expected_index5)
-
-    # this should work whether we specify [1, 3], [3, 0], [1, 3, 4], [0, 1, 3, 4] and similar
-    step3a, index3a = merge_matrix_cells(my_matrix=step2, all_to_join=[[1, 3]], index_list=index2)
-    expected6 = np.array([[-23, 23],
-                          [23, -23]])
-    expected_index6 = [[0, 1, 3, 4], [2]]
-    assert np.allclose(step3a, expected6)
-    assert np.all(index3a == expected_index6)
-    step3b, index3b = merge_matrix_cells(my_matrix=step2, all_to_join=[[3, 0]], index_list=index2)
-    assert np.allclose(step3b, expected6)
-    assert np.all(index3b == expected_index6)
-    step3c, index3c = merge_matrix_cells(my_matrix=step2, all_to_join=[[3, 4, 1], [1, 0], [3, 1]], index_list=index2)
-    assert np.allclose(step3c, expected6)
-    assert np.all(index3c == expected_index6)
-    step3d, index3d = merge_matrix_cells(my_matrix=step2, all_to_join=[[1, 0, 3, 4]], index_list=index2)
-    assert np.allclose(step3d, expected6)
-    assert np.all(index3d == expected_index6)
-
-
-    # test deleting cells
-    output1, reindex1 = delete_rate_cells_with_high_energy(A, to_remove=[0])
-    print(output1, reindex1)
-
-    # rate matrix
-    import matplotlib.pyplot as plt
-    import seaborn as sns
-    from molgri.space.utils import k_argmax_in_array
-
-
-    sqra_name = "H2O_H2O_0634"
-    #sqra_name = "H2O_H2O_0585"
-    sqra_use_saved = False
-    water_sqra_sh = SimulationHistogram(sqra_name, "H2O", is_pt=True,
-                                        second_molecule_selection="bynum 4:6", use_saved=sqra_use_saved)
-    sqra = SQRA(water_sqra_sh, use_saved=sqra_use_saved)
-    rate_matrix = sqra.get_transitions_matrix()
-
-    # initial eigenval, eigenvec
-    def analyse(ratemat, index_list=None):
-        print(f"######################  NEW ANALYSIS: size {ratemat.shape}, type: {type(ratemat)}###############")
-        if index_list is None:
-            index_list = [[i] for i in range(ratemat.shape[0])]
-
-        t1 = time()
-        eigenval, eigenvec = eigs(ratemat.T, 6, tol=1e-5, maxiter=100000, which="LM", sigma=0)
-        np.save(f"eigenval_{sqra_name}", eigenval)
-        np.save(f"eigenvec_{sqra_name}", eigenvec)
-        t2 = time()
-
-        print(f"Eigendecomposition matrix {ratemat.shape}: ", end="")
-        print(f"{timedelta(seconds=t2 - t1)} hours:minutes:seconds")
-
-
-        eigenval = eigenval.real
-        eigenvec = eigenvec.real
-
-        print(np.round(eigenval, 4))
-        for i in range(5):
-            num_extremes = 40
-            magnitudes = eigenvec.T[i]
-            most_positive = k_argmax_in_array(magnitudes, num_extremes)
-            original_index_positive = []
-            for mp in most_positive:
-                original_index_positive.extend(index_list[mp])
-            original_index_positive = np.array(original_index_positive)
-            most_negative = k_argmax_in_array(-magnitudes, num_extremes)
-            original_index_negative = []
-            for mn in most_negative:
-                original_index_negative.extend(index_list[mn])
-            original_index_negative = np.array(original_index_negative)
-            print(f"In {i}.coverage eigenvector {num_extremes} most positive cells are "
-                  f"{list(original_index_positive + 1)}")
-            print(f"and most negative {list(original_index_negative + 1)}.")
-        return [x for x in eigenval]
-
-    #analyse(rate_matrix)
-    t4 = time()
-    # now joining
-    rate_to_join = determine_rate_cells_to_join(water_sqra_sh, bottom_treshold=0.07)
-
-    print(f"Determined {len(rate_to_join)} pairs of cells to join")
-
-    new_rate_matrix, new_ind = merge_matrix_cells(my_matrix=rate_matrix, all_to_join=rate_to_join)
-    t5 = time()
-
-    print(f"Construction of merge matrix: ", end="")
-    print(f"{timedelta(seconds=t5 - t4)} hours:minutes:seconds")
-
-    print(f"Size of original rate matrix is {rate_matrix.shape}, of reduced rate matrix {new_rate_matrix.shape}.")
-
-    t6 = time()
-    analyse(new_rate_matrix, index_list=new_ind)
-    t7 = time()
-
-    print(f"Eigendecomposition of new rate matrix: ", end="")
-    print(f"{timedelta(seconds=t7 - t6)} hours:minutes:seconds")
-
-
-
-    # bottom_tresholds = [0.001, 0.01, 0.05, 0.1, 0.5]
+    pass
+    # # rate matrix
+    # import matplotlib.pyplot as plt
+    # import seaborn as sns
+    # from molgri.space.utils import k_argmax_in_array
+    #
+    #
+    # #sqra_name = "H2O_H2O_0634" # super big
+    # sqra_name = "H2O_H2O_0585" # big
+    # #sqra_name = "H2O_H2O_0630" # small
+    # sqra_use_saved = False
+    # water_sqra_sh = SimulationHistogram(sqra_name, "H2O", is_pt=True,
+    #                                     second_molecule_selection="bynum 4:6", use_saved=sqra_use_saved)
+    # sqra = SQRA(water_sqra_sh, use_saved=sqra_use_saved)
+    # rate_matrix = sqra.get_transitions_matrix()
+    #
+    # # initial eigenval, eigenvec
+    # def analyse(ratemat, index_list=None):
+    #     print(f"######################  NEW ANALYSIS: size {ratemat.shape}, type: {type(ratemat)}###############")
+    #     if index_list is None:
+    #         index_list = [[i] for i in range(ratemat.shape[0])]
+    #
+    #     t1 = time()
+    #     eigenval, eigenvec = eigs(ratemat.T, 6, tol=1e-5, maxiter=100000, which="LM", sigma=0)
+    #     np.save(f"eigenval_{sqra_name}", eigenval)
+    #     np.save(f"eigenvec_{sqra_name}", eigenvec)
+    #     t2 = time()
+    #
+    #     print(f"Eigendecomposition matrix {ratemat.shape}: ", end="")
+    #     print(f"{timedelta(seconds=t2 - t1)} hours:minutes:seconds")
+    #
+    #
+    #     eigenval = eigenval.real
+    #     eigenvec = eigenvec.real
+    #
+    #     print(np.round(eigenval, 4))
+    #     for i in range(5):
+    #         num_extremes = 40
+    #         magnitudes = eigenvec.T[i]
+    #         most_positive = k_argmax_in_array(magnitudes, num_extremes)
+    #         original_index_positive = []
+    #         for mp in most_positive:
+    #             original_index_positive.extend(index_list[mp])
+    #         original_index_positive = np.array(original_index_positive)
+    #         most_negative = k_argmax_in_array(-magnitudes, num_extremes)
+    #         original_index_negative = []
+    #         for mn in most_negative:
+    #             original_index_negative.extend(index_list[mn])
+    #         original_index_negative = np.array(original_index_negative)
+    #         print(f"In {i}.coverage eigenvector {num_extremes} most positive cells are "
+    #               f"{list(original_index_positive + 1)}")
+    #         print(f"and most negative {list(original_index_negative + 1)}.")
+    #     return [x for x in eigenval]
+    #
+    # # analyse(rate_matrix)
+    # # t4 = time()
+    # # # now joining
+    # # rate_to_join = determine_rate_cells_to_join(water_sqra_sh, bottom_treshold=0.08)
+    # #
+    # # print(f"Determined {len(rate_to_join)} pairs of cells to join")
+    # #
+    # # new_rate_matrix, new_ind = merge_matrix_cells(my_matrix=rate_matrix, all_to_join=rate_to_join)
+    # # t5 = time()
+    # #
+    # # print(f"Construction of merge matrix: ", end="")
+    # # print(f"{timedelta(seconds=t5 - t4)} hours:minutes:seconds")
+    # #
+    # # print(f"Size of original rate matrix is {rate_matrix.shape}, of reduced rate matrix {new_rate_matrix.shape}.")
+    # #
+    # # t6 = time()
+    # # analyse(new_rate_matrix, index_list=new_ind)
+    # # t7 = time()
+    # #
+    # # print(f"Eigendecomposition of new rate matrix: ", end="")
+    # # print(f"{timedelta(seconds=t7 - t6)} hours:minutes:seconds")
+    #
+    # # no merge option
+    # t_bef = time()
+    # no_merge_eigenval = analyse(ratemat=rate_matrix)
+    # t_aft = time()
+    #
+    # bottom_tresholds = [0.001, 0.005, 0.01, 0.05, 0.1, 0.5]
     # eigenvalues = []
     # total_times = []
     # num_cells = []
@@ -453,32 +375,23 @@ if __name__ == "__main__":
     # fig, ax = plt.subplots(1, 3, figsize=(20, 8))
     # for eigv in eigenvalues.T:
     #     ax[0].plot(bottom_tresholds, eigv)
-    # ax[1].plot(bottom_tresholds, total_times)
-    # ax[2].plot(bottom_tresholds, num_cells)
+    # ax[1].plot(bottom_tresholds, total_times, c="black")
+    # ax[2].plot(bottom_tresholds, num_cells, c="black")
     #
     # ax[0].set_title("Eigenvalues")
-    # ax[1].set_title("Time")
+    # ax[1].set_title("Time [s]")
     # ax[2].set_title("Matrix size")
+    #
+    # for subax in ax:
+    #     subax.set_xlabel(r"Merge treshold in $k_B$ T")
+    #     subax.set_xscale("log")
+    #
+    # ax[0].hlines(no_merge_eigenval, bottom_tresholds[0], bottom_tresholds[-1], colors="black", linestyles='dashed')
+    # ax[1].hlines([t_aft-t_bef,], bottom_tresholds[0], bottom_tresholds[-1], colors="black", linestyles='dashed')
+    # ax[2].hlines([rate_matrix.shape[0],], bottom_tresholds[0], bottom_tresholds[-1], colors="black", linestyles='dashed')
     #
     # print(total_times, num_cells, eigenvalues)
     # plt.savefig(f"output/figures/test_rate_merger_{sqra_name}")
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+    #
+    #
+    #
