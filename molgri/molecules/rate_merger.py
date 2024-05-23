@@ -15,7 +15,7 @@ from networkx.algorithms.components.connected import connected_components
 
 from molgri.molecules.transitions import SQRA, SimulationHistogram
 from numpy.typing import NDArray
-from scipy.sparse import csr_array, coo_array
+from scipy.sparse import csr_array, coo_array, diags
 from scipy.sparse.linalg import eigs
 from scipy.constants import k as kB, N_A
 
@@ -74,9 +74,13 @@ def merge_sublists(input_list: list[list[Any]]) -> list[list[Any]]:
     return [sorted(list(x)) for x in connected_components(G)]
 
 
-def sqra_normalize(my_matrix: NDArray):
+def sqra_normalize(my_matrix: NDArray | csr_array):
+    sums = my_matrix.sum(axis=1)
     # diagonal matrix of negative column-sums
-    sum_diag = np.diag(-my_matrix.sum(axis=1))
+    if isinstance(my_matrix, csr_array):
+        sum_diag = diags(-sums, format="csr")
+    else:
+        sum_diag = np.diag(-sums)
     return my_matrix + sum_diag
 
 
@@ -237,9 +241,6 @@ def delete_rate_cells(my_matrix: NDArray | csr_array, to_remove: list,
             # sort and remove duplicates that may occur after reindexing
         reindexing_to_join = list(np.unique(reindexing_to_join))
 
-    print(reindexing_to_join)
-
-
     # DROP ROWS AND COLUMNS FROM RATE MATRIX
     # as csr matrix delete relevant columns
 
@@ -251,6 +252,8 @@ def delete_rate_cells(my_matrix: NDArray | csr_array, to_remove: list,
         result = result.tocsc()
     result = result[to_keep, :]
 
+    if isinstance(my_matrix, csr_array):
+        result = result.tocsr()
 
     # re-normalize
     result = sqra_normalize(result)
