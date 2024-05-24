@@ -11,6 +11,7 @@ from datetime import timedelta
 
 import numpy as np
 import networkx
+from molgri.wrappers import save_or_use_saved, time_method
 from networkx.algorithms.components.connected import connected_components
 
 from molgri.molecules.transitions import SQRA, SimulationHistogram
@@ -194,18 +195,6 @@ def determine_rate_cells_to_join(my_sh: SimulationHistogram, bottom_treshold=0.0
 
     return high_cell_pairs
 
-def get_graph_from_rate_matrix(my_matrix: NDArray):
-    """
-    From a (sparse) nxn matrix get a graph of n nodes where the
-
-    Args:
-        my_matrix ():
-
-    Returns:
-
-    """
-    pass
-
 def determine_rate_cells_with_too_high_energy(my_energies, energy_limit: float = 10, T: float = 273):
     return np.where(my_energies*1000/(kB*N_A*T) > energy_limit)[0]
 
@@ -244,7 +233,7 @@ def delete_rate_cells(my_matrix: NDArray | csr_array, to_remove: list,
     # DROP ROWS AND COLUMNS FROM RATE MATRIX
     # as csr matrix delete relevant columns
 
-    result = my_matrix.copy()  #.tocsr()
+    result = my_matrix.copy()
     to_keep = list(set(range(my_matrix.shape[1])) - set(reindexing_to_join))
     result = result[:, to_keep]
     # as csc array delete relevant rows
@@ -263,24 +252,107 @@ def delete_rate_cells(my_matrix: NDArray | csr_array, to_remove: list,
 
     return result, internal_index_list
 
+class MatrixDecomposer:
+
+    def __init__(self, my_matrix: NDArray | csr_array, my_matrix_name: str = "my_matrix", use_saved: bool = False):
+        """
+        A little class to perform eigendecomposition of (sparse) arrays and save the results.
+
+        Args:
+            my_matrix (): array to decompose
+            my_matrix_name (): name of the array
+        """
+        self.my_matrix = my_matrix
+        self.my_matrix_name = my_matrix_name
+        self.use_saved = use_saved
+        self.current_index_list = None
+
+    def get_name(self):
+        return self.my_matrix_name
+
+    def get_decorator_name(self):
+        return self.my_matrix_name
+
+    def get_default_settings_sqra(self):
+        sigma = 0
+        which = "LM"
+        return sigma, which
+
+    @save_or_use_saved
+    @time_method
+    def get_left_eigenvec_eigenval(self, sigma: float, which: str, num_eigenv: int = 6, **kwargs) -> tuple:
+        """
+
+        Args:
+            sigma ():
+            which ():
+            num_eigenv ():
+            **kwargs ():
+
+        Returns:
+            a tuple of (eigenvalues, eigenvectors), where the shape of eigenvalues is (num_eigenv,) and the shape of
+            eigenvectors (len(self.my_matrix, num_eigenv)
+        """
+        eigenval, eigenvec = eigs(self.my_matrix.T, num_eigenv, tol=1e-5, maxiter=100000, which=which, sigma=sigma,
+                                  **kwargs)
+
+        if eigenvec.imag.max() == 0 and eigenval.imag.max() == 0:
+            eigenvec = eigenvec.real
+            eigenval = eigenval.real
+        # sort eigenvectors according to their eigenvalues
+        idx = eigenval.argsort()[::-1]
+        eigenval = eigenval[idx]
+        eigenvec = eigenvec[:, idx]
+        return eigenval, eigenvec
+
+    @save_or_use_saved
+    @time_method
+    def cut_my_matrix(self, energies, energy_limit=10, T=273):
+        too_high = determine_rate_cells_with_too_high_energy(energies, energy_limit=energy_limit, T=T)
+        self.my_matrix, self.current_index_list = delete_rate_cells(self.my_matrix, to_remove=too_high,
+                                                                    index_list=self.current_index_list)
+
+    @save_or_use_saved
+    @time_method
+    def merge_my_matrix(self, sim_histogram, bottom_treshold=0.01, T=273):
+        print(sim_histogram)
+        rate_to_join = determine_rate_cells_to_join(sim_histogram, bottom_treshold=bottom_treshold, T=T)
+        self.my_matrix, self.current_index_list = merge_matrix_cells(my_matrix=self.my_matrix,
+                                                                     all_to_join=rate_to_join,
+                                                                     index_list=self.current_index_list)
+
 
 if __name__ == "__main__":
-    pass
-    # # rate matrix
-    # import matplotlib.pyplot as plt
-    # import seaborn as sns
-    # from molgri.space.utils import k_argmax_in_array
-    #
-    #
-    # #sqra_name = "H2O_H2O_0634" # super big
-    # sqra_name = "H2O_H2O_0585" # big
-    # #sqra_name = "H2O_H2O_0630" # small
-    # sqra_use_saved = False
-    # water_sqra_sh = SimulationHistogram(sqra_name, "H2O", is_pt=True,
-    #                                     second_molecule_selection="bynum 4:6", use_saved=sqra_use_saved)
-    # sqra = SQRA(water_sqra_sh, use_saved=sqra_use_saved)
-    # rate_matrix = sqra.get_transitions_matrix()
-    #
+    # rate matrix
+    import matplotlib.pyplot as plt
+    import seaborn as sns
+    from molgri.space.utils import k_argmax_in_array
+
+
+    #sqra_name = "H2O_H2O_0634" # super big
+    #sqra_name = "H2O_H2O_0585" # big
+    sqra_name = "H2O_H2O_0630" # small
+    sqra_use_saved = False
+    water_sqra_sh = SimulationHistogram(sqra_name, "H2O", is_pt=True,
+                                        second_molecule_selection="bynum 4:6", use_saved=sqra_use_saved)
+    my_energies = water_sqra_sh.get_magnitude_energy("Potential")
+
+    sqra = SQRA(water_sqra_sh, use_saved=sqra_use_saved)
+    rate_matrix = sqra.get_transitions_matrix()
+
+    my_decomposer = MatrixDecomposer(rate_matrix, my_matrix_name=sqra.get_name(), use_saved=False)
+    eval, evec = my_decomposer.get_left_eigenvec_eigenval(*my_decomposer.get_default_settings_sqra())
+
+    # MERGE AND THEN CUT
+    my_decomposer.merge_my_matrix(water_sqra_sh)
+    eval, evec = my_decomposer.get_left_eigenvec_eigenval(*my_decomposer.get_default_settings_sqra())
+
+
+    my_decomposer.cut_my_matrix(my_energies)
+    eval, evec = my_decomposer.get_left_eigenvec_eigenval(*my_decomposer.get_default_settings_sqra())
+
+
+
     # # initial eigenval, eigenvec
     # def analyse(ratemat, index_list=None):
     #     print(f"######################  NEW ANALYSIS: size {ratemat.shape}, type: {type(ratemat)}###############")
@@ -395,6 +467,3 @@ if __name__ == "__main__":
     #
     # print(total_times, num_cells, eigenvalues)
     # plt.savefig(f"output/figures/test_rate_merger_{sqra_name}")
-    #
-    #
-    #
