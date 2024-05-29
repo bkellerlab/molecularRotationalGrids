@@ -1,25 +1,55 @@
 """
 Logging. Naming of files with first free index.
 """
-
+import inspect
 import os
 from abc import ABC, abstractmethod
 import logging
 
+import numpy as np
 
-class AbstractLogger(ABC):
+from molgri.paths import PATH_OUTPUT_LOGGING
 
-    def __init__(self, path: str, level: str = "INFO"):
-        class_name = type(self).__name__
-        logging.basicConfig(filename=path, level=level)
+
+class GeneralLogger(ABC):
+
+    def __init__(self, investigated_object: object = None):
+        class_name = investigated_object.__class__.__name__
+        logging.basicConfig(filename=f"{PATH_OUTPUT_LOGGING}{class_name}", level="INFO")
         self.logger = logging.getLogger(class_name)
+        self.logger.info(f"SET UP OF: {investigated_object.__class__.__name__}")
 
-    @abstractmethod
-    def log_set_up(self, investigated_object: object):
-        self.logger.info(f"SET UP OF: {investigated_object}")
+    def log_set_up(self, *args, **kwargs):
+        pass
+
+    def log_ran_method(self, my_method, time, *args, **kwargs):
+        """
+        Every time a method has been run you want to record the arguments that were used.
+
+        Args:
+            my_method ():
+            *args ():
+            *kwargs ():
+
+        Returns:
+
+        """
+        names = list(inspect.getfullargspec(my_method).args[1:])
+        names.extend(kwargs.keys())
+        values = list(args[1:])
+        defaults = inspect.getfullargspec(my_method).defaults
+        if np.any(defaults):
+            values.extend(defaults)
+        values.extend(kwargs.values())
+        my_text = ""
+        for n, v in zip(names, values):
+            my_text += f"{n}={v}, "
+        self.logger.info(f"Ran the method {my_method.__name__} with arguments: {my_text}")
+        self.logger.info(f"Hash of this method run is {hash(tuple(values))}.")
+        self.logger.info(f"Runtime of the method {my_method.__name__} with arguments: {my_text}")
 
 
-class PtLogger(AbstractLogger):
+class PtLogger(GeneralLogger):
 
     def log_set_up(self, investigated_object, ):
         super(PtLogger, self).log_set_up(investigated_object)

@@ -344,7 +344,7 @@ class TransitionModel(ABC):
         self.num_tau = len(self.tau_array)
         self.transition_matrix = None
 
-        self.logger = PtLogger(f"{PATH_OUTPUT_LOGGING}TransitionModel_{self.sim_hist.trajectory_name}.log")
+        self.logger = PtLogger() #f"{PATH_OUTPUT_LOGGING}TransitionModel_{self.sim_hist.trajectory_name}.log"
         self.logger.log_set_up(self)
         self.logger.logger.info(f"trajectory: {self.sim_hist.trajectory_name}")
         self.logger.logger.info(f"input grid parameters: {self.sim_hist.full_grid.o_grid_name} "

@@ -254,7 +254,8 @@ def delete_rate_cells(my_matrix: NDArray | csr_array, to_remove: list,
 
 class MatrixDecomposer:
 
-    def __init__(self, my_matrix: NDArray | csr_array, my_matrix_name: str = "my_matrix", use_saved: bool = False):
+    def __init__(self, my_matrix: NDArray | csr_array, my_matrix_name: str = "my_matrix", use_saved: bool = False,
+                 log=True):
         """
         A little class to perform eigendecomposition of (sparse) arrays and save the results.
 
@@ -266,6 +267,9 @@ class MatrixDecomposer:
         self.my_matrix_name = my_matrix_name
         self.use_saved = use_saved
         self.current_index_list = None
+        if log:
+            self.logger = GeneralLogger()
+            self.logger.log_set_up(self)
 
     def get_name(self):
         return self.my_matrix_name
@@ -293,8 +297,7 @@ class MatrixDecomposer:
             a tuple of (eigenvalues, eigenvectors), where the shape of eigenvalues is (num_eigenv,) and the shape of
             eigenvectors (len(self.my_matrix, num_eigenv)
         """
-        eigenval, eigenvec = eigs(self.my_matrix.T, num_eigenv, tol=1e-5, maxiter=100000, which=which, sigma=sigma,
-                                  **kwargs)
+        eigenval, eigenvec = eigs(self.my_matrix.T, num_eigenv, tol=1e-5, maxiter=100000, which=which, sigma=sigma)
 
         if eigenvec.imag.max() == 0 and eigenval.imag.max() == 0:
             eigenvec = eigenvec.real
@@ -327,11 +330,12 @@ if __name__ == "__main__":
     import matplotlib.pyplot as plt
     import seaborn as sns
     from molgri.space.utils import k_argmax_in_array
+    from molgri.logfiles import GeneralLogger
 
 
-    #sqra_name = "H2O_H2O_0634" # super big
+    sqra_name = "H2O_H2O_0634" # super big
     #sqra_name = "H2O_H2O_0585" # big
-    sqra_name = "H2O_H2O_0630" # small
+    #sqra_name = "H2O_H2O_0630" # small
     sqra_use_saved = False
     water_sqra_sh = SimulationHistogram(sqra_name, "H2O", is_pt=True,
                                         second_molecule_selection="bynum 4:6", use_saved=sqra_use_saved)
@@ -340,18 +344,50 @@ if __name__ == "__main__":
     sqra = SQRA(water_sqra_sh, use_saved=sqra_use_saved)
     rate_matrix = sqra.get_transitions_matrix()
 
+    def analyse_eval_evec(eval, evec, to_print, index_list):
+        print(f"######################  NEW ANALYSIS: {to_print} ###############")
+        if index_list is None:
+            index_list = [[i] for i in range(evec.shape[0])]
+
+
+        eigenval = eval.real
+        eigenvec = evec.real
+
+        print(np.round(eigenval, 4))
+        for i in range(5):
+            num_extremes = 40
+            magnitudes = eigenvec.T[i]
+            most_positive = k_argmax_in_array(magnitudes, num_extremes)
+            original_index_positive = []
+            for mp in most_positive:
+                original_index_positive.extend(index_list[mp])
+            original_index_positive = np.array(original_index_positive)
+            most_negative = k_argmax_in_array(-magnitudes, num_extremes)
+            original_index_negative = []
+            for mn in most_negative:
+                original_index_negative.extend(index_list[mn])
+            original_index_negative = np.array(original_index_negative)
+            print(f"In {i}.coverage eigenvector {num_extremes} most positive cells are "
+                  f"{list(original_index_positive + 1)}")
+            print(f"and most negative {list(original_index_negative + 1)}.")
+
     my_decomposer = MatrixDecomposer(rate_matrix, my_matrix_name=sqra.get_name(), use_saved=False)
-    eval, evec = my_decomposer.get_left_eigenvec_eigenval(*my_decomposer.get_default_settings_sqra())
+    #eval, evec = my_decomposer.get_left_eigenvec_eigenval(*my_decomposer.get_default_settings_sqra())
+
+    #analyse_eval_evec(eval, evec, "ORIGINAL", my_decomposer.current_index_list)
 
     # MERGE AND THEN CUT
-    my_decomposer.merge_my_matrix(water_sqra_sh)
-    eval, evec = my_decomposer.get_left_eigenvec_eigenval(*my_decomposer.get_default_settings_sqra())
+    my_decomposer.merge_my_matrix(water_sqra_sh, bottom_treshold=0.01)
+    #print(f"Eigendecomposition matrix ({my_decomposer.my_matrix.shape}", end="")
+    #eval, evec = my_decomposer.get_left_eigenvec_eigenval(*my_decomposer.get_default_settings_sqra())
 
+    #analyse_eval_evec(eval, evec, "MERGED", my_decomposer.current_index_list)
 
-    my_decomposer.cut_my_matrix(my_energies)
-    eval, evec = my_decomposer.get_left_eigenvec_eigenval(*my_decomposer.get_default_settings_sqra())
+    my_decomposer.cut_my_matrix(my_energies, energy_limit=10)
+    print(f"Eigendecomposition matrix ({my_decomposer.my_matrix.shape}", end="")
+    eval, evec = my_decomposer.get_left_eigenvec_eigenval(*my_decomposer.get_default_settings_sqra(), extra_arg=17)
 
-
+    analyse_eval_evec(eval, evec, "MERGED & CUT", my_decomposer.current_index_list)
 
     # # initial eigenval, eigenvec
     # def analyse(ratemat, index_list=None):
