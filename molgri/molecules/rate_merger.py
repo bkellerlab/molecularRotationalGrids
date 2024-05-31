@@ -267,9 +267,6 @@ class MatrixDecomposer:
         self.my_matrix_name = my_matrix_name
         self.use_saved = use_saved
         self.current_index_list = None
-        if log:
-            self.logger = GeneralLogger()
-            self.logger.log_set_up(self)
 
     def get_name(self):
         return self.my_matrix_name
@@ -383,7 +380,7 @@ if __name__ == "__main__":
 
     #analyse_eval_evec(eval, evec, "MERGED", my_decomposer.current_index_list)
 
-    my_decomposer.cut_my_matrix(my_energies, energy_limit=10)
+    my_decomposer.cut_my_matrix(my_energies, energy_limit=5)
     print(f"Eigendecomposition matrix ({my_decomposer.my_matrix.shape}", end="")
     eval, evec = my_decomposer.get_left_eigenvec_eigenval(*my_decomposer.get_default_settings_sqra(), extra_arg=17)
 
