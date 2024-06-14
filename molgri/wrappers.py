@@ -45,7 +45,7 @@ def _inspect_method_print(my_method, *args, **kwargs):
     my_text = ""
     for n, v in zip(names, values):
         my_text += f"{n}={v}, "
-    print(my_text[:-2])
+    print(my_text[:-2], end="")
 
 
 def time_method(my_method):

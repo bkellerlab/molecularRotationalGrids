@@ -427,16 +427,12 @@ def sort_points_on_sphere_ccw(points: NDArray) -> NDArray:
     N = len(points)
     # angle between first point, center point, and each additional point
     alpha = np.zeros(N)  # initialize array
-    vector_co = points[0] - vector_center
     for i in range(1, N):
         alpha_candidate = _get_alpha_with_spherical_cosine_law(vector_center, points[0], points[i])
-        #print(alpha_candidate)
-        #alpha_candidate = np.arccos(np.dot(vector_co, (points[index_center]-vector_center)))
         if is_ccw(points[0], vector_center, points[i]):
             alpha[i] = alpha_candidate
         else:
             alpha[i] = 2*pi - alpha_candidate
-    #print(alpha)
     assert np.all(alpha >= 0)
 
     output = points[np.argsort(alpha)]
@@ -498,7 +494,6 @@ def _get_alpha_with_spherical_cosine_law(A: NDArray, B: NDArray, C: NDArray):
     c = dist_on_sphere(A, B)
     # using cosine law on spheres (need rounding so we don't numerically get over/under the range of arccos):
     alpha = np.arccos(np.round((np.cos(a) - np.cos(b) * np.cos(c)) / (np.sin(b) * np.sin(c)), 7))
-    #print(a, b, c, (np.cos(a) - np.cos(b) * np.cos(c)) / (np.sin(b) * np.sin(c)), alpha)
     return alpha
 
 

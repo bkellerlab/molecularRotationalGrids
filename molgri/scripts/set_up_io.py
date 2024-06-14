@@ -21,11 +21,11 @@ d = "data"
 
 # if you introduce new IO folders, add them to next three lines, keep the order the same!
 IO_FOLDER_PURPUSES = ["energies", "pseudotrajectory files", "base gro files", "figures", "animations",
-                      "logging", "autosave"]
+                      "logging", "autosave", "logbook"]
 IO_FOLDER_DEFAULTS = [f"{o}/{d}/energies/", f"{o}/{d}/pt_files/", "input/", f"{o}/figures/", f"{o}/animations/",
-                      f'{o}/{d}/logging/', f'{o}/{d}/autosave/']
+                      f'{o}/{d}/logging/', f'{o}/{d}/autosave/', f'{o}/{d}/logbook/']
 IO_VARIABLE_NAMES = ["PATH_OUTPUT_ENERGIES", "PATH_OUTPUT_PT", "PATH_INPUT_BASEGRO", "PATH_OUTPUT_PLOTS",
-                     "PATH_OUTPUT_ANIS", "PATH_OUTPUT_LOGGING", "PATH_OUTPUT_AUTOSAVE"]
+                     "PATH_OUTPUT_ANIS", "PATH_OUTPUT_LOGGING", "PATH_OUTPUT_AUTOSAVE", "PATH_OUTPUT_LOGBOOK"]
 
 assert len(IO_VARIABLE_NAMES) == len(IO_FOLDER_DEFAULTS) == len(IO_FOLDER_PURPUSES)
 

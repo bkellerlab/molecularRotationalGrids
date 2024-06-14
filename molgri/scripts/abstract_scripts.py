@@ -5,7 +5,10 @@ import pandas as pd
 import numpy as np
 from pandas.errors import EmptyDataError
 
-from molgri.paths import PATH_OUTPUT_AUTOSAVE
+from molgri.paths import PATH_OUTPUT_LOGBOOK, PATH_OUTPUT_AUTOSAVE
+
+import warnings
+warnings.filterwarnings("ignore")
 
 
 class Logbook(ABC):
@@ -60,8 +63,8 @@ class Logbook(ABC):
             empty_df.loc[current_len, existing_title] = np.NaN
         for title, data in parameter_names_values.items():
             empty_df.loc[current_len, title] = data
-        empty_df.to_csv(f"{PATH_OUTPUT_AUTOSAVE}temp.csv")
-        empty_df = pd.read_csv(f"{PATH_OUTPUT_AUTOSAVE}temp.csv", index_col=0, dtype=object)
+        empty_df.to_csv(f"{PATH_OUTPUT_LOGBOOK}temp.csv")
+        empty_df = pd.read_csv(f"{PATH_OUTPUT_LOGBOOK}temp.csv", index_col=0, dtype=object)
         return empty_df
 
     def _record_new_entry(self, new_entry: pd.DataFrame):
@@ -86,8 +89,9 @@ class ScriptLogbook:
         self.my_args["Time [s]"] = None
         self.my_args["failed"] = True
         self.class_name = root
-        self.class_logbook_path = f"{PATH_OUTPUT_AUTOSAVE}{self.class_name}.csv"
+        self.class_logbook_path = f"{PATH_OUTPUT_LOGBOOK}{self.class_name}.csv"
         self.current_logbook = self._load_current_logbook()
+        self.is_newly_assigned = None
         self.my_index = self._get_class_index()
 
     def _load_current_logbook(self) -> pd.DataFrame:
@@ -97,7 +101,7 @@ class ScriptLogbook:
             return read_csv
         except (FileNotFoundError, EmptyDataError):
             open(self.class_logbook_path, mode="w").close()
-            return pd.DataFrame(columns=self.class_parameter_names)
+            return pd.DataFrame()
 
     def get_current_logbook(self):
         """
@@ -127,20 +131,22 @@ class ScriptLogbook:
                     if row.equals(data):
                         existing_index = index
             if existing_index is not None:
+                self.is_newly_assigned = False
                 return existing_index
         # if not use_saved or doesn't exist yet, create new entry
+        self.is_newly_assigned = True
         self._record_new_entry(new_entry)
         return len(self.current_logbook) - 1  # minus 1 because we just added this new one
 
     def _get_new_entry(self, parameter_names_values: dict):
         current_len = len(self.current_logbook)
-        empty_df = pd.DataFrame(columns=self.class_parameter_names)
-        for existing_title in self.class_parameter_names:
-            empty_df.loc[current_len, existing_title] = np.NaN
+        empty_df = pd.DataFrame() #columns=self.class_parameter_names
+        #for existing_title in self.class_parameter_names:
+        #    empty_df.loc[current_len, existing_title] = np.NaN
         for title, data in parameter_names_values.items():
             empty_df.loc[current_len, title] = data
-        empty_df.to_csv(f"{PATH_OUTPUT_AUTOSAVE}temp.csv")
-        empty_df = pd.read_csv(f"{PATH_OUTPUT_AUTOSAVE}temp.csv", index_col=0, dtype=object)
+        empty_df.to_csv(f"{PATH_OUTPUT_LOGBOOK}temp.csv")
+        empty_df = pd.read_csv(f"{PATH_OUTPUT_LOGBOOK}temp.csv", index_col=0, dtype=object)
         return empty_df
 
     def _record_new_entry(self, new_entry: pd.DataFrame):
@@ -156,9 +162,9 @@ class ScriptLogbook:
         self.current_logbook.loc[self.current_logbook.index[self.my_index], "failed"] = False
         self.current_logbook.to_csv(self.class_logbook_path)
 
-    def add_information(self, dict_of_info):
+    def add_information(self, dict_of_info, overwrite=False):
         self.current_logbook = self._load_current_logbook()
-        if not self.use_saved:
+        if not self.use_saved or overwrite:
             for n, v in dict_of_info.items():
                 self.current_logbook.loc[self.current_logbook.index[self.my_index], n] = v
         self.current_logbook.to_csv(self.class_logbook_path)

@@ -175,7 +175,6 @@ def merge_matrix_cells(my_matrix: NDArray | csr_array, all_to_join: list[list],
     flat_merged_indices.sort()
     for mi in flat_merged_indices[::-1]:
         internal_index_list.pop(mi)
-
     return result, internal_index_list
 
 
@@ -315,7 +314,6 @@ class MatrixDecomposer:
     @save_or_use_saved
     @time_method
     def merge_my_matrix(self, sim_histogram, bottom_treshold=0.01, T=273):
-        print(sim_histogram)
         rate_to_join = determine_rate_cells_to_join(sim_histogram, bottom_treshold=bottom_treshold, T=T)
         self.my_matrix, self.current_index_list = merge_matrix_cells(my_matrix=self.my_matrix,
                                                                      all_to_join=rate_to_join,

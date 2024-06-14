@@ -398,7 +398,6 @@ class XVGParser(object):
                   f"column instead.")
             column_label = "XVG column 1"
             correct_column = 1
-        print(column_label, correct_column)
         return column_label, correct_column
 
 
