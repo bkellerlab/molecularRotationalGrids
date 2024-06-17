@@ -6,55 +6,27 @@ import argparse
 from time import time
 from datetime import timedelta
 
-import numpy as np
-
-
-from molgri.molecules.transitions import SimulationHistogram, SQRA
-from molgri.paths import PATH_OUTPUT_AUTOSAVE
-from molgri.space.fullgrid import FullGrid
-from molgri.scripts.set_up_io import freshly_create_all_folders
-from molgri.scripts.abstract_scripts import ScriptLogbook
-from molgri.molecules.rate_merger import MatrixDecomposer
-
 import warnings
-
-from molgri.space.utils import k_argmax_in_array
-
 warnings.filterwarnings("ignore")
 
 # TODO: define total_N and generate in all dimensions uniform grid?
 
 parser = argparse.ArgumentParser()
 requiredNamed = parser.add_argument_group('required named arguments')
-requiredNamed.add_argument('-m2', type=str, nargs='?', required=True,
-                           help='name of the .gro file (or other structure file) of the moving molecule')
-requiredNamed.add_argument('-pseudotrajectory', type=str, nargs='?', required=True,
-                           help='name of the .xtc file (or other trajectory file) containing (pseudo)trajectory')
+requiredNamed.add_argument('-a', type=str, nargs='?', required=True,
+                           help='first required argument')
+requiredNamed.add_argument('-b', type=int, nargs='?', required=True,
+                           help='second required argument')
 
-requiredNamed.add_argument('-selection', type=str, nargs='?', required=True,
-                           help='select which particles belong to the moving molecule using MDAnalysis selection commands')
-parser.add_argument('-origingrid', metavar='og', type=str, nargs='?',
-                           help='name of the rotation grid for rotations around origin in the form '
-                                'algorithm_N (eg. ico_50) OR just a number (eg. 50)')
+parser.add_argument('--option1', type=str, nargs='?',
+                           help='first optional argument')
 parser.add_argument('-bodygrid', metavar='bg', type=str, nargs='?',
                            help='name of the rotation grid for rotations around body in the form '
                                 'algorithm_N (eg. ico_50) OR just a number (eg. 50) '
                                 'OR None if you only want rotations about origin')
-parser.add_argument('-transgrid', metavar='tg', type=str, nargs='?',
-                           help='translation grid provided as a list of distances, as linspace(start, stop, num) '
-                                'or range(start, stop, step) in nanometers')
-parser.add_argument('--merge_cutoff', metavar='tg', type=float, nargs='?',
-                           help='Bottom cutoff in energy [k_BT], if difference below the cutoff, cells will be merged.',
-                    default=0.01)
-parser.add_argument('--cut_cutoff', metavar='tg', type=float, nargs='?',
-                           help='Top cutoff in energy [k_BT], if energy above this, cell will be cut off.',
-                    default=10)
+
 parser.add_argument('--recalculate', action='store_true',
                     help='recalculate the grid even if a saved version already exists')
-parser.add_argument('--save_as', type=str, default=None, help='define the (base) name of output file')
-parser.add_argument('-energy', type=str, nargs='?',
-                           help='name of the .xvg file (or other energy file) if not the same as the name of (pseudo)trajectory')
-
 def run_or_rerun():
     freshly_create_all_folders()
     my_args = parser.parse_args()
@@ -163,4 +135,3 @@ def run_generate_sqra(my_args, my_log, use_saved, print_file):
 
 if __name__ == '__main__':
     run_or_rerun()
-

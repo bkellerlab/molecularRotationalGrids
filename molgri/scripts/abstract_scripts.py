@@ -123,12 +123,12 @@ class ScriptLogbook:
         new_entry = self._get_new_entry(parameter_names_values)
         if self.use_saved is True:
             # try finding an existing set of data
-            # do not compare time and success of the computation!
+            # only compare the columns that contain arguments!
             existing_index = None
-            for index, data in self.current_logbook[self.current_logbook.columns.difference(["Time [s]",
-                                                                                             "failed"])].iterrows():
-                for i, row in new_entry[new_entry.columns.difference(["Time [s]", "failed"])].iterrows():
+            for index, data in self.current_logbook[parameter_names].iterrows():
+                for i, row in new_entry[parameter_names].iterrows():
                     if row.equals(data):
+                        print(existing_index)
                         existing_index = index
             if existing_index is not None:
                 self.is_newly_assigned = False
@@ -140,9 +140,7 @@ class ScriptLogbook:
 
     def _get_new_entry(self, parameter_names_values: dict):
         current_len = len(self.current_logbook)
-        empty_df = pd.DataFrame() #columns=self.class_parameter_names
-        #for existing_title in self.class_parameter_names:
-        #    empty_df.loc[current_len, existing_title] = np.NaN
+        empty_df = pd.DataFrame()
         for title, data in parameter_names_values.items():
             empty_df.loc[current_len, title] = data
         empty_df.to_csv(f"{PATH_OUTPUT_LOGBOOK}temp.csv")
