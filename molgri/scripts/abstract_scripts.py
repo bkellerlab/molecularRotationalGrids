@@ -81,6 +81,7 @@ class ScriptLogbook:
     """
 
     def __init__(self, my_parser):
+        self.multiindex_columns = ["START_TIME", "SUCCESS", "TOTAL_TIME", "INPUTS", "EXTRA_INFO"]
         self.my_parser = my_parser
         root, ext = os.path.splitext(my_parser.prog)
         self.my_args = self.my_parser.parse_args().__dict__

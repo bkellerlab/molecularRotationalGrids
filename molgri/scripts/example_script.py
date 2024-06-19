@@ -7,27 +7,27 @@ from time import time
 from datetime import timedelta
 
 import warnings
+
+from build.lib.molgri.scripts.set_up_io import freshly_create_all_folders
+from molgri.scripts.abstract_scripts import ScriptLogbook
+
 warnings.filterwarnings("ignore")
 
 # TODO: define total_N and generate in all dimensions uniform grid?
 
 parser = argparse.ArgumentParser()
 requiredNamed = parser.add_argument_group('required named arguments')
-requiredNamed.add_argument('-a', type=str, nargs='?', required=True,
+requiredNamed.add_argument('-a', type=str,  required=True,
                            help='first required argument')
-requiredNamed.add_argument('-b', type=int, nargs='?', required=True,
-                           help='second required argument')
+requiredNamed.add_argument('-b', type=int, required=True, help='second required argument')
 
-parser.add_argument('--option1', type=str, nargs='?',
-                           help='first optional argument')
-parser.add_argument('-bodygrid', metavar='bg', type=str, nargs='?',
-                           help='name of the rotation grid for rotations around body in the form '
-                                'algorithm_N (eg. ico_50) OR just a number (eg. 50) '
-                                'OR None if you only want rotations about origin')
+parser.add_argument('--option1', type=str, help='first optional argument')
+parser.add_argument('--option2', type=str, help='second optional argument')
 
 parser.add_argument('--recalculate', action='store_true',
                     help='recalculate the grid even if a saved version already exists')
-def run_or_rerun():
+
+def run_or_rerun(to_run):
     freshly_create_all_folders()
     my_args = parser.parse_args()
 
@@ -43,84 +43,17 @@ def run_or_rerun():
         print("If you do need a fresh calculation, use the option --recalculate")
     else:
         with open(name_print_file, "w") as f:
-            run_generate_sqra(my_args, my_log, use_saved, f)
+            to_run(my_args, my_log, use_saved, f)
 
     with open(name_print_file, mode="r") as f:
         print(f.read())
 
 
 
-def run_generate_sqra(my_args, my_log, use_saved, print_file):
+def run_specific_script(my_args, my_log, use_saved, print_file):
     t1 = time()
-
-    if my_args.bodygrid and my_args.origingrid and my_args.transgrid:
-        fg = FullGrid(b_grid_name=my_args.bodygrid, o_grid_name=my_args.origingrid,
-                              t_grid_name=my_args.transgrid, use_saved=use_saved)
-    else:
-        fg = None
-    sh = SimulationHistogram(trajectory_name=my_args.pseudotrajectory, reference_name=my_args.m2, is_pt=True,
-                             full_grid=fg,
-                             second_molecule_selection=my_args.selection, use_saved=use_saved)
-
-    if my_args.origingrid is None:
-        my_log.add_information({"origingrid": sh.full_grid.o_grid_name})
-    if my_args.bodygrid is None:
-        my_log.add_information({"bodygrid": sh.full_grid.b_grid_name})
-    if my_args.transgrid is None:
-        my_log.add_information({"transgrid": sh.full_grid.t_grid_name})
-
-    sqra = SQRA(sh, use_saved=use_saved)
-
-    rate_matrix = sqra.get_transitions_matrix()
-    # cutting and merging
-    print(f"################## ATTEMPTING TO REDUCE THE SIZE OF THE RATE MATRIX ##################",
-          file=print_file)
-    my_decomposer = MatrixDecomposer(rate_matrix, my_matrix_name=sqra.get_name(), use_saved=use_saved)
-    size_pre_merge = my_decomposer.my_matrix.shape[0]
-    my_decomposer.merge_my_matrix(sh, bottom_treshold=my_args.merge_cutoff)
-    size_post_merge = my_decomposer.my_matrix.shape[0]
     print(f"During a merge step with cut-off {my_args.merge_cutoff}, size of rate matrix was reduced {size_pre_merge}->{size_post_merge}.",
           file=print_file)
-    my_decomposer.cut_my_matrix(sh.get_magnitude_energy("Potential"), energy_limit=my_args.cut_cutoff)
-    size_post_cut = my_decomposer.my_matrix.shape[0]
-    print(f"During a cut step with energy limit {my_args.cut_cutoff}, size of rate matrix was reduced {size_post_merge}->{size_post_cut}.",
-          file=print_file)
-
-    # eigendecompoisition
-    print(f"################## EIGENDECOMPOSITON OF THE RATE MATRIX ##################",
-          file=print_file)
-    eval, evec = my_decomposer.get_left_eigenvec_eigenval(*my_decomposer.get_default_settings_sqra())
-
-    eigenval = eval.real
-    eigenvec = evec.real
-
-    print(f"Eigenvalues: {np.round(eigenval, 4)}",
-          file=print_file)
-
-    current_index_list = my_decomposer.current_index_list
-    if not current_index_list:
-        current_index_list = [[a] for a in range(len(eigenvec))]
-
-    for i in range(5):
-        num_extremes = 40
-        magnitudes = eigenvec.T[i]
-        most_positive = k_argmax_in_array(magnitudes, num_extremes)
-        original_index_positive = []
-
-        for mp in most_positive:
-            original_index_positive.extend(current_index_list[mp])
-        original_index_positive = np.array(original_index_positive)
-        most_negative = k_argmax_in_array(-magnitudes, num_extremes)
-        original_index_negative = []
-        for mn in most_negative:
-            original_index_negative.extend(current_index_list[mn])
-        original_index_negative = np.array(original_index_negative)
-        print(f"In {i}. eigenvector {num_extremes} most positive cells are "
-              f"{list(original_index_positive + 1)}",
-          file=print_file)
-        print(f"and most negative {list(original_index_negative + 1)}.",
-          file=print_file)
-
     t2 = time()
     my_log.update_after_calculation(t2-t1)
 
@@ -129,9 +62,7 @@ def run_generate_sqra(my_args, my_log, use_saved, print_file):
     print(f"{timedelta(seconds=t2 - t1)} hours:minutes:seconds",
           file=print_file)
     my_log.add_information({"Final array size": size_post_cut, "Original array size": size_pre_merge})
-    my_log.add_information({f"Eigenvalue {i}": eigenval[i] for i in range(6)})
-
 
 
 if __name__ == '__main__':
-    run_or_rerun()
+    run_or_rerun(run_specific_script)
