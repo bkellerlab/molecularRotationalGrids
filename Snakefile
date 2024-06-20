@@ -1,4 +1,4 @@
-from molgri.paths import PATH_OUTPUT_AUTOSAVE, PATH_OUTPUT_PT, PATH_OUTPUT_LOGGING
+from molgri.paths import PATH_OUTPUT_AUTOSAVE, PATH_OUTPUT_PT, PATH_OUTPUT_LOGGING, PATH_OUTPUT_ENERGIES
 import numpy as np
 from time import time, mktime
 from datetime import timedelta
@@ -20,6 +20,7 @@ rule all:
     input:
         [f"{PATH_OUTPUT_AUTOSAVE}{grid_identifier}_full_array.npy" for grid_identifier in ALL_GRID_IDENTIFIERS],
         [f"{PATH_OUTPUT_PT}{pt_identifier}.gro" for pt_identifier in ALL_PT_IDENTIFIERS],
+        [f"{PATH_OUTPUT_ENERGIES}{pt_identifier}.xvg" for pt_identifier in ALL_PT_IDENTIFIERS]
 
 def log_the_run(name, input, output, log, params, time_used):
     logging.basicConfig(filename=log, level="INFO")
@@ -97,4 +98,16 @@ rule run_pt:
         log_the_run(wildcards.pt_identifier,input,output,log[0],None,t2 - t1)
 
 
-
+rule gromacs_rerun:
+    """
+    This rule gets structure, trajectory, topology and gromacs run file as input, as output we are only interested in 
+    energies.
+    """
+    input:
+        structure = expand("{ptpath}{pt_identifier}.gro",ptpath=PATH_OUTPUT_PT,allow_missing=True),
+        trajectory = expand("{ptpath}{pt_identifier}.xtc",ptpath=PATH_OUTPUT_PT,allow_missing=True),
+        topology = "../../../MASTER_THESIS/code/provided_data/topologies/H2O_H2O.top"
+    log: expand("{logpath}{pt_identifier}_gromacs_rerun.log",logpath=PATH_OUTPUT_LOGGING,allow_missing=True)
+    output: expand("{energypath}{pt_identifier}.xvg",energypath=PATH_OUTPUT_ENERGIES, allow_missing=True)
+    # use with arguments like path_structure path_trajectory path_topology path_default_files path_output_energy
+    shell: "molgri/scripts/gromacs_rerun_script.sh {wildcards.pt_identifier} {input.structure[0]} {input.trajectory[0]} {input.topology} {output} > {log}"
