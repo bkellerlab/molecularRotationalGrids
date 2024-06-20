@@ -29,8 +29,6 @@ class Pseudotrajectory:
         """
         self.molecule = molecule
         self.full_grid = full_grid
-        self.position_grid = full_grid.get_position_grid()
-        self.rot_grid_body = full_grid.get_body_rotations()
         self.current_frame = 0
 
     def get_full_grid(self):

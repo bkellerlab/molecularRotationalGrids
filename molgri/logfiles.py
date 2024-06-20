@@ -13,9 +13,12 @@ from molgri.paths import PATH_OUTPUT_LOGGING
 
 class GeneralLogger(ABC):
 
-    def __init__(self, investigated_object: object = None):
+    def __init__(self, investigated_object: object = None, file_path = None):
         class_name = investigated_object.__class__.__name__
-        logging.basicConfig(filename=f"{PATH_OUTPUT_LOGGING}{class_name}", level="INFO")
+        if file_path is None:
+            logging.basicConfig(filename=f"{PATH_OUTPUT_LOGGING}{class_name}", level="INFO")
+        else:
+            logging.basicConfig(filename=file_path)
         self.logger = logging.getLogger(class_name)
         self.logger.info(f"SET UP OF: {investigated_object.__class__.__name__}")
 
