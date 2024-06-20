@@ -58,7 +58,7 @@ class PtIOManager:
         # initiating writer and pseudotrajectory objects
         self.writer = PtWriter(name_to_save=self.determine_pt_name(),
                                parsed_central_molecule=self.central_molecule)
-        self.pt = Pseudotrajectory(self.rotating_molecule, self.full_grid)
+        self.pt = Pseudotrajectory(self.rotating_molecule, self.full_grid.get_full_grid_as_array())
         # if the user doesn't select a name, use names of the two molecules as the default
         if output_name is None:
             name_c_molecule = self.central_parser.get_topology_file_name()
@@ -244,7 +244,7 @@ class PtWriter:
                 self.write_structure(pt, path_structure)
             self._merge_and_write(trajectory_writer, pt)
             last_i = i
-        product_of_grids = len(pt.get_full_grid().get_full_grid_as_array())
+        product_of_grids = len(pt.get_full_grid())
         assert last_i + 1 == product_of_grids, f"Length of PT not correct, {last_i}=/={product_of_grids}"
         trajectory_writer.close()
 
