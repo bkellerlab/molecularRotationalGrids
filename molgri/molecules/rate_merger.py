@@ -179,12 +179,11 @@ def merge_matrix_cells(my_matrix: NDArray | csr_array, all_to_join: list[list],
 
 
 # working with rate matrices
-def determine_rate_cells_to_join(my_sh: SimulationHistogram, bottom_treshold=0.001, T=273):
+def determine_rate_cells_to_join(distances, potentials, bottom_treshold=0.001, T=273):
     # calculate delta Vs
-    h_ij = my_sh.full_grid.get_full_distances().tocoo()
+    h_ij = distances.tocoo()
     row_indices = h_ij.row
     column_indices = h_ij.col
-    potentials = my_sh.get_magnitude_energy(energy_type="Potential")
     delta_potentials = np.abs((potentials[row_indices] - potentials[
         column_indices]) * 1000) / (kB * N_A * T)
 

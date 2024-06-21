@@ -12,14 +12,15 @@ samples = pep.sample_table
 
 ALL_GRID_IDENTIFIERS = list(grids.index)
 ALL_PT_IDENTIFIERS = list(samples.index)
+
 rule all:
     """Explanation: this rule is the first one, so it will be run. As an input, it should require the output files that 
     we get at the very end of our analysis because in this case all of the following rules that produce them must also 
     be called."""
     input:
         [f"{PATH_OUTPUT_AUTOSAVE}{pt_identifier}-{samples.loc[pt_identifier, 'grid_identifier']}_eigenvectors.npy" for pt_identifier in ALL_PT_IDENTIFIERS],
-        [f"{PATH_OUTPUT_PLOTS}{pt_identifier}-{samples.loc[pt_identifier, 'grid_identifier']}_eigenvalues.pdf" for pt_identifier in ALL_PT_IDENTIFIERS]
-
+        [f"{PATH_OUTPUT_PLOTS}{pt_identifier}-{samples.loc[pt_identifier, 'grid_identifier']}_eigenvalues.pdf" for pt_identifier in ALL_PT_IDENTIFIERS],
+        [f"{PATH_OUTPUT_AUTOSAVE}{pt_identifier}-{samples.loc[pt_identifier, 'grid_identifier']}_vmdlog" for pt_identifier in ALL_PT_IDENTIFIERS],
         #[f"{PATH_OUTPUT_AUTOSAVE}{grid_identifier}_full_array.npy" for grid_identifier in ALL_GRID_IDENTIFIERS],
         #[f"{PATH_OUTPUT_PT}{pt_identifier}.gro" for pt_identifier in ALL_PT_IDENTIFIERS],
         #[f"{PATH_OUTPUT_ENERGIES}{pt_identifier}_energy.xvg" for pt_identifier in ALL_PT_IDENTIFIERS],
@@ -133,14 +134,20 @@ rule run_sqra:
         borders_array= f"{PATH_OUTPUT_AUTOSAVE}{{grid_identifier}}_borders_array.npz",
         volumes = f"{PATH_OUTPUT_AUTOSAVE}{{grid_identifier}}_volumes.npy",
     log: f"{PATH_OUTPUT_LOGGING}{{pt_identifier}}-{{grid_identifier}}_rate_matrix.log"
-    output: f"{PATH_OUTPUT_AUTOSAVE}{{pt_identifier}}-{{grid_identifier}}_rate_matrix.npz"
+    output:
+        rate_matrix = f"{PATH_OUTPUT_AUTOSAVE}{{pt_identifier}}-{{grid_identifier}}_rate_matrix.npz",
+        index_list = f"{PATH_OUTPUT_AUTOSAVE}{{pt_identifier}}-{{grid_identifier}}_index_list.npy",
     params:
         D =1, # diffusion constant
         T=273,  # temperature in K
-        energy_type = "Potential"
+        energy_type = "Potential",
+        upper_limit= 10,
+        lower_limit= 0.1
     run:
         t1 = time()
         from molgri.molecules.parsers import XVGParser
+        from molgri.molecules.rate_merger import (determine_rate_cells_with_too_high_energy, delete_rate_cells,
+                                                  determine_rate_cells_to_join, merge_matrix_cells)
         from scipy.constants import k as kB, N_A
         from scipy.sparse import coo_array
         from scipy import sparse
@@ -173,11 +180,20 @@ rule run_sqra:
         diagonal_array = coo_array((-sums, (all_i, all_i)),shape=(len(all_i), len(all_i)))
         transition_matrix = transition_matrix.tocsr() + diagonal_array.tocsr()
 
+        # cut and merge
+        rate_to_join = determine_rate_cells_to_join(all_distances, energies,
+            bottom_treshold=params.lower_limit, T=params.T)
+        transition_matrix, current_index_list = merge_matrix_cells(my_matrix=transition_matrix,
+            all_to_join=rate_to_join,
+            index_list=None)
+        too_high = determine_rate_cells_with_too_high_energy(energies,energy_limit=params.upper_limit,T=params.T)
+        transition_matrix, current_index_list = delete_rate_cells(transition_matrix,to_remove=too_high,
+            index_list=current_index_list)
         # saving to file
-        sparse.save_npz(output[0], transition_matrix)
+        sparse.save_npz(output.rate_matrix, transition_matrix)
+        np.save(output.index_list, np.array(current_index_list, dtype=object))
         t2 = time()
         log_the_run(wildcards.pt_identifier, input, output, log[0], params, t2-t1)
-
 
 rule run_decomposition:
     """
@@ -246,7 +262,76 @@ rule run_eigenvalue_spectrum:
         plt.close()
 
 
-# rule run_vmd:
-#     """
-#     Input are the saved eigenvectors, the structure and the pseudotrajectory. Output = saved visualization state?
-#     """
+import re
+def case_insensitive_search_and_replace(file_read, file_write, all_search_word, all_replace_word):
+    with open(file_read, 'r') as file:
+        file_contents = file.read()
+        for search_word, replace_word in zip(all_search_word, all_replace_word):
+            file_contents = file_contents.replace(search_word, replace_word)
+            #print(search_word, replace_word[:7])
+            #pattern = re.compile(re.escape(search_word), re.IGNORECASE)
+            #updated_contents = pattern.sub(replace_word, file_contents)
+
+    with open(file_write, 'w') as file:
+        file.write(file_contents)
+
+
+rule compile_vmd_log:
+    """
+    Input are the saved eigenvectors. Output = a vmd log that can be used later with:
+    
+    vmd <gro file> <xtc file>
+    play <vmdlog file>
+    """
+    input:
+        structure = f"{PATH_OUTPUT_PT}{{pt_identifier}}.gro",
+        trajectory = f"{PATH_OUTPUT_PT}{{pt_identifier}}.xtc",
+        eigenvectors = f"{PATH_OUTPUT_AUTOSAVE}{{pt_identifier}}-{{grid_identifier}}_eigenvectors.npy",
+        index_list = f"{PATH_OUTPUT_AUTOSAVE}{{pt_identifier}}-{{grid_identifier}}_index_list.npy",
+        # in the script only the numbers for frames need to be changed.
+        script = "molgri/scripts/vmd_show_eigenvectors"
+    output:
+        vmdlog = f"{PATH_OUTPUT_AUTOSAVE}{{pt_identifier}}-{{grid_identifier}}_vmdlog"
+    params:
+        num_extremes = 40,
+        num_eigenvec = 4 # only show the first num_eigenvec
+    run:
+        from molgri.space.utils import k_argmax_in_array
+        # load eigenvectors
+        eigenvectors = np.load(input.eigenvectors)
+        index_list = np.load(input.index_list, allow_pickle=True)
+
+        # find the most populated states
+        all_lists_to_insert = []
+        for i, eigenvec in enumerate(eigenvectors.T[:params.num_eigenvec]):
+            magnitudes = eigenvec
+            # zeroth eigenvector only interested in max absolute values
+            if i==0:
+                # most populated 0th eigenvector
+                most_populated = k_argmax_in_array(np.abs(eigenvec), params.num_extremes)
+                original_index_populated = []
+                for mp in most_populated:
+                    original_index_populated.extend(index_list[mp])
+                all_lists_to_insert.append(original_index_populated)
+            else:
+                most_positive = k_argmax_in_array(eigenvec, params.num_extremes)
+
+                original_index_positive = []
+                for mp in most_positive:
+                    original_index_positive.extend(index_list[mp])
+                original_index_positive = np.array(original_index_positive)
+                most_negative = k_argmax_in_array(-magnitudes, params.num_extremes)
+                original_index_negative = []
+                for mn in most_negative:
+                    original_index_negative.extend(index_list[mn])
+                all_lists_to_insert.append(original_index_positive)
+                all_lists_to_insert.append(original_index_negative)
+        all_str_to_replace = [f"REPLACE{i}" for i in range(params.num_eigenvec*2-1)]
+        all_str_to_insert = [', '.join(map(str,list(el))) for el in all_lists_to_insert]
+        case_insensitive_search_and_replace(input.script,output.vmdlog,all_str_to_replace, all_str_to_insert)
+        print("Your should now run:")
+        print(f"vmd {input.structure} {input.trajectory}")
+        print(f"play {output.vmdlog}")
+
+
+import pandas as pd

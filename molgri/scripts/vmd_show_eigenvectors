@@ -1,0 +1,44 @@
+# args: gro file xtc file eigenvectors
+vmd $1 $2
+mol modstyle 0 0 CPK
+color Display Background white
+axes location Off
+mol color Name
+mol representation CPK 1.000000 0.300000 12.000000 10.000000
+mol selection all
+mol material Opaque
+mol addrep 0
+mol modselect 0 0 index 0 or index 1 or index 2
+mol modselect 1 0 index 3 or index 4 or index 5
+mol modcolor 1 0 ColorID 0
+mol modcolor 1 0 ColorID 5
+mol drawframes 0 1 {REPLACE0}
+
+
+# first eigenvector positive and negative
+mol addrep 0
+mol modselect 2 0 index 3 or index 4 or index 5
+mol modcolor 2 0 ColorID 0
+mol drawframes 0 2 {REPLACE1}
+mol addrep 0
+mol modselect 3 0 index 3 or index 4 or index 5
+mol modcolor 3 0 ColorID 1
+mol drawframes 0 3 {REPLACE2}
+
+mol addrep 0
+mol modselect 4 0 index 3 or index 4 or index 5
+mol modcolor 4 0 ColorID 0
+mol drawframes 0 4 {REPLACE3}
+mol addrep 0
+mol modselect 5 0 index 3 or index 4 or index 5
+mol modcolor 5 0 ColorID 1
+mol drawframes 0 5 {REPLACE4}
+
+mol addrep 0
+mol modselect 6 0 index 3 or index 4 or index 5
+mol modcolor 6 0 ColorID 0
+mol drawframes 0 6 {REPLACE5}
+mol addrep 0
+mol modselect 7 0 index 3 or index 4 or index 5
+mol modcolor 7 0 ColorID 1
+mol drawframes 0 7 {REPLACE6}
