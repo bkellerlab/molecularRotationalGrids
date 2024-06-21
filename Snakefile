@@ -5,6 +5,9 @@ from datetime import timedelta
 from datetime import datetime
 import logging
 
+
+# todo: create a report
+report: "snakemake_workflow.rst"
 pepfile: "input/logbook/grid_pep.yaml"
 grids = pep.sample_table
 pepfile: "input/logbook/pt_pep.yaml"
@@ -18,12 +21,9 @@ rule all:
     we get at the very end of our analysis because in this case all of the following rules that produce them must also 
     be called."""
     input:
-        [f"{PATH_OUTPUT_AUTOSAVE}{pt_identifier}-{samples.loc[pt_identifier, 'grid_identifier']}_eigenvectors.npy" for pt_identifier in ALL_PT_IDENTIFIERS],
-        [f"{PATH_OUTPUT_PLOTS}{pt_identifier}-{samples.loc[pt_identifier, 'grid_identifier']}_eigenvalues.pdf" for pt_identifier in ALL_PT_IDENTIFIERS],
-        [f"{PATH_OUTPUT_AUTOSAVE}{pt_identifier}-{samples.loc[pt_identifier, 'grid_identifier']}_vmdlog" for pt_identifier in ALL_PT_IDENTIFIERS],
-        #[f"{PATH_OUTPUT_AUTOSAVE}{grid_identifier}_full_array.npy" for grid_identifier in ALL_GRID_IDENTIFIERS],
-        #[f"{PATH_OUTPUT_PT}{pt_identifier}.gro" for pt_identifier in ALL_PT_IDENTIFIERS],
-        #[f"{PATH_OUTPUT_ENERGIES}{pt_identifier}_energy.xvg" for pt_identifier in ALL_PT_IDENTIFIERS],
+        [f"{PATH_OUTPUT_AUTOSAVE}{pt_identifier}-{grid_identifier}_eigenvectors.npy" for pt_identifier in ALL_PT_IDENTIFIERS for grid_identifier in ALL_GRID_IDENTIFIERS],
+        [f"{PATH_OUTPUT_PLOTS}{pt_identifier}-{grid_identifier}_eigenvalues.pdf" for pt_identifier in ALL_PT_IDENTIFIERS  for grid_identifier in ALL_GRID_IDENTIFIERS],
+        [f"{PATH_OUTPUT_AUTOSAVE}{pt_identifier}-{grid_identifier}_vmdlog" for pt_identifier in ALL_PT_IDENTIFIERS for grid_identifier in ALL_GRID_IDENTIFIERS],
 
 
 def log_the_run(name, input, output, log, params, time_used):
@@ -73,7 +73,7 @@ def get_run_pt_input(wc):
     m1 = samples.loc[wc.pt_identifier, 'molecule1']
     m2 = samples.loc[wc.pt_identifier, 'molecule2']
     # you should obtain the grid specified in the project table
-    grid = f"{PATH_OUTPUT_AUTOSAVE}{samples.loc[wc.pt_identifier, 'grid_identifier']}_full_array.npy"
+    grid = f"{PATH_OUTPUT_AUTOSAVE}{wc.grid_identifier}_full_array.npy"
     return [m1, m2, grid]
 
 rule run_pt:
@@ -82,10 +82,10 @@ rule run_pt:
     """
     input:
         get_run_pt_input
-    log: f"{PATH_OUTPUT_LOGGING}{{pt_identifier}}_pt.log"
+    log: f"{PATH_OUTPUT_LOGGING}{{pt_identifier}}-{{grid_identifier}}_pt.log"
     output:
-        structure = f"{PATH_OUTPUT_PT}{{pt_identifier}}.gro",
-        trajectory = f"{PATH_OUTPUT_PT}{{pt_identifier}}.xtc",
+        structure = f"{PATH_OUTPUT_PT}{{pt_identifier}}-{{grid_identifier}}.gro",
+        trajectory = f"{PATH_OUTPUT_PT}{{pt_identifier}}-{{grid_identifier}}.xtc",
     #shell: "python -m molgri.scripts.generate_pt -m1 {input[0]} -m2 {input[1]} -b {params.b} -o {params.o} -t {params.t} -name {output} > {log}"
     run:
         t1 = time()
@@ -114,13 +114,13 @@ rule gromacs_rerun:
     energies.
     """
     input:
-        structure = f"{PATH_OUTPUT_PT}{{pt_identifier}}.gro",
-        trajectory = f"{PATH_OUTPUT_PT}{{pt_identifier}}.xtc",
+        structure = f"{PATH_OUTPUT_PT}{{pt_identifier}}-{{grid_identifier}}.gro",
+        trajectory = f"{PATH_OUTPUT_PT}{{pt_identifier}}-{{grid_identifier}}.xtc",
         topology = "../../../MASTER_THESIS/code/provided_data/topologies/H2O_H2O.top"
-    log: f"{PATH_OUTPUT_LOGGING}{{pt_identifier}}_gromacs_rerun.log"
-    output: f"{PATH_OUTPUT_ENERGIES}{{pt_identifier}}_energy.xvg"
+    log: f"{PATH_OUTPUT_LOGGING}{{pt_identifier}}-{{grid_identifier}}_gromacs_rerun.log"
+    output: f"{PATH_OUTPUT_ENERGIES}{{pt_identifier}}-{{grid_identifier}}_energy.xvg"
     # use with arguments like path_structure path_trajectory path_topology path_default_files path_output_energy
-    shell: "molgri/scripts/gromacs_rerun_script.sh {wildcards.pt_identifier} {input.structure} {input.trajectory} {input.topology} {output} > {log}"
+    shell: "molgri/scripts/gromacs_rerun_script.sh {wildcards.pt_identifier}-{wildcards.grid_identifier} {input.structure} {input.trajectory} {input.topology} {output} > {log}"
 
 
 rule run_sqra:
@@ -129,7 +129,7 @@ rule run_sqra:
     As output we want to have the rate matrix.
     """
     input:
-        energy = f"{PATH_OUTPUT_ENERGIES}{{pt_identifier}}_energy.xvg",
+        energy = f"{PATH_OUTPUT_ENERGIES}{{pt_identifier}}-{{grid_identifier}}_energy.xvg",
         distances_array = f"{PATH_OUTPUT_AUTOSAVE}{{grid_identifier}}_distances_array.npz",
         borders_array= f"{PATH_OUTPUT_AUTOSAVE}{{grid_identifier}}_borders_array.npz",
         volumes = f"{PATH_OUTPUT_AUTOSAVE}{{grid_identifier}}_volumes.npy",
@@ -156,7 +156,9 @@ rule run_sqra:
         all_volumes = np.load(input.volumes)
         all_surfaces = sparse.load_npz(input.borders_array)
         all_distances = sparse.load_npz(input.distances_array)
-        energies = XVGParser(input.energy).get_parsed_energy().get_energies(params.energy_type)
+
+        my_parsed = XVGParser(input.energy)
+        energies = my_parsed.get_parsed_energy().get_energies(params.energy_type)
 
         # calculating rate matrix
         # for sqra demand that each energy corresponds to exactly one cell
@@ -268,9 +270,6 @@ def case_insensitive_search_and_replace(file_read, file_write, all_search_word, 
         file_contents = file.read()
         for search_word, replace_word in zip(all_search_word, all_replace_word):
             file_contents = file_contents.replace(search_word, replace_word)
-            #print(search_word, replace_word[:7])
-            #pattern = re.compile(re.escape(search_word), re.IGNORECASE)
-            #updated_contents = pattern.sub(replace_word, file_contents)
 
     with open(file_write, 'w') as file:
         file.write(file_contents)
@@ -284,8 +283,8 @@ rule compile_vmd_log:
     play <vmdlog file>
     """
     input:
-        structure = f"{PATH_OUTPUT_PT}{{pt_identifier}}.gro",
-        trajectory = f"{PATH_OUTPUT_PT}{{pt_identifier}}.xtc",
+        structure = f"{PATH_OUTPUT_PT}{{pt_identifier}}-{{grid_identifier}}.gro",
+        trajectory = f"{PATH_OUTPUT_PT}{{pt_identifier}}-{{grid_identifier}}.xtc",
         eigenvectors = f"{PATH_OUTPUT_AUTOSAVE}{{pt_identifier}}-{{grid_identifier}}_eigenvectors.npy",
         index_list = f"{PATH_OUTPUT_AUTOSAVE}{{pt_identifier}}-{{grid_identifier}}_index_list.npy",
         # in the script only the numbers for frames need to be changed.
@@ -334,4 +333,7 @@ rule compile_vmd_log:
         print(f"play {output.vmdlog}")
 
 
-import pandas as pd
+# todo: combine pandas tables with all input tables, possibly parameters and runtimes
+#import pandas as pd
+#df_pt = pd.
+#join(other, on=None
