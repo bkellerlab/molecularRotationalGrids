@@ -1,4 +1,4 @@
-from molgri.paths import PATH_OUTPUT_AUTOSAVE, PATH_OUTPUT_PT, PATH_OUTPUT_LOGGING, PATH_OUTPUT_ENERGIES
+from molgri.paths import PATH_OUTPUT_AUTOSAVE, PATH_OUTPUT_PT, PATH_OUTPUT_LOGGING, PATH_OUTPUT_ENERGIES, PATH_OUTPUT_PLOTS
 import numpy as np
 from time import time, mktime
 from datetime import timedelta
@@ -12,16 +12,18 @@ samples = pep.sample_table
 
 ALL_GRID_IDENTIFIERS = list(grids.index)
 ALL_PT_IDENTIFIERS = list(samples.index)
-
 rule all:
     """Explanation: this rule is the first one, so it will be run. As an input, it should require the output files that 
     we get at the very end of our analysis because in this case all of the following rules that produce them must also 
     be called."""
     input:
-        [f"{PATH_OUTPUT_AUTOSAVE}{grid_identifier}_full_array.npy" for grid_identifier in ALL_GRID_IDENTIFIERS],
-        [f"{PATH_OUTPUT_PT}{pt_identifier}.gro" for pt_identifier in ALL_PT_IDENTIFIERS],
-        [f"{PATH_OUTPUT_ENERGIES}{pt_identifier}.xvg" for pt_identifier in ALL_PT_IDENTIFIERS],
-        #[f"{PATH_OUTPUT_AUTOSAVE}{pt_identifier}_{samples.loc[pt_identifier,'grid_identifier']}_rate_matrix.npy" for pt_identifier in ALL_PT_IDENTIFIERS]
+        [f"{PATH_OUTPUT_AUTOSAVE}{pt_identifier}-{samples.loc[pt_identifier, 'grid_identifier']}_eigenvectors.npy" for pt_identifier in ALL_PT_IDENTIFIERS],
+        [f"{PATH_OUTPUT_PLOTS}{pt_identifier}-{samples.loc[pt_identifier, 'grid_identifier']}_eigenvalues.pdf" for pt_identifier in ALL_PT_IDENTIFIERS]
+
+        #[f"{PATH_OUTPUT_AUTOSAVE}{grid_identifier}_full_array.npy" for grid_identifier in ALL_GRID_IDENTIFIERS],
+        #[f"{PATH_OUTPUT_PT}{pt_identifier}.gro" for pt_identifier in ALL_PT_IDENTIFIERS],
+        #[f"{PATH_OUTPUT_ENERGIES}{pt_identifier}_energy.xvg" for pt_identifier in ALL_PT_IDENTIFIERS],
+
 
 def log_the_run(name, input, output, log, params, time_used):
     logging.basicConfig(filename=log, level="INFO")
@@ -40,9 +42,9 @@ rule run_grid:
     """
     output:
         full_array = f"{PATH_OUTPUT_AUTOSAVE}{{grid_identifier}}_full_array.npy",
-        adjacency_array = f"{PATH_OUTPUT_AUTOSAVE}{{grid_identifier}}_adjacency_array.npy",
-        distances_array = f"{PATH_OUTPUT_AUTOSAVE}{{grid_identifier}}_distances_array.npy",
-        borders_array= f"{PATH_OUTPUT_AUTOSAVE}{{grid_identifier}}_borders_array.npy",
+        adjacency_array = f"{PATH_OUTPUT_AUTOSAVE}{{grid_identifier}}_adjacency_array.npz",
+        distances_array = f"{PATH_OUTPUT_AUTOSAVE}{{grid_identifier}}_distances_array.npz",
+        borders_array= f"{PATH_OUTPUT_AUTOSAVE}{{grid_identifier}}_borders_array.npz",
         volumes = f"{PATH_OUTPUT_AUTOSAVE}{{grid_identifier}}_volumes.npy",
     log: f"{PATH_OUTPUT_LOGGING}{{grid_identifier}}_full_array.log"
     params:
@@ -52,14 +54,15 @@ rule run_grid:
     run:
         t1 = time()
         from molgri.space.fullgrid import FullGrid
+        from scipy import sparse
         fg = FullGrid(params.b, params.o, params.t)
 
         # save full array
         np.save(output.full_array, fg.get_full_grid_as_array())
         # save geometric properties
-        np.save(output.adjacency_array, fg.get_full_adjacency())
-        np.save(output.borders_array,fg.get_full_borders())
-        np.save(output.distances_array,fg.get_full_distances())
+        sparse.save_npz(output.adjacency_array, fg.get_full_adjacency())
+        sparse.save_npz(output.borders_array,fg.get_full_borders())
+        sparse.save_npz(output.distances_array,fg.get_full_distances())
         np.save(output.volumes,fg.get_total_volumes())
         t2 = time()
         log_the_run(wildcards.grid_identifier, None, output, log[0], params, t2-t1)
@@ -126,12 +129,11 @@ rule run_sqra:
     """
     input:
         energy = f"{PATH_OUTPUT_ENERGIES}{{pt_identifier}}_energy.xvg",
-        adjacency_array = f"{PATH_OUTPUT_AUTOSAVE}{{grid_identifier}}_adjacency_array.npy",
-        distances_array = f"{PATH_OUTPUT_AUTOSAVE}{{grid_identifier}}_distances_array.npy",
-        borders_array= f"{PATH_OUTPUT_AUTOSAVE}{{grid_identifier}}_borders_array.npy",
+        distances_array = f"{PATH_OUTPUT_AUTOSAVE}{{grid_identifier}}_distances_array.npz",
+        borders_array= f"{PATH_OUTPUT_AUTOSAVE}{{grid_identifier}}_borders_array.npz",
         volumes = f"{PATH_OUTPUT_AUTOSAVE}{{grid_identifier}}_volumes.npy",
-    log: f"{PATH_OUTPUT_LOGGING}{{pt_identifier}}_{{grid_identifier}}_rate_matrix.log"
-    output: f"{PATH_OUTPUT_AUTOSAVE}{{pt_identifier}}_{{grid_identifier}}_rate_matrix.log"
+    log: f"{PATH_OUTPUT_LOGGING}{{pt_identifier}}-{{grid_identifier}}_rate_matrix.log"
+    output: f"{PATH_OUTPUT_AUTOSAVE}{{pt_identifier}}-{{grid_identifier}}_rate_matrix.npz"
     params:
         D =1, # diffusion constant
         T=273,  # temperature in K
@@ -141,10 +143,12 @@ rule run_sqra:
         from molgri.molecules.parsers import XVGParser
         from scipy.constants import k as kB, N_A
         from scipy.sparse import coo_array
+        from scipy import sparse
+
         # load input files
         all_volumes = np.load(input.volumes)
-        all_surfaces = np.load(input.borders_array)
-        all_distances = np.load(input.distances_array)
+        all_surfaces = sparse.load_npz(input.borders_array)
+        all_distances = sparse.load_npz(input.distances_array)
         energies = XVGParser(input.energy).get_parsed_energy().get_energies(params.energy_type)
 
         # calculating rate matrix
@@ -170,11 +174,79 @@ rule run_sqra:
         transition_matrix = transition_matrix.tocsr() + diagonal_array.tocsr()
 
         # saving to file
-        np.save(output, transition_matrix)
+        sparse.save_npz(output[0], transition_matrix)
         t2 = time()
         log_the_run(wildcards.pt_identifier, input, output, log[0], params, t2-t1)
 
-# rule run_decomposition:
+
+rule run_decomposition:
+    """
+    As output we want to have eigenvalues, eigenvectors. Es input we get a (sparse) rate matrix.
+    """
+    input: f"{PATH_OUTPUT_AUTOSAVE}{{pt_identifier}}-{{grid_identifier}}_rate_matrix.npz"
+    log: f"{PATH_OUTPUT_LOGGING}{{pt_identifier}}-{{grid_identifier}}_eigendecomposition.log"
+    output:
+        eigenvalues = f"{PATH_OUTPUT_AUTOSAVE}{{pt_identifier}}-{{grid_identifier}}_eigenvalues.npy",
+        eigenvectors = f"{PATH_OUTPUT_AUTOSAVE}{{pt_identifier}}-{{grid_identifier}}_eigenvectors.npy"
+    params:
+        sigma = 0,
+        which = "LM",
+        num_eigenvec = 6,
+        tol = 1e-5,
+        maxiter = 100000
+    run:
+        t1 = time()
+
+        # loading
+        from scipy.sparse.linalg import eigs
+        from scipy import sparse
+        my_matrix = sparse.load_npz(input[0])
+
+        # calculation
+        eigenval, eigenvec = eigs(my_matrix.T, params.num_eigenvec,tol=params.tol, maxiter=params.maxiter,
+            which=params.which, sigma=params.sigma)
+        if eigenvec.imag.max() == 0 and eigenval.imag.max() == 0:
+            eigenvec = eigenvec.real
+            eigenval = eigenval.real
+        # sort eigenvectors according to their eigenvalues
+        idx = eigenval.argsort()[::-1]
+        eigenval = eigenval[idx]
+        eigenvec = eigenvec[:, idx]
+
+        # saving to file
+        np.save(output.eigenvalues, eigenval)
+        np.save(output.eigenvectors,eigenvec)
+        t2 = time()
+        log_the_run(wildcards.pt_identifier, input, output, log[0], params, t2-t1)
+
+rule run_eigenvalue_spectrum:
+    """
+    Make a plot of eigenvalues
+    """
+    input:
+        eigenvalues = f"{PATH_OUTPUT_AUTOSAVE}{{pt_identifier}}-{{grid_identifier}}_eigenvalues.npy"
+    output:
+        figure = f"{PATH_OUTPUT_PLOTS}{{pt_identifier}}-{{grid_identifier}}_eigenvalues.pdf"
+    run:
+        # next two lines seem stupid, but they are necessary when within snakemake
+        import matplotlib
+        matplotlib.use('Agg')
+        import matplotlib.pyplot as plt
+        from molgri.constants import DIM_SQUARE, DEFAULT_DPI
+        eigenvals = np.load(input.eigenvalues)
+        fig, ax = plt.subplots(1,1, figsize=DIM_SQUARE)
+        xs = np.linspace(0, 1, num=len(eigenvals))
+        ax.scatter(xs, eigenvals, s=5, c="black")
+        for i, eigenw in enumerate(eigenvals):
+            ax.vlines(xs[i], eigenw, 0, linewidth=0.5, color="black")
+        ax.hlines(0, 0, 1, color="black")
+        ax.set_ylabel(f"Eigenvalues")
+        ax.axes.get_xaxis().set_visible(False)
+        plt.savefig(output.figure, dpi=DEFAULT_DPI, bbox_inches='tight')
+        plt.close()
+
+
+# rule run_vmd:
 #     """
-#     As output we want to have eigenvalues, eigenvectors
+#     Input are the saved eigenvectors, the structure and the pseudotrajectory. Output = saved visualization state?
 #     """
