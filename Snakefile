@@ -325,6 +325,8 @@ rule compile_vmd_log:
                     original_index_negative.extend(index_list[mn])
                 all_lists_to_insert.append(original_index_positive)
                 all_lists_to_insert.append(original_index_negative)
+        # adding 1 to all because VMD uses enumeration starting with 1
+        all_lists_to_insert = [list(map(lambda x: x + 1, sublist)) for sublist in all_lists_to_insert]
         all_str_to_replace = [f"REPLACE{i}" for i in range(params.num_eigenvec*2-1)]
         all_str_to_insert = [', '.join(map(str,list(el))) for el in all_lists_to_insert]
         case_insensitive_search_and_replace(input.script,output.vmdlog,all_str_to_replace, all_str_to_insert)
