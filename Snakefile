@@ -264,7 +264,6 @@ rule run_eigenvalue_spectrum:
         plt.close()
 
 
-import re
 def case_insensitive_search_and_replace(file_read, file_write, all_search_word, all_replace_word):
     with open(file_read, 'r') as file:
         file_contents = file.read()
