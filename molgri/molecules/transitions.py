@@ -351,73 +351,47 @@ class TransitionModel(ABC):
                     f" {self.sim_hist.full_grid.t_grid_name}")
         self.logger.logger.info(f"full grid name: {self.sim_hist.full_grid.get_name()}")
 
-    # noinspection PyMissingOrEmptyDocstring
-    def get_name(self) -> str:
-        return self.sim_hist.get_name()
+def window(seq: Sequence, len_window: int, step: int = 1) -> Tuple[Any, Any]:
+    """
+    How this works: returns a list of sublists. Each sublist has two elements: [start_element, end_element].
+    Both elements are taken from the seq and are len_window elements apart. The parameter step controls what
+    the step between subsequent start_elements is.
 
-    @abstractmethod
-    def get_transitions_matrix(self, nstxout=1) -> NDArray:
-        """For MSM, generate the transition matrix from simulation data. For SQRA, generate rate matrix from the
-        point energy calculations.
+    Yields:
+        [start_element, end_element] where both elements com from seq where they are len_window positions
+        apart
 
-        Returns:
-            an array of shape (num_tau, num_cells, num_cells) for MSM or (1, num_cells, num_cells) for SQRA
-        """
-        pass
+    Example:
+        >>> gen_window = window([1, 2, 3, 4, 5, 6], len_window=2, step=3)
+        >>> next(gen_window)
+        (1, 3)
+        >>> next(gen_window)
+        (4, 6)
+    """
+    # in this case always move the window by step and use all points in simulations to count transitions
+    for k in range(0, len(seq) - len_window, step):
+        start_stop_list = seq[k: k + len_window + 1:len_window]
+        if not np.isnan(start_stop_list).any():
+            yield tuple([int(el) for el in start_stop_list])
 
-    @save_or_use_saved
-    def get_eigenval_eigenvec(self, num_eigenv: int = 6, sigma=None, which=None, **kwargs) -> Tuple[NDArray, NDArray]:
-        """
-        Obtain eigenvectors and eigenvalues of the transition matrices.
+def noncorr_window(seq: Sequence, len_window: int) -> Tuple[Any, Any]:
+    """
+    Subsample the seq so that only each len_window-th element remains and then similarly return pairs of
+    elements.
 
-        Args:
-            num_eigenv: how many eigenvalues/vectors pairs to return (too many may give inaccurate results)
-            **kwargs: named arguments to forward to eigs()
-        Returns:
-            (eigenval, eigenvec) a tuple of eigenvalues and eigenvectors, first num_eigv given for all tau-s
-            Eigenval is of shape (num_tau, num_columns), eigenvec of shape (num_tau, num_cells, num_columns)
-        """
-        all_tms = self.get_transitions_matrix()
-        all_eigenval = np.zeros((self.num_tau, num_eigenv))
-        all_eigenvec = np.zeros((self.num_tau, self.num_cells, num_eigenv))
-        for tau_i, tau in enumerate(tqdm(self.tau_array)):
-            if isinstance(self, MSM):
-                tm = all_tms[tau_i]  # the transition matrix for this tau
-            else:
-                tm = all_tms # sqra
-            #tm[np.isnan(tm)] = 0  # replace nans with zeros
-            # in order to compute left eigenvectors, compute right eigenvectors of the transpose
-            if isinstance(self, MSM) and sigma is None and which is None:
-                #sigma=None # or nothing??
-                #sigma = None
-                #which = "LR"
-                sigma = 1
-                which = "LR"
-            elif isinstance(self, SQRA) and sigma is None and which is None:
-                #sigma = None
-                #which = "SR"
-                sigma = 0
-                which = "LR"
-            self.logger.logger.info(f"num_eigenv: {num_eigenv}")
-            self.logger.logger.info(f"sigma: {sigma}")
-            self.logger.logger.info(f"which: {which}")
-            try:
-                eigenval, eigenvec = eigs(tm.T, num_eigenv, tol=1e-5, maxiter=100000, which=which, sigma=sigma, **kwargs) #,
-                # sigma=1
-                # don't need to deal with complex outputs in case all values are real
-                # TODO: what happens here if we have negative imaginary components?
-                if eigenvec.imag.max() == 0 and eigenval.imag.max() == 0:
-                    eigenvec = eigenvec.real
-                    eigenval = eigenval.real
-                # sort eigenvectors according to their eigenvalues
-                idx = eigenval.argsort()[::-1]
-                eigenval = eigenval[idx]
-                eigenvec = eigenvec[:, idx]
-                all_eigenval[tau_i] = eigenval
-                all_eigenvec[tau_i] = eigenvec
-            except RuntimeError:
-                print(f"Not possible for tau={tau}")
-        return all_eigenval, all_eigenvec
+    Example:
+        >>> gen_obj = noncorr_window([1, 2, 3, 4, 5, 6, 7], 3)
+        >>> next(gen_obj)
+        (1, 4)
+        >>> next(gen_obj)
+        (4, 7)
+
+    """
+    # in this case, only use every len_window-th element for MSM. Faster but loses a lot of data
+    return window(seq, len_window, step=len_window)
+
+if ignore_last_r:
+    self.num_cells = (self.sim_hist.full_grid.get_t_N() -1) * self.sim_hist.full_grid.get_b_N() * self.sim_hist.full_grid.get_o_N()
 
 
 class MSM(TransitionModel):
@@ -439,47 +413,7 @@ class MSM(TransitionModel):
             an array of transition matrices of shape (self.num_tau, self.num_cells, self.num_cells)
         """
 
-        def window(seq: Sequence, len_window: int, step: int = 1) -> Tuple[Any, Any]:
-            """
-            How this works: returns a list of sublists. Each sublist has two elements: [start_element, end_element].
-            Both elements are taken from the seq and are len_window elements apart. The parameter step controls what
-            the step between subsequent start_elements is.
 
-            Yields:
-                [start_element, end_element] where both elements com from seq where they are len_window positions
-                apart
-
-            Example:
-                >>> gen_window = window([1, 2, 3, 4, 5, 6], len_window=2, step=3)
-                >>> next(gen_window)
-                (1, 3)
-                >>> next(gen_window)
-                (4, 6)
-            """
-            # in this case always move the window by step and use all points in simulations to count transitions
-            for k in range(0, len(seq) - len_window, step):
-                start_stop_list = seq[k: k + len_window + 1:len_window]
-                if not np.isnan(start_stop_list).any():
-                    yield tuple([int(el) for el in start_stop_list])
-
-        def noncorr_window(seq: Sequence, len_window: int) -> Tuple[Any, Any]:
-            """
-            Subsample the seq so that only each len_window-th element remains and then similarly return pairs of
-            elements.
-
-            Example:
-                >>> gen_obj = noncorr_window([1, 2, 3, 4, 5, 6, 7], 3)
-                >>> next(gen_obj)
-                (1, 4)
-                >>> next(gen_obj)
-                (4, 7)
-
-            """
-            # in this case, only use every len_window-th element for MSM. Faster but loses a lot of data
-            return window(seq, len_window, step=len_window)
-
-        if ignore_last_r:
-            self.num_cells = (self.sim_hist.full_grid.get_t_N() -1) * self.sim_hist.full_grid.get_b_N() * self.sim_hist.full_grid.get_o_N()
 
         if self.transition_matrix is None:
             self.transition_matrix = np.zeros(shape=(self.num_tau,), dtype=object)

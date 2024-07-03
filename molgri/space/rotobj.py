@@ -11,7 +11,6 @@ Connected to:
                      approach space
 """
 
-import os
 from abc import ABC, abstractmethod
 from time import time
 from typing import Optional
@@ -22,11 +21,9 @@ from numpy.typing import NDArray
 from scipy.constants import pi
 from scipy.spatial.transform import Rotation
 
-from molgri.space.analysis import prepare_statistics, write_statistics
 from molgri.space.utils import (find_inverse_quaternion, random_quaternions, random_sphere_points,
                                 hemisphere_quaternion_set, q_in_upper_sphere)
 from molgri.constants import UNIQUE_TOL, NAME2PRETTY_NAME, SMALL_NS
-from molgri.paths import PATH_OUTPUT_AUTOSAVE
 from molgri.space.polytopes import Cube4DPolytope, IcosahedronPolytope, Cube3DPolytope
 from molgri.space.voronoi import RotobjVoronoi, AbstractVoronoi, HalfRotobjVoronoi, MikroVoronoi
 from molgri.wrappers import time_method, save_or_use_saved
@@ -159,60 +156,6 @@ class SphereGridNDim(ABC):
         """Name used in printing and decorators, not suitable for file names."""
         return f"{NAME2PRETTY_NAME[self.gen_algorithm]} algorithm, {self.N} points"
 
-
-    def get_statistics_path(self, extension) -> str:
-        """get the entire path to where the statistics are saved."""
-        return f"{PATH_OUTPUT_AUTOSAVE}{self.get_name(with_dim=True)}.{extension}"
-
-    ##################################################################################################################
-    #                      useful methods
-    ##################################################################################################################
-
-    def save_uniformity_statistics(self, num_random: int = 100, alphas=None):
-        """
-        Deprecated - all necessary data is saved by individual methods using save_or_use_saved.
-        Save both the short, user-friendly summary of statistics and the entire uniformity data.
-        """
-        short_statistics_path = self.get_statistics_path(extension="txt")
-        statistics_path = self.get_statistics_path(extension="csv")
-        stat_data, full_data = prepare_statistics(self.get_grid_as_array(), alphas, d=self.dimensions,
-                                                  num_rand_points=num_random)
-        write_statistics(stat_data, full_data, short_statistics_path, statistics_path,
-                         num_random, name=self.get_name(), dimensions=self.dimensions)
-
-    @save_or_use_saved
-    def get_uniformity_df(self, alphas):
-        """
-        Get the dataframe necessary to draw violin plots showing how uniform different generation algorithms are.
-        """
-        self.save_uniformity_statistics(alphas=alphas)
-        ratios_df = pd.read_csv(self.get_statistics_path("csv"), dtype=float)
-        return ratios_df
-
-    @save_or_use_saved
-    def get_convergence_df(self, alphas: tuple, N_list: tuple = None):
-        """
-         Get the dataframe necessary to draw convergence plots for various values of N.
-         """
-        if N_list is None:
-            # create equally spaced convergence set
-            assert self.N >= 3, f"N={self.N} not large enough to study convergence"
-            N_list = np.logspace(np.log10(3), np.log10(self.N), dtype=int)
-            N_list = np.unique(N_list)
-        full_df = []
-        for N in N_list:
-            if self.dimensions == 3:
-                grid_factory = SphereGrid3DFactory
-            else:
-                grid_factory = SphereGrid4DFactory
-            grid_factory = grid_factory.create(alg_name=self.gen_algorithm, N=N, time_generation=False,
-                                                    use_saved=self.use_saved)
-            df = grid_factory.get_uniformity_df(alphas=alphas)
-            df["N"] = len(grid_factory.get_grid_as_array())
-            full_df.append(df)
-        full_df = pd.concat(full_df, axis=0, ignore_index=True)
-        return full_df
-
     @save_or_use_saved
     def get_spherical_voronoi(self):
         """
@@ -329,30 +272,6 @@ class RandomSRotations(SphereGrid3Dim):
     def _gen_grid(self) -> NDArray:
         np.random.seed(0)
         return random_sphere_points(self.N)
-
-
-# class ZeroRotations(SphereGridNDim):
-#     algorithm_name = "zero"
-#
-#     def get_voronoi_areas(self, approx=False, using_detailed_grid=True) -> NDArray:
-#         # since only 1 point, return full area of (hyper)/sphere
-#         if self.dimensions == 3:
-#             return np.array(SPHERE_SURFACE)
-#         elif self.dimensions == 4:
-#             return np.array(HALF_HYPERSPHERE_SURFACE)
-#         else:
-#             raise ValueError(f"Need 3 or 4 dimensions to work, not {self.dimensions}")
-#
-#     def get_voronoi_adjacency(self):
-#         pass
-#
-#     def _gen_grid(self):
-#         self.N = 1
-#         rot_matrix = np.eye(3)
-#         rot_matrix = rot_matrix[np.newaxis, :]
-#         self.rotations = Rotation.from_matrix(rot_matrix)
-#         return self.rotations.as_quat()
-
 
 class Cube4DRotations(SphereGrid4Dim):
     algorithm_name = "cube4D"

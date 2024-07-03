@@ -102,38 +102,3 @@ class FullGridPlot(ArrayPlot):
     def plot_position_adjacency(self):
         my_array = self.get_adjacency_of_position_grid().toarray()
         self._plot_position_N_N(my_array, cbar=False)
-
-
-class ConvergenceFullGridPlot(RepresentationCollection):
-
-    def __init__(self, convergence_full_grid: ConvergenceFullGridO):
-        self.convergence_full_grid = convergence_full_grid
-        super().__init__(self.convergence_full_grid.get_name())
-
-    def get_possible_title(self):
-        full_name = self.convergence_full_grid.get_name()
-        split_name = full_name.split("_")
-        return NAME2SHORT_NAME[split_name[2]]
-
-    @plot_method
-    def plot_voronoi_volumes(self):
-        try:
-            voronoi_df = self.convergence_full_grid.get_voronoi_volumes()
-
-            all_layers = set(voronoi_df["layer"])
-
-            for layer in all_layers:
-                filtered_df = voronoi_df.loc[voronoi_df['layer'] == layer]
-                sns.lineplot(data=filtered_df, x="N", y="Voronoi cell volume", errorbar="sd", ax=self.ax)
-                sns.scatterplot(data=filtered_df, x="N", y="Voronoi cell volume", alpha=0.8, color="black", ax=self.ax,
-                                s=1)
-                sns.scatterplot(data=filtered_df, x="N", y="ideal volume", color="black", marker="x", ax=self.ax)
-        except AttributeError:
-            pass
-        self.ax.set_xscale("log")
-
-
-if __name__ == "__main__":
-    fg = FullGrid("12", "20", "[0.1, 0.2]", use_saved=False)
-    fgp = FullGridPlot(full_grid=fg)
-    fgp.create_all_plots()

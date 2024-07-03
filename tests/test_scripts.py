@@ -1,4 +1,3 @@
-import os
 import subprocess
 import pytest
 
@@ -63,21 +62,7 @@ def test_generate_pt():
             subprocess.run(err_command, shell=True, check=True)
 
 
-def test_generate_energy():
-    test_set_up_io()
-
-    commands = [
-        'python -m molgri.scripts.generate_energy -xvg H2O_H2O_o_ico_500_b_ico_5_t_3830884671 --p1d --p2d --p3d --animate',
-        'python -m molgri.scripts.generate_energy -xvg H2O_H2O_o_ico_500_b_ico_5_t_3830884671 --p1d --p2d --p3d --convergence',
-        'python -m molgri.scripts.generate_energy -xvg H2O_H2O_o_ico_500_b_ico_5_t_3830884671 --p1d --p2d --p3d --Ns_o "(50, 100, 500)" --convergence'
-    ]
-
-    for command in commands:
-        print(subprocess.run(command, shell=True, check=True))
-
-
 if __name__ == "__main__":
     test_set_up_io()
     test_generate_grid()
     test_generate_pt()
-    test_generate_energy()

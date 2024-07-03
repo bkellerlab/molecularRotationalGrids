@@ -10,26 +10,20 @@ from typing import List
 import matplotlib.pyplot as plt
 import numpy as np
 import seaborn as sns
-from mpl_toolkits.mplot3d.art3d import Poly3DCollection
-from scipy.spatial import geometric_slerp
 from scipy.spatial.distance import cdist
 
-from molgri.space.utils import distance_between_quaternions, find_inverse_quaternion, normalise_vectors, \
-    points4D_2_8cells, which_row_is_k
+from molgri.space.utils import distance_between_quaternions, find_inverse_quaternion, points4D_2_8cells, which_row_is_k
 from molgri.paths import PATH_OUTPUT_PLOTS
-from matplotlib.animation import FuncAnimation
 from numpy.typing import NDArray, ArrayLike
 from seaborn import color_palette
 import networkx as nx
 import matplotlib as mpl
 
-from molgri.constants import DEFAULT_ALPHAS_3D, GRID_ALGORITHMS_3D, GRID_ALGORITHMS_4D, TEXT_ALPHAS_3D, \
-    DEFAULT_ALPHAS_4D, TEXT_ALPHAS_4D, COLORS, NAME2SHORT_NAME, DIM_SQUARE
-from molgri.plotting.abstract import (ArrayPlot, MultiRepresentationCollection, RepresentationCollection,
-                                      plot_voronoi_cells)
-from molgri.space.analysis import vector_within_alpha
+from molgri.constants import DEFAULT_ALPHAS_3D, TEXT_ALPHAS_3D, \
+    DEFAULT_ALPHAS_4D, TEXT_ALPHAS_4D, NAME2SHORT_NAME
+from molgri.plotting.abstract import (ArrayPlot, MultiRepresentationCollection, RepresentationCollection)
 from molgri.space.polytopes import Polytope, find_opposing_q, second_neighbours, third_neighbours, Cube4DPolytope
-from molgri.space.rotobj import SphereGridFactory, SphereGridNDim, SphereGrid3DFactory, SphereGrid4DFactory, \
+from molgri.space.rotobj import SphereGridNDim, SphereGrid4DFactory, \
     ConvergenceSphereGridFactory
 from molgri.wrappers import plot3D_method, plot_method
 
@@ -58,62 +52,6 @@ class SphereGridPlot(ArrayPlot):
         """
         return NAME2SHORT_NAME[self.sphere_grid.algorithm_name]
 
-    @plot3D_method
-    def plot_alpha_grid(self, central_vector: NDArray = None):
-        if self.sphere_grid.dimensions != 3:
-            print(f"make_grid_colored_with_alpha currently implemented only for 3D systems.")
-            return None
-        if central_vector is None:
-            central_vector = np.zeros((self.sphere_grid.dimensions,))
-            central_vector[-1] = 1
-
-        points = self.sphere_grid.get_grid_as_array()
-
-        # plot vector
-        self.ax.scatter(*central_vector, marker="x", c="k", s=30)
-        # determine color palette
-        cp = sns.color_palette("Spectral", n_colors=len(self.alphas))
-        # sort points which point in which alpha area
-        already_plotted = []
-        for i, alpha in enumerate(self.alphas):
-            possible_points = np.array([vec for vec in points if tuple(vec) not in already_plotted])
-            within_alpha = vector_within_alpha(central_vector, possible_points, alpha)
-            selected_points = [tuple(vec) for i, vec in enumerate(possible_points) if within_alpha[i]]
-            array_sel_points = np.array(selected_points)
-            if np.any(array_sel_points):
-                self.ax.scatter(*array_sel_points.T, color=cp[i], s=30)
-            already_plotted.extend(selected_points)
-
-        self.ax.view_init(elev=10, azim=30)
-        self._set_axis_limits()
-        self._equalize_axes()
-
-    @plot_method
-    def plot_uniformity(self):
-        """
-        Creates violin plots that are a measure of grid uniformity. A good grid will display minimal variation
-        along a range of angles alpha.
-        """
-        df = self.sphere_grid.get_uniformity_df(alphas=self.alphas)
-        sns.violinplot(x=df["alphas"], y=df["coverages"], ax=self.ax, palette=COLORS, linewidth=1, scale="count", cut=0)
-        try:
-            self.ax.set_xticklabels(self.alphas_text)
-        except ValueError:
-            # not the right number of tick labels, no big issue
-            pass
-
-    @plot_method
-    def plot_convergence(self):
-        """
-        Creates convergence plots that show how coverages approach optimal values.
-        """
-        df = self.sphere_grid.get_convergence_df(alphas=self.alphas)
-        sns.lineplot(x=df["N"], y=df["coverages"], ax=self.ax, hue=df["alphas"],
-                     palette=color_palette("hls", len(self.alphas_text)), linewidth=1)
-        sns.lineplot(x=df["N"], y=df["ideal coverage"], style=df["alphas"], ax=self.ax, color="black")
-        self.ax.get_legend().remove()
-        self.ax.set_xscale("log")
-        self.ax.set_yscale("log")
 
 
     @plot_method
@@ -446,126 +384,6 @@ class PolytopePlot(RepresentationCollection):
                     self.ax.text(*midpoint, s=f"{s:.3f}")
 
 
-class PanelSphereGridPlots(MultiRepresentationCollection):
-
-    def __init__(self, N_points: int, grid_dim: int, default_context: str = None, default_complexity_level: str = None,
-                 default_color_style: str = None, use_saved=False, **kwargs):
-        list_plots = []
-        self.grid_dim = grid_dim
-        if grid_dim == 3:
-            all_alg = GRID_ALGORITHMS_3D
-        else:
-            all_alg = GRID_ALGORITHMS_4D[:-1]
-        n_rows = 1
-        n_columns = len(all_alg)
-        for alg in all_alg:
-            sphere_grid = SphereGridFactory.create(alg_name=alg, N=N_points, dimensions=grid_dim,
-                                                   time_generation=False, use_saved=use_saved)
-            sphere_plot = SphereGridPlot(sphere_grid, default_context=default_context,
-                                         default_color_style=default_color_style,
-                                         default_complexity_level=default_complexity_level)
-            list_plots.append(sphere_plot)
-        data_name = f"all_{N_points}_{grid_dim}d"
-        super().__init__(data_name, list_plots, n_rows=n_rows, n_columns=n_columns, **kwargs)
-
-    def make_all_grid_plots(self, animate_rot=False):
-        self._make_plot_for_all("plot_grid", projection="3d")
-        self.add_titles(list_titles=[subplot.get_possible_title() for subplot in self.list_plots],
-                        pad=-14)
-        ani=None
-        if animate_rot:
-            ani = self.animate_figure_view("grid", dpi=100)
-        self._save_multiplot("grid", dpi=100)
-        if ani is not None:
-            return ani
-
-    def make_all_trans_animations(self, save=True):
-
-        all_points = []
-        for plot in self.list_plots:
-            all_points.append(plot.sphere_grid.get_grid_as_array())
-
-
-        dimension = all_points[0].shape[1] - 1
-
-        if dimension == 3:
-            projection = "3d"
-        else:
-            projection = None
-
-        figsize = self.n_columns * DIM_SQUARE[0], self.n_rows * DIM_SQUARE[1]
-        self.fig, self.all_ax = plt.subplots(self.n_rows, self.n_columns, subplot_kw={'projection': projection},
-                                             figsize=figsize)
-
-        # sort by the value of the specific dimension you are looking at
-        all_points_3D = []
-        for i, points in enumerate(all_points):
-            ind = np.argsort(points[:, -1])
-            all_points_3D.append(points[ind])
-        # map the 4th dimension into values 0-1
-        all_alphas = []
-        for points_3D in all_points_3D:
-            alphas = points_3D[:, -1].T
-            alphas = (alphas - np.min(alphas)) / np.ptp(alphas)
-            all_alphas.append(alphas)
-
-        # plot the lower-dimensional scatterplot
-        plotted_points = []
-        for ax, points3D in zip(np.ravel(self.all_ax), all_points_3D):
-            sub_plotted_points = []
-            for line in points3D:
-                sub_plotted_points.append(ax.scatter(*line[:-1], color="black", alpha=1))
-            plotted_points.append(sub_plotted_points)
-
-        self.all_ax[0].set_xlim(-1, 1)
-        self.all_ax[0].set_ylim(-1, 1)
-        if dimension == 3:
-            self.all_ax[0].set_zlim(-1, 1)
-        self.unify_axis_limits()
-        for ax in np.ravel(self.all_ax):
-            ax.set_xticks([])
-            ax.set_yticks([])
-            if dimension == 3:
-                ax.set_zticks([])
-
-        self.add_titles(list_titles=[subplot.get_possible_title() for subplot in self.list_plots],
-                        pad=-14)
-
-        if len(all_points_3D[0]) < 20:
-            step = 1
-        elif len(all_points_3D[0]) < 100:
-            step = 5
-        else:
-            step = 20
-
-        def animate(frame):
-            # plot current point
-            current_time = alphas[frame * step]
-            for ax_alphas, ax_points, ax in zip(all_alphas, plotted_points, np.ravel(self.all_ax)):
-                for i, p in enumerate(ax_points):
-                    new_alpha = np.max([0, 1 - np.abs(ax_alphas[i] - current_time) * 10])
-                    p.set_alpha(new_alpha)
-            return self.all_ax,
-
-        anim = FuncAnimation(self.fig, animate, frames=len(all_points_3D[0]) // step,
-                             interval=100)  # , frames=180, interval=50
-        if save:
-            self.save_multianimation(anim, "trans", fps=len(all_points_3D[0]) // step // 2, dpi=200)
-        return anim
-
-    def make_all_convergence_plots(self):
-        self._make_plot_for_all("plot_convergence")
-        self.add_titles(list_titles=[subplot.get_possible_title() for subplot in self.list_plots])
-        self.set_log_scale()
-        self.unify_axis_limits()
-        self._save_multiplot("convergence")
-
-    def make_all_uniformity_plots(self):
-        self._make_plot_for_all("plot_uniformity")
-        self.add_titles(list_titles=[subplot.get_possible_title() for subplot in self.list_plots])
-        self.unify_axis_limits()
-        self._save_multiplot("uniformity")
-
 
 class ConvergenceSphereGridPlot(RepresentationCollection):
 
@@ -595,7 +413,6 @@ class ConvergenceSphereGridPlot(RepresentationCollection):
     def plot_spheregrid_time(self):
         time_df = self.convergence_sph_grid.get_generation_times()
         sns.lineplot(time_df, x="N", y="Time [s]", ax=self.ax)
-
 
 
 class EightCellsPlot(MultiRepresentationCollection):

@@ -3,7 +3,7 @@ import numpy as np
 from scipy.constants import pi
 
 from molgri.space.rotobj import SphereGrid4DFactory, SphereGridFactory
-from molgri.constants import GRID_ALGORITHMS_3D, GRID_ALGORITHMS_4D, DEFAULT_ALPHAS_3D
+from molgri.constants import GRID_ALGORITHMS_3D, GRID_ALGORITHMS_4D
 from molgri.space.utils import all_row_norms_equal_k, two_sets_of_quaternions_equal
 
 USE_SAVED = False
@@ -29,22 +29,6 @@ def test_general_grid_properties():
                 assert grid_obj.N == number
                 all_row_norms_equal_k(grid, 1)
 
-
-def test_statistics():
-    num_points = 35
-    num_random = 50
-    # grid statistics
-    icog = SphereGridFactory.create(N=num_points, alg_name="ico", dimensions=3, use_saved=False)
-    default_alphas = [pi/6, 2*pi/6, 3*pi/6, 4*pi/6, 5*pi/6]
-    icog.save_uniformity_statistics(num_random=num_random, alphas=default_alphas)
-    statistics_csv = pd.read_csv(icog.get_statistics_path("csv"), index_col=0, header=0, dtype=float)
-    assert len(statistics_csv) == len(default_alphas)*num_random
-    expected_coverages = [0.0669872981077806, 0.2499999999999999,
-                          0.4999999999999999, 0.7499999999999999, 0.9330127018922194]
-    ideal_coverage = statistics_csv["ideal coverage"].to_numpy(dtype=float).flatten()
-    for i, _ in enumerate(default_alphas):
-        written_id_coverage = ideal_coverage[i*num_random:(i+1)*num_random-1]
-        assert np.allclose(written_id_coverage, expected_coverages[i])
 
 
 def test_ordering():
@@ -91,6 +75,5 @@ def test_full_and_half_hypersphere():
 
 if __name__ == "__main__":
     test_general_grid_properties()
-    test_statistics()
     test_ordering()
     test_full_and_half_hypersphere()
