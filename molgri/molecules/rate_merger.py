@@ -3,22 +3,16 @@ This is an intermediate step between building a rate matrix and calculating eige
 states of the rate matrix that have very small differences in energy.
 """
 from __future__ import annotations
-
 from copy import deepcopy
 from typing import Any, Optional
-from time import time
-from datetime import timedelta
 
 import numpy as np
 import networkx
-from molgri.wrappers import save_or_use_saved, time_method
 from networkx.algorithms.components.connected import connected_components
-
-from molgri.molecules.transitions import SQRA, SimulationHistogram
 from numpy.typing import NDArray
 from scipy.sparse import csr_array, coo_array, diags
-from scipy.sparse.linalg import eigs
 from scipy.constants import k as kB, N_A
+
 
 # helper functions
 def find_el_within_nested_list(my_list: list[list[Any]], my_el: Any) -> NDArray:
@@ -193,6 +187,7 @@ def determine_rate_cells_to_join(distances, potentials, bottom_treshold=0.001, T
 
     return high_cell_pairs
 
+
 def determine_rate_cells_with_too_high_energy(my_energies, energy_limit: float = 10, T: float = 273):
     return np.where(my_energies*1000/(kB*N_A*T) > energy_limit)[0]
 
@@ -249,251 +244,3 @@ def delete_rate_cells(my_matrix: NDArray | csr_array, to_remove: list,
     internal_index_list = [x for i, x in enumerate(internal_index_list) if i in to_keep]
 
     return result, internal_index_list
-
-class MatrixDecomposer:
-
-    def __init__(self, my_matrix: NDArray | csr_array, my_matrix_name: str = "my_matrix", use_saved: bool = False,
-                 log=True):
-        """
-        A little class to perform eigendecomposition of (sparse) arrays and save the results.
-
-        Args:
-            my_matrix (): array to decompose
-            my_matrix_name (): name of the array
-        """
-        self.my_matrix = my_matrix
-        self.my_matrix_name = my_matrix_name
-        self.use_saved = use_saved
-        self.current_index_list = None
-
-    def get_name(self):
-        return self.my_matrix_name
-
-    def get_decorator_name(self):
-        return self.my_matrix_name
-
-    def get_default_settings_sqra(self):
-        sigma = 0
-        which = "LM"
-        return sigma, which
-
-    @save_or_use_saved
-    @time_method
-    def get_left_eigenvec_eigenval(self, sigma: float, which: str, num_eigenv: int = 6, **kwargs) -> tuple:
-        """
-
-        Args:
-            sigma ():
-            which ():
-            num_eigenv ():
-            **kwargs ():
-
-        Returns:
-            a tuple of (eigenvalues, eigenvectors), where the shape of eigenvalues is (num_eigenv,) and the shape of
-            eigenvectors (len(self.my_matrix, num_eigenv)
-        """
-        eigenval, eigenvec = eigs(self.my_matrix.T, num_eigenv, tol=1e-5, maxiter=100000, which=which, sigma=sigma)
-
-        if eigenvec.imag.max() == 0 and eigenval.imag.max() == 0:
-            eigenvec = eigenvec.real
-            eigenval = eigenval.real
-        # sort eigenvectors according to their eigenvalues
-        idx = eigenval.argsort()[::-1]
-        eigenval = eigenval[idx]
-        eigenvec = eigenvec[:, idx]
-        return eigenval, eigenvec
-
-    @save_or_use_saved
-    @time_method
-    def cut_my_matrix(self, energies, energy_limit=10, T=273):
-        too_high = determine_rate_cells_with_too_high_energy(energies, energy_limit=energy_limit, T=T)
-        self.my_matrix, self.current_index_list = delete_rate_cells(self.my_matrix, to_remove=too_high,
-                                                                    index_list=self.current_index_list)
-
-    @save_or_use_saved
-    @time_method
-    def merge_my_matrix(self, sim_histogram, bottom_treshold=0.01, T=273):
-        rate_to_join = determine_rate_cells_to_join(sim_histogram, bottom_treshold=bottom_treshold, T=T)
-        self.my_matrix, self.current_index_list = merge_matrix_cells(my_matrix=self.my_matrix,
-                                                                     all_to_join=rate_to_join,
-                                                                     index_list=self.current_index_list)
-
-
-if __name__ == "__main__":
-    # rate matrix
-    import matplotlib.pyplot as plt
-    import seaborn as sns
-    from molgri.space.utils import k_argmax_in_array
-    from molgri.logfiles import GeneralLogger
-
-
-    sqra_name = "H2O_H2O_0634" # super big
-    #sqra_name = "H2O_H2O_0585" # big
-    #sqra_name = "H2O_H2O_0630" # small
-    sqra_use_saved = False
-    water_sqra_sh = SimulationHistogram(sqra_name, "H2O", is_pt=True,
-                                        second_molecule_selection="bynum 4:6", use_saved=sqra_use_saved)
-    my_energies = water_sqra_sh.get_magnitude_energy("Potential")
-
-    sqra = SQRA(water_sqra_sh, use_saved=sqra_use_saved)
-    rate_matrix = sqra.get_transitions_matrix()
-
-    def analyse_eval_evec(eval, evec, to_print, index_list):
-        print(f"######################  NEW ANALYSIS: {to_print} ###############")
-        if index_list is None:
-            index_list = [[i] for i in range(evec.shape[0])]
-
-
-        eigenval = eval.real
-        eigenvec = evec.real
-
-        print(np.round(eigenval, 4))
-        for i in range(5):
-            num_extremes = 40
-            magnitudes = eigenvec.T[i]
-            most_positive = k_argmax_in_array(magnitudes, num_extremes)
-            original_index_positive = []
-            for mp in most_positive:
-                original_index_positive.extend(index_list[mp])
-            original_index_positive = np.array(original_index_positive)
-            most_negative = k_argmax_in_array(-magnitudes, num_extremes)
-            original_index_negative = []
-            for mn in most_negative:
-                original_index_negative.extend(index_list[mn])
-            original_index_negative = np.array(original_index_negative)
-            print(f"In {i}.coverage eigenvector {num_extremes} most positive cells are "
-                  f"{list(original_index_positive + 1)}")
-            print(f"and most negative {list(original_index_negative + 1)}.")
-
-    my_decomposer = MatrixDecomposer(rate_matrix, my_matrix_name=sqra.get_name(), use_saved=False)
-    #eval, evec = my_decomposer.get_left_eigenvec_eigenval(*my_decomposer.get_default_settings_sqra())
-
-    #analyse_eval_evec(eval, evec, "ORIGINAL", my_decomposer.current_index_list)
-
-    # MERGE AND THEN CUT
-    my_decomposer.merge_my_matrix(water_sqra_sh, bottom_treshold=0.01)
-    #print(f"Eigendecomposition matrix ({my_decomposer.my_matrix.shape}", end="")
-    #eval, evec = my_decomposer.get_left_eigenvec_eigenval(*my_decomposer.get_default_settings_sqra())
-
-    #analyse_eval_evec(eval, evec, "MERGED", my_decomposer.current_index_list)
-
-    my_decomposer.cut_my_matrix(my_energies, energy_limit=5)
-    print(f"Eigendecomposition matrix ({my_decomposer.my_matrix.shape}", end="")
-    eval, evec = my_decomposer.get_left_eigenvec_eigenval(*my_decomposer.get_default_settings_sqra(), extra_arg=17)
-
-    analyse_eval_evec(eval, evec, "MERGED & CUT", my_decomposer.current_index_list)
-
-    # # initial eigenval, eigenvec
-    # def analyse(ratemat, index_list=None):
-    #     print(f"######################  NEW ANALYSIS: size {ratemat.shape}, type: {type(ratemat)}###############")
-    #     if index_list is None:
-    #         index_list = [[i] for i in range(ratemat.shape[0])]
-    #
-    #     t1 = time()
-    #     eigenval, eigenvec = eigs(ratemat.T, 6, tol=1e-5, maxiter=100000, which="LM", sigma=0)
-    #     np.save(f"eigenval_{sqra_name}", eigenval)
-    #     np.save(f"eigenvec_{sqra_name}", eigenvec)
-    #     t2 = time()
-    #
-    #     print(f"Eigendecomposition matrix {ratemat.shape}: ", end="")
-    #     print(f"{timedelta(seconds=t2 - t1)} hours:minutes:seconds")
-    #
-    #
-    #     eigenval = eigenval.real
-    #     eigenvec = eigenvec.real
-    #
-    #     print(np.round(eigenval, 4))
-    #     for i in range(5):
-    #         num_extremes = 40
-    #         magnitudes = eigenvec.T[i]
-    #         most_positive = k_argmax_in_array(magnitudes, num_extremes)
-    #         original_index_positive = []
-    #         for mp in most_positive:
-    #             original_index_positive.extend(index_list[mp])
-    #         original_index_positive = np.array(original_index_positive)
-    #         most_negative = k_argmax_in_array(-magnitudes, num_extremes)
-    #         original_index_negative = []
-    #         for mn in most_negative:
-    #             original_index_negative.extend(index_list[mn])
-    #         original_index_negative = np.array(original_index_negative)
-    #         print(f"In {i}.coverage eigenvector {num_extremes} most positive cells are "
-    #               f"{list(original_index_positive + 1)}")
-    #         print(f"and most negative {list(original_index_negative + 1)}.")
-    #     return [x for x in eigenval]
-    #
-    # # analyse(rate_matrix)
-    # # t4 = time()
-    # # # now joining
-    # # rate_to_join = determine_rate_cells_to_join(water_sqra_sh, bottom_treshold=0.08)
-    # #
-    # # print(f"Determined {len(rate_to_join)} pairs of cells to join")
-    # #
-    # # new_rate_matrix, new_ind = merge_matrix_cells(my_matrix=rate_matrix, all_to_join=rate_to_join)
-    # # t5 = time()
-    # #
-    # # print(f"Construction of merge matrix: ", end="")
-    # # print(f"{timedelta(seconds=t5 - t4)} hours:minutes:seconds")
-    # #
-    # # print(f"Size of original rate matrix is {rate_matrix.shape}, of reduced rate matrix {new_rate_matrix.shape}.")
-    # #
-    # # t6 = time()
-    # # analyse(new_rate_matrix, index_list=new_ind)
-    # # t7 = time()
-    # #
-    # # print(f"Eigendecomposition of new rate matrix: ", end="")
-    # # print(f"{timedelta(seconds=t7 - t6)} hours:minutes:seconds")
-    #
-    # # no merge option
-    # t_bef = time()
-    # no_merge_eigenval = analyse(ratemat=rate_matrix)
-    # t_aft = time()
-    #
-    # bottom_tresholds = [0.001, 0.005, 0.01, 0.05, 0.1, 0.5]
-    # eigenvalues = []
-    # total_times = []
-    # num_cells = []
-    #
-    # for bt in bottom_tresholds:
-    #     t4 = time()
-    #     # now joining
-    #     rate_to_join = determine_rate_cells_to_join(water_sqra_sh, bottom_treshold=bt)
-    #
-    #     print(f"Determined {len(rate_to_join)} pairs of cells to join")
-    #
-    #     new_rate_matrix, new_ind = merge_matrix_cells(my_matrix=rate_matrix, all_to_join=rate_to_join)
-    #     t5 = time()
-    #
-    #     print(f"Construction of merge matrix: ", end="")
-    #     print(f"{timedelta(seconds=t5 - t4)} hours:minutes:seconds")
-    #
-    #     eigenvalues.append(analyse(new_rate_matrix, index_list=new_ind))
-    #
-    #     t6 = time()
-    #     total_times.append(t6-t4)
-    #     num_cells.append(new_rate_matrix.shape[0])
-    #
-    #     print(f"Size of original rate matrix is {rate_matrix.shape}, of reduced rate matrix {new_rate_matrix.shape}.")
-    #
-    #
-    # # TODO: make a plot of eigenvalues vs (time/bottom_treshold/number of cells
-    # eigenvalues = np.array(eigenvalues)
-    # fig, ax = plt.subplots(1, 3, figsize=(20, 8))
-    # for eigv in eigenvalues.T:
-    #     ax[0].plot(bottom_tresholds, eigv)
-    # ax[1].plot(bottom_tresholds, total_times, c="black")
-    # ax[2].plot(bottom_tresholds, num_cells, c="black")
-    #
-    # ax[0].set_title("Eigenvalues")
-    # ax[1].set_title("Time [s]")
-    # ax[2].set_title("Matrix size")
-    #
-    # for subax in ax:
-    #     subax.set_xlabel(r"Merge treshold in $k_B$ T")
-    #     subax.set_xscale("log")
-    #
-    # ax[0].hlines(no_merge_eigenval, bottom_tresholds[0], bottom_tresholds[-1], colors="black", linestyles='dashed')
-    # ax[1].hlines([t_aft-t_bef,], bottom_tresholds[0], bottom_tresholds[-1], colors="black", linestyles='dashed')
-    # ax[2].hlines([rate_matrix.shape[0],], bottom_tresholds[0], bottom_tresholds[-1], colors="black", linestyles='dashed')
-    #
-    # print(total_times, num_cells, eigenvalues)
-    # plt.savefig(f"output/figures/test_rate_merger_{sqra_name}")
