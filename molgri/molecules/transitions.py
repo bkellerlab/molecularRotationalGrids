@@ -23,36 +23,132 @@ from tqdm import tqdm
 
 from molgri.wrappers import save_or_use_saved
 from molgri.molecules.parsers import XVGParser
-from molgri.space.fullgrid import FullGrid
+from molgri.space.fullgrid import FullGrid, from_full_array_to_o_b_t
 from molgri.paths import PATH_OUTPUT_AUTOSAVE, PATH_OUTPUT_ENERGIES, PATH_OUTPUT_LOGGING, PATH_OUTPUT_PT, \
     PATH_INPUT_BASEGRO
 from molgri.space.utils import distance_between_quaternions, k_argmin_in_array, normalise_vectors, q_in_upper_sphere
 
 
-def determine_positive_directions(current_universe, second_molecule):
-    pas = current_universe.select_atoms(second_molecule).principal_axes()
-    com = current_universe.select_atoms(second_molecule).center_of_mass()
-    directions = [0, 0, 0]
-    for atom_pos in current_universe.select_atoms(second_molecule).positions:
-        for i, pa in enumerate(pas):
-            # need to round to avoid problems - assigning direction with atoms very close to 0
-            cosalpha = np.round(pa.dot(atom_pos-com), 6)
-            directions[i] = np.sign(cosalpha)
-        if not np.any(np.isclose(directions,0)):
-            break
-    # TODO: if exactly one unknown use the other two and properties of righthanded systems to get third
-    if np.sum(np.isclose(directions,0)) == 1:
-        # only these combinations of directions are possible in righthanded coordinate systems
-        allowed_righthanded = [[1, 1, 1], [-1, 1, -1], [1, -1, -1], [-1, -1, 1]]
-        for ar in allowed_righthanded:
-            # exactly two identical (and the third is zero)
-            if np.sum(np.isclose(ar, directions)) == 2:
-                directions = ar
+class AssignmentTool:
+    """
+    This tool is used to assign trajectory frames to grid cells.
+    """
+
+    def __init__(self, full_array: NDArray, path_structure: str, path_trajectory: str, path_reference_m2: str):
+        self.full_array = full_array
+        self.o_array, self.b_array, self.t_array = from_full_array_to_o_b_t(self.full_array)
+        self.trajectory_universe = mda.Universe(path_structure, path_trajectory)
+        self.reference_universe = mda.Universe(path_reference_m2)
+        self.second_molecule_selection = self._determine_second_molecule()
+
+    def _determine_second_molecule(self):
+        num_atoms_total = len(self.trajectory_universe.atoms)
+        num_atoms_m2 = len(self.reference_universe.atoms)
+        # indexing in MDAnalysis is 1-based
+        # we look for indices of the second molecule
+        num_atoms_m1 = num_atoms_total - num_atoms_m2
+        # indices are inclusive
+        return f"bynum  {num_atoms_m1+1}:{num_atoms_total+1}"
+
+    def _determine_positive_directions(self, current_universe):
+        pas = current_universe.atoms.principal_axes()
+        com = current_universe.atoms.center_of_mass()
+        directions = [0, 0, 0]
+        for atom_pos in current_universe.atoms.positions:
+            for i, pa in enumerate(pas):
+                # need to round to avoid problems - assigning direction with atoms very close to 0
+                cosalpha = np.round(pa.dot(atom_pos - com), 6)
+                directions[i] = np.sign(cosalpha)
+            if not np.any(np.isclose(directions, 0)):
                 break
-    # if two (or three - that would just be an atom) unknowns raise an error
-    elif np.sum(np.isclose(directions,0)) > 1:
-        raise ValueError("All atoms perpendicular to at least one of principal axes, can´t determine direction.")
-    return np.array(directions)
+        # if exactly one unknown use the other two and properties of righthanded systems to get third
+        if np.sum(np.isclose(directions, 0)) == 1:
+            # only these combinations of directions are possible in righthanded coordinate systems
+            allowed_righthanded = [[1, 1, 1], [-1, 1, -1], [1, -1, -1], [-1, -1, 1]]
+            for ar in allowed_righthanded:
+                # exactly two identical (and the third is zero)
+                if np.sum(np.isclose(ar, directions)) == 2:
+                    directions = ar
+                    break
+        # if two (or three - that would just be an atom) unknowns raise an error
+        elif np.sum(np.isclose(directions, 0)) > 1:
+            raise ValueError("All atoms perpendicular to at least one of principal axes, can´t determine direction.")
+        return np.array(directions)
+
+    def _get_quaternion_assignments(self):
+        """
+        Assign every frame of the trajectory to the closest quaternion from the b_grid_points.
+        """
+        # find PA and direction of reference structure
+        reference_principal_axes = self.reference_universe.atoms.principal_axes().T
+        inverse_pa = np.linalg.inv(reference_principal_axes)
+        reference_direction = self._determine_positive_directions(self.reference_universe)
+
+        # find PA and direction along trajectory
+        pa_frames = AnalysisFromFunction(lambda ag: ag.principal_axes().T, self.trajectory_universe.trajectory,
+                                         self.trajectory_universe.select_atoms(self.second_molecule_selection))
+        pa_frames.run()
+        pa_frames = pa_frames.results['timeseries']
+
+        direction_frames = AnalysisFromFunction(lambda ag: np.tile(self._determine_positive_directions(
+            ag) / reference_direction, (3, 1)),
+                                                self.trajectory_universe.trajectory,
+                                                self.trajectory_universe.select_atoms(self.second_molecule_selection))
+        direction_frames.run()
+        direction_frames = direction_frames.results['timeseries']
+        directed_pas = np.multiply(pa_frames, direction_frames)
+        produkt = np.matmul(directed_pas, inverse_pa)
+        # get the quaternions that caused the rotation from reference to each frame
+        calc_quat = np.round(Rotation.from_matrix(produkt).as_quat(), 6)
+        b_indices = np.argmin(cdist(self.b_array, calc_quat, metric=distance_between_quaternions), axis=0)
+        # almost everything correct but the order is somehow mixed???
+        return b_indices
+
+    def _get_t_assignments(self) -> NDArray:
+        """
+        Given a trajectoryand an array of available radial (t-grid) points, assign each frame of the trajectory
+        to the closest radial point.
+
+        Returns:
+            an integer array as long as the trajectory, each element an index of the closest point of the radial grid
+            like [0, 0, 0, 1, 1, 1, 2 ...] (for a PT with 3 orientations)
+        """
+        t_selection = AnalysisFromFunction(
+            lambda ag: np.argmin(np.abs(self.t_array - np.linalg.norm(ag.center_of_mass())), axis=0),
+            self.trajectory_universe.trajectory,
+            self.trajectory_universe.select_atoms(self.second_molecule_selection))
+        t_selection.run()
+        t_indices = t_selection.results['timeseries'].flatten()
+        return t_indices
+
+    def _get_o_assignments(self) -> NDArray:
+        """
+        Assign every frame of the trajectory (or PT) to the best fitting point of position grid
+
+        Returns:
+            an array of position grid indices
+        """
+        # now using a normalized com and a metric on a sphere, determine which of o_grid_points is closest
+        o_selection = AnalysisFromFunction(lambda ag: np.argmin(cdist(self.o_array, normalise_vectors(
+            ag.center_of_mass())[np.newaxis, :], metric="cos"), axis=0),
+                                           self.trajectory_universe.trajectory,
+                                           self.trajectory_universe.select_atoms(self.second_molecule_selection))
+        o_selection.run()
+        o_indices = o_selection.results['timeseries'].flatten()
+        return o_indices
+
+    def _get_position_assignments(self):
+        """
+        Combine assigning to t_grid and o_grid.
+        """
+        t_assignments = self._get_t_assignments()
+        o_assignments = self._get_o_assignments()
+        # sum up the layer index and o index correctly
+        return np.array(t_assignments * len(self.o_array) + o_assignments, dtype=int)
+
+    def get_full_assignments(self) -> NDArray:
+        return self._get_position_assignments() * len(self.b_array) + self._get_quaternion_assignments()
+
 
 class SimulationHistogram:
 
@@ -112,74 +208,6 @@ class SimulationHistogram:
     def __len__(self):
         return len(self.trajectory_universe.trajectory)
 
-    # @save_or_use_saved
-    # def get_markov_model_for_taus(self, tau_array):
-    #     all_msms = []
-    #     for tau in tau_array:
-    #         # 2) build a  count estimator with TransitionCountEstimator
-    #         count_estimator = TransitionCountEstimator(lagtime=tau, count_mode="sliding",
-    #                                                    sparse=True)  # n_states=len_fullgrid,
-    #
-    #         # 3) get a TransitionCountModel with NXN states by fitting assignments to an estimator
-    #         count_model = count_estimator.fit(self.get_full_assignments()).fetch_model()
-    #
-    #         # 4) now build a MaximumLikelihoodMSM estimator
-    #         estimator = MaximumLikelihoodMSM(reversible=True,
-    #                                          sparse=True,
-    #                                          )
-    #
-    #         # 5) fit a TransitionCountModel to it to obtain MarkovStateModel
-    #         markov_model = estimator.fit_from_counts(count_model).fetch_model()
-    #
-    #         all_msms.append(markov_model)
-    #     return all_msms
-
-    # noinspection PyMissingOrEmptyDocstring
-    def get_name(self) -> str:
-        traj_name = self.trajectory_name
-        grid_name = self.full_grid.get_name()
-        return f"{traj_name}_{grid_name}"
-
-    def read_fg_PT(self) -> FullGrid:
-        """
-        If no FG is provided as input but the input is a pseutotrajectory, the grid that was used in PT generation
-        will also be used in assignments.
-        """
-
-        input_names = None
-        full_grid_name = None
-
-        # first step: read the name of the full grid from the log file
-        try:
-            with open(f"{PATH_OUTPUT_LOGGING}{self.trajectory_name}.log") as f:
-                while input_names is None or full_grid_name is None:
-                    line = f.readline()
-                    if line.startswith("INFO:PtLogger:input grid parameters:"):
-                        input_names = line.strip().split(": ")[-1]
-                    elif line.startswith("INFO:PtLogger:full grid name:"):
-                        full_grid_name = line.strip().split(": ")[-1]
-        except FileNotFoundError:
-            raise ValueError("If you are inputing a trajectory (not PT), you must provide a FullGrid")
-
-        self.grid_name = full_grid_name
-
-        input_names = input_names.split(" ")
-        t_input = " ".join(input_names[2:])
-        fg = FullGrid(o_grid_name=input_names[0], b_grid_name=input_names[1], t_grid_name=t_input,
-                      use_saved=self.use_saved)
-        # second step: load the .npy file with the found name
-        used_grid = np.load(f"{PATH_OUTPUT_AUTOSAVE}get_full_grid_as_array_{full_grid_name}.npy")
-
-        # third step: assert that this is actually the grid that has been used
-        assert np.allclose(used_grid, fg.get_full_grid_as_array())
-
-        return fg
-
-    """
-    --------------------------------------------------------------------------------------------------
-                               Getters to obtain important indices.
-    --------------------------------------------------------------------------------------------------
-    """
 
     def get_indices_k_lowest_energies(self, k: int, energy_type: str):
         all_energies = self.get_magnitude_energy(energy_type)
@@ -218,138 +246,6 @@ class SimulationHistogram:
         my_eigenvector = evec[0].T[i]
         return my_eigenvector
 
-    def get_position_assignments(self):
-        if self.position_assignments is None:
-            self.position_assignments = self._assign_trajectory_2_position_grid()
-        return self.position_assignments
-
-    def get_quaternion_assignments(self):
-        if self.quaternion_assignments is None:
-            self.quaternion_assignments = self._assign_trajectory_2_quaternion_grid()
-        return self.quaternion_assignments
-
-    @save_or_use_saved
-    def get_full_assignments(self):
-        if self.full_assignments is None:
-            self.full_assignments = self._assign_trajectory_2_full_grid()
-        return self.full_assignments
-
-    # def get_transition_model(self, tau_array=None, energy_type="Potential"):
-    #     if self.transition_model is None:
-    #         if self.is_pt:
-    #             self.transition_model = SQRA(self, energy_type=energy_type, use_saved=self.use_saved)
-    #         else:
-    #             self.transition_model = MSM(self, tau_array=tau_array, use_saved=self.use_saved)
-    #     return self.transition_model
-
-    def _determine_quaternions(self):
-        reference_principal_axes = self.reference_universe.atoms.principal_axes().T
-        inverse_pa = np.linalg.inv(reference_principal_axes)
-        reference_direction = determine_positive_directions(self.reference_universe, "all")
-
-        # find PA and direction along trajectory
-        pa_frames = AnalysisFromFunction(lambda ag: ag.principal_axes().T, self.trajectory_universe.trajectory,
-                                         self.trajectory_universe.select_atoms(self.second_molecule_selection))
-        pa_frames.run()
-        pa_frames = pa_frames.results['timeseries']
-
-        direction_frames = AnalysisFromFunction(lambda ag: np.tile(determine_positive_directions(
-            ag, "all") / reference_direction, (3, 1)),
-                                                self.trajectory_universe.trajectory,
-                                                self.trajectory_universe.select_atoms(self.second_molecule_selection))
-        direction_frames.run()
-        direction_frames = direction_frames.results['timeseries']
-        directed_pas = np.multiply(pa_frames, direction_frames)
-        produkt = np.matmul(directed_pas, inverse_pa)
-        # get the quaternions that caused the rotation from reference to each frame
-        calc_quat = np.round(Rotation.from_matrix(produkt).as_quat(), 6)
-        # now using a quaternion metric, determine which of b_grid_points is closest
-        return calc_quat
-
-    def _assign_trajectory_2_quaternion_grid(self):
-        """
-        Assign every frame of the trajectory to the closest quaternion from the b_grid_points.
-        """
-        # find PA and direction of reference structure
-        calc_quat=self._determine_quaternions()
-        b_grid_points = self.full_grid.b_rotations.get_grid_as_array()
-        b_indices = np.argmin(cdist(b_grid_points, calc_quat, metric=distance_between_quaternions), axis=0)
-        # almost everything correct but the order is somehow mixed???
-        return b_indices
-
-    def _assign_trajectory_2_t_grid(self) -> NDArray:
-        """
-        Given a trajectoryand an array of available radial (t-grid) points, assign each frame of the trajectory
-        to the closest radial point.
-
-        Returns:
-            an integer array as long as the trajectory, each element an index of the closest point of the radial grid
-            like [0, 0, 0, 1, 1, 1, 2 ...] (for a PT with 3 orientations)
-        """
-        t_grid_points = self.full_grid.get_radii()
-        t_selection = AnalysisFromFunction(
-            lambda ag: np.argmin(np.abs(t_grid_points - np.linalg.norm(ag.center_of_mass())), axis=0),
-            self.trajectory_universe.trajectory,
-            self.trajectory_universe.select_atoms(self.second_molecule_selection))
-        t_selection.run()
-        t_indices = t_selection.results['timeseries'].flatten()
-        return t_indices
-
-    def _assign_trajectory_2_o_grid(self) -> NDArray:
-        """
-        Assign every frame of the trajectory (or PT) to the best fitting point of position grid
-
-        Returns:
-            an array of position grid indices
-        """
-        o_grid_points = self.full_grid.position_grid.o_rotations.get_grid_as_array()
-        # now using a normalized com and a metric on a sphere, determine which of o_grid_points is closest
-        o_selection = AnalysisFromFunction(lambda ag: np.argmin(cdist(o_grid_points, normalise_vectors(
-            ag.center_of_mass())[np.newaxis, :], metric="cos"), axis=0),
-                                           self.trajectory_universe.trajectory,
-                                           self.trajectory_universe.select_atoms(self.second_molecule_selection))
-        o_selection.run()
-        o_indices = o_selection.results['timeseries'].flatten()
-        return o_indices
-
-    def _assign_trajectory_2_position_grid(self):
-        """
-        Combine assigning to t_grid and o_grid.
-        """
-        t_assignments = self._assign_trajectory_2_t_grid()
-        o_assignments = self._assign_trajectory_2_o_grid()
-        # sum up the layer index and o index correctly
-        return np.array(t_assignments * self.full_grid.get_o_N() + o_assignments, dtype=int)
-
-    def _assign_trajectory_2_full_grid(self):
-        return self.get_position_assignments() * self.full_grid.get_b_N() + self.get_quaternion_assignments()
-
-
-
-class TransitionModel(ABC):
-
-    """
-    A class that contains both the MSM and SQRA models.
-    """
-
-    def __init__(self, sim_hist: SimulationHistogram, tau_array: NDArray = None, use_saved: bool = False):
-        self.sim_hist = sim_hist
-        if tau_array is None:
-            tau_array = np.array([2, 5, 7, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100, 110, 130, 150, 180, 200])
-        self.tau_array = tau_array
-        self.use_saved = use_saved
-        self.assignments = sim_hist.get_full_assignments()
-        self.num_cells = len(self.sim_hist.full_grid)
-        self.num_tau = len(self.tau_array)
-        self.transition_matrix = None
-
-        self.logger = PtLogger() #f"{PATH_OUTPUT_LOGGING}TransitionModel_{self.sim_hist.trajectory_name}.log"
-        self.logger.log_set_up(self)
-        self.logger.logger.info(f"trajectory: {self.sim_hist.trajectory_name}")
-        self.logger.logger.info(f"input grid parameters: {self.sim_hist.full_grid.o_grid_name} "
-                    f"{self.sim_hist.full_grid.b_grid_name}"
-                    f" {self.sim_hist.full_grid.t_grid_name}")
-        self.logger.logger.info(f"full grid name: {self.sim_hist.full_grid.get_name()}")
 
 def window(seq: Sequence, len_window: int, step: int = 1) -> Tuple[Any, Any]:
     """
@@ -389,62 +285,3 @@ def noncorr_window(seq: Sequence, len_window: int) -> Tuple[Any, Any]:
     """
     # in this case, only use every len_window-th element for MSM. Faster but loses a lot of data
     return window(seq, len_window, step=len_window)
-
-if ignore_last_r:
-    self.num_cells = (self.sim_hist.full_grid.get_t_N() -1) * self.sim_hist.full_grid.get_b_N() * self.sim_hist.full_grid.get_o_N()
-
-
-class MSM(TransitionModel):
-
-    """
-    Markov state model (MSM) works on simulation trajectories by discretising the accessed space and counting
-    transitions between states in the time span of tau.
-    """
-
-    @save_or_use_saved
-    def get_transitions_matrix(self, noncorr: bool = False, ignore_last_r=True, nstxout=1) -> NDArray:
-        """
-        Obtain a set of transition matrices for different tau-s specified in self.tau_array.
-
-        Args:
-            noncorr: bool, should only every tau-th frame be used for MSM construction
-                     (if False, use sliding window - much more expensive but throws away less data)
-        Returns:
-            an array of transition matrices of shape (self.num_tau, self.num_cells, self.num_cells)
-        """
-
-
-
-        if self.transition_matrix is None:
-            self.transition_matrix = np.zeros(shape=(self.num_tau,), dtype=object)
-            for tau_i, tau in enumerate(tqdm(self.tau_array)):
-                sparse_count_matrix = dok_array((self.num_cells, self.num_cells))
-                # save the number of transitions between cell with index i and cell with index j
-                #count_per_cell = {(i, j): 0 for i in range(self.num_cells) for j in range(self.num_cells)}
-                if not noncorr:
-                    window_cell = window(self.assignments, int(tau))
-                else:
-                    window_cell = noncorr_window(self.assignments, int(tau))
-                for cell_slice in window_cell:
-                    try:
-                        el1, el2 = cell_slice
-                        sparse_count_matrix[el1, el2] += 1
-                        # enforce detailed balance
-                        sparse_count_matrix[el2, el1] += 1
-                    except IndexError:
-                        if ignore_last_r:
-                            # this is okay because we want to ignore points beyond last radius
-                            pass
-                        else:
-                            raise IndexError("Assignments outside of FullGrid borders")
-                sparse_count_matrix = sparse_count_matrix.tocsr()
-                sums = sparse_count_matrix.sum(axis=1)
-                # to avoid dividing by zero
-                sums[sums == 0] = 1
-                # now dividing with counts (actually multiplying with inverse)
-                diagonal_values = np.reciprocal(sums)
-                diagonal_matrix = diags(diagonal_values, format='csr')
-
-                # Left multiply the CSR matrix with the diagonal matrix
-                self.transition_matrix[tau_i] = diagonal_matrix.dot(sparse_count_matrix)
-        return self.transition_matrix

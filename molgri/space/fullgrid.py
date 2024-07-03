@@ -18,23 +18,41 @@ Objects:
  - ConvergenceFullGridO provides plotting data by creating a range of FullGrids with different N of o_grid points
 """
 from __future__ import annotations
-from typing import Tuple
 
 import numpy as np
-from numpy._typing import ArrayLike
 from numpy.typing import NDArray
 from scipy.spatial.transform import Rotation
-from scipy.constants import pi
 from scipy.sparse import bmat, coo_array, diags
-import pandas as pd
 
-from molgri.constants import SMALL_NS
 from molgri.space.rotobj import SphereGrid3DFactory, SphereGrid3Dim, SphereGrid4DFactory
 from molgri.space.translations import TranslationParser, get_between_radii
 from molgri.naming import GridNameParser
-from molgri.space.utils import norm_per_axis, angle_between_vectors
-#from molgri.space.voronoi import PositionVoronoi
 from molgri.wrappers import save_or_use_saved
+from molgri.space.utils import normalise_vectors
+
+
+def from_full_array_to_o_b_t(full_array: NDArray) -> tuple:
+    """
+    This is the way back from full array to individual arrays sorted as they were at generation time.
+
+    Args:
+        full_array (): this should be the output of FullGrid.get_full_grid_as_array(), the array of shape Nx7
+
+    Returns:
+        (o_grid, b_grid, t_grid)
+    """
+    quaternion_array = full_array[:, 3:]
+    # remove non-unicates without sorting
+    unique_quaternions = quaternion_array[np.sort(np.unique(np.round(quaternion_array, 8), return_index=True,
+                                                                     axis=0)[1])]
+
+    translation_lens = np.linalg.norm(full_array[:, :3], axis=1)
+    unique_translations = np.unique(np.round(translation_lens, 8))
+
+    orientation_array = normalise_vectors(full_array[:, :3])
+    unique_orientations = orientation_array[np.sort(np.unique(np.round(orientation_array, 8), return_index=True,
+                                                                       axis=0)[1])]
+    return unique_orientations, unique_quaternions, unique_translations
 
 
 class FullGrid:
@@ -423,63 +441,6 @@ class PositionGrid:
         return self._get_N_N_position_array(sel_property="center_distances")
 
 
-
-class ConvergenceFullGridO:
-    
-    """
-    This object is used to study the convergence of properties as the number of points in the o_grid of FullGrid 
-    changes. Mostly used to plot how voronoi volumes, calculation times ... converge.
-    """
-
-    def __init__(self, b_grid_name: str, t_grid_name: str,  o_alg_name: str, N_set: tuple = None,
-                 use_saved: bool = False, **kwargs):
-        if N_set is None:
-            N_set = SMALL_NS
-        self.N_set = N_set
-        self.alg_name = o_alg_name
-        self.use_saved = use_saved
-        self.list_full_grids = self.create(b_grid_name=b_grid_name, t_grid_name=t_grid_name,  o_alg_name=o_alg_name,
-                                           N_set=self.N_set, use_saved=use_saved, **kwargs)
-
-    def get_name(self) -> str:
-        """Get name for saving."""
-        b_name = self.list_full_grids[0].b_rotations.get_name(with_dim=False)
-        t_name = self.list_full_grids[0].t_grid.grid_hash
-        return f"convergence_o_{self.alg_name}_b_{b_name}_t_{t_name}"
-
-    @classmethod
-    def create(cls,  b_grid_name: str, t_grid_name: str,  o_alg_name: str, N_set: tuple, **kwargs) -> list:
-        """
-        Build the FullGrid object for each of the given Ns in N_set. This is the create function that is only
-        called by __init__.
-        """
-        list_full_grids = []
-        for N in N_set:
-            fg = FullGrid(b_grid_name=b_grid_name, o_grid_name=f"{o_alg_name}_{N}", t_grid_name=t_grid_name, **kwargs)
-            list_full_grids.append(fg)
-        return list_full_grids
-
-    @save_or_use_saved
-    def get_voronoi_volumes(self) -> pd.DataFrame:
-        """
-        Get all volumes of cells for all choices of self.N_set in order to create convergence plots.
-        """
-        data = []
-        for N, fg in zip(self.N_set, self.list_full_grids):
-            N_real = fg.o_rotations.get_N()
-            vor_radius = list(fg.get_between_radii())
-            vor_radius.insert(0, 0)
-            vor_radius = np.array(vor_radius)
-            fvg = fg.get_full_voronoi_grid()
-            ideal_volumes = 4/3 * pi * (vor_radius[1:]**3 - vor_radius[:-1]**3) / N_real
-            real_volumes = fvg.get_all_voronoi_volumes()
-            for i, volume in enumerate(real_volumes):
-                layer = i//N_real
-                data.append([N_real, layer, ideal_volumes[i//N_real], volume])
-        df = pd.DataFrame(data, columns=["N", "layer", "ideal volume", "Voronoi cell volume"])
-        return df
-
-
 def _t_and_o_2_positions(o_property, t_property):
     """
     Helper function to systematically combine t_grid and o_grid. We always do this in the same way:
@@ -515,34 +476,17 @@ if __name__ == "__main__":
     import matplotlib.pyplot as plt
     import seaborn as sns
 
-    o_grid = 1000
-    HALF_HYPERSPHERE_SURFACE = pi ** 2
+    fg = FullGrid("13", "22", "[0.2, 0.3]")
 
+    my_array = fg.get_full_grid_as_array()
 
-    available_fgs = [FullGrid(o_grid_name=f"{o_grid}", b_grid_name="1", t_grid_name="[0.5]", use_saved=True),
-                     FullGrid(o_grid_name="1", b_grid_name=f"{o_grid}", t_grid_name="[0.5]", use_saved=True),
-                     #FullGrid(o_grid_name="1", b_grid_name="1", t_grid_name="linspace(0.1, 1.1, 1000)",
-                     # use_saved=True)
-                     ]
+    o, b, t = from_full_array_to_o_b_t(my_array)
 
-    fig, ax = plt.subplots(len(available_fgs), 3, figsize=(15, len(available_fgs) * 5))
-    for i, my_full_grid in enumerate(available_fgs):
-        all_volumes = my_full_grid.get_total_volumes()
-        if i==0 or i==1:
-            ideal_volume_o_total = 4/ 3 * pi * my_full_grid.get_between_radii()[0]**3 *HALF_HYPERSPHERE_SURFACE
-            ideal_volume_o = ideal_volume_o_total / o_grid #HALF_HYPERSPHERE_SURFACE *
-            ax[i][0].vlines(x=ideal_volume_o, ymin=0, ymax=0.25, colors="red")
-        sns.histplot(all_volumes, ax=ax[i][0], stat="probability")
-        all_borders = my_full_grid.get_full_borders()
-        #print(my_full_grid.position_grid.get_borders_of_position_grid())
-        sns.histplot(all_borders.data, ax=ax[i][1], stat="probability")
-        all_dist = my_full_grid.get_full_distances()
-        sns.histplot(all_dist.data, ax=ax[i][2], bins=30, stat="probability")
-        ax[0][0].set_title("Volumes")
-        ax[0][1].set_title("Border areas")
-        ax[0][2].set_title("Center distances")
-    plt.show()
+    print(np.allclose(fg.o_rotations.get_grid_as_array(), o))
+    print(np.allclose(fg.b_rotations.get_grid_as_array(), b))
+    print(np.allclose(fg.get_t_grid().get_trans_grid(), t))
 
+    #print(fg.b_rotations.get_grid_as_array(), "\n'''''''''''\n", from_full_array_to_o_b_t(my_array))
 
 
 
