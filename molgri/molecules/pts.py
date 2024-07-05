@@ -7,13 +7,10 @@ For this purpose, Writers in molgri.writers module are provided.
 """
 from typing import Tuple, Generator
 
-import numpy as np
 from numpy.typing import NDArray
 from scipy.spatial.transform import Rotation
 
 from molgri.molecules.parsers import ParsedMolecule
-from molgri.space.fullgrid import FullGrid
-from molgri.space.utils import normalise_vectors, q_in_upper_sphere
 
 
 class Pseudotrajectory:

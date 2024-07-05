@@ -179,6 +179,8 @@ class FullGrid:
         Return an array of shape (n_t*n_o_n_b, 7) where for every sequential step of pt, the first 3 coordinates
         describe the position in position space, the last four give the orientation in a form of a quaternion.
 
+        The units of distance are nm!
+
         Firstly, for the first element of position grid, all orientations (quaternions) will be included. Then,
         we move onto the next element of position grid and again include all orientations. As a consequence:
             result[0:N_b], result[N_b:2*N_b] ... first three coordinates will always be the same vector from origin
