@@ -364,13 +364,19 @@ class SQRA:
 
     def cut_and_merge(self, transition_matrix: csr_array, T: float, lower_limit: float, upper_limit: float) -> tuple:
         # cut and merge
-        rate_to_join = determine_rate_cells_to_join(self.distances, self.energies,
-            bottom_treshold=lower_limit, T=T)
-        transition_matrix, current_index_list = merge_matrix_cells(my_matrix=transition_matrix,
-            all_to_join=rate_to_join, index_list=None)
-        too_high = determine_rate_cells_with_too_high_energy(self.energies,energy_limit=upper_limit,T=T)
-        transition_matrix, current_index_list = delete_rate_cells(transition_matrix, to_remove=too_high,
-            index_list=current_index_list)
+        if lower_limit is not None:
+            rate_to_join = determine_rate_cells_to_join(self.distances, self.energies,
+                bottom_treshold=lower_limit, T=T)
+            transition_matrix, current_index_list = merge_matrix_cells(my_matrix=transition_matrix,
+                all_to_join=rate_to_join, index_list=None)
+        else:
+            current_index_list = None
+        if upper_limit is not None:
+            too_high = determine_rate_cells_with_too_high_energy(self.energies,energy_limit=upper_limit,T=T)
+            transition_matrix, current_index_list = delete_rate_cells(transition_matrix, to_remove=too_high,
+                index_list=current_index_list)
+        else:
+            current_index_list = None
         return transition_matrix, current_index_list
 
 
