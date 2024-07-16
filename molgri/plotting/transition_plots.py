@@ -18,8 +18,8 @@ NUM_EIGENV = 6
 
 class PlotlyTransitions:
 
-    def __init__(self, is_msm: bool, path_matrix: str = None, path_eigenvalues: str = None,
-                 path_eigenvectors: str = None, tau_array: NDArray = None):
+    def __init__(self, is_msm: bool, path_matrix: str = None, path_eigenvalues: str or list = None,
+                 path_eigenvectors: str or list = None, tau_array: NDArray = None):
         self.path_matrix = path_matrix
         self.path_eigenvalues = path_eigenvalues
         self.path_eigenvectors = path_eigenvectors
@@ -38,7 +38,7 @@ class PlotlyTransitions:
         self.fig.write_image(path_to_save, width=width, height=height)
         self.fig = go.Figure()
 
-    def plot_eigenvalues(self, index_tau: int = 0) -> None:
+    def plot_eigenvalues(self, index_tau: int = 0, **kwargs) -> None:
         """
         This is a function to be used with snakemake (or separately) to generate eigenvalue plots.
 
@@ -55,14 +55,14 @@ class PlotlyTransitions:
 
         # plotting
         self.fig.add_scatter(x=xs, y=eigenvals, mode='markers+text', text=[f"{el:.3f}" for el in eigenvals],
-                        marker=dict(size=8, color="black"), opacity=1)
+                        marker=dict(size=8, color="black"), opacity=1, **kwargs)
         # vertical lines
         for i, eigenw in enumerate(eigenvals):
             self.fig.add_shape(type="line", x0=xs[i], y0=0, x1=xs[i], y1=eigenw, line=dict(color="black", width=2),
-                          opacity=1)
+                          opacity=1, **kwargs)
 
         # horizontal infinite line
-        self.fig.add_hline(y=0, line=dict(color="black", width=2), opacity=1)
+        self.fig.add_hline(y=0, line=dict(color="black", width=2), opacity=1, **kwargs)
 
         # where the labels are (above or below)
         if self.is_msm:
@@ -134,17 +134,23 @@ class PlotlyTransitions:
         # cut-off because the values are over a range of magnitudes
         self.fig.update_coloraxes(cmin=-5, cmid=0, cmax=5)
 
-    def plot_its_msm(self, dt=1) -> None:
-        # eigenvalues
-        xs = self.tau_array * dt
-        eigenvals = np.load(self.path_eigenvalues)  # dropping the first one as it should be zero and cause issues
-
-        for j in range(1, NUM_EIGENV):
-            its = np.array(-self.tau_array * dt / np.log(np.abs(eigenvals[:, j])))
-            self.fig.add_scatter(x=xs, y=its, mode="lines+markers")
+    def plot_its_msm(self, writeout=5, time_step_ps=0.02) -> None:
+        xs = self.tau_array * writeout * time_step_ps
         # gray triangle
         self.fig.add_scatter(x=[0, xs[-1], xs[-1]], y=[0, 0, xs[-1]], mode="lines", fill="toself", fillcolor="gray",
                              line=dict(width=0))
-        self.fig.update_layout(showlegend=False)
+        self.fig.update_layout(showlegend=False, xaxis_title=r"$\tau [ps]$", yaxis_title="ITS [ps]")
+        # eigenvalues
+
+
+        all_eigenvals = []
+        for el in self.path_eigenvalues:
+            eigenvals = np.load(el)[1:]  # dropping the first one as it should be zero and cause issues
+            all_eigenvals.append(eigenvals)
+        all_eigenvals = np.array(all_eigenvals)
+        for eigenvals in all_eigenvals.T:
+            its = np.array(-self.tau_array * writeout * time_step_ps / np.log(np.abs(eigenvals)))
+            self.fig.add_scatter(x=xs, y=its, mode="lines+markers")
+
 
 

@@ -19,7 +19,7 @@ def case_insensitive_search_and_replace(file_read, file_write, all_search_word, 
 
 def show_eigenvectors(path_vmd_script_template: str, path_output_script: str, eigenvector_array: NDArray,
                       num_eigenvec:int, num_extremes: int,
-                      index_list: list = None):
+                      index_list: list = None, is_sqra = True):
     """
     Create a vmdlog that shows most + and - parts of the first few eigenvectors
 
@@ -64,7 +64,8 @@ def show_eigenvectors(path_vmd_script_template: str, path_output_script: str, ei
             all_lists_to_insert.append(original_index_positive)
             all_lists_to_insert.append(original_index_negative)
     # adding 1 to all because VMD uses enumeration starting with 1
-    all_lists_to_insert = [list(map(lambda x: x + 1, sublist)) for sublist in all_lists_to_insert]
+    if is_sqra:
+        all_lists_to_insert = [list(map(lambda x: x + 1, sublist)) for sublist in all_lists_to_insert]
     all_str_to_replace = [f"REPLACE{i}" for i in range(num_eigenvec * 2 - 1)]
     all_str_to_insert = [', '.join(map(str, list(el))) for el in all_lists_to_insert]
     case_insensitive_search_and_replace(path_vmd_script_template, path_output_script, all_str_to_replace, all_str_to_insert)

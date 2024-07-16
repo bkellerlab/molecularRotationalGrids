@@ -11,7 +11,7 @@ import MDAnalysis as mda
 from MDAnalysis.analysis.base import AnalysisFromFunction
 from numpy.typing import NDArray
 from scipy.sparse import coo_array, csr_array, diags, dok_array
-from scipy.sparse.linalg import eigs
+from scipy.sparse.linalg import eigs, eigsh
 from scipy.spatial.distance import cdist
 from scipy.spatial.transform import Rotation
 from scipy.constants import k as kB, N_A
@@ -312,7 +312,7 @@ class MSM:
                 # enforce detailed balance
                 sparse_count_matrix[el2, el1] += 1
             except IndexError:
-                raise IndexError("Assignments outside of FullGrid borders")
+                raise IndexError(f"Assignments outside of FullGrid borders: {cell_slice}")
         sparse_count_matrix = sparse_count_matrix.tocsr()
         sums = sparse_count_matrix.sum(axis=1)
         # to avoid dividing by zero

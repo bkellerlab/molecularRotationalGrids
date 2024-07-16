@@ -45,3 +45,24 @@ mol addrep 0
 mol modselect 7 0 index 3 or index 4 or index 5
 mol modcolor 7 0 ColorID 1
 mol drawframes 0 7 {REPLACE6}
+
+
+# fourth eigenvector positive and negative
+mol addrep 0
+mol modselect 8 0 index 3 or index 4 or index 5
+mol modcolor 8 0 ColorID 0
+mol drawframes 0 8 {REPLACE7}
+mol addrep 0
+mol modselect 9 0 index 3 or index 4 or index 5
+mol modcolor 9 0 ColorID 1
+mol drawframes 0 9 {REPLACE8}
+
+# fifth eigenvector positive and negative
+mol addrep 0
+mol modselect 10 0 index 3 or index 4 or index 5
+mol modcolor 10 0 ColorID 0
+mol drawframes 0 10 {REPLACE9}
+mol addrep 0
+mol modselect 11 0 index 3 or index 4 or index 5
+mol modcolor 11 0 ColorID 1
+mol drawframes 0 11 {REPLACE10}
