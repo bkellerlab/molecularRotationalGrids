@@ -157,3 +157,10 @@ jupyter/
 experiments/
 .virtual_documents
 *.html
+!input/H2O.gro
+!input/H2O_H2O.top
+!input/mdrun.mdp
+!input/select_3_and_0
+!input/select_energy_five
+!input/select_group_zero
+!input/index_first_mol.ndx

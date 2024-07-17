@@ -11,10 +11,9 @@ import numpy as np
 import sys
 sys.path.append("../molgri")
 
-from molgri.paths import PATH_OUTPUT_AUTOSAVE, PATH_OUTPUT_LOGGING, PATH_EXPERIMENTS, PATH_OUTPUT_PLOTS
+from molgri.paths import PATH_OUTPUT_AUTOSAVE, PATH_INPUT_BASEGRO, PATH_EXPERIMENTS
 from workflow.snakemake_utils import log_the_run, find_config_parameter_value, modify_topology, modify_mdrun
 
-PATH_MODIFIABLE_FILES = f"{PATH_EXPERIMENTS}MODIFIABLE_FILES/"
 
 TAUS = np.array([2, 3, 5, 7, 10, 20, 30, 40, 50, 70, 100, 200, 300, 500, 1000], dtype=int)
 
@@ -55,13 +54,13 @@ rule prepare_water_water:
     #wildcard_constraints:
     #    unique_id = "*water*"
     input:
-        water_gro = f"{PATH_MODIFIABLE_FILES}H2O.gro",
-        water_top = f"{PATH_MODIFIABLE_FILES}H2O_H2O.top",
-        base_mdp_file = f"{PATH_MODIFIABLE_FILES}mdrun.mdp",
-        select_group=f"{PATH_MODIFIABLE_FILES}select_group_zero",
-        select_energy=f"{PATH_MODIFIABLE_FILES}select_energy_five",
-        select_centers=f"{PATH_MODIFIABLE_FILES}select_3_and_0",
-        index_m1=f"{PATH_MODIFIABLE_FILES}index_first_mol.ndx",
+        water_gro = f"{PATH_INPUT_BASEGRO}H2O.gro",
+        water_top = f"{PATH_INPUT_BASEGRO}H2O_H2O.top",
+        base_mdp_file = f"{PATH_INPUT_BASEGRO}mdrun.mdp",
+        select_group=f"{PATH_INPUT_BASEGRO}select_group_zero",
+        select_energy=f"{PATH_INPUT_BASEGRO}select_energy_five",
+        select_centers=f"{PATH_INPUT_BASEGRO}select_3_and_0",
+        index_m1=f"{PATH_INPUT_BASEGRO}index_first_mol.ndx",
         config_file = f"{PATH_EXPERIMENTS}{{unique_id}}/experiment_config.txt"
     output:
         molecule1 = f"{PATH_EXPERIMENTS}{{unique_id}}/m1.gro",
