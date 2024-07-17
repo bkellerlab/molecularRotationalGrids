@@ -1,0 +1,3 @@
+include: "Snakefile_grids"
+include: "Snakefile_msm"
+include: "Snakefile_sqra"

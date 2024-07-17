@@ -155,3 +155,5 @@ playground.py
 src/
 jupyter/
 experiments/
+.virtual_documents
+*.html

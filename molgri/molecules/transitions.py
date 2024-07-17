@@ -296,7 +296,7 @@ class MSM:
         self.assigned_trajectory = assigned_trajectory
         self.total_num_cells = total_num_cells
 
-    def _get_one_tau_transition_matrix(self, tau: float, noncorrelated_windows: bool):
+    def get_one_tau_transition_matrix(self, tau: float, noncorrelated_windows: bool):
         sparse_count_matrix = dok_array((self.total_num_cells, self.total_num_cells))
         # save the number of transitions between cell with index i and cell with index j
         # count_per_cell = {(i, j): 0 for i in range(self.num_cells) for j in range(self.num_cells)}
@@ -326,7 +326,7 @@ class MSM:
     def get_all_tau_transition_matrices(self, taus: NDArray, noncorrelated_windows: bool):
         transition_matrix = np.zeros(shape=taus.shape, dtype=object)
         for tau_i, tau in enumerate(taus):
-            transition_matrix[tau_i] = self._get_one_tau_transition_matrix(tau, noncorrelated_windows=noncorrelated_windows)
+            transition_matrix[tau_i] = self.get_one_tau_transition_matrix(tau, noncorrelated_windows=noncorrelated_windows)
         return transition_matrix
 
 

@@ -1,0 +1,10 @@
+sample_name,b_grid_name,o_grid_name,t_grid_name
+"small_ideal",8,12,"'linspace(0.2, 0.5, 20)'"
+"bigger_ideal",40,42,"'linspace(0.2, 0.5, 30)'"
+"80_80_20_short",80,80,"'linspace(0.25, 0.5, 20)'"
+"80_80_20_longer",80,80,"'linspace(0.25, 0.7, 20)'"
+"80_80_30_short",80,80,"'linspace(0.25, 0.5, 30)'"
+"80_80_30_longer",80,80,"'linspace(0.25, 0.7, 30)'"
+"300grand",80,80,"'linspace(0.25, 0.8, 50)'"
+"300grand_long",80,80,"'linspace(0.2, 1, 50)'"
+"400grand",100,80,"'linspace(0.25, 0.8, 50)'"

@@ -1,0 +1,375 @@
+"""
+All of the workflows relating to production of trajectories, subsequent MSMs and their related outputs (figures ...)
+
+This will run everything that is a subfolder in experiments/ folder and contains experiment_config file.
+"""
+from time import time
+
+import numpy as np
+
+# add molgri directory
+import sys
+sys.path.append("../molgri")
+
+from molgri.paths import PATH_OUTPUT_AUTOSAVE, PATH_OUTPUT_LOGGING, PATH_EXPERIMENTS, PATH_OUTPUT_PLOTS
+from workflow.snakemake_utils import log_the_run, find_config_parameter_value, modify_topology, modify_mdrun
+
+PATH_MODIFIABLE_FILES = f"{PATH_EXPERIMENTS}MODIFIABLE_FILES/"
+
+TAUS = np.array([2, 3, 5, 7, 10, 20, 30, 40, 50, 70, 100, 200, 300, 500, 1000], dtype=int)
+
+rule all_msm:
+    wildcard_constraints:
+        unique_id = "*msm*"
+    input:
+        expand(f"{PATH_EXPERIMENTS}{{unique_id}}/{{grid_identifier}}/its_{{sigma}}_{{which}}.png", unique_id=["test1_water_msm_001", "test1_water_msm_002"],
+        grid_identifier="bigger_ideal", sigma=None, which="LR"),
+        expand(f"{PATH_EXPERIMENTS}{{unique_id}}/{{grid_identifier}}/{{tau}}/eigenvectors_msm_{{sigma}}_{{which}}{{suffix}}",
+            unique_id=["test1_water_msm_001", "test1_water_msm_002"], grid_identifier="bigger_ideal",sigma=None,which="LR",
+            tau=TAUS, suffix=[".png", "_vmdlog_msm"])
+
+rule create_config_file:
+    """
+    The point here is to get the unique ID of the experiment, read all of its parameters from a database of experiments 
+    and write them to a file within this experiment folder.
+    """
+    input:
+        experiments_database = "workflow/experiments.csv"
+    output:
+        config_file = report(f"{PATH_EXPERIMENTS}{{unique_id}}/experiment_config.txt", category="MSM", subcategory="CONFIG")
+    run:
+        # read in all parameters
+        import pandas as pd
+        experiments = pd.read_csv(input.experiments_database, index_col=0)
+        columns = experiments.columns
+        with open(output.config_file, "w") as f:
+            print(experiments, wildcards.unique_id)
+            for i, parameter_value in enumerate(experiments.loc[wildcards.unique_id]):
+                f.write(f"{columns[i]}={parameter_value}\n")
+
+rule prepare_water_water:
+    """
+    Here, everything is specific to a water-water system set up. Create a new folder in experiments/ and populate it 
+    with correctly defined inputs for the gromacs run etc.
+    """
+    #wildcard_constraints:
+    #    unique_id = "*water*"
+    input:
+        water_gro = f"{PATH_MODIFIABLE_FILES}H2O.gro",
+        water_top = f"{PATH_MODIFIABLE_FILES}H2O_H2O.top",
+        base_mdp_file = f"{PATH_MODIFIABLE_FILES}mdrun.mdp",
+        select_group=f"{PATH_MODIFIABLE_FILES}select_group_zero",
+        select_energy=f"{PATH_MODIFIABLE_FILES}select_energy_five",
+        select_centers=f"{PATH_MODIFIABLE_FILES}select_3_and_0",
+        index_m1=f"{PATH_MODIFIABLE_FILES}index_first_mol.ndx",
+        config_file = f"{PATH_EXPERIMENTS}{{unique_id}}/experiment_config.txt"
+    output:
+        molecule1 = f"{PATH_EXPERIMENTS}{{unique_id}}/m1.gro",
+        molecule2 = f"{PATH_EXPERIMENTS}{{unique_id}}/m2.gro",
+        runfile = f"{PATH_EXPERIMENTS}{{unique_id}}/mdrun.mdp",
+        topology = f"{PATH_EXPERIMENTS}{{unique_id}}/topology.top",
+        select_group = f"{PATH_EXPERIMENTS}{{unique_id}}/select_group",
+        select_energy = f"{PATH_EXPERIMENTS}{{unique_id}}/select_energy",
+        select_centers = f"{PATH_EXPERIMENTS}{{unique_id}}/select_centers",
+        index_m1 = f"{PATH_EXPERIMENTS}{{unique_id}}/index_m1.ndx",
+    run:
+        import shutil
+        # stuff that can be copied without being modified
+        shutil.copy(input.water_gro,output.molecule1)
+        shutil.copy(input.water_gro,output.molecule2)
+        shutil.copy(input.select_group, output.select_group)
+        shutil.copy(input.select_energy,output.select_energy)
+        shutil.copy(input.select_centers,output.select_centers)
+        shutil.copy(input.index_m1, output.index_m1)
+
+        # depending on config parameters, topology and runfile will be adapted
+        shutil.copy(input.water_top, output.topology)
+        shutil.copy(input.base_mdp_file, output.runfile)
+
+        # modify runfile with given parameters
+        trajectory_len = find_config_parameter_value(input.config_file,"traj_len")
+        integrator = find_config_parameter_value(input.config_file,"integrator")
+        coupling = find_config_parameter_value(input.config_file,"coupling_constant_ps")
+        modify_mdrun(output.runfile, "integrator", integrator)
+        modify_mdrun(output.runfile,"nsteps",trajectory_len)
+        modify_mdrun(output.runfile,"tau_t",coupling)
+        # modify topology with given parameters
+        up1_nm = find_config_parameter_value(input.config_file,"up1_nm")
+        up2_nm = find_config_parameter_value(input.config_file,"up2_nm")
+        force = find_config_parameter_value(input.config_file,"force")
+        modify_topology(output.topology,i="1",j="4",funct=10,low=0.0,up1=up1_nm,up2=up2_nm,force_constant=force)
+
+
+
+
+rule create_msm_gro:
+    """
+    Create a structure from two molecules. Expected in the folder: m1.gro, m2.gro
+    """
+    input:
+        molecule1 = f"{PATH_EXPERIMENTS}{{unique_id}}/m1.gro",
+        molecule2 = f"{PATH_EXPERIMENTS}{{unique_id}}/m2.gro",
+    output:
+        structure = f"{PATH_EXPERIMENTS}{{unique_id}}/structure.gro"
+    params:
+        start_dist_A = 6,  # distance between centers of mass of both molecules in the combined structure
+        cell_size_A = 30  # cubic box will be the output, this is size of the box in one dimension
+    run:
+        import MDAnalysis as mda
+        from MDAnalysis import Merge
+
+        central_molecule = mda.Universe(input.molecule1)
+        moving_molecule = mda.Universe(input.molecule2)
+
+        # center the both molecules
+        com1 = central_molecule.atoms.center_of_mass()
+        com2 = moving_molecule.atoms.center_of_mass()
+        central_molecule.atoms.translate(-com1)
+        moving_molecule.atoms.translate(-com2)
+        # translate the second one
+        moving_molecule.atoms.translate([0, 0, float(params.start_dist_A)])
+
+        # merge and write
+        merged_u = Merge(central_molecule.atoms, moving_molecule.atoms)
+        merged_u.dimensions = (params.cell_size_A, params.cell_size_A, params.cell_size_A, 90, 90, 90)
+        with mda.Writer(output.structure) as writer:
+            writer.write(merged_u)
+
+rule run_msm_gromacs:
+    """
+    This rule gets structure, trajectory, topology and gromacs run file as input, as output we are only interested in 
+    energies.
+    """
+    input:
+        structure = f"{PATH_EXPERIMENTS}{{unique_id}}/structure.gro",
+        runfile = f"{PATH_EXPERIMENTS}{{unique_id}}/mdrun.mdp",
+        topology = f"{PATH_EXPERIMENTS}{{unique_id}}/topology.top",
+        select_group = f"{PATH_EXPERIMENTS}{{unique_id}}/select_group",
+        select_energy = f"{PATH_EXPERIMENTS}{{unique_id}}/select_energy",
+        index_m1 = f"{PATH_EXPERIMENTS}{{unique_id}}/index_m1.ndx",
+        select_centers= f"{PATH_EXPERIMENTS}{{unique_id}}/select_centers",
+    shadow: "copy-minimal"
+    output:
+        energy = f"{PATH_EXPERIMENTS}{{unique_id}}/energy.xvg",
+        trajectory = f"{PATH_EXPERIMENTS}{{unique_id}}/trajectory.trr"
+    shell:
+        """
+        #!/bin/bash
+        export PATH="/home/janjoswig/local/gromacs-2022/bin:$PATH"
+        gmx22 grompp -f {input.runfile} -o result.tpr -c {input.structure} -p {input.topology}
+        gmx22 trjconv -f {input.structure} -s result.tpr -o temp.trr < {input.select_group}
+        gmx22 mdrun -s result.tpr -o temp.trr -e ener.edr
+        gmx22 energy -f ener.edr -o {output.energy} < {input.select_energy}
+        gmx22 trjconv -f temp.trr -s result.tpr -pbc mol -center -o temp.trr -n {input.index_m1} < {input.select_centers}
+        gmx22 trjconv -fit rot+trans -f temp.trr -o {output.trajectory} -s {input.structure} -n {input.index_m1} < {input.select_centers}
+        """
+
+rule run_trajectory_assignment:
+    """
+    A step before MSM - assign every frame of the trajectory to the corresponding cell
+
+    As input we need the trajectory, structure and full array of the grid we wanna assign to.
+
+    As output we get a cell index for every frame of the trajectory.
+    """
+
+    input:
+        full_array = f"{PATH_OUTPUT_AUTOSAVE}{{grid_identifier}}_full_array.npy",
+        trajectory = f"{PATH_EXPERIMENTS}{{unique_id}}/trajectory.trr",
+        structure = f"{PATH_EXPERIMENTS}{{unique_id}}/structure.gro",
+        molecule2 = f"{PATH_EXPERIMENTS}{{unique_id}}/m2.gro",
+    #wildcard_constraints:
+    #    grid_identifier = "(?!deeptime).*"
+    log:
+        log = f"{PATH_EXPERIMENTS}{{unique_id}}/{{grid_identifier}}/logging_assignments.log"
+    output:
+        assignments=f"{PATH_EXPERIMENTS}{{unique_id}}/{{grid_identifier}}/assignments.npy",
+    run:
+        t1 = time()
+        from molgri.molecules.transitions import AssignmentTool
+
+        # using all inputs
+        my_grid = np.load(input.full_array)
+        at = AssignmentTool(my_grid,input.structure,input.trajectory, input.molecule2)
+
+        # saving output
+        np.save(output.assignments,at.get_full_assignments())
+        t2 = time()
+        log_the_run(wildcards.unique_id, input, output, log.log, None, t2-t1)
+
+# rule run_deeptime_transition_matrix:
+#     """
+#     A step before MSM - assign every frame of the trajectory to the corresponding cell
+#
+#     As input we need the trajectory, structure and full array of the grid we wanna assign to.
+#
+#     As output we get a cell index for every frame of the trajectory.
+#     """
+#
+#     input:
+#         trajectory = "experiments/{unique_id}/trajectory.trr",
+#         structure = "experiments/{unique_id}/structure.gro",
+#     wildcard_constraints:
+#         grid_identifier = "deeptime.*"
+#     log:
+#         log = "experiments/{unique_id}/{grid_identifier}/logging_assignments.log"
+#     output:
+#         assignments="experiments/{unique_id}/{grid_identifier}/assignments.npy",
+#     run:
+#         t1 = time()
+#         import MDAnalysis as mda
+#         from deeptime.clustering import KMeans
+#
+#         estimator = KMeans(
+#             n_clusters=40,# place 100 cluster centers
+#             init_strategy='uniform',# uniform initialization strategy
+#             max_iter=5000,# don't actually perform the optimization, just place centers
+#             fixed_seed=13,
+#             n_jobs=8,
+#         )
+#
+#         trajectory_universe = mda.Universe(input.structure,input.trajectory)
+#         all_positions = []
+#         for ts in trajectory_universe.trajectory:
+#             all_positions.extend(ts.positions[3:].flatten())
+#         clustering = estimator.fit(np.array(all_positions)).fetch_model()
+#         my_assignments = clustering.transform(np.array(all_positions))
+#         np.save(output.assignments,my_assignments)
+#         t2 = time()
+#         log_the_run(wildcards.unique_id, input, output, log.log, None, t2-t1)
+
+
+rule run_msm_matrix:
+    """
+    As input we need: assignments.
+
+    As output we want to have the transition matrices for different taus.
+    """
+    input:
+        assignments = f"{PATH_EXPERIMENTS}{{unique_id}}/{{grid_identifier}}/assignments.npy",
+    log:
+        log = f"{PATH_EXPERIMENTS}{{unique_id}}/{{grid_identifier}}/{{tau}}/logging_msm_creation.log"
+    output:
+        transition_matrix = f"{PATH_EXPERIMENTS}{{unique_id}}/{{grid_identifier}}/{{tau}}/transition_matrix.npz"
+    run:
+        t1 = time()
+        from molgri.molecules.transitions import MSM
+        from scipy import sparse
+
+        # load data
+        my_assignments = np.load(input.assignments)
+        num_cells = np.max(my_assignments) + 1
+
+        my_msm = MSM(assigned_trajectory=my_assignments, total_num_cells=num_cells)
+        my_transition_matrices = my_msm.get_one_tau_transition_matrix(
+            noncorrelated_windows=False, tau=wildcards.tau)
+        # save the result
+        sparse.save_npz(output.transition_matrix, my_transition_matrices)
+        t2 = time()
+        log_the_run(wildcards.unique_id, input, output, log.log, None, t2-t1)
+
+rule run_decomposition_msm:
+    """
+    As output we want to have eigenvalues, eigenvectors. Es input we get a (sparse) rate matrix.
+    """
+    input:
+        transition_matrix = f"{PATH_EXPERIMENTS}{{unique_id}}/{{grid_identifier}}/{{tau}}/transition_matrix.npz"
+    log:
+        log = f"{PATH_EXPERIMENTS}{{unique_id}}/{{grid_identifier}}/{{tau}}/logging_msm_decomposition_{{sigma}}_{{which}}.log"
+    output:
+        eigenvalues = f"{PATH_EXPERIMENTS}{{unique_id}}/{{grid_identifier}}/{{tau}}/eigenvalues_msm_{{sigma}}_{{which}}.npy",
+        eigenvectors = f"{PATH_EXPERIMENTS}{{unique_id}}/{{grid_identifier}}/{{tau}}/eigenvectors_msm_{{sigma}}_{{which}}.npy"
+    params:
+        # 1 and LR not right
+        tol = 1e-7,
+        maxiter = 100000
+    run:
+        t1 = time()
+        from molgri.molecules.transitions import DecompositionTool
+        from scipy import sparse
+
+        # loading
+        my_matrix = sparse.load_npz(input.transition_matrix)
+
+        # calculation
+        dt = DecompositionTool(my_matrix, is_msm=False)
+        if wildcards.sigma == "None":
+            sigma = None
+        else:
+            sigma = float(wildcards.sigma)
+
+        all_eigenval, all_eigenvec = dt.get_decomposition(tol=params.tol, maxiter=params.maxiter,
+            which=wildcards.which,
+            sigma=sigma)
+
+        # saving to file
+        np.save(output.eigenvalues, np.array(all_eigenval))
+        np.save(output.eigenvectors, np.array(all_eigenvec))
+        t2 = time()
+        log_the_run(wildcards.unique_id, input, output, log.log, params, t2-t1)
+
+
+rule run_plot_everything_msm:
+    """
+    Some stuff to plot after a MSM calculation: eigenvalues, ITS, eigenvectors
+    """
+    input:
+        eigenvalues = f"{PATH_EXPERIMENTS}{{unique_id}}/{{grid_identifier}}/{{tau}}/eigenvalues_msm_{{sigma}}_{{which}}.npy",
+        eigenvectors = f"{PATH_EXPERIMENTS}{{unique_id}}/{{grid_identifier}}/{{tau}}/eigenvectors_msm_{{sigma}}_{{which}}.npy"
+    output:
+        plot_eigenvectors = f"{PATH_EXPERIMENTS}{{unique_id}}/{{grid_identifier}}/{{tau}}/eigenvectors_msm_{{sigma}}_{{which}}.png",
+        plot_eigenvalues = f"{PATH_EXPERIMENTS}{{unique_id}}/{{grid_identifier}}/{{tau}}/eigenvalues_msm_{{sigma}}_{{which}}.png"
+    #
+    run:
+        from molgri.plotting.transition_plots import PlotlyTransitions
+        pt = PlotlyTransitions(is_msm=True, path_eigenvalues=input.eigenvalues, path_eigenvectors=input.eigenvectors,
+            tau_array=None)
+        # eigenvectors
+        pt.plot_eigenvectors_flat(index_tau=wildcards.tau)
+        pt.save_to(output.plot_eigenvectors, height=1200)
+        # eigenvalues
+        pt.plot_eigenvalues(index_tau=wildcards.tau)
+        pt.save_to(output.plot_eigenvalues)
+
+rule run_plot_its_msm:
+    input:
+        eigenvalues = expand("experiments/{unique_id}/{grid_identifier}/{tau}/eigenvalues_msm_{sigma}_{which}.npy", tau=TAUS, allow_missing=True)
+    output:
+        plot_its = report(f"{PATH_EXPERIMENTS}{{unique_id}}/{{grid_identifier}}/its_{{sigma}}_{{which}}.png",
+        category="MSM", subcategory="ITS")
+    params:
+        writeout = 5,
+        timesteps = 0.002
+    run:
+        # todo: read params from .mdp
+        from molgri.plotting.transition_plots import PlotlyTransitions
+        pt = PlotlyTransitions(is_msm=True, path_eigenvalues=input.eigenvalues, path_eigenvectors=None,
+            tau_array=TAUS)
+        pt.plot_its_msm(writeout=params.writeout, time_step_ps=params.timesteps)
+        pt.save_to(output.plot_its)
+
+
+rule compile_vmd_log_msm:
+    """
+    Input are the saved eigenvectors. Output = a vmd log that can be used later with:
+
+    vmd <gro file> <xtc file>
+    play <vmdlog file>
+    """
+    input:
+        eigenvectors=f"{PATH_EXPERIMENTS}{{unique_id}}/{{grid_identifier}}/{{tau}}/eigenvectors_msm_{{sigma}}_{{which}}.npy",
+        # in the script only the numbers for frames need to be changed.
+        script="molgri/scripts/vmd_show_eigenvectors"
+    output:
+        vmdlog=f"{PATH_EXPERIMENTS}{{unique_id}}/{{grid_identifier}}/{{tau}}/eigenvectors_msm_{{sigma}}_{{which}}_vmdlog_msm"
+    params:
+        num_extremes=40,
+        num_eigenvec=6,  # only show the first num_eigenvec
+    run:
+        from molgri.plotting.create_vmdlog import show_eigenvectors
+
+        # load eigenvectors
+        eigenvectors = np.load(input.eigenvectors)
+
+        show_eigenvectors(input.script, output.vmdlog, eigenvector_array=eigenvectors,
+            num_eigenvec=params.num_eigenvec, num_extremes=params.num_extremes, is_sqra=False)
