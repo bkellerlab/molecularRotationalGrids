@@ -9,7 +9,7 @@ import numpy as np
 
 # add molgri directory
 import sys
-sys.path.append("../molgri")
+sys.path.append(".")
 
 from molgri.paths import PATH_OUTPUT_AUTOSAVE, PATH_INPUT_BASEGRO, PATH_EXPERIMENTS
 from workflow.snakemake_utils import log_the_run, find_config_parameter_value, modify_topology, modify_mdrun
@@ -21,10 +21,10 @@ rule all_msm:
     wildcard_constraints:
         unique_id = "*msm*"
     input:
-        expand(f"{PATH_EXPERIMENTS}{{unique_id}}/{{grid_identifier}}/its_{{sigma}}_{{which}}.png", unique_id=["test1_water_msm_001", "test1_water_msm_002"],
+        expand(f"{PATH_EXPERIMENTS}{{unique_id}}/{{grid_identifier}}/its_{{sigma}}_{{which}}.png", unique_id=["test1_water_msm_001"],
         grid_identifier="bigger_ideal", sigma=None, which="LR"),
         expand(f"{PATH_EXPERIMENTS}{{unique_id}}/{{grid_identifier}}/{{tau}}/eigenvectors_msm_{{sigma}}_{{which}}{{suffix}}",
-            unique_id=["test1_water_msm_001", "test1_water_msm_002"], grid_identifier="bigger_ideal",sigma=None,which="LR",
+            unique_id=["test1_water_msm_001"], grid_identifier="bigger_ideal",sigma=None,which="LR",
             tau=TAUS, suffix=[".png", "_vmdlog_msm"])
 
 rule create_config_file:

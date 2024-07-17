@@ -8,7 +8,7 @@ import numpy as np
 
 # add molgri directory
 import sys
-sys.path.append("../molgri")
+sys.path.append(".")
 
 from molgri.paths import PATH_OUTPUT_AUTOSAVE, PATH_OUTPUT_LOGGING
 from workflow.snakemake_utils import log_the_run
