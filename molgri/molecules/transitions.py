@@ -382,7 +382,7 @@ class SQRA:
 
 class DecompositionTool:
 
-    def __init__(self, matrix_to_decompose: NDArray, is_msm: bool):
+    def __init__(self, matrix_to_decompose):
         """
 
         Args:
@@ -390,12 +390,11 @@ class DecompositionTool:
             decompose
         """
         self.matrix_to_decompose = matrix_to_decompose
-        self.is_msm = is_msm  # in this case multiple matrices for multiple taus
 
     def get_decomposition(self, tol: float, maxiter: int, which: str, sigma: Optional[float]):
         """
-        The function for users - will decompose all matrices if self.matrix_to_decompose is 3D, else the one matrix
-        Args:
+        The function for users - will decompose all matrices.
+
             tol ():
             maxiter ():
             which ():
@@ -404,25 +403,11 @@ class DecompositionTool:
         Returns:
 
         """
-        if self.is_msm:
-            all_eigenval = []
-            all_eigenvec = []
-            for submatrix in self.matrix_to_decompose:
-                one_eigenval, one_eigenvec = self._single_decomposition(submatrix, tol=tol, maxiter=maxiter,
-                                                                       which=which, sigma=sigma)
-                all_eigenval.append(one_eigenval)
-                all_eigenvec.append(one_eigenvec)
-            return all_eigenval, all_eigenvec
-        else:
-            return self._single_decomposition(self.matrix_to_decompose, tol=tol, maxiter=maxiter, which=which,
-                                              sigma=sigma)
-
-    def _single_decomposition(self, my_matrix, **kwargs):
-        eigenval, eigenvec = eigs(my_matrix.T, **kwargs)
+        eigenval, eigenvec = eigs(self.matrix_to_decompose.T, tol=tol, maxiter=maxiter, which=which, sigma=sigma)
         # if imaginary eigenvectors or eigenvalues, raise error
         if not np.allclose(eigenvec.imag.max(), 0, rtol=1e-3, atol=1e-5) or not np.allclose(eigenval.imag.max(), 0,
                                                                                             rtol=1e-3, atol=1e-5):
-            raise ValueError(f"Complex vlues for eigenvectors and/or eigenvalues: {eigenvec}, {eigenval}")
+            raise ValueError(f"Complex values for eigenvectors and/or eigenvalues: {eigenvec}, {eigenval}")
         eigenvec = eigenvec.real
         eigenval = eigenval.real
         # sort eigenvectors according to their eigenvalues
@@ -430,5 +415,6 @@ class DecompositionTool:
         eigenval = eigenval[idx]
         eigenvec = eigenvec[:, idx]
         return eigenval, eigenvec
+
 
 

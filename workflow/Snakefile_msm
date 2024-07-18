@@ -1,7 +1,5 @@
 """
 All of the workflows relating to production of trajectories, subsequent MSMs and their related outputs (figures ...)
-
-This will run everything that is a subfolder in experiments/ folder and contains experiment_config file.
 """
 from time import time
 
@@ -18,9 +16,10 @@ include: "Snakefile_grids"
 
 TAUS = np.array([2, 3, 5, 7, 10, 20, 30, 40, 50, 70, 100, 200, 300, 500, 1000], dtype=int)
 
+wildcard_constraints:
+    unique_id=".*msm.*"
+
 rule all_msm:
-    wildcard_constraints:
-        unique_id = "*msm*"
     input:
         expand(f"{PATH_EXPERIMENTS}{{unique_id}}/{{grid_identifier}}/its_{{sigma}}_{{which}}.png",
             unique_id=[f"bounds_water_msm_00{i}" for i in range(1, 6)],
@@ -30,78 +29,78 @@ rule all_msm:
             grid_identifier=["300grand_long"], sigma=None,which="LR",
             tau=TAUS, suffix=[".png", "_vmdlog_msm"])
 
-rule create_config_file:
-    """
-    The point here is to get the unique ID of the experiment, read all of its parameters from a database of experiments 
-    and write them to a file within this experiment folder.
-    """
-    input:
-        experiments_database = "workflow/experiments.csv"
-    output:
-        config_file = report(f"{PATH_EXPERIMENTS}{{unique_id}}/experiment_config.txt", category="MSM", subcategory="CONFIG")
-    run:
-        # read in all parameters
-        import pandas as pd
-        experiments = pd.read_csv(input.experiments_database, index_col=0)
-        columns = experiments.columns
-        with open(output.config_file, "w") as f:
-            print(experiments, wildcards.unique_id)
-            for i, parameter_value in enumerate(experiments.loc[wildcards.unique_id]):
-                f.write(f"{columns[i]}={parameter_value}\n")
-
-rule prepare_water_water:
-    """
-    Here, everything is specific to a water-water system set up. Create a new folder in experiments/ and populate it 
-    with correctly defined inputs for the gromacs run etc.
-    """
-    #wildcard_constraints:
-    #    unique_id = "*water*"
-    input:
-        water_gro = f"{PATH_INPUT_BASEGRO}H2O.gro",
-        water_top = f"{PATH_INPUT_BASEGRO}H2O_H2O.top",
-        base_mdp_file = f"{PATH_INPUT_BASEGRO}mdrun.mdp",
-        select_group=f"{PATH_INPUT_BASEGRO}select_group_zero",
-        select_energy=f"{PATH_INPUT_BASEGRO}select_energy_five",
-        select_centers=f"{PATH_INPUT_BASEGRO}select_3_and_0",
-        index_m1=f"{PATH_INPUT_BASEGRO}index_first_mol.ndx",
-        config_file = f"{PATH_EXPERIMENTS}{{unique_id}}/experiment_config.txt"
-    output:
-        molecule1 = f"{PATH_EXPERIMENTS}{{unique_id}}/m1.gro",
-        molecule2 = f"{PATH_EXPERIMENTS}{{unique_id}}/m2.gro",
-        runfile = f"{PATH_EXPERIMENTS}{{unique_id}}/mdrun.mdp",
-        topology = f"{PATH_EXPERIMENTS}{{unique_id}}/topology.top",
-        select_group = f"{PATH_EXPERIMENTS}{{unique_id}}/select_group",
-        select_energy = f"{PATH_EXPERIMENTS}{{unique_id}}/select_energy",
-        select_centers = f"{PATH_EXPERIMENTS}{{unique_id}}/select_centers",
-        index_m1 = f"{PATH_EXPERIMENTS}{{unique_id}}/index_m1.ndx",
-    run:
-        import shutil
-        # stuff that can be copied without being modified
-        shutil.copy(input.water_gro,output.molecule1)
-        shutil.copy(input.water_gro,output.molecule2)
-        shutil.copy(input.select_group, output.select_group)
-        shutil.copy(input.select_energy,output.select_energy)
-        shutil.copy(input.select_centers,output.select_centers)
-        shutil.copy(input.index_m1, output.index_m1)
-
-        # depending on config parameters, topology and runfile will be adapted
-        shutil.copy(input.water_top, output.topology)
-        shutil.copy(input.base_mdp_file, output.runfile)
-
-        # modify runfile with given parameters
-        trajectory_len = find_config_parameter_value(input.config_file,"traj_len")
-        integrator = find_config_parameter_value(input.config_file,"integrator")
-        coupling = find_config_parameter_value(input.config_file,"coupling_constant_ps")
-        modify_mdrun(output.runfile, "integrator", integrator)
-        modify_mdrun(output.runfile,"nsteps",trajectory_len)
-        modify_mdrun(output.runfile,"tau_t",coupling)
-        # modify topology with given parameters
-        up1_nm = find_config_parameter_value(input.config_file,"up1_nm")
-        up2_nm = find_config_parameter_value(input.config_file,"up2_nm")
-        force = find_config_parameter_value(input.config_file,"force")
-        modify_topology(output.topology,i="1",j="4",funct=10,low=0.0,up1=up1_nm,up2=up2_nm,force_constant=force)
-
-
+# rule create_config_file:
+#     """
+#     The point here is to get the unique ID of the experiment, read all of its parameters from a database of experiments
+#     and write them to a file within this experiment folder.
+#     """
+#     input:
+#         experiments_database = "workflow/experiments.csv"
+#     output:
+#         config_file = report(f"{PATH_EXPERIMENTS}{{unique_id}}/experiment_config.txt", category="MSM", subcategory="CONFIG")
+#     run:
+#         # read in all parameters
+#         import pandas as pd
+#         experiments = pd.read_csv(input.experiments_database, index_col=0)
+#         columns = experiments.columns
+#         with open(output.config_file, "w") as f:
+#             print(experiments, wildcards.unique_id)
+#             for i, parameter_value in enumerate(experiments.loc[wildcards.unique_id]):
+#                 f.write(f"{columns[i]}={parameter_value}\n")
+#
+# rule prepare_water_water:
+#     """
+#     Here, everything is specific to a water-water system set up. Create a new folder in experiments/ and populate it
+#     with correctly defined inputs for the gromacs run etc.
+#     """
+#     #wildcard_constraints:
+#     #    unique_id = "*water*"
+#     input:
+#         water_gro = f"{PATH_INPUT_BASEGRO}H2O.gro",
+#         water_top = f"{PATH_INPUT_BASEGRO}H2O_H2O.top",
+#         base_mdp_file = f"{PATH_INPUT_BASEGRO}mdrun.mdp",
+#         select_group=f"{PATH_INPUT_BASEGRO}select_group_zero",
+#         select_energy=f"{PATH_INPUT_BASEGRO}select_energy_five",
+#         select_centers=f"{PATH_INPUT_BASEGRO}select_3_and_0",
+#         index_m1=f"{PATH_INPUT_BASEGRO}index_first_mol.ndx",
+#         config_file = f"{PATH_EXPERIMENTS}{{unique_id}}/experiment_config.txt"
+#     output:
+#         molecule1 = f"{PATH_EXPERIMENTS}{{unique_id}}/m1.gro",
+#         molecule2 = f"{PATH_EXPERIMENTS}{{unique_id}}/m2.gro",
+#         runfile = f"{PATH_EXPERIMENTS}{{unique_id}}/mdrun.mdp",
+#         topology = f"{PATH_EXPERIMENTS}{{unique_id}}/topology.top",
+#         select_group = f"{PATH_EXPERIMENTS}{{unique_id}}/select_group",
+#         select_energy = f"{PATH_EXPERIMENTS}{{unique_id}}/select_energy",
+#         select_centers = f"{PATH_EXPERIMENTS}{{unique_id}}/select_centers",
+#         index_m1 = f"{PATH_EXPERIMENTS}{{unique_id}}/index_m1.ndx",
+#     run:
+#         import shutil
+#         # stuff that can be copied without being modified
+#         shutil.copy(input.water_gro,output.molecule1)
+#         shutil.copy(input.water_gro,output.molecule2)
+#         shutil.copy(input.select_group, output.select_group)
+#         shutil.copy(input.select_energy,output.select_energy)
+#         shutil.copy(input.select_centers,output.select_centers)
+#         shutil.copy(input.index_m1, output.index_m1)
+#
+#         # depending on config parameters, topology and runfile will be adapted
+#         shutil.copy(input.water_top, output.topology)
+#         shutil.copy(input.base_mdp_file, output.runfile)
+#
+#         # modify runfile with given parameters
+#         trajectory_len = find_config_parameter_value(input.config_file,"traj_len")
+#         integrator = find_config_parameter_value(input.config_file,"integrator")
+#         coupling = find_config_parameter_value(input.config_file,"coupling_constant_ps")
+#         modify_mdrun(output.runfile, "integrator", integrator)
+#         modify_mdrun(output.runfile,"nsteps",trajectory_len)
+#         modify_mdrun(output.runfile,"tau_t",coupling)
+#         # modify topology with given parameters
+#         up1_nm = find_config_parameter_value(input.config_file,"up1_nm")
+#         up2_nm = find_config_parameter_value(input.config_file,"up2_nm")
+#         force = find_config_parameter_value(input.config_file,"force")
+#         modify_topology(output.topology,i="1",j="4",funct=10,low=0.0,up1=up1_nm,up2=up2_nm,force_constant=force)
+#
+#
 
 
 rule create_msm_gro:
@@ -294,7 +293,7 @@ rule run_decomposition_msm:
         my_matrix = sparse.load_npz(input.transition_matrix)
 
         # calculation
-        dt = DecompositionTool(my_matrix, is_msm=False)
+        dt = DecompositionTool(my_matrix)
         if wildcards.sigma == "None":
             sigma = None
         else:

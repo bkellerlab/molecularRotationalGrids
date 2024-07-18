@@ -1,0 +1,211 @@
+"""
+All of the workflows relating to pseudotrajectories, subsequent SQRAs and their related outputs (figures ...)
+"""
+from time import time
+
+import numpy as np
+
+# add molgri directory
+import sys
+sys.path.append(".")
+
+from molgri.paths import PATH_OUTPUT_AUTOSAVE, PATH_INPUT_BASEGRO, PATH_EXPERIMENTS
+
+include: "Snakefile_grids"
+
+wildcard_constraints:
+    unique_id=".*sqra.*"
+
+
+rule run_pt:
+    """
+    This rule should produce the .gro and .xtc files of the pseudotrajectory.
+    """
+    input:
+        molecule1 = f"{PATH_EXPERIMENTS}{{unique_id}}/m1.gro",
+        molecule2 = f"{PATH_EXPERIMENTS}{{unique_id}}/m2.gro",
+        grid = f"{PATH_OUTPUT_AUTOSAVE}{{grid_identifier}}_full_array.npy",
+    output:
+        structure = f"{PATH_EXPERIMENTS}{{unique_id}}/{{grid_identifier}}/structure.gro",
+        trajectory = f"{PATH_EXPERIMENTS}{{unique_id}}/{{grid_identifier}}/trajectory.trr"
+    params:
+        cell_size_A = 30  # cubic box will be the output, this is size of the box in one dimension
+    run:
+        from molgri.molecules.writers import PtWriter
+        from molgri.molecules.pts import Pseudotrajectory
+        from molgri.molecules.parsers import FileParser
+
+        # load grid and molecules
+        my_grid = np.load(input.grid)
+        my_molecule1 = FileParser(input.molecule1).as_parsed_molecule()
+        my_molecule2 = FileParser(input.molecule2).as_parsed_molecule()
+
+        # create PT
+        my_pt = Pseudotrajectory(my_molecule2,my_grid)
+
+        # write out .gro and .xtc files
+        my_writer = PtWriter("",my_molecule1)
+        my_writer.box = (params.cell_size_A, params.cell_size_A, params.cell_size_A, 90, 90, 90)
+        my_writer.write_full_pt(my_pt,path_structure=output.structure,path_trajectory=output.trajectory)
+
+
+rule gromacs_rerun:
+    """
+    This rule gets structure, trajectory, topology and gromacs run file as input, as output we are only interested in
+    energies.
+    """
+
+    input:
+        structure = f"{PATH_EXPERIMENTS}{{unique_id}}/{{grid_identifier}}/structure.gro",
+        trajectory = f"{PATH_EXPERIMENTS}{{unique_id}}/{{grid_identifier}}/trajectory.trr",
+        runfile = f"{PATH_EXPERIMENTS}{{unique_id}}/mdrun.mdp",
+        topology = f"{PATH_EXPERIMENTS}{{unique_id}}/topology.top",
+        select_energy = f"{PATH_EXPERIMENTS}{{unique_id}}/select_energy",
+    shadow: "copy-minimal"
+    output:
+        energy = f"{PATH_EXPERIMENTS}{{unique_id}}/{{grid_identifier}}/energy.xvg",
+    # use with arguments like path_structure path_trajectory path_topology path_default_files path_output_energy
+    shell:
+        """
+        #!/bin/bash
+        export PATH="/home/janjoswig/local/gromacs-2022/bin:$PATH"
+        gmx22 grompp -f {input.runfile} -c {input.structure} -p {input.topology} -o result.tpr
+        gmx22 mdrun -s result.tpr -rerun {input.trajectory}
+        gmx22 energy -f ener.edr -o {output.energy} < {input.select_energy}
+        """
+
+
+rule run_sqra:
+    """
+    As input we need: energies, adjacency, volume, borders, distances.
+    As output we want to have the rate matrix.
+    """
+    input:
+        energy = f"{PATH_EXPERIMENTS}{{unique_id}}/{{grid_identifier}}/energy.xvg",
+        distances_array = f"{PATH_OUTPUT_AUTOSAVE}{{grid_identifier}}_distances_array.npz",
+        borders_array = f"{PATH_OUTPUT_AUTOSAVE}{{grid_identifier}}_borders_array.npz",
+        volumes = f"{PATH_OUTPUT_AUTOSAVE}{{grid_identifier}}_volumes.npy",
+    output:
+        rate_matrix = f"{PATH_EXPERIMENTS}{{unique_id}}/{{grid_identifier}}/{{lower_lim}}-{{upper_lim}}/rate_matrix.npz",
+        index_list = f"{PATH_EXPERIMENTS}{{unique_id}}/{{grid_identifier}}/{{lower_lim}}-{{upper_lim}}/index_list.npy",
+    params:
+        D=1,# diffusion constant
+        T=273,# temperature in K
+        energy_type="Potential",
+    run:
+        from molgri.molecules.parsers import XVGParser
+        from molgri.molecules.transitions import SQRA
+        from scipy import sparse
+
+        # load input files
+        all_volumes = np.load(input.volumes)
+        all_surfaces = sparse.load_npz(input.borders_array)
+        all_distances = sparse.load_npz(input.distances_array)
+
+        # determine limits
+        if wildcards.lower_lim == "None":
+            lower_limit = None
+        else:
+            lower_limit = float(wildcards.lower_lim)
+        if wildcards.upper_lim == "None":
+            upper_limit = None
+        else:
+            upper_limit = float(wildcards.upper_lim)
+
+        my_parsed = XVGParser(input.energy)
+        energies = my_parsed.get_parsed_energy().get_energies(params.energy_type)
+
+        sqra = SQRA(energies=energies,volumes=all_volumes,distances=all_distances,surfaces=all_surfaces)
+        rate_matrix = sqra.get_rate_matrix(params.D,params.T)
+        rate_matrix, index_list = sqra.cut_and_merge(rate_matrix,T=params.T,lower_limit=lower_limit,
+            upper_limit=upper_limit)
+
+        # saving to file
+        sparse.save_npz(output.rate_matrix,rate_matrix)
+        np.save(output.index_list,np.array(index_list,dtype=object))
+#
+rule run_decomposition:
+    """
+    As output we want to have eigenvalues, eigenvectors. Es input we get a (sparse) rate matrix.
+    """
+    input:
+        rate_matrix = f"{PATH_EXPERIMENTS}{{unique_id}}/{{grid_identifier}}/{{lower_lim}}-{{upper_lim}}/rate_matrix.npz",
+    output:
+        eigenvalues = f"{PATH_EXPERIMENTS}{{unique_id}}/{{grid_identifier}}/{{lower_lim}}-{{upper_lim}}/eigenvalues_{{sigma}}_{{which}}.npy",
+        eigenvectors = f"{PATH_EXPERIMENTS}{{unique_id}}/{{grid_identifier}}/{{lower_lim}}-{{upper_lim}}/eigenvectors_{{sigma}}_{{which}}.npy",
+    params:
+        tol=1e-5,
+        maxiter=100000,
+    run:
+        from scipy import sparse
+        from molgri.molecules.transitions import DecompositionTool
+
+        # loading
+        my_matrix = sparse.load_npz(input.rate_matrix)
+
+        if wildcards.sigma == "None":
+            sigma = None
+        else:
+            sigma = float(wildcards.sigma)
+        # calculation
+        dt = DecompositionTool(my_matrix)
+        all_eigenval, all_eigenvec = dt.get_decomposition(tol=params.tol, maxiter=params.maxiter, which=wildcards.which,
+            sigma=sigma)
+
+        # saving to file
+        np.save(output.eigenvalues,np.array(all_eigenval))
+        np.save(output.eigenvectors,np.array(all_eigenvec))
+
+
+rule run_plot_everything_sqra:
+    """
+    Make a plot of eigenvalues
+    """
+    input:
+        eigenvalues = f"{PATH_EXPERIMENTS}{{unique_id}}/{{grid_identifier}}/{{lower_lim}}-{{upper_lim}}/eigenvalues_{{sigma}}_{{which}}.npy",
+        eigenvectors = f"{PATH_EXPERIMENTS}{{unique_id}}/{{grid_identifier}}/{{lower_lim}}-{{upper_lim}}/eigenvectors_{{sigma}}_{{which}}.npy",
+    output:
+        plot_eigenvectors=f"{PATH_EXPERIMENTS}{{unique_id}}/{{grid_identifier}}/{{lower_lim}}-{{upper_lim}}/eigenvectors_{{sigma}}_{{which}}.png",
+        plot_eigenvalues=f"{PATH_EXPERIMENTS}{{unique_id}}/{{grid_identifier}}/{{lower_lim}}-{{upper_lim}}/eigenvalues_{{sigma}}_{{which}}.png",
+        plot_its=report(f"{PATH_EXPERIMENTS}{{unique_id}}/{{grid_identifier}}/{{lower_lim}}-{{upper_lim}}/its_{{sigma}}_{{which}}.png"),
+    run:
+        from molgri.plotting.transition_plots import PlotlyTransitions
+
+        pt = PlotlyTransitions(is_msm=False,path_eigenvalues=input.eigenvalues,path_eigenvectors=input.eigenvectors)
+        # eigenvectors
+        pt.plot_eigenvectors_flat()
+        pt.save_to(output.plot_eigenvectors,height=1200)
+        # eigenvalues
+        pt.plot_eigenvalues()
+        pt.save_to(output.plot_eigenvalues)
+        # # its for msm
+        pt.plot_its_as_line()
+        pt.save_to(output.plot_its)
+        # we could also plot the heatmap of the matrix, but it's honestly not that useful and can become very large
+
+rule compile_vmd_log:
+    """
+    Input are the saved eigenvectors. Output = a vmd log that can be used later with:
+
+    vmd <gro file> <xtc file>
+    play <vmdlog file>
+    """
+    input:
+        eigenvectors = f"{PATH_EXPERIMENTS}{{unique_id}}/{{grid_identifier}}/{{lower_lim}}-{{upper_lim}}/eigenvectors_{{sigma}}_{{which}}.npy",
+        index_list = f"{PATH_EXPERIMENTS}{{unique_id}}/{{grid_identifier}}/{{lower_lim}}-{{upper_lim}}/index_list.npy",
+        # in the script only the numbers for frames need to be changed.
+        script="molgri/scripts/vmd_show_eigenvectors"
+    output:
+        vmdlog = f"{PATH_EXPERIMENTS}{{unique_id}}/{{grid_identifier}}/{{lower_lim}}-{{upper_lim}}/eigenvectors_{{sigma}}_{{which}}_vmdlog_sqra"
+    params:
+        num_extremes=40,
+        num_eigenvec=6  # only show the first num_eigenvec
+    run:
+        from molgri.plotting.create_vmdlog import show_eigenvectors
+
+        # load eigenvectors
+        eigenvectors = np.load(input.eigenvectors)
+        index_list = np.load(input.index_list,allow_pickle=True)
+
+        show_eigenvectors(input.script,output.vmdlog,eigenvector_array=eigenvectors,
+            num_eigenvec=params.num_eigenvec,num_extremes=params.num_extremes,index_list=list(index_list))
