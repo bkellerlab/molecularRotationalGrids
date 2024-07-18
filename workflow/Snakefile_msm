@@ -14,6 +14,7 @@ sys.path.append(".")
 from molgri.paths import PATH_OUTPUT_AUTOSAVE, PATH_INPUT_BASEGRO, PATH_EXPERIMENTS
 from workflow.snakemake_utils import log_the_run, find_config_parameter_value, modify_topology, modify_mdrun
 
+include: "Snakefile_grids"
 
 TAUS = np.array([2, 3, 5, 7, 10, 20, 30, 40, 50, 70, 100, 200, 300, 500, 1000], dtype=int)
 
@@ -21,10 +22,12 @@ rule all_msm:
     wildcard_constraints:
         unique_id = "*msm*"
     input:
-        expand(f"{PATH_EXPERIMENTS}{{unique_id}}/{{grid_identifier}}/its_{{sigma}}_{{which}}.png", unique_id=["test1_water_msm_001"],
-        grid_identifier="bigger_ideal", sigma=None, which="LR"),
+        expand(f"{PATH_EXPERIMENTS}{{unique_id}}/{{grid_identifier}}/its_{{sigma}}_{{which}}.png",
+            unique_id=[f"bounds_water_msm_00{i}" for i in range(1, 6)],
+            grid_identifier=["300grand_long"], sigma=None, which="LR"),
         expand(f"{PATH_EXPERIMENTS}{{unique_id}}/{{grid_identifier}}/{{tau}}/eigenvectors_msm_{{sigma}}_{{which}}{{suffix}}",
-            unique_id=["test1_water_msm_001"], grid_identifier="bigger_ideal",sigma=None,which="LR",
+            unique_id=[f"bounds_water_msm_00{i}" for i in range(1, 6)],
+            grid_identifier=["300grand_long"], sigma=None,which="LR",
             tau=TAUS, suffix=[".png", "_vmdlog_msm"])
 
 rule create_config_file:
