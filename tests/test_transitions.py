@@ -95,10 +95,11 @@ def test_quaternion_grid_assignments():
 
 def view_quaternion_assignments():
     # show how pt is assigned
-    num_b = 300
-    num_o = 200
-    assignment_grid = _create_grid(b="42", o=f"{num_o}", t="0.2")
-    pt_grid = _create_grid(b=f"randomQ_{num_b}", o=f"{num_o}", t="0.2")
+    num_b = 500
+    num_o = 500
+    t = "linspace(0.2, 1, 20)"
+    assignment_grid = _create_grid(b="42", o=f"{num_o}", t=t)  #"0.2"
+    pt_grid = _create_grid(b=f"randomQ_{num_b}", o=f"{num_o}", t=t)
     _create_pseudotraj(pt_grid.get_full_grid_as_array(), path_trajectory=f"{PATH_OUTPUT_PT}assignment_ex.trr",
                         path_structure=f"{PATH_OUTPUT_PT}assignment_ex.gro")
     at = AssignmentTool(assignment_grid.get_full_grid_as_array(), path_structure=f"{PATH_OUTPUT_PT}assignment_ex.gro",
@@ -110,6 +111,7 @@ def view_quaternion_assignments():
     q_assignments = at.get_full_assignments()
     t2= time()
     print(f"That took {t2-t1} s")
+    print(q_assignments[350:450])
     show_assignments("molgri/scripts/vmd_show_eigenvectors", f"{PATH_OUTPUT_AUTOSAVE}assignment_ex",
                      q_assignments)
     # show how a real example traj is assigned

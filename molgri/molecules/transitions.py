@@ -5,6 +5,9 @@ In this module, the two methods of evaluating transitions between states - the M
 implemented.
 """
 from typing import Optional, Tuple, Sequence, Any
+import multiprocessing
+from multiprocessing import Pool
+from functools import partial
 
 import numpy as np
 import MDAnalysis as mda
@@ -69,11 +72,15 @@ class AssignmentTool:
                         directions = ar
                         return np.array(directions)
 
+    def _complex_mdanalysis_func(self, frame_index, ag, reference_direction):
+        # index the trajectory to set it to the frame_index frame
+        ag.universe.trajectory[frame_index]
+        return np.multiply(ag.principal_axes().T, np.tile(self._determine_positive_directions(ag) / reference_direction, (3, 1)))
+
     def _get_quaternion_assignments(self):
         """
         Assign every frame of the trajectory to the closest quaternion from the b_grid_points.
         """
-        from time import time
         # find PA and direction of reference structure
         reference_principal_axes = self.reference_universe.atoms.principal_axes().T
         inverse_pa = np.linalg.inv(reference_principal_axes)
@@ -81,27 +88,34 @@ class AssignmentTool:
         if reference_direction is None:
             raise ValueError("All atoms perpendicular to at least one of principal axes, can't determine direction.")
 
-        # find PA and direction along trajectory
-        pa_frames = AnalysisFromFunction(lambda ag: ag.principal_axes().T, self.trajectory_universe.trajectory,
-                                         self.trajectory_universe.select_atoms(self.second_molecule_selection))
-        pa_frames.run()
-        pa_frames = pa_frames.results['timeseries']
+        """
+        I am very sorry that this part is optimized, parallelized and completely unreadable. Rely on tests to make 
+        sure this stuff works and be happy that your calculations are no longer taking two days.
+        """
+        run_per_frame = partial(self._complex_mdanalysis_func,
+                                ag=self.trajectory_universe.select_atoms(self.second_molecule_selection),
+                                reference_direction=reference_direction)
+        frame_values = np.arange(self.trajectory_universe.trajectory.n_frames)
+        n_jobs = 100
+        with Pool(n_jobs) as worker_pool:
+            direction_frames = worker_pool.map(run_per_frame, frame_values)
+        produkt = np.matmul(direction_frames, inverse_pa)
 
-        direction_frames = AnalysisFromFunction(lambda ag: np.tile(self._determine_positive_directions(
-            ag) / reference_direction, (3, 1)),
-                                                self.trajectory_universe.trajectory,
-                                                self.trajectory_universe.select_atoms(self.second_molecule_selection))
-        direction_frames.run()
-        direction_frames = direction_frames.results['timeseries']
-        directed_pas = np.multiply(pa_frames, direction_frames)
-        produkt = np.matmul(directed_pas, inverse_pa)
-
+        """
+        Explanation: we have N_traj_len produkt matrices called P_i and N_quat reference matrices called R_i. The 
+        matrix product R_i@P_i.T describes the rotation matrix needed to get from R_i to P_i. We want the magnitude 
+        of this rotation to be as small as possible.
+        
+        So we calculate the matrix of magnitudes of size N_quat x N_traj_len and select the index of the smallest 
+        magnitude per row.
+        
+        This part of the function should be pretty fast.
+        """
         reference_matrices = Rotation(self.b_array).as_matrix()
-
-        b_indices = []
-        for i in range(len(produkt)):
-            b_indices.append(np.argmin(Rotation.from_matrix(reference_matrices@produkt[i].T).magnitude()))
-        return np.array(b_indices)
+        alignment_magnitudes = np.empty((len(reference_matrices), len(produkt)))
+        for i, rm in enumerate(reference_matrices):
+            alignment_magnitudes[i] = Rotation.from_matrix(rm@produkt.transpose(0, 2, 1)).magnitude()
+        return np.argmin(alignment_magnitudes, axis=0)
 
     def _get_t_assignments(self) -> NDArray:
         """

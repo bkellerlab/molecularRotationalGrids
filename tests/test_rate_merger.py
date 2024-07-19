@@ -1,24 +1,17 @@
 import numpy as np
 from scipy.sparse import csr_array
-import pytest
 
 from molgri.molecules.rate_merger import find_el_within_nested_list, merge_sublists, merge_matrix_cells, \
     sqra_normalize, delete_rate_cells
 
+A = np.array([[0, 3, 7, 8, 4],
+              [3, 0, 1, 2, 5],
+              [7, 1, 0, 8, 7],
+              [8, 2, 8, 0, 1],
+              [4, 5, 7, 1, 0]])
 
-def pytest_configure():
-    # we have cells 0, 1, 2, 3, 4 and rates between all combinations
-    A = np.array([[0, 3, 7, 8, 4],
-                  [3, 0, 1, 2, 5],
-                  [7, 1, 0, 8, 7],
-                  [8, 2, 8, 0, 1],
-                  [4, 5, 7, 1, 0]])
-
-    A = sqra_normalize(A)
-    A_sparse = csr_array(A)
-    pytest.A = A
-    pytest.A_sparse = A_sparse
-
+A = sqra_normalize(A)
+A_sparse = csr_array(A)
 
 def test_find_within_nested_list():
     assert np.allclose(find_el_within_nested_list([[0, 2], [7], [13, 4]], 18), np.array([]))
@@ -32,11 +25,11 @@ def test_merge_sublists():
 
 
 def test_merge_matrix_cells():
-    merge_test1 = merge_matrix_cells(pytest.A, [[0, 0], [0, 1], [3, 0], [2, 4]])
+    merge_test1 = merge_matrix_cells(A, [[0, 0], [0, 1], [3, 0], [2, 4]])
     assert np.allclose(merge_test1[0], np.array([[-26., 26.], [26., -26.]]))
     assert np.all(merge_test1[1] == [[0, 1, 3], [2, 4]]), merge_test1[1]
 
-    merge_test2 = merge_matrix_cells(pytest.A, [[0, 3]])
+    merge_test2 = merge_matrix_cells(A, [[0, 3]])
     expected2 = np.array([[-25, 5, 15, 5],
                           [5, -11, 1, 5],
                           [15, 1, -23, 7],
@@ -47,11 +40,11 @@ def test_merge_matrix_cells():
 
     # testing merging with sparse matrices
 
-    step1s, index1s = merge_matrix_cells(my_matrix=pytest.A_sparse, all_to_join=[[0, 3]], index_list=None)
+    step1s, index1s = merge_matrix_cells(my_matrix=A_sparse, all_to_join=[[0, 3]], index_list=None)
     assert np.allclose(step1s.todense(), expected2)
     assert np.all(index1s == expected_index2)
 
-    merge_test3 = merge_matrix_cells(pytest.A, [[1, 3, 0]])
+    merge_test3 = merge_matrix_cells(A, [[1, 3, 0]])
     expected3 = np.array([[-26, 16, 10],
                           [16, -23, 7],
                           [10, 7, -17]])
@@ -60,7 +53,7 @@ def test_merge_matrix_cells():
     assert np.all(merge_test3[1] == expected_index3)
 
     # testing merges in multiple steps
-    step1, index1 = merge_matrix_cells(my_matrix=pytest.A, all_to_join=[[0, 1]], index_list=None)
+    step1, index1 = merge_matrix_cells(my_matrix=A, all_to_join=[[0, 1]], index_list=None)
     expected4 = np.array([[-27, 8, 10, 9],
                           [8, -23, 8, 7],
                           [10, 8, -19, 1],
@@ -95,7 +88,7 @@ def test_merge_matrix_cells():
 
 
 def test_delete_cells():
-    output1, reindex1 = delete_rate_cells(pytest.A, to_remove=[0])
+    output1, reindex1 = delete_rate_cells(A, to_remove=[0])
     ex_output1 = np.array([[-8, 1, 2, 5],
                            [1, -16, 8, 7],
                            [2, 8, -11, 1],
@@ -117,13 +110,13 @@ def test_delete_cells():
     assert np.all(reindex5 == [[1], [2], [4]])
 
     # delete multiple cells
-    output3, reindex3 = delete_rate_cells(pytest.A, to_remove=[3, 0])
+    output3, reindex3 = delete_rate_cells(A, to_remove=[3, 0])
 
     assert np.allclose(output3, ex_output3)
     assert np.all(reindex3 == [[1], [2], [4]])
 
     # delete from a sparse_matrix
-    output4, reindex4 = delete_rate_cells(pytest.A_sparse, to_remove=[1])
+    output4, reindex4 = delete_rate_cells(A_sparse, to_remove=[1])
     ex_output4 = np.array([[-19,   7,   8,   4],
                            [  7, -22,   8,   7],
                            [  8,   8, -17,   1],
@@ -134,7 +127,7 @@ def test_delete_cells():
 
 def test_delete_and_merge():
     # OPTION 1: first merge, then delete
-    merge1, reindex1 = merge_matrix_cells(pytest.A, [[0, 3]])
+    merge1, reindex1 = merge_matrix_cells(A, [[0, 3]])
 
     # 1a: delete stuff that has not been merged
     output1a, reindex1a = delete_rate_cells(merge1, to_remove=[2], index_list=reindex1)
@@ -154,7 +147,7 @@ def test_delete_and_merge():
     assert np.all(reindex1b == expected_index1b)
 
     # OPTION 2: first delete, then merge
-    output2, reindex2 = delete_rate_cells(pytest.A, to_remove=[0])
+    output2, reindex2 = delete_rate_cells(A, to_remove=[0])
 
     # 2a: delete stuff that has not been merged
     output2a, reindex2a = merge_matrix_cells(output2, [[4, 3]], index_list=reindex2)
@@ -178,7 +171,6 @@ def test_delete_and_merge():
 
 
 if __name__ == "__main__":
-    pytest_configure()
     test_find_within_nested_list()
     test_merge_sublists()
     test_merge_matrix_cells()
