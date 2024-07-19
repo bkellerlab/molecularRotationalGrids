@@ -1,6 +1,0 @@
-include molgri/examples/*
-recursive-include examples *.gro
-include *.gro
-include LICENSE
-include README.md
-include readme_images/*
