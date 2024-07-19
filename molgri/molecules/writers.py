@@ -115,34 +115,6 @@ class PtIOManager:
         """
         path_t, path_s, path_l = self._get_all_output_paths(extension_trajectory=extension_trajectory,
                                                             extension_structure=extension_structure)
-        # log set-up before calculating PT in case any errors occur in-between
-        if print_messages:
-            print(f"Saved the log file to {path_l}")
-        pt_logger = PtLogger(path_l)
-        pt_logger.log_set_up(self)
-        logger = pt_logger.logger
-        logger.info(f"central molecule: {self.central_parser.get_topology_file_name()}")
-        logger.info(f"rotating molecule: {self.rotating_parser.get_topology_file_name()}")
-        logger.info(f"input grid parameters: {self.o_grid_name} {self.b_grid_name} {self.t_grid_name}")
-        logger.info(f"full grid name: {self.pt.get_full_grid().get_name()}")
-        logger.info(f"full grid coordinates:\n{self.pt.get_full_grid().get_full_grid_as_array()}")
-        logger.info(f"translation grid [A]: {self.pt.get_full_grid().get_radii()}")
-        logger.info(f"quaternions for rot around the body: {self.pt.get_full_grid().get_body_rotations().as_quat()}")
-        logger.info(f"positions on a sphere for origin rot: {self.pt.get_full_grid().o_positions}")
-        volumes = self.pt.get_full_grid().get_total_volumes()
-        df_volumes = pd.DataFrame(volumes)
-        logger.info(f"volumes of FullGrid cells: {df_volumes.describe()}")
-        adjacency = self.pt.get_full_grid().get_full_adjacency()
-        #logger.info(f"adjacencies of FullGrid cells (sparse array): {}")
-        borders = self.pt.get_full_grid().get_full_borders()
-        df_borders = pd.DataFrame(borders.data)
-        logger.info(f"borders of FullGrid cells (sparse array): {df_borders.describe()}")
-        distances = self.pt.get_full_grid().get_full_distances()
-        df_distances = pd.DataFrame(distances.data)
-        logger.info(f"center distances of FullGrid cells (sparse array): {df_distances.describe()}")
-        prefactors = self.pt.get_full_grid().get_full_prefactors()
-        df_prefactors = pd.DataFrame(prefactors.data)
-        logger.info(f"prefactors (sparse_array): {df_prefactors.describe()}")
         # generate a pt
         if as_dir:
             selected_function = self.writer.write_frames_in_directory

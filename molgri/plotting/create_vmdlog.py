@@ -69,3 +69,19 @@ def show_eigenvectors(path_vmd_script_template: str, path_output_script: str, ei
     all_str_to_replace = [f"REPLACE{i}" for i in range(num_eigenvec * 2 - 1)]
     all_str_to_insert = [', '.join(map(str, list(el))) for el in all_lists_to_insert]
     case_insensitive_search_and_replace(path_vmd_script_template, path_output_script, all_str_to_replace, all_str_to_insert)
+
+
+def show_assignments(path_vmd_script_template: str, path_output_script: str, assignment_array: NDArray):
+    """
+    Create a vmdlog that shows separately the frames that are assigned to particular values in the given assignment
+    array.
+    """
+    # find the most populated states
+    all_lists_to_insert = []
+    unique_groups = np.unique(assignment_array)
+    for el in unique_groups:
+        all_lists_to_insert.append(np.where(assignment_array==el)[0])
+    all_lists_to_insert = [list(map(lambda x: x + 1, sublist)) for sublist in all_lists_to_insert]
+    all_str_to_replace = [f"REPLACE{i}" for i in range(len(unique_groups))]
+    all_str_to_insert = [', '.join(map(str, list(el))) for el in all_lists_to_insert]
+    case_insensitive_search_and_replace(path_vmd_script_template, path_output_script, all_str_to_replace, all_str_to_insert)

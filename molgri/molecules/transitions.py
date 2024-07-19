@@ -58,29 +58,28 @@ class AssignmentTool:
                 cosalpha = np.round(pa.dot(atom_pos - com), 6)
                 directions[i] = np.sign(cosalpha)
             if not np.any(np.isclose(directions, 0)):
-                break
-        # if exactly one unknown use the other two and properties of righthanded systems to get third
-        if np.sum(np.isclose(directions, 0)) == 1:
-            # only these combinations of directions are possible in righthanded coordinate systems
-            allowed_righthanded = [[1, 1, 1], [-1, 1, -1], [1, -1, -1], [-1, -1, 1]]
-            for ar in allowed_righthanded:
-                # exactly two identical (and the third is zero)
-                if np.sum(np.isclose(ar, directions)) == 2:
-                    directions = ar
-                    break
-        # if two (or three - that would just be an atom) unknowns raise an error
-        elif np.sum(np.isclose(directions, 0)) > 1:
-            raise ValueError("All atoms perpendicular to at least one of principal axes, can´t determine direction.")
-        return np.array(directions)
+                return np.array(directions)
+            # if exactly one unknown use the other two and properties of righthanded systems to get third
+            elif np.sum(np.isclose(directions, 0)) == 1:
+                # only these combinations of directions are possible in righthanded coordinate systems
+                allowed_righthanded = [[1, 1, 1], [-1, 1, -1], [1, -1, -1], [-1, -1, 1]]
+                for ar in allowed_righthanded:
+                    # exactly two identical (and the third is zero)
+                    if np.sum(np.isclose(ar, directions)) == 2:
+                        directions = ar
+                        return np.array(directions)
 
     def _get_quaternion_assignments(self):
         """
         Assign every frame of the trajectory to the closest quaternion from the b_grid_points.
         """
+        from time import time
         # find PA and direction of reference structure
         reference_principal_axes = self.reference_universe.atoms.principal_axes().T
         inverse_pa = np.linalg.inv(reference_principal_axes)
         reference_direction = self._determine_positive_directions(self.reference_universe)
+        if reference_direction is None:
+            raise ValueError("All atoms perpendicular to at least one of principal axes, can't determine direction.")
 
         # find PA and direction along trajectory
         pa_frames = AnalysisFromFunction(lambda ag: ag.principal_axes().T, self.trajectory_universe.trajectory,
@@ -96,11 +95,13 @@ class AssignmentTool:
         direction_frames = direction_frames.results['timeseries']
         directed_pas = np.multiply(pa_frames, direction_frames)
         produkt = np.matmul(directed_pas, inverse_pa)
-        # get the quaternions that caused the rotation from reference to each frame
-        calc_quat = np.round(Rotation.from_matrix(produkt).as_quat(), 6)
-        b_indices = np.argmin(cdist(self.b_array, calc_quat, metric=distance_between_quaternions), axis=0)
-        # almost everything correct but the order is somehow mixed???
-        return b_indices
+
+        reference_matrices = Rotation(self.b_array).as_matrix()
+
+        b_indices = []
+        for i in range(len(produkt)):
+            b_indices.append(np.argmin(Rotation.from_matrix(reference_matrices@produkt[i].T).magnitude()))
+        return np.array(b_indices)
 
     def _get_t_assignments(self) -> NDArray:
         """

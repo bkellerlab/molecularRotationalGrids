@@ -129,7 +129,6 @@ def test_pt_rotations_origin():
     manager = PtIOManager(m_path, m_path, f"{num_rot}", "1", "[1, 2]")
     distances = manager.full_grid.t_grid.get_trans_grid()
     manager.construct_pt()
-    file_name = manager.determine_pt_name()
     len_traj = manager.pt.current_frame
     assert len_traj == num_trans*num_rot
     # assert every uneven structure has distance 1 and every even one distance 2
@@ -148,14 +147,6 @@ def test_pt_rotations_origin():
     angle_start_3 = angle_between_vectors(vec_com_0, vec_atom3_0)
     # should stay the same during a trajectory
 
-    # can visualize
-    # from molgri.plotting.molecule_plots import TrajectoryPlot
-    # import matplotlib.pyplot as plt
-    #
-    # tp = TrajectoryPlot(traj_parser.get_parsed_trajectory())
-    # tp.plot_atoms(save=False)
-    # plt.show()
-
     for frame_i, frame_molecules in enumerate(traj_parser.generate_frame_as_double_molecule()):
         # distance of COM of second molecule to origin
         m1, m2 = frame_molecules
@@ -172,10 +163,9 @@ def test_pt_rotations_origin():
         vec_atom2 = m2.atoms[1].position - vec_com
         vec_atom3 = m2.atoms[2].position - vec_com
 
-        print(angle_between_vectors(vec_com, vec_atom1), angle_start_1)
-        assert np.isclose(angle_between_vectors(vec_com, vec_atom1), angle_start_1, atol=0.03)
-        assert np.isclose(angle_between_vectors(vec_com, vec_atom2), angle_start_2, atol=0.03)
-        assert np.isclose(angle_between_vectors(vec_com, vec_atom3), angle_start_3, atol=0.03)
+        assert np.allclose(vec_atom1_0, vec_atom1)
+        assert np.allclose(vec_atom2_0, vec_atom2)
+        assert np.allclose(vec_atom3_0, vec_atom3)
 
 
 def test_pt_rotations_body():
@@ -266,13 +256,6 @@ def test_order_of_operations():
         for o in range(k, len_traj, n_t*n_o):
             second_one = m2s[o]
             same_body_orientation(first_one, second_one)
-
-    # from molgri.plotting.molecule_plots import TrajectoryPlot
-    # import matplotlib.pyplot as plt
-    #
-    # tp = TrajectoryPlot(traj_parser.get_parsed_trajectory())
-    # tp.plot_atoms(save=False)
-    # plt.show()
 
 
 if __name__ == "__main__":

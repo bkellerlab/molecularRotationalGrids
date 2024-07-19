@@ -369,8 +369,8 @@ def test_full_and_half():
 
 
 if __name__ == "__main__":
-    #test_reduced_coordinates()    # done
-    #test_full_and_half()   # done
-    #test_rotobj_voronoi_3D_non_exact()  # done
-    #test_rotobj_voronoi_3D_exact()  # done
+    test_reduced_coordinates()    # done
+    test_full_and_half()   # done
+    test_rotobj_voronoi_3D_non_exact()  # done
+    test_rotobj_voronoi_3D_exact()  # done
     test_rotobj_voronoi_4D()

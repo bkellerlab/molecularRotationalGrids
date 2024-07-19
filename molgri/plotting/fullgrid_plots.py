@@ -9,8 +9,8 @@ import seaborn as sns
 from matplotlib import colors
 
 from molgri.constants import NAME2SHORT_NAME
-from molgri.plotting.abstract import (RepresentationCollection, plot_voronoi_cells, ArrayPlot)
-from molgri.space.fullgrid import FullGrid, ConvergenceFullGridO
+from molgri.plotting.abstract import (plot_voronoi_cells, ArrayPlot)
+from molgri.space.fullgrid import FullGrid
 from molgri.wrappers import plot3D_method, plot_method
 
 
