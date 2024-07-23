@@ -207,5 +207,4 @@ rule compile_vmd_log:
         eigenvectors = np.load(input.eigenvectors)
         index_list = np.load(input.index_list,allow_pickle=True)
 
-        show_eigenvectors(input.script,output.vmdlog,eigenvector_array=eigenvectors,
-            num_eigenvec=params.num_eigenvec,num_extremes=params.num_extremes,index_list=list(index_list))
+        show_eigenvectors(input.script,output.vmdlog,eigenvector_array=eigenvectors,num_eigenvec=params.num_eigenvec,num_extremes=params.num_extremes,index_list=list(index_list))

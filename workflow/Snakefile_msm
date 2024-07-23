@@ -275,6 +275,7 @@ rule compile_vmd_log_msm:
     """
     input:
         eigenvectors=f"{PATH_EXPERIMENTS}{{unique_id}}/{{grid_identifier}}/{{tau}}/eigenvectors_msm_{{sigma}}_{{which}}.npy",
+        assignments=f"{PATH_EXPERIMENTS}{{unique_id}}/{{grid_identifier}}/assignments.npy",
         # in the script only the numbers for frames need to be changed.
         script="molgri/scripts/vmd_show_eigenvectors"
     output:
@@ -283,10 +284,10 @@ rule compile_vmd_log_msm:
         num_extremes=40,
         num_eigenvec=6,  # only show the first num_eigenvec
     run:
-        from molgri.plotting.create_vmdlog import show_eigenvectors
+        from molgri.plotting.create_vmdlog import show_eigenvectors_MSM
 
         # load eigenvectors
         eigenvectors = np.load(input.eigenvectors)
 
-        show_eigenvectors(input.script, output.vmdlog, eigenvector_array=eigenvectors,
-            num_eigenvec=params.num_eigenvec, num_extremes=params.num_extremes, is_sqra=False)
+        show_eigenvectors_MSM(input.script, output.vmdlog, input.assignments, eigenvector_array=eigenvectors,num_eigenvec=params.num_eigenvec,
+            num_extremes=params.num_extremes)

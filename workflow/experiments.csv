@@ -1,4 +1,5 @@
 unique_id,coupling_constant_ps,integrator,traj_len,up1_nm,up2_nm,force
+mini_msm_012,0.001,sd,100000,0.5,0.7,5000.0
 bounds_water_msm_003,0.001,sd,100000000,0.5,0.7,1000.0
 bounds_water_msm_007,0.001,sd,100000000,0.4,0.8,1000.0
 bounds_water_msm_008,0.001,sd,100000000,0.7,0.9,1000.0
@@ -8,4 +9,9 @@ bounds_water_msm_011,0.001,sd,100000000,0.7,0.9,2000.0
 bounds_water_msm_012,0.001,sd,100000000,0.5,0.7,5000.0
 bounds_water_msm_013,0.001,sd,100000000,0.4,0.8,5000.0
 bounds_water_msm_014,0.001,sd,100000000,0.7,0.9,5000.0
+bounds_water_msm_015,0.001,sd,30000000,0.5,0.7,5000.0
+bounds_water_msm_016,0.001,sd,30000000,0.5,0.8,5000.0
+bounds_water_msm_017,0.001,sd,30000000,0.5,0.9,5000.0
+bounds_water_msm_020,0.1,sd,30000000,0.5,0.9,5000.0
+bounds_water_msm_021,0.01,sd,30000000,0.5,0.9,5000.0
 one_sqra,0.001,sd,100000,0.5,0.7,500.0

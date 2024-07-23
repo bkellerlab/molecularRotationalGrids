@@ -11,18 +11,21 @@ from molgri.constants import TAUS
 ALL_LOWER = [None, 0.001, 0.005, 0.01, 0.05, 0.1, 0.5]   # if neighbouring cells differ less than that will be merged
 ALL_UPPER = [None, 10, 20, 30, 50, 100, 300] # if energy above this the cell will be cut
 
+# [f"bounds_water_msm_{i:03d}" for i in [1, 2, 3, 4, 5, 7, 8, 9, 10, 11, 12, 13, 14]]
+import os
+#print(os.listdir("experiments/"))
 rule all:
     input:
-        msm_all1 = expand(f"{PATH_EXPERIMENTS}{{unique_id}}/{{grid_identifier}}/its_{{sigma}}_{{which}}.png",
-            unique_id=[f"bounds_water_msm_{i:03d}" for i in range(7, 15)],
-            grid_identifier=["300grand_long"], sigma=None, which="LR"),
-        msm_all2 = expand(f"{PATH_EXPERIMENTS}{{unique_id}}/{{grid_identifier}}/{{tau}}/eigenvectors_msm_{{sigma}}_{{which}}{{suffix}}",
-            unique_id=[f"bounds_water_msm_{i:03d}" for i in range(7, 15)],
-            grid_identifier=["300grand_long"], sigma=None,which="LR",
-            tau=TAUS, suffix=[".png", "_vmdlog_msm"])
-        #trajectory= expand(f"{PATH_EXPERIMENTS}{{unique_id}}/{{grid_identifier}}/{{lower_lim}}-{{upper_lim}}/its_{{sigma}}_{{which}}.png",
-        #    unique_id="one_sqra", grid_identifier="bigger_ideal", lower_lim=ALL_LOWER, upper_lim=ALL_UPPER,
-        #    sigma=0, which="LR")
+        expand("experiments/{exp}/300grand_long/{tau}/eigenvectors_msm_None_LR_vmdlog_msm", exp=[f"bounds_water_msm_{i:03d}" for i in [1, 2, 3, 4, 5, 7, 8, 9, 10, 11, 12, 13, 14]], tau=TAUS)
+       # msm_all1 = expand(f"{PATH_EXPERIMENTS}{{unique_id}}/{{grid_identifier}}/its_{{sigma}}_{{which}}.png",
+       #      unique_id=[f"bounds_water_msm_{i:03d}" for i in [15, 16, 17, 20, 21]],
+       #      grid_identifier=["300grand_long", "80_80_30_short"], sigma=None, which="LR"),
+       #  msm_all2 = expand(f"{PATH_EXPERIMENTS}{{unique_id}}/{{grid_identifier}}/{{tau}}/eigenvectors_msm_{{sigma}}_{{which}}{{suffix}}",
+       #      unique_id=[f"bounds_water_msm_{i:03d}" for i in [15, 16, 17, 20, 21]],
+       #      grid_identifier=["300grand_long", "80_80_30_short"], sigma=None,which="LR",
+       #      tau=TAUS, suffix=[".png", "_vmdlog_msm"]),
+        # sqra = expand(f"{PATH_EXPERIMENTS}{{unique_id}}/{{grid_identifier}}/{{lower_lim}}-{{upper_lim}}/its_{{sigma}}_{{which}}.png",
+        #     unique_id=["one_sqra"], grid_identifier=["300grand_long", "80_80_30_short"], sigma=[0], which=["LR","LM"], lower_lim=None, upper_lim=None)
 
 rule create_config_file:
     """
