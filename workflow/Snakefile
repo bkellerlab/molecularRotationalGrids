@@ -4,11 +4,11 @@ sys.path.append(".")
 
 
 from molgri.paths import PATH_OUTPUT_AUTOSAVE, PATH_INPUT_BASEGRO, PATH_EXPERIMENTS
-from workflow.snakemake_utils import log_the_run, find_config_parameter_value, modify_topology, modify_mdrun
+from workflow.snakemake_utils import find_config_parameter_value, modify_topology, modify_mdrun
 from molgri.constants import TAUS
 
 
-ALL_LOWER = [None, 0.001, 0.005, 0.01, 0.05, 0.1, 0.5]   # if neighbouring cells differ less than that will be merged
+ALL_LOWER = [None, 0.001, 0.005, 0.01, 0.05, 0.1]   # if neighbouring cells differ less than that will be merged
 ALL_UPPER = [None, 10, 20, 30, 50, 100, 300] # if energy above this the cell will be cut
 
 # [f"bounds_water_msm_{i:03d}" for i in [1, 2, 3, 4, 5, 7, 8, 9, 10, 11, 12, 13, 14]]
@@ -16,16 +16,18 @@ import os
 #print(os.listdir("experiments/"))
 rule all:
     input:
-        expand("experiments/{exp}/300grand_long/{tau}/eigenvectors_msm_None_LR_vmdlog_msm", exp=[f"bounds_water_msm_{i:03d}" for i in [1, 2, 3, 4, 5, 7, 8, 9, 10, 11, 12, 13, 14]], tau=TAUS)
-       # msm_all1 = expand(f"{PATH_EXPERIMENTS}{{unique_id}}/{{grid_identifier}}/its_{{sigma}}_{{which}}.png",
-       #      unique_id=[f"bounds_water_msm_{i:03d}" for i in [15, 16, 17, 20, 21]],
-       #      grid_identifier=["300grand_long", "80_80_30_short"], sigma=None, which="LR"),
-       #  msm_all2 = expand(f"{PATH_EXPERIMENTS}{{unique_id}}/{{grid_identifier}}/{{tau}}/eigenvectors_msm_{{sigma}}_{{which}}{{suffix}}",
-       #      unique_id=[f"bounds_water_msm_{i:03d}" for i in [15, 16, 17, 20, 21]],
-       #      grid_identifier=["300grand_long", "80_80_30_short"], sigma=None,which="LR",
-       #      tau=TAUS, suffix=[".png", "_vmdlog_msm"]),
+       # "experiments/one_sqra/bigger_ideal/size_chart.png"
+       msm_all1 = expand(f"{PATH_EXPERIMENTS}{{unique_id}}/{{grid_identifier}}/its_{{sigma}}_{{which}}.png",
+            unique_id=[f"msm_tau_{i:02d}" for i in range(1,5)],
+            grid_identifier=["80_80_30_short"], sigma=None, which="LR"),
+        msm_all2 = expand(f"{PATH_EXPERIMENTS}{{unique_id}}/{{grid_identifier}}/{{tau}}/eigenvectors_msm_{{sigma}}_{{which}}{{suffix}}",
+            unique_id=[f"msm_tau_{i:02d}" for i in range(1, 5)],
+            grid_identifier=["80_80_30_short"], sigma=None, which="LR",
+            tau=TAUS, suffix=[".png", "_vmdlog_msm"]),
         # sqra = expand(f"{PATH_EXPERIMENTS}{{unique_id}}/{{grid_identifier}}/{{lower_lim}}-{{upper_lim}}/its_{{sigma}}_{{which}}.png",
-        #     unique_id=["one_sqra"], grid_identifier=["300grand_long", "80_80_30_short"], sigma=[0], which=["LR","LM"], lower_lim=None, upper_lim=None)
+        #     unique_id=[f"sqra_tau_{i:02d}" for i in range(1,5)], grid_identifier=["bigger_ideal"], sigma=[0], which=["SR"], lower_lim=None, upper_lim=None),   #["300grand_long", "80_80_30_short"]
+        # sqra2 = expand(f"{PATH_EXPERIMENTS}{{unique_id}}/{{grid_identifier}}/{{lower_lim}}-{{upper_lim}}/eigenvectors_{{sigma}}_{{which}}_vmdlog_sqra",
+        # unique_id=[f"sqra_tau_{i:02d}" for i in range(1,5)], grid_identifier=["bigger_ideal"], sigma=[0], which=["SR"], lower_lim=None, upper_lim=None)
 
 rule create_config_file:
     """
@@ -95,6 +97,29 @@ rule prepare_water_water:
         up2_nm = find_config_parameter_value(input.config_file,"up2_nm")
         force = find_config_parameter_value(input.config_file,"force")
         modify_topology(output.topology,i="1",j="4",funct=10,low=0.0,up1=up1_nm,up2=up2_nm,force_constant=force)
+
+
+rule find_constant_factor:
+    input:
+        tau_msm_eigv = expand(f"{PATH_EXPERIMENTS}{{unique_id}}/{{grid_identifier}}/{{tau}}/eigenvalues_msm_{{sigma}}_{{which}}.npy", unique_id=[f"msm_tau_{i:02d}" for i in range(1, 5)],
+            grid_identifier=["80_80_30_short"], sigma=None, which="LR", tau=[10, 30, 100]),
+        tau_sqra_eigv = expand(f"{PATH_EXPERIMENTS}{{unique_id}}/{{grid_identifier}}/{{lower_lim}}-{{upper_lim}}/eigenvalues_{{sigma}}_{{which}}.npy",
+            lower_lim="None",upper_lim="None",sigma=0, which="SR", unique_id=[f"sqra_tau_{i:02d}" for i in range(1, 5)],
+            grid_identifier=["bigger_ideal"])
+    output:
+        f"{PATH_EXPERIMENTS}relative_its.png"
+    params:
+        msm_indices_to_use = [2]
+    run:
+        import numpy as np
+        import pandas as pd
+        coupling_constants = [0.001, 0.01, 0.1, 1]
+        for my_msm_eigv, my_sqra_eigv, coupling in zip(input.tau_msm_eigv, input.tau_msm_eigv, coupling_constants):
+            msm_eigenvalues = np.load(my_msm_eigv)
+            for my_index in params.msm_indices_to_use:
+                pass
+
+
 
 include: "Snakefile_grids"
 include: "Snakefile_msm"

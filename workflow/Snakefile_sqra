@@ -7,6 +7,9 @@ import numpy as np
 
 # add molgri directory
 import sys
+
+from workflow.snakemake_utils import find_config_parameter_value
+
 sys.path.append(".")
 
 from molgri.paths import PATH_OUTPUT_AUTOSAVE, PATH_INPUT_BASEGRO, PATH_EXPERIMENTS
@@ -85,17 +88,26 @@ rule run_sqra:
         distances_array = f"{PATH_OUTPUT_AUTOSAVE}{{grid_identifier}}_distances_array.npz",
         borders_array = f"{PATH_OUTPUT_AUTOSAVE}{{grid_identifier}}_borders_array.npz",
         volumes = f"{PATH_OUTPUT_AUTOSAVE}{{grid_identifier}}_volumes.npy",
+        config_file= f"{PATH_EXPERIMENTS}{{unique_id}}/experiment_config.txt"
     output:
         rate_matrix = f"{PATH_EXPERIMENTS}{{unique_id}}/{{grid_identifier}}/{{lower_lim}}-{{upper_lim}}/rate_matrix.npz",
         index_list = f"{PATH_EXPERIMENTS}{{unique_id}}/{{grid_identifier}}/{{lower_lim}}-{{upper_lim}}/index_list.npy",
     params:
-        D=1,# diffusion constant
+        D=0.0126,# diffusion constant in Angstrom^2/ps
         T=273,# temperature in K
         energy_type="Potential",
+        m_h2o = 3e-26 #kg
     run:
         from molgri.molecules.parsers import XVGParser
         from molgri.molecules.transitions import SQRA
         from scipy import sparse
+        from scipy.constants import k as k_B
+
+        tau = coupling = find_config_parameter_value(input.config_file,"coupling_constant_ps")
+
+        D = k_B * params.T * tau * 1e-12 / params.m_h2o *1e8 # units should be A^2/ps
+        print(f"Diffusion const D={D}")
+
 
         # load input files
         all_volumes = np.load(input.volumes)
@@ -116,14 +128,66 @@ rule run_sqra:
         energies = my_parsed.get_parsed_energy().get_energies(params.energy_type)
 
         sqra = SQRA(energies=energies,volumes=all_volumes,distances=all_distances,surfaces=all_surfaces)
-        rate_matrix = sqra.get_rate_matrix(params.D,params.T)
+        rate_matrix = sqra.get_rate_matrix(D,params.T)
         rate_matrix, index_list = sqra.cut_and_merge(rate_matrix,T=params.T,lower_limit=lower_limit,
             upper_limit=upper_limit)
 
         # saving to file
         sparse.save_npz(output.rate_matrix,rate_matrix)
         np.save(output.index_list,np.array(index_list,dtype=object))
-#
+
+ALL_LOWER = [None, 0.001, 0.005, 0.01, 0.05, 0.1]   # if neighbouring cells differ less than that will be merged
+ALL_UPPER = [None, 10, 20, 30, 50, 100, 300] # if energy above this the cell will be cut
+rule print_rate_size:
+    input:
+        rate_matrix = expand(f"{PATH_EXPERIMENTS}{{unique_id}}/{{grid_identifier}}/{{lower_lim}}-{{upper_lim}}/rate_matrix.npz",
+            lower_lim=ALL_LOWER, upper_lim=ALL_UPPER, allow_missing=True),
+        eigenvalues= expand(f"{PATH_EXPERIMENTS}{{unique_id}}/{{grid_identifier}}/{{lower_lim}}-{{upper_lim}}/eigenvalues_{{sigma}}_{{which}}.npy",
+            lower_lim=ALL_LOWER,upper_lim=ALL_UPPER,allow_missing=True, sigma=0, which="SR")
+    output:
+        rate_size = f"{PATH_EXPERIMENTS}{{unique_id}}/{{grid_identifier}}/size_chart.png",
+        eigenvalue_size= f"{PATH_EXPERIMENTS}{{unique_id}}/{{grid_identifier}}/size_eigenvalue.png"
+    run:
+        import matplotlib
+
+        matplotlib.use('Agg')
+        from scipy import sparse
+        import matplotlib.pyplot as plt
+        import seaborn as sns
+        import pandas as pd
+        all_sizes = []
+        all_lower = []
+        all_upper = []
+        all_eigenvalues = []
+        num_eigenval = 6
+        for el in input.rate_matrix:
+            my_matrix = sparse.load_npz(el)
+            my_eigenval = np.load(input.eigenvalues)[:num_eigenval]
+            my_size = my_matrix.shape[0]
+            my_lower, my_upper = el.split("/")[3].split("-")
+            all_sizes.append(my_size)
+            if my_upper == "None":
+                my_upper = None
+            else:
+                my_upper = float(my_upper)
+            if my_lower == "None":
+                my_lower = 0
+            else:
+                my_lower = float(my_lower)
+            all_upper.append(my_upper)
+            all_lower.append(my_lower)
+            all_eigenvalues.append(my_eigenval)
+        columns = ["Matrix size", r"Lower lim [k_BT]", r"Upper lim [k_BT]"]
+        for i in range(num_eigenval):
+            columns.append(f"Eigenvalue {i}")
+        my_df = pd.DataFrame(data=np.array([all_sizes, all_lower, all_upper, *all_eigenvalues]).T, columns=columns)
+        sns.scatterplot(data=my_df, x=r"Lower lim [k_BT]", y="Matrix size", hue=r"Upper lim [k_BT]")
+        plt.savefig(output.rate_size)
+        fig, ax = plt.subplots(1,num_eigenval)
+        for i, subax in enumerate(ax):
+            sns.scatterplot(data=my_df, x=r"Lower lim [k_BT]", y=f"Eigenvalue {i}", hue=r"Upper lim [k_BT]", ax=subax)
+        plt.savefig(output.eigenvalue_size)
+
 rule run_decomposition:
     """
     As output we want to have eigenvalues, eigenvectors. Es input we get a (sparse) rate matrix.
@@ -134,7 +198,7 @@ rule run_decomposition:
         eigenvalues = f"{PATH_EXPERIMENTS}{{unique_id}}/{{grid_identifier}}/{{lower_lim}}-{{upper_lim}}/eigenvalues_{{sigma}}_{{which}}.npy",
         eigenvectors = f"{PATH_EXPERIMENTS}{{unique_id}}/{{grid_identifier}}/{{lower_lim}}-{{upper_lim}}/eigenvectors_{{sigma}}_{{which}}.npy",
     params:
-        tol=1e-5,
+        tol=1e-8,
         maxiter=100000,
     run:
         from scipy import sparse
@@ -198,7 +262,7 @@ rule compile_vmd_log:
     output:
         vmdlog = f"{PATH_EXPERIMENTS}{{unique_id}}/{{grid_identifier}}/{{lower_lim}}-{{upper_lim}}/eigenvectors_{{sigma}}_{{which}}_vmdlog_sqra"
     params:
-        num_extremes=40,
+        num_extremes=50,
         num_eigenvec=6  # only show the first num_eigenvec
     run:
         from molgri.plotting.create_vmdlog import show_eigenvectors
@@ -206,5 +270,8 @@ rule compile_vmd_log:
         # load eigenvectors
         eigenvectors = np.load(input.eigenvectors)
         index_list = np.load(input.index_list,allow_pickle=True)
-
-        show_eigenvectors(input.script,output.vmdlog,eigenvector_array=eigenvectors,num_eigenvec=params.num_eigenvec,num_extremes=params.num_extremes,index_list=list(index_list))
+        if not index_list:
+            index_list = None
+        else:
+            index_list = list(index_list)
+        show_eigenvectors(input.script,output.vmdlog,eigenvector_array=eigenvectors,num_eigenvec=params.num_eigenvec,num_extremes=params.num_extremes,index_list=index_list)

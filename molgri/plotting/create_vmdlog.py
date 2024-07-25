@@ -30,6 +30,7 @@ def show_eigenvectors(path_vmd_script_template: str, path_output_script: str, ei
 
     """
     # find the most populated states
+    print(index_list)
     all_lists_to_insert = []
     for i, eigenvec in enumerate(eigenvector_array.T[:num_eigenvec]):
         print(eigenvec.shape)

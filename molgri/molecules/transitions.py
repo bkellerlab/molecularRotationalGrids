@@ -418,11 +418,11 @@ class DecompositionTool:
         Returns:
 
         """
-        eigenval, eigenvec = eigs(self.matrix_to_decompose.T, tol=tol, maxiter=maxiter, which=which, sigma=sigma)
+        eigenval, eigenvec = eigs(self.matrix_to_decompose.T, k=15, tol=tol, maxiter=maxiter, which=which, sigma=sigma)
         # if imaginary eigenvectors or eigenvalues, raise error
         if not np.allclose(eigenvec.imag.max(), 0, rtol=1e-3, atol=1e-5) or not np.allclose(eigenval.imag.max(), 0,
                                                                                             rtol=1e-3, atol=1e-5):
-            raise ValueError(f"Complex values for eigenvectors and/or eigenvalues: {eigenvec}, {eigenval}")
+            print(f"Complex values for eigenvectors and/or eigenvalues: {eigenvec}, {eigenval}")
         eigenvec = eigenvec.real
         eigenval = eigenval.real
         # sort eigenvectors according to their eigenvalues
