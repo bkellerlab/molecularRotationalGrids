@@ -14,7 +14,7 @@ from plotly.subplots import make_subplots
 
 WIDTH = 600
 HEIGHT = 600
-NUM_EIGENV = 6
+NUM_EIGENV = 10
 
 class PlotlyTransitions:
 
@@ -82,7 +82,7 @@ class PlotlyTransitions:
         """
         # data
         eigenvals = np.load(self.path_eigenvalues)[1:]    # dropping the first one as it should be zero and cause issues
-        its = [-1/eigenval for eigenval in eigenvals]
+        its = [-1/(eigenval) for eigenval in eigenvals]
 
         for it in its:
             self.fig.add_hline(it, line=dict(color="black", dash="dash", width=1), opacity=1)

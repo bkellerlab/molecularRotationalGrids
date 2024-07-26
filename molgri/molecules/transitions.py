@@ -96,7 +96,7 @@ class AssignmentTool:
                                 ag=self.trajectory_universe.select_atoms(self.second_molecule_selection),
                                 reference_direction=reference_direction)
         frame_values = np.arange(self.trajectory_universe.trajectory.n_frames)
-        n_jobs = 100
+        n_jobs = 20
         with Pool(n_jobs) as worker_pool:
             direction_frames = worker_pool.map(run_per_frame, frame_values)
         produkt = np.matmul(direction_frames, inverse_pa)
@@ -161,103 +161,6 @@ class AssignmentTool:
 
     def get_full_assignments(self) -> NDArray:
         return self._get_position_assignments() * len(self.b_array) + self._get_quaternion_assignments()
-
-
-# class SimulationHistogram:
-#
-#     """
-#     This class takes the data from ParsedTrajectory and combines it with a specific FullGrid so that each simulation
-#     step can be assigned to a cell and the occupancy of those cells evaluated.
-#     """
-#
-#     def __init__(self, trajectory_name: str, reference_name: str, is_pt: bool, second_molecule_selection: str, full_grid: FullGrid = None,
-#                  use_saved=True):
-#         """
-#         Situation: you have created a (pseudo)trajectory (.gro and .xtc files in PATH_OUTPUT_PT) and calculated the
-#         energies for every frame (.xvg file PATH_OUTPUT_ENERGIES) - all files have the name given by trajectory_name.
-#         Now you want to assign one of the molecules (selected by second_molecule_selection) in every frame to one
-#         cell ub full_grid.
-#
-#         Args:
-#             trajectory_name (str): like H2O_H2O_0095 for PTs or H2O_H2O_0095_1000 for trajectories, the folder
-#                                    PATH_OUTPUT_PT will be searched for this name
-#             full_grid (FullGrid): used to assign to cells; even if the input is a PT, you can use a different FullGrid
-#                                   but if None, the FullGrid used in creation will be used
-#             second_molecule_selection (str): will be forwarded to trajectory_universe to identify the moving molecule
-#
-#         """
-#         self.trajectory_name = trajectory_name
-#         split_name = self.trajectory_name.strip().split("_")
-#         self.m1_name = split_name[0]
-#         self.m2_name = split_name[1]
-#         self.is_pt = is_pt
-#         if self.is_pt:
-#             self.structure_name = self.trajectory_name
-#         else:
-#             self.structure_name = "_".join(self.trajectory_name.split("_")[:-1])
-#         self.use_saved = use_saved
-#         self.second_molecule_selection = second_molecule_selection
-#         self.energies = None
-#         try:
-#             self.trajectory_universe = mda.Universe(f"{PATH_OUTPUT_PT}{self.structure_name}.gro",
-#                                                     f"{PATH_OUTPUT_PT}{self.trajectory_name}.trr")
-#         except:
-#             self.trajectory_universe = mda.Universe(f"{PATH_OUTPUT_PT}{self.structure_name}.gro",
-#                                                     f"{PATH_OUTPUT_PT}{self.trajectory_name}.xtc")
-#         try:
-#             self.reference_universe = mda.Universe(f"{PATH_INPUT_BASEGRO}{reference_name}.gro")
-#         except:
-#             self.reference_universe = mda.Universe(f"{PATH_INPUT_BASEGRO}{reference_name}.xyz")
-#         if full_grid is None and self.is_pt:
-#             full_grid = self.read_fg_PT()
-#         self.full_grid = full_grid
-#
-#         # assignments
-#         self.position_assignments = None
-#         self.quaternion_assignments = None
-#         self.full_assignments = None
-#         self.transition_model = None
-#
-#     def __len__(self):
-#         return len(self.trajectory_universe.trajectory)
-#
-#
-#     def get_indices_k_lowest_energies(self, k: int, energy_type: str):
-#         all_energies = self.get_magnitude_energy(energy_type)
-#         return k_argmin_in_array(all_energies, k)
-#
-#     def get_indices_neighbours_of_cell_i(self, i: int) -> NDArray:
-#         adj_array = csr_array(self.full_grid.get_full_adjacency())[:, [i]].toarray().T[0]
-#         neighbour_cell_indices = np.nonzero(adj_array)[0]
-#         neighbour_indices = []
-#         for cell_i in neighbour_cell_indices:
-#             neighbour_indices.extend(self.get_indices_same_cell(cell_i))
-#         return np.array(neighbour_indices)
-#
-#     def get_indices_same_orientation(self, quaternion_grid_index: int):
-#         return np.where(self.get_quaternion_assignments() == quaternion_grid_index)[0]
-#
-#     def get_indices_same_position(self, position_grid_index: int):
-#         return np.where(self.get_position_assignments() == position_grid_index)[0]
-#
-#     def get_indices_same_cell(self, full_grid_index: int):
-#         return np.where(self.get_full_assignments() == full_grid_index)[0]
-#
-#     """
-#     --------------------------------------------------------------------------------------------------
-#                                Getters to obtain a measure of magnitude.
-#     --------------------------------------------------------------------------------------------------
-#     """
-#
-#     def get_magnitude_energy(self, energy_type: str):
-#         if self.energies is None:
-#             self.energies = XVGParser(f"{PATH_OUTPUT_ENERGIES}{self.trajectory_name}.xvg").get_parsed_energy()
-#         return self.energies.get_energies(energy_type)
-#
-#     def get_magnitude_ith_eigenvector(self, i: int):
-#         evalu, evec = self.get_transition_model().get_eigenval_eigenvec()
-#         my_eigenvector = evec[0].T[i]
-#         return my_eigenvector
 
 
 def window(seq: Sequence, len_window: int, step: int = 1) -> Tuple[Any, Any]:

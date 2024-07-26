@@ -105,7 +105,7 @@ rule run_sqra:
 
         tau = coupling = find_config_parameter_value(input.config_file,"coupling_constant_ps")
 
-        D = k_B * params.T * tau * 1e-12 / params.m_h2o *1e8 # units should be A^2/ps
+        D = k_B * params.T * float(tau) * 1e-12 / params.m_h2o *1e8 # units should be A^2/ps
         print(f"Diffusion const D={D}")
 
 

@@ -241,6 +241,7 @@ rule run_plot_everything_msm:
         from molgri.plotting.transition_plots import PlotlyTransitions
         pt = PlotlyTransitions(is_msm=True, path_eigenvalues=input.eigenvalues, path_eigenvectors=input.eigenvectors,
             tau_array=None)
+        print("new")
         # eigenvectors
         pt.plot_eigenvectors_flat(index_tau=wildcards.tau)
         pt.save_to(output.plot_eigenvectors, height=1200)
