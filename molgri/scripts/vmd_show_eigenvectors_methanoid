@@ -1,0 +1,69 @@
+mol modstyle 0 0 CPK
+color Display Background white
+axes location Off
+mol color Name
+mol representation CPK 1.000000 0.300000 12.000000 10.000000
+mol selection all
+mol material Opaque
+
+# show the first molecule in normal colors
+mol addrep 0
+mol modselect 0 0 index <= 4
+
+# show zeroth eigenvector in a special color (only largest absolute values)
+mol modselect 1 0 index > 4
+mol modcolor 1 0 ColorID 5
+mol drawframes 0 1 {REPLACE00}
+
+
+# first eigenvector positive and negative
+mol addrep 0
+mol modselect 2 0 index > 4
+mol modcolor 2 0 ColorID 0
+mol drawframes 0 2 {REPLACE01}
+mol addrep 0
+mol modselect 3 0 index > 4
+mol modcolor 3 0 ColorID 1
+mol drawframes 0 3 {REPLACE02}
+
+# second eigenvector positive and negative
+mol addrep 0
+mol modselect 4 0 index > 4
+mol modcolor 4 0 ColorID 0
+mol drawframes 0 4 {REPLACE03}
+mol addrep 0
+mol modselect 5 0 index > 4
+mol modcolor 5 0 ColorID 1
+mol drawframes 0 5 {REPLACE04}
+
+# third eigenvector positive and negative
+mol addrep 0
+mol modselect 6 0 index > 4
+mol modcolor 6 0 ColorID 0
+mol drawframes 0 6 {REPLACE05}
+mol addrep 0
+mol modselect 7 0 index > 4
+mol modcolor 7 0 ColorID 1
+mol drawframes 0 7 {REPLACE06}
+
+
+# fourth eigenvector positive and negative
+mol addrep 0
+mol modselect 8 0 index > 4
+mol modcolor 8 0 ColorID 0
+mol drawframes 0 8 {REPLACE07}
+mol addrep 0
+mol modselect 9 0 index > 4
+mol modcolor 9 0 ColorID 1
+mol drawframes 0 9 {REPLACE08}
+
+# fifth eigenvector positive and negative
+mol addrep 0
+mol modselect 10 0 index > 4
+mol modcolor 10 0 ColorID 0
+mol drawframes 0 10 {REPLACE09}
+mol addrep 0
+mol modselect 11 0 index > 4
+mol modcolor 11 0 ColorID 1
+mol drawframes 0 11 {REPLACE10}
+

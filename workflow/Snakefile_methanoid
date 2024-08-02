@@ -1,39 +1,50 @@
-"""
-All of the workflows relating to pseudotrajectories, subsequent SQRAs and their related outputs (figures ...)
-"""
-from time import time
-
-import numpy as np
-
 # add molgri directory
 import sys
-
-from workflow.snakemake_utils import find_config_parameter_value
-
 sys.path.append(".")
+
 
 from molgri.paths import PATH_OUTPUT_AUTOSAVE, PATH_INPUT_BASEGRO, PATH_EXPERIMENTS
 
-include: "Snakefile_grids"
+# "experiments/one_sqra/bigger_ideal/size_chart.png"
+rule all:
+    input:
+        vmd = expand(f"{PATH_EXPERIMENTS}{{unique_id}}/{{grid_identifier}}/{{lower_lim}}-{{upper_lim}}/eigenvectors_{{sigma}}_{{which}}_vmdlog_sqra", unique_id="TFA_MET",
+        grid_identifier="TFA_MET_grid1", lower_lim="None", upper_lim=300, sigma="0", which="SR"),
+        plots = expand(f"{PATH_EXPERIMENTS}{{unique_id}}/{{grid_identifier}}/{{lower_lim}}-{{upper_lim}}/its_{{sigma}}_{{which}}.png",unique_id="TFA_MET",
+            grid_identifier="TFA_MET_grid1",lower_lim="None",upper_lim=300, sigma="0", which="SR"),
 
-wildcard_constraints:
-    unique_id=".*sqra.*"
-
+rule prepare_methanoid:
+    """
+    Here, everything is specific to a water-water system set up. Create a new folder in experiments/ and populate it 
+    with correctly defined inputs for the gromacs run etc.
+    """
+    input:
+        m1_xyz = f"{PATH_INPUT_BASEGRO}methanolid.xyz",
+        m2_xyz= f"{PATH_INPUT_BASEGRO}tetrafluorophthalic_anhydride.xyz",
+    output:
+        molecule1 = f"{PATH_EXPERIMENTS}{{unique_id}}/m1.xyz",
+        molecule2 = f"{PATH_EXPERIMENTS}{{unique_id}}/m2.xyz",
+    run:
+        import shutil
+        # stuff that can be copied without being modified
+        shutil.copy(input.m1_xyz,output.molecule1)
+        shutil.copy(input.m2_xyz,output.molecule2)
 
 rule run_pt:
     """
     This rule should produce the .gro and .xtc files of the pseudotrajectory.
     """
     input:
-        molecule1 = f"{PATH_EXPERIMENTS}{{unique_id}}/m1.gro",
-        molecule2 = f"{PATH_EXPERIMENTS}{{unique_id}}/m2.gro",
+        molecule1 = f"{PATH_EXPERIMENTS}{{unique_id}}/m1.xyz",
+        molecule2 = f"{PATH_EXPERIMENTS}{{unique_id}}/m2.xyz",
         grid = f"{PATH_OUTPUT_AUTOSAVE}{{grid_identifier}}_full_array.npy",
     output:
-        structure = f"{PATH_EXPERIMENTS}{{unique_id}}/{{grid_identifier}}/structure.gro",
-        trajectory = f"{PATH_EXPERIMENTS}{{unique_id}}/{{grid_identifier}}/trajectory.trr"
+        structure = f"{PATH_EXPERIMENTS}{{unique_id}}/{{grid_identifier}}/structure.xyz",
+        trajectory_dict = directory(f"{PATH_EXPERIMENTS}{{unique_id}}/{{grid_identifier}}/trajectory")
     params:
         cell_size_A = 30  # cubic box will be the output, this is size of the box in one dimension
     run:
+        import numpy as np
         from molgri.molecules.writers import PtWriter
         from molgri.molecules.pts import Pseudotrajectory
         from molgri.molecules.parsers import FileParser
@@ -49,33 +60,7 @@ rule run_pt:
         # write out .gro and .xtc files
         my_writer = PtWriter("",my_molecule1)
         my_writer.box = (params.cell_size_A, params.cell_size_A, params.cell_size_A, 90, 90, 90)
-        my_writer.write_full_pt(my_pt,path_structure=output.structure,path_trajectory=output.trajectory)
-
-
-rule gromacs_rerun:
-    """
-    This rule gets structure, trajectory, topology and gromacs run file as input, as output we are only interested in
-    energies.
-    """
-
-    input:
-        structure = f"{PATH_EXPERIMENTS}{{unique_id}}/{{grid_identifier}}/structure.gro",
-        trajectory = f"{PATH_EXPERIMENTS}{{unique_id}}/{{grid_identifier}}/trajectory.trr",
-        runfile = f"{PATH_EXPERIMENTS}{{unique_id}}/mdrun.mdp",
-        topology = f"{PATH_EXPERIMENTS}{{unique_id}}/topology.top",
-        select_energy = f"{PATH_EXPERIMENTS}{{unique_id}}/select_energy",
-    shadow: "copy-minimal"
-    output:
-        energy = f"{PATH_EXPERIMENTS}{{unique_id}}/{{grid_identifier}}/energy.xvg",
-    # use with arguments like path_structure path_trajectory path_topology path_default_files path_output_energy
-    shell:
-        """
-        #!/bin/bash
-        export PATH="/home/janjoswig/local/gromacs-2022/bin:$PATH"
-        gmx22 grompp -f {input.runfile} -c {input.structure} -p {input.topology} -o result.tpr
-        gmx22 mdrun -s result.tpr -rerun {input.trajectory}
-        gmx22 energy -f ener.edr -o {output.energy} < {input.select_energy}
-        """
+        my_writer.write_frames_in_directory(my_pt,path_structure=output.structure, path_trajectory=output.trajectory_dict+".xyz")
 
 
 rule run_sqra:
@@ -84,11 +69,10 @@ rule run_sqra:
     As output we want to have the rate matrix.
     """
     input:
-        energy = f"{PATH_EXPERIMENTS}{{unique_id}}/{{grid_identifier}}/energy.xvg",
+        energy = f"{PATH_EXPERIMENTS}{{unique_id}}/{{grid_identifier}}/energies.txt",
         distances_array = f"{PATH_OUTPUT_AUTOSAVE}{{grid_identifier}}_distances_array.npz",
         borders_array = f"{PATH_OUTPUT_AUTOSAVE}{{grid_identifier}}_borders_array.npz",
         volumes = f"{PATH_OUTPUT_AUTOSAVE}{{grid_identifier}}_volumes.npy",
-        config_file= f"{PATH_EXPERIMENTS}{{unique_id}}/experiment_config.txt"
     output:
         rate_matrix = f"{PATH_EXPERIMENTS}{{unique_id}}/{{grid_identifier}}/{{lower_lim}}-{{upper_lim}}/rate_matrix.npz",
         index_list = f"{PATH_EXPERIMENTS}{{unique_id}}/{{grid_identifier}}/{{lower_lim}}-{{upper_lim}}/index_list.npy",
@@ -103,7 +87,7 @@ rule run_sqra:
         from scipy import sparse
         from scipy.constants import k as k_B
 
-        tau = coupling = find_config_parameter_value(input.config_file,"coupling_constant_ps")
+        tau = 0.001 # kindof random value
 
         D = k_B * params.T * float(tau) * 1e-12 / params.m_h2o *1e8 # units should be A^2/ps
         print(f"Diffusion const D={D}")
@@ -124,69 +108,24 @@ rule run_sqra:
         else:
             upper_limit = float(wildcards.upper_lim)
 
-        my_parsed = XVGParser(input.energy)
-        energies = my_parsed.get_parsed_energy().get_energies(params.energy_type)
+        with open(input.energy) as f:
+            lines = f.readlines()
+
+        energies = []  # in kJ/mol
+        for line in lines:
+            energies.append(float(line.split(",")[1]))
+        energies = np.array(energies)
 
         sqra = SQRA(energies=energies,volumes=all_volumes,distances=all_distances,surfaces=all_surfaces)
         rate_matrix = sqra.get_rate_matrix(D,params.T)
         rate_matrix, index_list = sqra.cut_and_merge(rate_matrix,T=params.T,lower_limit=lower_limit,
             upper_limit=upper_limit)
 
+        print(np.max(rate_matrix.data), np.min(rate_matrix.data), np.average(rate_matrix.data), np.std(rate_matrix.data))
+
         # saving to file
         sparse.save_npz(output.rate_matrix,rate_matrix)
         np.save(output.index_list,np.array(index_list,dtype=object))
-
-ALL_LOWER = [None, 0.001, 0.005, 0.01, 0.05, 0.1]   # if neighbouring cells differ less than that will be merged
-ALL_UPPER = [None, 10, 20, 30, 50, 100, 300] # if energy above this the cell will be cut
-rule print_rate_size:
-    input:
-        rate_matrix = expand(f"{PATH_EXPERIMENTS}{{unique_id}}/{{grid_identifier}}/{{lower_lim}}-{{upper_lim}}/rate_matrix.npz",
-            lower_lim=ALL_LOWER, upper_lim=ALL_UPPER, allow_missing=True),
-        eigenvalues= expand(f"{PATH_EXPERIMENTS}{{unique_id}}/{{grid_identifier}}/{{lower_lim}}-{{upper_lim}}/eigenvalues_{{sigma}}_{{which}}.npy",
-            lower_lim=ALL_LOWER,upper_lim=ALL_UPPER,allow_missing=True, sigma=0, which="SR")
-    output:
-        rate_size = f"{PATH_EXPERIMENTS}{{unique_id}}/{{grid_identifier}}/size_chart.png",
-        eigenvalue_size= f"{PATH_EXPERIMENTS}{{unique_id}}/{{grid_identifier}}/size_eigenvalue.png"
-    run:
-        import matplotlib
-
-        matplotlib.use('Agg')
-        from scipy import sparse
-        import matplotlib.pyplot as plt
-        import seaborn as sns
-        import pandas as pd
-        all_sizes = []
-        all_lower = []
-        all_upper = []
-        all_eigenvalues = []
-        num_eigenval = 6
-        for el in input.rate_matrix:
-            my_matrix = sparse.load_npz(el)
-            my_eigenval = np.load(input.eigenvalues)[:num_eigenval]
-            my_size = my_matrix.shape[0]
-            my_lower, my_upper = el.split("/")[3].split("-")
-            all_sizes.append(my_size)
-            if my_upper == "None":
-                my_upper = None
-            else:
-                my_upper = float(my_upper)
-            if my_lower == "None":
-                my_lower = 0
-            else:
-                my_lower = float(my_lower)
-            all_upper.append(my_upper)
-            all_lower.append(my_lower)
-            all_eigenvalues.append(my_eigenval)
-        columns = ["Matrix size", r"Lower lim [k_BT]", r"Upper lim [k_BT]"]
-        for i in range(num_eigenval):
-            columns.append(f"Eigenvalue {i}")
-        my_df = pd.DataFrame(data=np.array([all_sizes, all_lower, all_upper, *all_eigenvalues]).T, columns=columns)
-        sns.scatterplot(data=my_df, x=r"Lower lim [k_BT]", y="Matrix size", hue=r"Upper lim [k_BT]")
-        plt.savefig(output.rate_size)
-        fig, ax = plt.subplots(1,num_eigenval)
-        for i, subax in enumerate(ax):
-            sns.scatterplot(data=my_df, x=r"Lower lim [k_BT]", y=f"Eigenvalue {i}", hue=r"Upper lim [k_BT]", ax=subax)
-        plt.savefig(output.eigenvalue_size)
 
 rule run_decomposition:
     """
@@ -214,7 +153,7 @@ rule run_decomposition:
         # calculation
         dt = DecompositionTool(my_matrix)
         all_eigenval, all_eigenvec = dt.get_decomposition(tol=params.tol, maxiter=params.maxiter, which=wildcards.which,
-            sigma=sigma)
+            sigma=sigma, k=10)
 
         # saving to file
         np.save(output.eigenvalues,np.array(all_eigenval))
@@ -231,7 +170,7 @@ rule run_plot_everything_sqra:
     output:
         plot_eigenvectors=f"{PATH_EXPERIMENTS}{{unique_id}}/{{grid_identifier}}/{{lower_lim}}-{{upper_lim}}/eigenvectors_{{sigma}}_{{which}}.png",
         plot_eigenvalues=f"{PATH_EXPERIMENTS}{{unique_id}}/{{grid_identifier}}/{{lower_lim}}-{{upper_lim}}/eigenvalues_{{sigma}}_{{which}}.png",
-        plot_its=report(f"{PATH_EXPERIMENTS}{{unique_id}}/{{grid_identifier}}/{{lower_lim}}-{{upper_lim}}/its_{{sigma}}_{{which}}.png", category="SQRA"),
+        plot_its=report(f"{PATH_EXPERIMENTS}{{unique_id}}/{{grid_identifier}}/{{lower_lim}}-{{upper_lim}}/its_{{sigma}}_{{which}}.png"),
     run:
         from molgri.plotting.transition_plots import PlotlyTransitions
 
@@ -258,11 +197,11 @@ rule compile_vmd_log:
         eigenvectors = f"{PATH_EXPERIMENTS}{{unique_id}}/{{grid_identifier}}/{{lower_lim}}-{{upper_lim}}/eigenvectors_{{sigma}}_{{which}}.npy",
         index_list = f"{PATH_EXPERIMENTS}{{unique_id}}/{{grid_identifier}}/{{lower_lim}}-{{upper_lim}}/index_list.npy",
         # in the script only the numbers for frames need to be changed.
-        script="molgri/scripts/vmd_show_eigenvectors"
+        script="molgri/scripts/vmd_show_eigenvectors_methanoid"
     output:
         vmdlog = f"{PATH_EXPERIMENTS}{{unique_id}}/{{grid_identifier}}/{{lower_lim}}-{{upper_lim}}/eigenvectors_{{sigma}}_{{which}}_vmdlog_sqra"
     params:
-        num_extremes=50,
+        num_extremes=3,
         num_eigenvec=6  # only show the first num_eigenvec
     run:
         from molgri.plotting.create_vmdlog import show_eigenvectors
@@ -270,8 +209,13 @@ rule compile_vmd_log:
         # load eigenvectors
         eigenvectors = np.load(input.eigenvectors)
         index_list = np.load(input.index_list,allow_pickle=True)
-        if not index_list:
+        if not np.any(index_list):
             index_list = None
         else:
             index_list = list(index_list)
         show_eigenvectors(input.script,output.vmdlog,eigenvector_array=eigenvectors,num_eigenvec=params.num_eigenvec,num_extremes=params.num_extremes,index_list=index_list)
+
+
+
+include: "Snakefile_grids"
+

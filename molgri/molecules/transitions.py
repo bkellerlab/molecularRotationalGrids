@@ -115,7 +115,8 @@ class AssignmentTool:
         alignment_magnitudes = np.empty((len(reference_matrices), len(produkt)))
         for i, rm in enumerate(reference_matrices):
             alignment_magnitudes[i] = Rotation.from_matrix(rm@produkt.transpose(0, 2, 1)).magnitude()
-        return np.argmin(alignment_magnitudes, axis=0)
+        result = np.argmin(alignment_magnitudes, axis=0)
+        return result
 
     def _get_t_assignments(self) -> NDArray:
         """
@@ -127,11 +128,15 @@ class AssignmentTool:
             like [0, 0, 0, 1, 1, 1, 2 ...] (for a PT with 3 orientations)
         """
         t_selection = AnalysisFromFunction(
-            lambda ag: np.argmin(np.abs(self.t_array - np.linalg.norm(ag.center_of_mass())), axis=0),
+            lambda ag: np.argmin(np.abs(self.t_array - np.linalg.norm(np.minimum(np.mod(ag.center_of_mass(),
+                                                                                     self.trajectory_universe.dimensions[:3]),
+                                            np.mod(-ag.center_of_mass(), self.trajectory_universe.dimensions[:3]))))),
             self.trajectory_universe.trajectory,
             self.trajectory_universe.select_atoms(self.second_molecule_selection))
         t_selection.run()
         t_indices = t_selection.results['timeseries'].flatten()
+        import pandas as pd
+        print("distance assignment statistics", pd.DataFrame(t_indices).describe())
         return t_indices
 
     def _get_o_assignments(self) -> NDArray:
@@ -143,11 +148,15 @@ class AssignmentTool:
         """
         # now using a normalized com and a metric on a sphere, determine which of o_grid_points is closest
         o_selection = AnalysisFromFunction(lambda ag: np.argmin(cdist(self.o_array, normalise_vectors(
-            ag.center_of_mass())[np.newaxis, :], metric="cos"), axis=0),
+            np.minimum(np.mod(ag.center_of_mass(), self.trajectory_universe.dimensions[:3]),
+                       np.mod(-ag.center_of_mass(), self.trajectory_universe.dimensions[:3])))[np.newaxis, :],
+            metric="cos"), axis=0),
                                            self.trajectory_universe.trajectory,
                                            self.trajectory_universe.select_atoms(self.second_molecule_selection))
         o_selection.run()
         o_indices = o_selection.results['timeseries'].flatten()
+        import pandas as pd
+        print("direction assignment statistics", pd.DataFrame(o_indices).describe())
         return o_indices
 
     def _get_position_assignments(self):
@@ -309,7 +318,7 @@ class DecompositionTool:
         """
         self.matrix_to_decompose = matrix_to_decompose
 
-    def get_decomposition(self, tol: float, maxiter: int, which: str, sigma: Optional[float]):
+    def get_decomposition(self, tol: float, maxiter: int, which: str, sigma: Optional[float], k=20):
         """
         The function for users - will decompose all matrices.
 
@@ -321,7 +330,7 @@ class DecompositionTool:
         Returns:
 
         """
-        eigenval, eigenvec = eigs(self.matrix_to_decompose.T, k=15, tol=tol, maxiter=maxiter, which=which, sigma=sigma)
+        eigenval, eigenvec = eigs(self.matrix_to_decompose.T, k=k, tol=tol, maxiter=maxiter, which=which, sigma=sigma)
         # if imaginary eigenvectors or eigenvalues, raise error
         if not np.allclose(eigenvec.imag.max(), 0, rtol=1e-3, atol=1e-5) or not np.allclose(eigenval.imag.max(), 0,
                                                                                             rtol=1e-3, atol=1e-5):

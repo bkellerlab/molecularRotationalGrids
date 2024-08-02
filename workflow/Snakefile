@@ -2,36 +2,33 @@
 import sys
 sys.path.append(".")
 
+include: "Snakefile_grids"
+include: "Snakefile_sqra"
+include: "Snakefile_msm"
 
 from molgri.paths import PATH_OUTPUT_AUTOSAVE, PATH_INPUT_BASEGRO, PATH_EXPERIMENTS
 from workflow.snakemake_utils import find_config_parameter_value, modify_topology, modify_mdrun
 from molgri.constants import TAUS
 
-include: "Snakefile_sqra"
 
 ALL_LOWER = [None, 0.001, 0.005, 0.01, 0.05, 0.1]   # if neighbouring cells differ less than that will be merged
 ALL_UPPER = [None, 10, 20, 30, 50, 100, 300] # if energy above this the cell will be cut
 
-# [f"bounds_water_msm_{i:03d}" for i in [1, 2, 3, 4, 5, 7, 8, 9, 10, 11, 12, 13, 14]]
-import os
-#print(os.listdir("experiments/"))
-# "experiments/one_sqra/bigger_ideal/size_chart.png"
+
+# no solvent msm and sqra
 rule all:
     input:
-        f"experiments/relative_its_large.png",
-        msm_all1 = expand(f"{PATH_EXPERIMENTS}{{unique_id}}/{{grid_identifier}}/its_{{sigma}}_{{which}}.png",
-            unique_id=[f"msm_tau_{i:02d}" for i in range(1,5)],
-            grid_identifier=["80_80_20_longer"], sigma=None, which="LR"),
-        msm_all2 = expand(f"{PATH_EXPERIMENTS}{{unique_id}}/{{grid_identifier}}/{{tau}}/eigenvectors_msm_{{sigma}}_{{which}}{{suffix}}",
-            unique_id=[f"msm_tau_{i:02d}" for i in range(1, 5)],
-            grid_identifier=["80_80_20_longer"], sigma=None, which="LR",
-            tau=TAUS, suffix=[".png", "_vmdlog_msm"]),
-        sqra1 = expand(f"{PATH_EXPERIMENTS}{{unique_id}}/{{grid_identifier}}/{{lower_lim}}-{{upper_lim}}/its_{{sigma}}_{{which}}.png",
-            unique_id=[f"sqra_tau_{i:02d}" for i in range(1,5)], grid_identifier=["80_80_20_longer"], sigma=[0], which=["SR"], lower_lim=None, upper_lim=None),   #["300grand_long", "80_80_30_short"]
-        sqra2 = expand(f"{PATH_EXPERIMENTS}{{unique_id}}/{{grid_identifier}}/{{lower_lim}}-{{upper_lim}}/eigenvectors_{{sigma}}_{{which}}_vmdlog_sqra",
-        unique_id=[f"sqra_tau_{i:02d}" for i in range(1,5)], grid_identifier=["80_80_20_longer"], sigma=[0], which=["SR"], lower_lim=None, upper_lim=None),
-
-
+        msm_all1 = expand(f"{PATH_EXPERIMENTS}{{unique_id}}/{{grid_identifier}}/its_{{is_corrected}}_{{sigma}}_{{which}}.png",
+            unique_id=[f"msm_tau_{i:02d}" for i in range(9,13)], tau=TAUS,
+            grid_identifier=["80_80_30_longer", "80_80_very_short", "300grand_long"], sigma=None, which="LR", is_corrected = ["msm"]),
+        msm_all2 = expand(f"{PATH_EXPERIMENTS}{{unique_id}}/{{grid_identifier}}/{{tau}}/eigenvectors_{{is_corrected}}_{{sigma}}_{{which}}{{suffix}}",
+            unique_id=[f"msm_tau_{i:02d}" for i in range(9,13)],
+            grid_identifier=["80_80_30_longer", "80_80_very_short", "300grand_long"], sigma=None, which="LR",
+            tau=TAUS, suffix=[".png", "_vmdlog_msm"], is_corrected = ["msm"]),
+        # sqra1 = expand(f"{PATH_EXPERIMENTS}{{unique_id}}/{{grid_identifier}}/{{lower_lim}}-{{upper_lim}}/its_{{sigma}}_{{which}}.png",
+        #     unique_id=[f"sqra_tau_{i:02d}" for i in range(1,5)], grid_identifier=["80_80_very_short"], sigma=[0], which=["SR"], lower_lim=None, upper_lim=None),   #["300grand_long", "80_80_30_short"]
+        # sqra2 = expand(f"{PATH_EXPERIMENTS}{{unique_id}}/{{grid_identifier}}/{{lower_lim}}-{{upper_lim}}/eigenvectors_{{sigma}}_{{which}}_vmdlog_sqra",
+        # unique_id=[f"sqra_tau_{i:02d}" for i in range(1,5)], grid_identifier=["80_80_very_short"], sigma=[0], which=["SR"], lower_lim=None, upper_lim=None),
 
 rule create_config_file:
     """
@@ -51,6 +48,7 @@ rule create_config_file:
             print(experiments, wildcards.unique_id)
             for i, parameter_value in enumerate(experiments.loc[wildcards.unique_id]):
                 f.write(f"{columns[i]}={parameter_value}\n")
+
 
 rule prepare_water_water:
     """
@@ -93,9 +91,11 @@ rule prepare_water_water:
         trajectory_len = find_config_parameter_value(input.config_file,"traj_len")
         integrator = find_config_parameter_value(input.config_file,"integrator")
         coupling = find_config_parameter_value(input.config_file,"coupling_constant_ps")
+        step = find_config_parameter_value(input.config_file,"step_in_ps")
         modify_mdrun(output.runfile, "integrator", integrator)
         modify_mdrun(output.runfile,"nsteps",trajectory_len)
         modify_mdrun(output.runfile,"tau_t",coupling)
+        modify_mdrun(output.runfile,"dt",step)
         # modify topology with given parameters
         up1_nm = find_config_parameter_value(input.config_file,"up1_nm")
         up2_nm = find_config_parameter_value(input.config_file,"up2_nm")
@@ -105,15 +105,16 @@ rule prepare_water_water:
 
 rule find_constant_factor:
     input:
-        tau_msm_eigv = expand(f"{PATH_EXPERIMENTS}{{unique_id}}/{{grid_identifier}}/{{tau}}/eigenvalues_msm_{{sigma}}_{{which}}.npy", unique_id=[f"msm_tau_{i:02d}" for i in range(1, 5)],
-            grid_identifier=["80_80_20_longer"], sigma=None, which="LR", tau=[5, 30, 100]),
+        tau_msm_eigv = expand(f"{PATH_EXPERIMENTS}{{unique_id}}/{{grid_identifier}}/{{tau}}/eigenvalues_correctedmsm_{{sigma}}_{{which}}.npy", unique_id=[f"msm_tau_{i:02d}" for i in range(1, 5)],
+            grid_identifier=["80_80_20_longer"], sigma=None, which="LR", tau=TAUS),
         tau_sqra_eigv = expand(f"{PATH_EXPERIMENTS}{{unique_id}}/{{grid_identifier}}/{{lower_lim}}-{{upper_lim}}/eigenvalues_{{sigma}}_{{which}}.npy",
             lower_lim="None",upper_lim="None",sigma=0, which="SR", unique_id=[f"sqra_tau_{i:02d}" for i in range(1, 5)],
             grid_identifier=["80_80_20_longer"])
     output:
-        relative_its = f"{PATH_EXPERIMENTS}relative_its_large.png"
+        relative_its = report(f"{PATH_EXPERIMENTS}relative_its_large.png", category="comparison"),
+        comparison_table = expand(f"{PATH_EXPERIMENTS}comparison_table_{{tau}}.csv", tau=["2", "5", "10", "50"])
     params:
-        msm_indices_to_use = [2, 4],
+        #msm_indices_to_use = [2, 4],
         writeout = 5,
         timesteps = 0.002
     run:
@@ -125,14 +126,25 @@ rule find_constant_factor:
         matplotlib.use('Agg')
         import matplotlib.pyplot as plt
         import seaborn as sns
-        sns.set_context("paper")
+        sns.set_context("notebook")
         sns.set_palette("deep")
         from collections import defaultdict
         coupling_constants = [0.001, 0.01, 0.1, 1]
-        num_tau = len(params.msm_indices_to_use)
-        num_lag_times = 3
+        num_tau = 2
         #num_eigenval = 4
         coupling_dict = {"01": 0.001, "02": 0.01, "03": 0.1, "04": 1}
+
+        # ratio first to second its
+        # go through different coupling constants
+        tau_dict = defaultdict(list)
+        for my_file_name in input.tau_msm_eigv:
+            my_tau = int(my_file_name.split("/")[3])
+            if my_tau in [2, 5, 10, 50]:
+                tau_dict[my_tau].append(my_file_name)
+
+
+
+        #print(my_its.T / my_sqra_its[:, np.newaxis] )
 
         #sqras are easy:
         sqra_eigenvalues_dict = dict()
@@ -142,45 +154,64 @@ rule find_constant_factor:
             my_coupling = coupling_dict[one_sqra_file.split("/")[1].split("_")[-1]]
             sqra_eigenvalues_dict[my_coupling] = sqra_its # because first one is zero
 
-        # go through different taus
-        tau_dict = defaultdict(list)
-        for my_file_name in input.tau_msm_eigv:
-            my_tau = my_file_name.split("/")[3]
-            tau_dict[int(my_tau)].append(my_file_name)
+
 
         plt.ticklabel_format(style='plain',axis='x')
-        fig, ax = plt.subplots(num_lag_times, 1, figsize=(DIM_SQUARE[0], num_lag_times*DIM_SQUARE[0]))
+        fig, ax = plt.subplots(len(tau_dict.keys()), 3, figsize=(2*3*DIM_SQUARE[0]/3, 2*len(tau_dict.keys())*DIM_SQUARE[0]/3))
 
         ax_i = 0
         for tau, my_msm_eigv in tau_dict.items():
             msm_eigenvalues_dict = dict()
             for one_msm_file in my_msm_eigv:
-                msm_eigenvalues = np.load(one_msm_file)[1:] # TODO: select really meaningful ones
-                actual_msm_eigenvalues = []
-                for el_i in params.msm_indices_to_use:
-                    actual_msm_eigenvalues.append(msm_eigenvalues[el_i])
-                msm_eigenvalues = np.array(actual_msm_eigenvalues)
+                msm_eigenvalues = np.load(one_msm_file)[1:num_tau+1] # TODO: select really meaningful ones
+                my_coupling_name = one_msm_file.split("/")[1].split("_")[-1]
+                my_coupling = coupling_dict[my_coupling_name]
                 msm_its = - tau*params.writeout*params.timesteps/np.log(np.abs(msm_eigenvalues))
-                my_coupling = coupling_dict[one_msm_file.split("/")[1].split("_")[-1]]
-                msm_eigenvalues_dict[my_coupling] = msm_its
+                msm_its = list(msm_its)
+                while len(msm_its) < num_tau:
+                    msm_its.append(np.NaN)
+                msm_eigenvalues_dict[my_coupling] = np.array(msm_its)
             data = []
-            for j in range(num_tau):
+            for i in coupling_constants:
                 to_add = []
-                for i in coupling_constants:
+                to_add.extend(sqra_eigenvalues_dict[i])
+                to_add.extend(msm_eigenvalues_dict[i])
+                for j in range(num_tau):
                     to_add.append(sqra_eigenvalues_dict[i][j]/msm_eigenvalues_dict[i][j])
+                to_add.append(sqra_eigenvalues_dict[i][0]/sqra_eigenvalues_dict[i][1])
+                to_add.append(msm_eigenvalues_dict[i][0] / msm_eigenvalues_dict[i][1])
                 data.append(to_add)
             data = np.array(data)
-            my_tau_df = pd.DataFrame(data.T, index=coupling_constants)
-            print(my_tau_df)
-            sns.lineplot(my_tau_df, ax=ax[ax_i], legend=False)
-            ax[ax_i].set_title(r"Lag time $\tau$ ="+f"{tau*params.writeout*params.timesteps} ps")
-            ax[ax_i].set_xlabel("Coupling parameter [ps]")
-            ax[ax_i].set_xscale("log")
-            ax[ax_i].set_xticks(coupling_constants)
-            ax[ax_i].xaxis.set_major_formatter(ticker.FormatStrFormatter('%.3f'))
-            ax[ax_i].xaxis.set_minor_formatter(ticker.NullFormatter())
+            my_tau_df = pd.DataFrame(data, index=coupling_constants, columns=["SQRA its1", "SQRA its2", "MSM its1",
+                                                                              "MSM its2", "SQRA its1/MSM its1",
+                                                                              "SQRA its2/MSM its2", "SQRA its1/SQRA its 2",
+                                                                              "MSM its 1/MSM its 2"])
+            with pd.option_context('display.max_rows',None,'display.max_columns',None):
+                print(my_tau_df)
+            my_tau_df.to_csv(output.comparison_table[ax_i])
+            sns.scatterplot(x=my_tau_df.index, y=my_tau_df["SQRA its1"], ax=ax[ax_i][0], legend=False)
+            sns.scatterplot(x=my_tau_df.index, y=my_tau_df["SQRA its2"] ,ax=ax[ax_i][0],legend=False)
+            sns.scatterplot(x=my_tau_df.index, y=my_tau_df["MSM its1"], ax=ax[ax_i][1], legend=False)
+            sns.scatterplot(x=my_tau_df.index, y=my_tau_df["MSM its2"] ,ax=ax[ax_i][1],legend=False)
+            sns.scatterplot(x=my_tau_df.index, y=my_tau_df["SQRA its1/MSM its1"], ax=ax[ax_i][2], legend=False)
+            sns.scatterplot(x=my_tau_df.index, y=my_tau_df["SQRA its2/MSM its2"] ,ax=ax[ax_i][2],legend=False)
+            sns.lineplot(x=my_tau_df.index, y=my_tau_df["SQRA its1"], ax=ax[ax_i][0], legend=False)
+            sns.lineplot(x=my_tau_df.index, y=my_tau_df["SQRA its2"] ,ax=ax[ax_i][0],legend=False)
+            sns.lineplot(x=my_tau_df.index, y=my_tau_df["MSM its1"], ax=ax[ax_i][1], legend=False)
+            sns.lineplot(x=my_tau_df.index, y=my_tau_df["MSM its2"] ,ax=ax[ax_i][1],legend=False)
+            sns.lineplot(x=my_tau_df.index, y=my_tau_df["SQRA its1/MSM its1"], ax=ax[ax_i][2], legend=False)
+            sns.lineplot(x=my_tau_df.index, y=my_tau_df["SQRA its2/MSM its2"] ,ax=ax[ax_i][2],legend=False)
+            ax[ax_i][1].set_title(r"Lag time $\tau$ ="+f"{tau*params.writeout*params.timesteps} ps")
+            for ax_j in range(3):
+                ax[ax_i][ax_j].set_xlabel("Coupling parameter [ps]")
+                ax[ax_i][ax_j].set_xscale("log")
+                ax[ax_i][ax_j].set_xticks(coupling_constants)
+                ax[ax_i][ax_j].xaxis.set_major_formatter(ticker.FormatStrFormatter('%.3f'))
+                ax[ax_i][ax_j].xaxis.set_minor_formatter(ticker.NullFormatter())
             #ax[ax_i].ticklabel_format(useOffset=False)
-            ax[ax_i].set_ylabel(r"$its_{SQRA}$/$its_{MSM}$")
+            ax[ax_i][0].set_ylabel(r"$its_{SQRA} [ps]$")
+            ax[ax_i][1].set_ylabel(r"$its_{MSM} [ps]$")
+            ax[ax_i][2].set_ylabel(r"$its_{SQRA}$/$its_{MSM}$")
             ax_i += 1
         fig.tight_layout()
         fig.savefig(output.relative_its)
@@ -188,6 +219,5 @@ rule find_constant_factor:
 
 
 
-include: "Snakefile_grids"
-include: "Snakefile_msm"
+
 

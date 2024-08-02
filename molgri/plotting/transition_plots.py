@@ -8,13 +8,14 @@ import numpy as np
 from numpy.typing import NDArray
 import plotly.graph_objects as go
 import plotly.io as pio
+from plotly.colors import DEFAULT_PLOTLY_COLORS
 import plotly.express as px
 from scipy import sparse
 from plotly.subplots import make_subplots
 
 WIDTH = 600
 HEIGHT = 600
-NUM_EIGENV = 10
+#NUM_EIGENV = 5
 
 class PlotlyTransitions:
 
@@ -99,9 +100,12 @@ class PlotlyTransitions:
             index_tau (): which tau index to use for plotting
 
         """
+        eigenvecs = np.load(self.path_eigenvectors)
+        NUM_EIGENV = eigenvecs.shape[1]
+
         self.fig = make_subplots(rows=NUM_EIGENV, cols=1, subplot_titles=[f"Eigenvector {i}" for i in range(NUM_EIGENV)])
 
-        eigenvecs = np.load(self.path_eigenvectors)
+
 
         # for msm eigenvectors shape: (number_taus, number_cells, num_eigenvectors)
         # else: (number_cells, num_eigenvectors)
@@ -136,21 +140,40 @@ class PlotlyTransitions:
 
     def plot_its_msm(self, writeout=5, time_step_ps=0.02) -> None:
         xs = self.tau_array * writeout * time_step_ps
-        # gray triangle
-        self.fig.add_scatter(x=[0, xs[-1], xs[-1]], y=[0, 0, xs[-1]], mode="lines", fill="toself", fillcolor="gray",
-                             line=dict(width=0))
-        self.fig.update_layout(showlegend=False, xaxis_title=r"$\tau [ps]$", yaxis_title="ITS [ps]")
-        # eigenvalues
-
-
+        self.fig = make_subplots(1, 2, shared_yaxes=True)
+        row=1
         all_eigenvals = []
         for el in self.path_eigenvalues:
             eigenvals = np.load(el)[1:]  # dropping the first one as it should be zero and cause issues
+            eigenvals = list(eigenvals)
+            while len(eigenvals) < 4:
+                eigenvals.append(np.NaN)
+            if len(eigenvals) > 4:
+                eigenvals = eigenvals[:4]
             all_eigenvals.append(eigenvals)
         all_eigenvals = np.array(all_eigenvals)
-        for eigenvals in all_eigenvals.T:
-            its = np.array(-self.tau_array * writeout * time_step_ps / np.log(np.abs(eigenvals)))
-            self.fig.add_scatter(x=xs, y=its, mode="lines+markers")
+
+        for col in (1, 2):
+            # gray triangle
+            self.fig.add_scatter(x=[0, xs[-1], xs[-1]], y=[0, 0, xs[-1]], mode="lines", fill="toself", fillcolor="gray",
+                                 line=dict(width=0), row=row, col=col)
+            self.fig.update_layout(showlegend=False, xaxis_title=r"$\tau [ps]$", yaxis_title="ITS [ps]")
+            # eigenvalues
+            cols = DEFAULT_PLOTLY_COLORS
+
+
+            max_its = 0
+            for i, eigenvals in enumerate(all_eigenvals.T):
+                its = np.array(-self.tau_array * writeout * time_step_ps / np.log(np.abs(eigenvals)))
+                if np.any(its) > max_its:
+                    max_its = np.max(its)
+                if col==2:
+                    xs = xs[:10]
+                    its = its[:10]
+                    self.fig.update_xaxes(range=[np.min(xs), np.max(xs)], row=row, col=col)
+                self.fig.add_scatter(x=xs, y=its, mode="lines+markers", line=dict(width=2, color=cols[i]), row=row,
+                                     col=col)
+            self.fig.update_yaxes(range=[0, max_its], row=row, col=col)
 
 
 

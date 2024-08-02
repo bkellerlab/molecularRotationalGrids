@@ -1,88 +1,139 @@
-"""
-All of the workflows relating to production of trajectories, subsequent MSMs and their related outputs (figures ...)
-"""
+# add molgri directory
+import sys
+sys.path.append(".")
 from time import time
 
 import numpy as np
 
-# add molgri directory
-import sys
-sys.path.append(".")
-
-from molgri.paths import PATH_OUTPUT_AUTOSAVE, PATH_INPUT_BASEGRO, PATH_EXPERIMENTS
-from workflow.snakemake_utils import log_the_run
-from molgri.constants import TAUS
-
-
-
-
 include: "Snakefile_grids"
 
-wildcard_constraints:
-    unique_id=".*msm.*"
+from molgri.paths import PATH_OUTPUT_AUTOSAVE, PATH_INPUT_BASEGRO, PATH_EXPERIMENTS
+from workflow.snakemake_utils import find_config_parameter_value, log_the_run, modify_mdrun, modify_topology
+from molgri.constants import TAUS
+
+#ruleorder: run_msm_gromacs_in_water > run_msm_gromacs
+
+rule all:
+    input:
+        #"experiments/msm_water_in_water_01/300grand_long/assignments.npy"
+        #expand(f"{PATH_EXPERIMENTS}{{unique_id}}/energy.xvg", unique_id="msm_water_in_water_snakemake")
+        msm_all1 = expand(f"{PATH_EXPERIMENTS}{{unique_id}}/{{grid_identifier}}/its_{{is_corrected}}_{{sigma}}_{{which}}.png",
+            unique_id=["msm_water_in_water_01", "msm_water_in_water_02"], tau=TAUS,
+            grid_identifier=["80_80_30_longer", "80_80_very_short", "300grand_long"], sigma=None, which="LR", is_corrected = ["msm", "correctedmsm"]),
+        msm_all2 = expand(f"{PATH_EXPERIMENTS}{{unique_id}}/{{grid_identifier}}/{{tau}}/eigenvectors_{{is_corrected}}_{{sigma}}_{{which}}{{suffix}}",
+            unique_id=["msm_water_in_water_01", "msm_water_in_water_02"],
+            grid_identifier=["80_80_30_longer", "80_80_very_short", "300grand_long"], sigma=None, which="LR",
+            tau=TAUS, suffix=[".png", "_vmdlog_msm"], is_corrected = ["msm", "correctedmsm"]),
 
 
-rule create_msm_gro:
+rule create_config_file_in_water:
     """
-    Create a structure from two molecules. Expected in the folder: m1.gro, m2.gro
+    The point here is to get the unique ID of the experiment, read all of its parameters from a database of experiments
+    and write them to a file within this experiment folder.
     """
     input:
-        molecule1 = f"{PATH_EXPERIMENTS}{{unique_id}}/m1.gro",
-        molecule2 = f"{PATH_EXPERIMENTS}{{unique_id}}/m2.gro",
+        experiments_database = "workflow/experiments_in_water.csv"
     output:
-        structure = f"{PATH_EXPERIMENTS}{{unique_id}}/structure.gro"
-    params:
-        start_dist_A = 6,  # distance between centers of mass of both molecules in the combined structure
-        cell_size_A = 30  # cubic box will be the output, this is size of the box in one dimension
+        config_file = f"{PATH_EXPERIMENTS}{{unique_id}}/experiment_config.txt"
     run:
-        import MDAnalysis as mda
-        from MDAnalysis import Merge
+        # read in all parameters
+        import pandas as pd
+        experiments = pd.read_csv(input.experiments_database, index_col=0)
+        columns = experiments.columns
+        with open(output.config_file, "w") as f:
+            print(experiments, wildcards.unique_id)
+            for i, parameter_value in enumerate(experiments.loc[wildcards.unique_id]):
+                f.write(f"{columns[i]}={parameter_value}\n")
 
-        central_molecule = mda.Universe(input.molecule1)
-        moving_molecule = mda.Universe(input.molecule2)
 
-        # center the both molecules
-        com1 = central_molecule.atoms.center_of_mass()
-        com2 = moving_molecule.atoms.center_of_mass()
-        central_molecule.atoms.translate(-com1)
-        moving_molecule.atoms.translate(-com2)
-        # translate the second one
-        moving_molecule.atoms.translate([0, 0, float(params.start_dist_A)])
-
-        # merge and write
-        merged_u = Merge(central_molecule.atoms, moving_molecule.atoms)
-        merged_u.dimensions = (params.cell_size_A, params.cell_size_A, params.cell_size_A, 90, 90, 90)
-        with mda.Writer(output.structure) as writer:
-            writer.write(merged_u)
-
-rule run_msm_gromacs:
+rule prepare_water_water_in_water:
     """
-    This rule gets structure, trajectory, topology and gromacs run file as input, as output we are only interested in 
-    energies.
+    Start with an end structure of a shorter run to have a good starting structure.
     """
     input:
-        structure = f"{PATH_EXPERIMENTS}{{unique_id}}/structure.gro",
+        start_structure_all = f"{PATH_INPUT_BASEGRO}calibrated_water_in_water.gro",
+        water_gro= f"{PATH_INPUT_BASEGRO}H2O.gro",
+        water_in_arg_top = f"{PATH_INPUT_BASEGRO}water_in_water.top",
+        base_mdp_file = f"{PATH_INPUT_BASEGRO}mdrun.mdp",
+        select_group=f"{PATH_INPUT_BASEGRO}select_group_zero",
+        select_energy=f"{PATH_INPUT_BASEGRO}select_energy_five",
+        select_centers=f"{PATH_INPUT_BASEGRO}select_3_and_0",
+        select_two=f"{PATH_INPUT_BASEGRO}select_2",
+        index_m1=f"{PATH_INPUT_BASEGRO}index_first_mol.ndx",
+        config_file = f"{PATH_EXPERIMENTS}{{unique_id}}/experiment_config.txt"
+    output:
+        molecule2 = f"{PATH_EXPERIMENTS}{{unique_id}}/m2.gro",
+        start_structure = f"{PATH_EXPERIMENTS}{{unique_id}}/solvated_structure.gro",
         runfile = f"{PATH_EXPERIMENTS}{{unique_id}}/mdrun.mdp",
         topology = f"{PATH_EXPERIMENTS}{{unique_id}}/topology.top",
         select_group = f"{PATH_EXPERIMENTS}{{unique_id}}/select_group",
         select_energy = f"{PATH_EXPERIMENTS}{{unique_id}}/select_energy",
+        select_centers = f"{PATH_EXPERIMENTS}{{unique_id}}/select_centers",
+        select_two = f"{PATH_EXPERIMENTS}{{unique_id}}/select_two",
+        index_m1 = f"{PATH_EXPERIMENTS}{{unique_id}}/index_m1.ndx",
+    run:
+        # todo: create gro strapped of ar atoms
+        import shutil
+        # stuff that can be copied without being modified
+        shutil.copy(input.start_structure_all,output.start_structure)
+        shutil.copy(input.select_group, output.select_group)
+        shutil.copy(input.select_energy,output.select_energy)
+        shutil.copy(input.select_centers,output.select_centers)
+        shutil.copy(input.select_two,output.select_two)
+        shutil.copy(input.index_m1, output.index_m1)
+        shutil.copy(input.water_gro,output.molecule2)
+
+        # depending on config parameters, topology and runfile will be adapted
+        shutil.copy(input.water_in_arg_top, output.topology)
+        shutil.copy(input.base_mdp_file, output.runfile)
+
+        # modify runfile with given parameters
+        trajectory_len = find_config_parameter_value(input.config_file,"traj_len")
+        integrator = find_config_parameter_value(input.config_file,"integrator")
+        coupling = find_config_parameter_value(input.config_file,"coupling_constant_ps")
+        step = find_config_parameter_value(input.config_file,"step_in_ps")
+        modify_mdrun(output.runfile, "integrator", integrator)
+        modify_mdrun(output.runfile,"nsteps",trajectory_len)
+        modify_mdrun(output.runfile,"tau_t",coupling)
+        modify_mdrun(output.runfile,"xtc-grps", "SOLp")
+        modify_mdrun(output.runfile,"energygrps","SOLp")
+        modify_mdrun(output.runfile,"dt",step)
+        # modify topology with given parameters
+        up1_nm = find_config_parameter_value(input.config_file,"up1_nm")
+        up2_nm = find_config_parameter_value(input.config_file,"up2_nm")
+        force = find_config_parameter_value(input.config_file,"force")
+        modify_topology(output.topology,i="1",j="4",funct=10,low=0.0,up1=up1_nm,up2=up2_nm,force_constant=force)
+
+rule run_msm_gromacs_in_water:
+    """
+    This rule gets structure, trajectory, topology and gromacs run file as input, as output we are only interested in
+    energies.
+    """
+    input:
+        structure = f"{PATH_EXPERIMENTS}{{unique_id}}/solvated_structure.gro",
+        runfile = f"{PATH_EXPERIMENTS}{{unique_id}}/mdrun.mdp",
+        topology = f"{PATH_EXPERIMENTS}{{unique_id}}/topology.top",
+        select_group = f"{PATH_EXPERIMENTS}{{unique_id}}/select_group",
+        select_two = f"{PATH_EXPERIMENTS}{{unique_id}}/select_two",
+        select_energy = f"{PATH_EXPERIMENTS}{{unique_id}}/select_energy",
         index_m1 = f"{PATH_EXPERIMENTS}{{unique_id}}/index_m1.ndx",
         select_centers= f"{PATH_EXPERIMENTS}{{unique_id}}/select_centers",
-    shadow: "copy-minimal"
+    shadow: "full"
     output:
+        only_water_structure = f"{PATH_EXPERIMENTS}{{unique_id}}/structure.gro",
         energy = f"{PATH_EXPERIMENTS}{{unique_id}}/energy.xvg",
         trajectory = f"{PATH_EXPERIMENTS}{{unique_id}}/trajectory.trr"
     shell:
         """
         #!/bin/bash
         export PATH="/home/janjoswig/local/gromacs-2022/bin:$PATH"
+        gmx22 trjconv -f {input.structure} -s {input.structure} -o {output.only_water_structure} < {input.select_two}
         gmx22 grompp -f {input.runfile} -o result.tpr -c {input.structure} -p {input.topology}
-        gmx22 trjconv -f {input.structure} -s result.tpr -o temp.trr < {input.select_group}
         gmx22 mdrun -s result.tpr -o temp.trr -e ener.edr
         gmx22 energy -f ener.edr -o {output.energy} < {input.select_energy}
         gmx22 trjconv -f temp.trr -s result.tpr -pbc mol -center -o temp.trr -n {input.index_m1} < {input.select_centers}
         gmx22 trjconv -fit rot+trans -f temp.trr -o {output.trajectory} -s {input.structure} -n {input.index_m1} < {input.select_centers}
-        """
+       """
 
 rule run_trajectory_assignment:
     """
@@ -111,6 +162,7 @@ rule run_trajectory_assignment:
         # using all inputs
         my_grid = np.load(input.full_array)
         at = AssignmentTool(my_grid,input.structure,input.trajectory, input.molecule2)
+        print("n")
 
         # saving output
         np.save(output.assignments,at.get_full_assignments())
@@ -325,5 +377,3 @@ rule compile_vmd_log_msm:
 
         show_eigenvectors_MSM(input.script, output.vmdlog, input.assignments, eigenvector_array=eigenvectors,num_eigenvec=params.num_eigenvec,
             num_extremes=params.num_extremes)
-
-

@@ -13,56 +13,136 @@ mol modselect 0 0 index 0 or index 1 or index 2
 # show zeroth eigenvector in a special color (only largest absolute values)
 mol modselect 1 0 index 3 or index 4 or index 5
 mol modcolor 1 0 ColorID 5
-mol drawframes 0 1 {REPLACE0}
+mol drawframes 0 1 {REPLACE00}
 
 
 # first eigenvector positive and negative
 mol addrep 0
 mol modselect 2 0 index 3 or index 4 or index 5
 mol modcolor 2 0 ColorID 0
-mol drawframes 0 2 {REPLACE1}
+mol drawframes 0 2 {REPLACE01}
 mol addrep 0
 mol modselect 3 0 index 3 or index 4 or index 5
 mol modcolor 3 0 ColorID 1
-mol drawframes 0 3 {REPLACE2}
+mol drawframes 0 3 {REPLACE02}
 
 # second eigenvector positive and negative
 mol addrep 0
 mol modselect 4 0 index 3 or index 4 or index 5
 mol modcolor 4 0 ColorID 0
-mol drawframes 0 4 {REPLACE3}
+mol drawframes 0 4 {REPLACE03}
 mol addrep 0
 mol modselect 5 0 index 3 or index 4 or index 5
 mol modcolor 5 0 ColorID 1
-mol drawframes 0 5 {REPLACE4}
+mol drawframes 0 5 {REPLACE04}
 
 # third eigenvector positive and negative
 mol addrep 0
 mol modselect 6 0 index 3 or index 4 or index 5
 mol modcolor 6 0 ColorID 0
-mol drawframes 0 6 {REPLACE5}
+mol drawframes 0 6 {REPLACE05}
 mol addrep 0
 mol modselect 7 0 index 3 or index 4 or index 5
 mol modcolor 7 0 ColorID 1
-mol drawframes 0 7 {REPLACE6}
+mol drawframes 0 7 {REPLACE06}
 
 
 # fourth eigenvector positive and negative
 mol addrep 0
 mol modselect 8 0 index 3 or index 4 or index 5
 mol modcolor 8 0 ColorID 0
-mol drawframes 0 8 {REPLACE7}
+mol drawframes 0 8 {REPLACE07}
 mol addrep 0
 mol modselect 9 0 index 3 or index 4 or index 5
 mol modcolor 9 0 ColorID 1
-mol drawframes 0 9 {REPLACE8}
+mol drawframes 0 9 {REPLACE08}
 
 # fifth eigenvector positive and negative
 mol addrep 0
 mol modselect 10 0 index 3 or index 4 or index 5
 mol modcolor 10 0 ColorID 0
-mol drawframes 0 10 {REPLACE9}
+mol drawframes 0 10 {REPLACE09}
 mol addrep 0
 mol modselect 11 0 index 3 or index 4 or index 5
 mol modcolor 11 0 ColorID 1
 mol drawframes 0 11 {REPLACE10}
+
+# sixth eigenvector positive and negative
+mol addrep 0
+mol modselect 12 0 index 3 or index 4 or index 5
+mol modcolor 12 0 ColorID 0
+mol drawframes 0 12 {REPLACE11}
+mol addrep 0
+mol modselect 13 0 index 3 or index 4 or index 5
+mol modcolor 13 0 ColorID 1
+mol drawframes 0 13 {REPLACE12}
+
+# seventh eigenvector positive and negative
+mol addrep 0
+mol modselect 14 0 index 3 or index 4 or index 5
+mol modcolor 14 0 ColorID 0
+mol drawframes 0 14 {REPLACE13}
+mol addrep 0
+mol modselect 15 0 index 3 or index 4 or index 5
+mol modcolor 15 0 ColorID 1
+mol drawframes 0 15 {REPLACE14}
+
+# eighth eigenvector positive and negative
+mol addrep 0
+mol modselect 16 0 index 3 or index 4 or index 5
+mol modcolor 16 0 ColorID 0
+mol drawframes 0 16 {REPLACE15}
+mol addrep 0
+mol modselect 17 0 index 3 or index 4 or index 5
+mol modcolor 17 0 ColorID 1
+mol drawframes 0 17 {REPLACE16}
+
+# ninth eigenvector positive and negative
+mol addrep 0
+mol modselect 18 0 index 3 or index 4 or index 5
+mol modcolor 18 0 ColorID 0
+mol drawframes 0 18 {REPLACE17}
+mol addrep 0
+mol modselect 19 0 index 3 or index 4 or index 5
+mol modcolor 19 0 ColorID 1
+mol drawframes 0 19 {REPLACE18}
+
+# tenth eigenvector positive and negative
+mol addrep 0
+mol modselect 20 0 index 3 or index 4 or index 5
+mol modcolor 20 0 ColorID 0
+mol drawframes 0 20 {REPLACE19}
+mol addrep 0
+mol modselect 21 0 index 3 or index 4 or index 5
+mol modcolor 21 0 ColorID 1
+mol drawframes 0 21 {REPLACE20}
+
+# eleventh eigenvector positive and negative
+mol addrep 0
+mol modselect 22 0 index 3 or index 4 or index 5
+mol modcolor 22 0 ColorID 0
+mol drawframes 0 22 {REPLACE21}
+mol addrep 0
+mol modselect 23 0 index 3 or index 4 or index 5
+mol modcolor 23 0 ColorID 1
+mol drawframes 0 23 {REPLACE22}
+
+# 12. eigenvector positive and negative
+mol addrep 0
+mol modselect 24 0 index 3 or index 4 or index 5
+mol modcolor 24 0 ColorID 0
+mol drawframes 0 24 {REPLACE23}
+mol addrep 0
+mol modselect 25 0 index 3 or index 4 or index 5
+mol modcolor 25 0 ColorID 1
+mol drawframes 0 25 {REPLACE24}
+
+# 13. eigenvector positive and negative
+mol addrep 0
+mol modselect 26 0 index 3 or index 4 or index 5
+mol modcolor 26 0 ColorID 0
+mol drawframes 0 26 {REPLACE25}
+mol addrep 0
+mol modselect 27 0 index 3 or index 4 or index 5
+mol modcolor 27 0 ColorID 1
+mol drawframes 0 27 {REPLACE26}

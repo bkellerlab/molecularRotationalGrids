@@ -235,6 +235,6 @@ class PtWriter:
         for i, _ in pt.generate_pseudotrajectory():
             if i == 0:
                 self.write_structure(pt, path_structure)
-            f = f"{directory_name}/{i}.{extension_trajectory}"
+            f = f"{directory_name}/{i}{extension_trajectory}"
             with mda.Writer(f) as structure_writer:
                 self._merge_and_write(structure_writer, pt)

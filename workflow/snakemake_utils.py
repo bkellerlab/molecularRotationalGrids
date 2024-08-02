@@ -27,12 +27,17 @@ def find_config_parameter_value(config_file, parameter_name):
             return line.strip().split("=")[1]
 
 
+
 def modify_mdrun(path_to_file, param_to_change, new_value):
     with open(path_to_file, "r") as f:
         lines = f.readlines()
     for i, line in enumerate(lines):
         if line.startswith(param_to_change):
             lines[i] = f"{param_to_change} = {new_value}\n"
+            break
+    # if the parameter doesn't exist, add it
+    else:
+        lines.append(f"{param_to_change} = {new_value}\n")
     with open(path_to_file, "w") as f:
         f.writelines(lines)
 
