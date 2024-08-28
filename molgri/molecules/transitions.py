@@ -5,9 +5,10 @@ In this module, the two methods of evaluating transitions between states - the M
 implemented.
 """
 from typing import Optional, Tuple, Sequence, Any
-import multiprocessing
 from multiprocessing import Pool
 from functools import partial
+import warnings
+warnings.filterwarnings("ignore")
 
 import numpy as np
 import MDAnalysis as mda
@@ -18,6 +19,7 @@ from scipy.sparse.linalg import eigs, eigsh
 from scipy.spatial.distance import cdist
 from scipy.spatial.transform import Rotation
 from scipy.constants import k as kB, N_A
+import MDAnalysis.transformations as trans
 
 from molgri.molecules.rate_merger import delete_rate_cells, determine_rate_cells_to_join, \
     determine_rate_cells_with_too_high_energy, \
@@ -33,7 +35,8 @@ class AssignmentTool:
     This tool is used to assign trajectory frames to grid cells.
     """
 
-    def __init__(self, full_array: NDArray, path_structure: str, path_trajectory: str, path_reference_m2: str):
+    def __init__(self, full_array: NDArray, path_structure: str, path_trajectory: str, path_reference_m2: str,
+                 only_till_step=None, n_jobs=1):
         self.full_array = full_array
         # these grids are also in A
         self.o_array, self.b_array, self.t_array = from_full_array_to_o_b_t(self.full_array)
@@ -41,6 +44,14 @@ class AssignmentTool:
         self.trajectory_universe = mda.Universe(path_structure, path_trajectory)
         self.reference_universe = mda.Universe(path_reference_m2)
         self.second_molecule_selection = self._determine_second_molecule()
+        self.n_jobs = n_jobs
+        # COM of first molecule to (0, 0, 0)
+        first_molecule = self.trajectory_universe.select_atoms("not " + self.second_molecule_selection)
+        self.trajectory_universe.trajectory.add_transformations(trans.translate(-first_molecule.center_of_mass()))
+        if only_till_step is None:
+            self.last_step = len(self.trajectory_universe.trajectory)
+        else:
+            self.last_step = only_till_step
 
     def _determine_second_molecule(self):
         num_atoms_total = len(self.trajectory_universe.atoms)
@@ -87,7 +98,7 @@ class AssignmentTool:
         reference_direction = self._determine_positive_directions(self.reference_universe)
         if reference_direction is None:
             raise ValueError("All atoms perpendicular to at least one of principal axes, can't determine direction.")
-
+        print("got ref direction")
         """
         I am very sorry that this part is optimized, parallelized and completely unreadable. Rely on tests to make 
         sure this stuff works and be happy that your calculations are no longer taking two days.
@@ -95,12 +106,13 @@ class AssignmentTool:
         run_per_frame = partial(self._complex_mdanalysis_func,
                                 ag=self.trajectory_universe.select_atoms(self.second_molecule_selection),
                                 reference_direction=reference_direction)
-        frame_values = np.arange(self.trajectory_universe.trajectory.n_frames)
-        n_jobs = 20
-        with Pool(n_jobs) as worker_pool:
+        frame_values = np.arange(self.last_step)
+        print("before pool")
+        with Pool(self.n_jobs) as worker_pool:
             direction_frames = worker_pool.map(run_per_frame, frame_values)
+        print("after pool")
         produkt = np.matmul(direction_frames, inverse_pa)
-
+        print("got product")
         """
         Explanation: we have N_traj_len produkt matrices called P_i and N_quat reference matrices called R_i. The 
         matrix product R_i@P_i.T describes the rotation matrix needed to get from R_i to P_i. We want the magnitude 
@@ -116,6 +128,7 @@ class AssignmentTool:
         for i, rm in enumerate(reference_matrices):
             alignment_magnitudes[i] = Rotation.from_matrix(rm@produkt.transpose(0, 2, 1)).magnitude()
         result = np.argmin(alignment_magnitudes, axis=0)
+        print("got quat assignments")
         return result
 
     def _get_t_assignments(self) -> NDArray:
@@ -133,7 +146,7 @@ class AssignmentTool:
                                             np.mod(-ag.center_of_mass(), self.trajectory_universe.dimensions[:3]))))),
             self.trajectory_universe.trajectory,
             self.trajectory_universe.select_atoms(self.second_molecule_selection))
-        t_selection.run()
+        t_selection.run(stop=self.last_step)
         t_indices = t_selection.results['timeseries'].flatten()
         import pandas as pd
         print("distance assignment statistics", pd.DataFrame(t_indices).describe())
@@ -153,7 +166,7 @@ class AssignmentTool:
             metric="cos"), axis=0),
                                            self.trajectory_universe.trajectory,
                                            self.trajectory_universe.select_atoms(self.second_molecule_selection))
-        o_selection.run()
+        o_selection.run(stop=self.last_step)
         o_indices = o_selection.results['timeseries'].flatten()
         import pandas as pd
         print("direction assignment statistics", pd.DataFrame(o_indices).describe())

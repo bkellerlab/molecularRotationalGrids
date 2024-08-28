@@ -15,14 +15,15 @@ from molgri.constants import TAUS
 
 rule all:
     input:
+        #f"msm_water_argon_{i:02d}" for i in range(3,17)
         #expand(f"{PATH_EXPERIMENTS}{{unique_id}}/energy.xvg", unique_id="msm_water_argon_snakemake")
         msm_all1 = expand(f"{PATH_EXPERIMENTS}{{unique_id}}/{{grid_identifier}}/its_{{is_corrected}}_{{sigma}}_{{which}}.png",
-            unique_id=["msm_water_argon_1", "msm_water_argon_10"], tau=TAUS,
-            grid_identifier=["80_80_30_longer", "80_80_very_short", "300grand_long"], sigma=None, which="LR", is_corrected = ["msm", "correctedmsm"]),
+            unique_id=[f"msm_water_argon_{i:02d}" for i in range(17,23)], tau=TAUS,
+            grid_identifier=["80_80_very_short", "80_80_30_longer"], sigma=None, which="LR", is_corrected = ["msm"]),
         msm_all2 = expand(f"{PATH_EXPERIMENTS}{{unique_id}}/{{grid_identifier}}/{{tau}}/eigenvectors_{{is_corrected}}_{{sigma}}_{{which}}{{suffix}}",
-            unique_id=["msm_water_argon_1", "msm_water_argon_10"],
-            grid_identifier=["80_80_30_longer", "80_80_very_short", "300grand_long"], sigma=None, which="LR",
-            tau=TAUS, suffix=[".png", "_vmdlog_msm"], is_corrected = ["msm", "correctedmsm"]),
+            unique_id=[f"msm_water_argon_{i:02d}" for i in range(17, 23)],
+            grid_identifier=["80_80_very_short", "80_80_30_longer"], sigma=None, which="LR",
+            tau=TAUS, suffix=[".png", "_vmdlog_msm"], is_corrected = ["msm"]),
 
 
 rule create_config_file_in_argon:
@@ -52,7 +53,8 @@ rule prepare_water_water_in_argon:
     wildcard_constraints:
         unique_id=".*argon.*"
     input:
-        start_structure_all = f"{PATH_INPUT_BASEGRO}calibrated_water_in_ar.gro",
+        start_structure_all = f"{PATH_INPUT_BASEGRO}npt_water_in_ar.gro",
+        start_trajectory_all= f"{PATH_INPUT_BASEGRO}npt_water_in_ar.trr",
         water_gro= f"{PATH_INPUT_BASEGRO}H2O.gro",
         forcefield1 = f"{PATH_INPUT_BASEGRO}argon_forcefield.itp",
         forcefield2 = f"{PATH_INPUT_BASEGRO}ffnonbonded.itp",
@@ -67,6 +69,7 @@ rule prepare_water_water_in_argon:
         config_file = f"{PATH_EXPERIMENTS}{{unique_id}}/experiment_config.txt"
     output:
         molecule2 = f"{PATH_EXPERIMENTS}{{unique_id}}/m2.gro",
+        equilibration_traj= f"{PATH_EXPERIMENTS}{{unique_id}}/equilibration_traj.trr",
         select_two= f"{PATH_EXPERIMENTS}{{unique_id}}/select_two",
         start_structure = f"{PATH_EXPERIMENTS}{{unique_id}}/inserted_structure.gro",
         forcefield1=f"{PATH_EXPERIMENTS}{{unique_id}}/argon_forcefield.itp",
@@ -83,6 +86,7 @@ rule prepare_water_water_in_argon:
         import shutil
         # stuff that can be copied without being modified
         shutil.copy(input.start_structure_all,output.start_structure)
+        shutil.copy(input.start_trajectory_all,output.equilibration_traj)
         shutil.copy(input.select_group, output.select_group)
         shutil.copy(input.select_energy,output.select_energy)
         shutil.copy(input.select_centers,output.select_centers)
@@ -108,6 +112,7 @@ rule prepare_water_water_in_argon:
         modify_mdrun(output.runfile,"xtc-grps", "SOLp")
         modify_mdrun(output.runfile,"energygrps","SOLp")
         modify_mdrun(output.runfile,"dt",step)
+        modify_mdrun(output.runfile,"verlet-buffer-tolerance","1e-03")
         # modify topology with given parameters
         up1_nm = find_config_parameter_value(input.config_file,"up1_nm")
         up2_nm = find_config_parameter_value(input.config_file,"up2_nm")
@@ -123,6 +128,7 @@ rule run_msm_gromacs_in_ar:
         unique_id=".*argon.*"
     input:
         structure = f"{PATH_EXPERIMENTS}{{unique_id}}/inserted_structure.gro",
+        equilibration_traj = f"{PATH_EXPERIMENTS}{{unique_id}}/equilibration_traj.trr",
         runfile = f"{PATH_EXPERIMENTS}{{unique_id}}/mdrun.mdp",
         topology = f"{PATH_EXPERIMENTS}{{unique_id}}/topology.top",
         select_group = f"{PATH_EXPERIMENTS}{{unique_id}}/select_group",
@@ -140,7 +146,7 @@ rule run_msm_gromacs_in_ar:
         #!/bin/bash
         export PATH="/home/janjoswig/local/gromacs-2022/bin:$PATH"
         gmx22 trjconv -f {input.structure} -s {input.structure} -o {output.only_water_structure} < {input.select_two}
-        gmx22 grompp -f {input.runfile} -o result.tpr -c {input.structure} -p {input.topology}
+        gmx22 grompp -f {input.runfile} -o result.tpr -c {input.structure} -t {input.equilibration_traj} -p {input.topology}
         gmx22 mdrun -s result.tpr -o temp.trr -e ener.edr
         gmx22 energy -f ener.edr -o {output.energy} < {input.select_energy}
         gmx22 trjconv -f temp.trr -s result.tpr -pbc mol -center -o temp.trr -n {input.index_m1} < {input.select_centers}
@@ -163,23 +169,17 @@ rule run_trajectory_assignment:
         molecule2 = f"{PATH_EXPERIMENTS}{{unique_id}}/m2.gro",
     #wildcard_constraints:
     #    grid_identifier = "(?!deeptime).*"
-    log:
-        log = f"{PATH_EXPERIMENTS}{{unique_id}}/{{grid_identifier}}/logging_assignments.log"
     output:
         assignments=f"{PATH_EXPERIMENTS}{{unique_id}}/{{grid_identifier}}/assignments.npy",
     run:
-        t1 = time()
         from molgri.molecules.transitions import AssignmentTool
 
         # using all inputs
         my_grid = np.load(input.full_array)
-        at = AssignmentTool(my_grid,input.structure,input.trajectory, input.molecule2)
-        print("n")
+        at = AssignmentTool(my_grid,input.structure,input.trajectory, input.molecule2, n_jobs=10)
 
         # saving output
         np.save(output.assignments,at.get_full_assignments())
-        t2 = time()
-        log_the_run(wildcards.unique_id, input, output, log.log, None, t2-t1)
 
 rule run_msm_matrix:
     """
@@ -310,15 +310,15 @@ rule run_plot_its_msm:
         category="MSM")
     params:
         writeout = 5,
-        timesteps = 0.002
+        timesteps = 0.001
     run:
         # todo: read params from .mdp
         from molgri.plotting.transition_plots import PlotlyTransitions
         pt = PlotlyTransitions(is_msm=True, path_eigenvalues=input.eigenvalues, path_eigenvectors=None,
             tau_array=TAUS)
         pt.plot_its_msm(writeout=params.writeout, time_step_ps=params.timesteps)
+        print("")
         pt.save_to(output.plot_its)
-        #print("y")
 
 
 rule compile_vmd_log_msm:
@@ -336,7 +336,7 @@ rule compile_vmd_log_msm:
     output:
         vmdlog=f"{PATH_EXPERIMENTS}{{unique_id}}/{{grid_identifier}}/{{tau}}/eigenvectors_{{is_corrected}}_{{sigma}}_{{which}}_vmdlog_msm",
     params:
-        num_extremes=40,
+        num_extremes=20,
         num_eigenvec=5,  # only show the first num_eigenvec
     run:
         from molgri.plotting.create_vmdlog import show_eigenvectors_MSM

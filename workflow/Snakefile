@@ -18,13 +18,14 @@ ALL_UPPER = [None, 10, 20, 30, 50, 100, 300] # if energy above this the cell wil
 # no solvent msm and sqra
 rule all:
     input:
-        msm_all1 = expand(f"{PATH_EXPERIMENTS}{{unique_id}}/{{grid_identifier}}/its_{{is_corrected}}_{{sigma}}_{{which}}.png",
-            unique_id=[f"msm_tau_{i:02d}" for i in range(9,13)], tau=TAUS,
-            grid_identifier=["80_80_30_longer", "80_80_very_short", "300grand_long"], sigma=None, which="LR", is_corrected = ["msm"]),
-        msm_all2 = expand(f"{PATH_EXPERIMENTS}{{unique_id}}/{{grid_identifier}}/{{tau}}/eigenvectors_{{is_corrected}}_{{sigma}}_{{which}}{{suffix}}",
-            unique_id=[f"msm_tau_{i:02d}" for i in range(9,13)],
-            grid_identifier=["80_80_30_longer", "80_80_very_short", "300grand_long"], sigma=None, which="LR",
-            tau=TAUS, suffix=[".png", "_vmdlog_msm"], is_corrected = ["msm"]),
+        f"{PATH_EXPERIMENTS}relative_its_large.png"
+        # msm_all1 = expand(f"{PATH_EXPERIMENTS}{{unique_id}}/{{grid_identifier}}/its_{{is_corrected}}_{{sigma}}_{{which}}.png",
+        #     unique_id=[f"msm_tau_{i:02d}" for i in range(9,13)], tau=TAUS,
+        #     grid_identifier=["80_80_30_longer", "80_80_very_short", "300grand_long"], sigma=None, which="LR", is_corrected = ["msm"]),
+        # msm_all2 = expand(f"{PATH_EXPERIMENTS}{{unique_id}}/{{grid_identifier}}/{{tau}}/eigenvectors_{{is_corrected}}_{{sigma}}_{{which}}{{suffix}}",
+        #     unique_id=[f"msm_tau_{i:02d}" for i in range(9,13)],
+        #     grid_identifier=["80_80_30_longer", "80_80_very_short", "300grand_long"], sigma=None, which="LR",
+        #     tau=TAUS, suffix=[".png", "_vmdlog_msm"], is_corrected = ["msm"]),
         # sqra1 = expand(f"{PATH_EXPERIMENTS}{{unique_id}}/{{grid_identifier}}/{{lower_lim}}-{{upper_lim}}/its_{{sigma}}_{{which}}.png",
         #     unique_id=[f"sqra_tau_{i:02d}" for i in range(1,5)], grid_identifier=["80_80_very_short"], sigma=[0], which=["SR"], lower_lim=None, upper_lim=None),   #["300grand_long", "80_80_30_short"]
         # sqra2 = expand(f"{PATH_EXPERIMENTS}{{unique_id}}/{{grid_identifier}}/{{lower_lim}}-{{upper_lim}}/eigenvectors_{{sigma}}_{{which}}_vmdlog_sqra",
@@ -105,11 +106,11 @@ rule prepare_water_water:
 
 rule find_constant_factor:
     input:
-        tau_msm_eigv = expand(f"{PATH_EXPERIMENTS}{{unique_id}}/{{grid_identifier}}/{{tau}}/eigenvalues_correctedmsm_{{sigma}}_{{which}}.npy", unique_id=[f"msm_tau_{i:02d}" for i in range(1, 5)],
-            grid_identifier=["80_80_20_longer"], sigma=None, which="LR", tau=TAUS),
+        tau_msm_eigv = expand(f"{PATH_EXPERIMENTS}{{unique_id}}/{{grid_identifier}}/{{tau}}/eigenvalues_msm_{{sigma}}_{{which}}.npy", unique_id=[f"msm_tau_{i:02d}" for i in range(5, 8)],
+            grid_identifier=["80_80_very_short"], sigma=None, which="LR", tau=TAUS),
         tau_sqra_eigv = expand(f"{PATH_EXPERIMENTS}{{unique_id}}/{{grid_identifier}}/{{lower_lim}}-{{upper_lim}}/eigenvalues_{{sigma}}_{{which}}.npy",
-            lower_lim="None",upper_lim="None",sigma=0, which="SR", unique_id=[f"sqra_tau_{i:02d}" for i in range(1, 5)],
-            grid_identifier=["80_80_20_longer"])
+            lower_lim="None",upper_lim="None",sigma=0, which="SR", unique_id=[f"sqra_tau_{i:02d}" for i in range(1, 4)],
+            grid_identifier=["80_80_very_short"])
     output:
         relative_its = report(f"{PATH_EXPERIMENTS}relative_its_large.png", category="comparison"),
         comparison_table = expand(f"{PATH_EXPERIMENTS}comparison_table_{{tau}}.csv", tau=["2", "5", "10", "50"])
@@ -129,10 +130,11 @@ rule find_constant_factor:
         sns.set_context("notebook")
         sns.set_palette("deep")
         from collections import defaultdict
-        coupling_constants = [0.001, 0.01, 0.1, 1]
+        coupling_constants = [0.001, 0.01, 0.1]
         num_tau = 2
         #num_eigenval = 4
-        coupling_dict = {"01": 0.001, "02": 0.01, "03": 0.1, "04": 1}
+        coupling_dict_msm = {"05": 0.001, "06": 0.01, "07": 0.1}
+        coupling_dict_sqra = {"01": 0.001, "02": 0.01, "03": 0.1}
 
         # ratio first to second its
         # go through different coupling constants
@@ -144,14 +146,14 @@ rule find_constant_factor:
 
 
 
-        #print(my_its.T / my_sqra_its[:, np.newaxis] )
+
 
         #sqras are easy:
         sqra_eigenvalues_dict = dict()
         for one_sqra_file in input.tau_sqra_eigv:
             sqra_eigenvalues = np.load(one_sqra_file)[1:num_tau+1]
             sqra_its = - 1/ sqra_eigenvalues
-            my_coupling = coupling_dict[one_sqra_file.split("/")[1].split("_")[-1]]
+            my_coupling = coupling_dict_sqra[one_sqra_file.split("/")[1].split("_")[-1]]
             sqra_eigenvalues_dict[my_coupling] = sqra_its # because first one is zero
 
 
@@ -165,7 +167,7 @@ rule find_constant_factor:
             for one_msm_file in my_msm_eigv:
                 msm_eigenvalues = np.load(one_msm_file)[1:num_tau+1] # TODO: select really meaningful ones
                 my_coupling_name = one_msm_file.split("/")[1].split("_")[-1]
-                my_coupling = coupling_dict[my_coupling_name]
+                my_coupling = coupling_dict_msm[my_coupling_name]
                 msm_its = - tau*params.writeout*params.timesteps/np.log(np.abs(msm_eigenvalues))
                 msm_its = list(msm_its)
                 while len(msm_its) < num_tau:

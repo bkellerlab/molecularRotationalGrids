@@ -88,7 +88,11 @@ In msm, after finding most populated eigenvectors, you must look at frames that 
             most_populated = k_argmax_in_array(np.abs(eigenvec), num_extremes)
             original_index_populated = []
             for mp in most_populated:
-                original_index_populated.extend(np.random.choice(np.where(my_assignments==mp)[0], 10))
+                try:
+                    original_index_populated.extend(np.random.choice(np.where(my_assignments==mp)[0], 10))
+                except ValueError:
+                    # no occurences are that cell
+                    pass
             # sort so that more extreme values in the beginning
             #my_argsort = np.argsort(magnitudes[original_index_populated])[::-1]
             all_lists_to_insert.append(original_index_populated)
@@ -96,12 +100,20 @@ In msm, after finding most populated eigenvectors, you must look at frames that 
             most_positive = k_argmax_in_array(magnitudes, num_extremes)
             original_index_positive = []
             for mp in most_positive:
-                original_index_positive.extend(np.random.choice(np.where(my_assignments==mp)[0], 10))
+                try:
+                    original_index_positive.extend(np.random.choice(np.where(my_assignments==mp)[0], 10))
+                except ValueError:
+                    # no occurences are that cell
+                    pass
             #my_argsort_pos = np.argsort(magnitudes[original_index_positive])[::-1]
             most_negative = k_argmax_in_array(-magnitudes, num_extremes)
             original_index_negative = []
             for mn in most_negative:
-                original_index_negative.extend(np.random.choice(np.where(my_assignments==mn)[0], 10))
+                try:
+                    original_index_negative.extend(np.random.choice(np.where(my_assignments==mn)[0], 10))
+                except ValueError:
+                    # no occurences are that cell
+                    pass
             #my_argsort_neg = np.argsort(magnitudes[original_index_negative])
             all_lists_to_insert.append(original_index_positive)
             all_lists_to_insert.append(original_index_negative)

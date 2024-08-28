@@ -9,9 +9,9 @@ from molgri.paths import PATH_OUTPUT_AUTOSAVE, PATH_INPUT_BASEGRO, PATH_EXPERIME
 rule all:
     input:
         vmd = expand(f"{PATH_EXPERIMENTS}{{unique_id}}/{{grid_identifier}}/{{lower_lim}}-{{upper_lim}}/eigenvectors_{{sigma}}_{{which}}_vmdlog_sqra", unique_id="TFA_MET",
-        grid_identifier="TFA_MET_grid1", lower_lim="None", upper_lim=300, sigma="0", which="SR"),
+        grid_identifier="TFA_MET_grid1", lower_lim="None", upper_lim=100, sigma="0", which="SR"),
         plots = expand(f"{PATH_EXPERIMENTS}{{unique_id}}/{{grid_identifier}}/{{lower_lim}}-{{upper_lim}}/its_{{sigma}}_{{which}}.png",unique_id="TFA_MET",
-            grid_identifier="TFA_MET_grid1",lower_lim="None",upper_lim=300, sigma="0", which="SR"),
+            grid_identifier="TFA_MET_grid1",lower_lim="None",upper_lim=100, sigma="0", which="SR"),
 
 rule prepare_methanoid:
     """
@@ -77,7 +77,7 @@ rule run_sqra:
         rate_matrix = f"{PATH_EXPERIMENTS}{{unique_id}}/{{grid_identifier}}/{{lower_lim}}-{{upper_lim}}/rate_matrix.npz",
         index_list = f"{PATH_EXPERIMENTS}{{unique_id}}/{{grid_identifier}}/{{lower_lim}}-{{upper_lim}}/index_list.npy",
     params:
-        D=0.0126,# diffusion constant in Angstrom^2/ps
+        D=1,# diffusion constant in Angstrom^2/ps
         T=273,# temperature in K
         energy_type="Potential",
         m_h2o = 3e-26 #kg

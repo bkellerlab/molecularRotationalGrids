@@ -18,12 +18,12 @@ rule all:
         #"experiments/msm_water_in_water_01/300grand_long/assignments.npy"
         #expand(f"{PATH_EXPERIMENTS}{{unique_id}}/energy.xvg", unique_id="msm_water_in_water_snakemake")
         msm_all1 = expand(f"{PATH_EXPERIMENTS}{{unique_id}}/{{grid_identifier}}/its_{{is_corrected}}_{{sigma}}_{{which}}.png",
-            unique_id=["msm_water_in_water_01", "msm_water_in_water_02"], tau=TAUS,
-            grid_identifier=["80_80_30_longer", "80_80_very_short", "300grand_long"], sigma=None, which="LR", is_corrected = ["msm", "correctedmsm"]),
+            unique_id=[f"msm_water_in_water_{i:02d}" for i in range(5,17)], tau=TAUS,
+            grid_identifier=["80_80_very_short", "80_80_30_longer"], sigma=None, which="LR", is_corrected = ["msm"]),
         msm_all2 = expand(f"{PATH_EXPERIMENTS}{{unique_id}}/{{grid_identifier}}/{{tau}}/eigenvectors_{{is_corrected}}_{{sigma}}_{{which}}{{suffix}}",
-            unique_id=["msm_water_in_water_01", "msm_water_in_water_02"],
-            grid_identifier=["80_80_30_longer", "80_80_very_short", "300grand_long"], sigma=None, which="LR",
-            tau=TAUS, suffix=[".png", "_vmdlog_msm"], is_corrected = ["msm", "correctedmsm"]),
+            unique_id=[f"msm_water_in_water_{i:02d}" for i in range(5,17)],
+            grid_identifier=["80_80_very_short", "80_80_30_longer"], sigma=None, which="LR",
+            tau=TAUS, suffix=[".png", "_vmdlog_msm"], is_corrected = ["msm"]),
 
 
 rule create_config_file_in_water:
@@ -51,7 +51,8 @@ rule prepare_water_water_in_water:
     Start with an end structure of a shorter run to have a good starting structure.
     """
     input:
-        start_structure_all = f"{PATH_INPUT_BASEGRO}calibrated_water_in_water.gro",
+        start_structure_all=f"{PATH_INPUT_BASEGRO}npt_water_in_water.gro",
+        start_trajectory_all=f"{PATH_INPUT_BASEGRO}npt_water_in_water.trr",
         water_gro= f"{PATH_INPUT_BASEGRO}H2O.gro",
         water_in_arg_top = f"{PATH_INPUT_BASEGRO}water_in_water.top",
         base_mdp_file = f"{PATH_INPUT_BASEGRO}mdrun.mdp",
@@ -64,6 +65,7 @@ rule prepare_water_water_in_water:
     output:
         molecule2 = f"{PATH_EXPERIMENTS}{{unique_id}}/m2.gro",
         start_structure = f"{PATH_EXPERIMENTS}{{unique_id}}/solvated_structure.gro",
+        equilibration_traj= f"{PATH_EXPERIMENTS}{{unique_id}}/equilibration_traj.trr",
         runfile = f"{PATH_EXPERIMENTS}{{unique_id}}/mdrun.mdp",
         topology = f"{PATH_EXPERIMENTS}{{unique_id}}/topology.top",
         select_group = f"{PATH_EXPERIMENTS}{{unique_id}}/select_group",
@@ -76,6 +78,7 @@ rule prepare_water_water_in_water:
         import shutil
         # stuff that can be copied without being modified
         shutil.copy(input.start_structure_all,output.start_structure)
+        shutil.copy(input.start_trajectory_all,output.equilibration_traj)
         shutil.copy(input.select_group, output.select_group)
         shutil.copy(input.select_energy,output.select_energy)
         shutil.copy(input.select_centers,output.select_centers)
@@ -98,6 +101,7 @@ rule prepare_water_water_in_water:
         modify_mdrun(output.runfile,"xtc-grps", "SOLp")
         modify_mdrun(output.runfile,"energygrps","SOLp")
         modify_mdrun(output.runfile,"dt",step)
+        modify_mdrun(output.runfile, "verlet-buffer-tolerance", "1e-03")
         # modify topology with given parameters
         up1_nm = find_config_parameter_value(input.config_file,"up1_nm")
         up2_nm = find_config_parameter_value(input.config_file,"up2_nm")
@@ -111,6 +115,7 @@ rule run_msm_gromacs_in_water:
     """
     input:
         structure = f"{PATH_EXPERIMENTS}{{unique_id}}/solvated_structure.gro",
+        equilibration_traj= f"{PATH_EXPERIMENTS}{{unique_id}}/equilibration_traj.trr",
         runfile = f"{PATH_EXPERIMENTS}{{unique_id}}/mdrun.mdp",
         topology = f"{PATH_EXPERIMENTS}{{unique_id}}/topology.top",
         select_group = f"{PATH_EXPERIMENTS}{{unique_id}}/select_group",
@@ -128,7 +133,7 @@ rule run_msm_gromacs_in_water:
         #!/bin/bash
         export PATH="/home/janjoswig/local/gromacs-2022/bin:$PATH"
         gmx22 trjconv -f {input.structure} -s {input.structure} -o {output.only_water_structure} < {input.select_two}
-        gmx22 grompp -f {input.runfile} -o result.tpr -c {input.structure} -p {input.topology}
+        gmx22 grompp -f {input.runfile} -o result.tpr -c {input.structure} -t {input.equilibration_traj} -p {input.topology}
         gmx22 mdrun -s result.tpr -o temp.trr -e ener.edr
         gmx22 energy -f ener.edr -o {output.energy} < {input.select_energy}
         gmx22 trjconv -f temp.trr -s result.tpr -pbc mol -center -o temp.trr -n {input.index_m1} < {input.select_centers}
@@ -340,7 +345,7 @@ rule run_plot_its_msm:
         category="MSM")
     params:
         writeout = 5,
-        timesteps = 0.002
+        timesteps = 0.001
     run:
         # todo: read params from .mdp
         from molgri.plotting.transition_plots import PlotlyTransitions
@@ -366,7 +371,7 @@ rule compile_vmd_log_msm:
     output:
         vmdlog=f"{PATH_EXPERIMENTS}{{unique_id}}/{{grid_identifier}}/{{tau}}/eigenvectors_{{is_corrected}}_{{sigma}}_{{which}}_vmdlog_msm",
     params:
-        num_extremes=40,
+        num_extremes=20,
         num_eigenvec=5,  # only show the first num_eigenvec
     run:
         from molgri.plotting.create_vmdlog import show_eigenvectors_MSM

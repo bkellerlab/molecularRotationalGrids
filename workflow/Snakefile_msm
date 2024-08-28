@@ -315,7 +315,7 @@ rule compile_vmd_log_msm:
         vmdlog=f"{PATH_EXPERIMENTS}{{unique_id}}/{{grid_identifier}}/{{tau}}/eigenvectors_{{is_corrected}}_{{sigma}}_{{which}}_vmdlog_msm",
     params:
         num_extremes=40,
-        num_eigenvec=5,  # only show the first num_eigenvec
+        num_eigenvec=6,  # only show the first num_eigenvec
     run:
         from molgri.plotting.create_vmdlog import show_eigenvectors_MSM
 

@@ -15,7 +15,7 @@ from plotly.subplots import make_subplots
 
 WIDTH = 600
 HEIGHT = 600
-#NUM_EIGENV = 5
+NUM_EIGENV = 6
 
 class PlotlyTransitions:
 
@@ -48,8 +48,8 @@ class PlotlyTransitions:
             output_data_path (): path to the output file where the figure will be saved
         """
         # data
-        eigenvals = np.load(self.path_eigenvalues)
-        xs = np.linspace(0, 1, num=len(eigenvals))
+        eigenvals = np.load(self.path_eigenvalues)[1:NUM_EIGENV+1]
+        xs = np.linspace(0, 1, num=NUM_EIGENV)
 
         if len(eigenvals.shape) == 2:
             eigenvals=eigenvals[index_tau]
@@ -101,7 +101,6 @@ class PlotlyTransitions:
 
         """
         eigenvecs = np.load(self.path_eigenvectors)
-        NUM_EIGENV = eigenvecs.shape[1]
 
         self.fig = make_subplots(rows=NUM_EIGENV, cols=1, subplot_titles=[f"Eigenvector {i}" for i in range(NUM_EIGENV)])
 
@@ -165,6 +164,7 @@ class PlotlyTransitions:
             max_its = 0
             for i, eigenvals in enumerate(all_eigenvals.T):
                 its = np.array(-self.tau_array * writeout * time_step_ps / np.log(np.abs(eigenvals)))
+                print(self.path_eigenvalues, its)
                 if np.any(its) > max_its:
                     max_its = np.max(its)
                 if col==2:
