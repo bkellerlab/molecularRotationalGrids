@@ -2,8 +2,7 @@ import numpy as np
 import pytest
 
 from molgri.molecules.parsers import FileParser
-from molgri.space.translations import TranslationParser
-from molgri.space.fullgrid import GridNameParser
+from molgri.space.fullgrid import GridNameParser, TranslationParser
 from molgri.constants import ANGSTROM2NM, NM2ANGSTROM, DEFAULT_ALGORITHM_O
 
 

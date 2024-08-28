@@ -25,7 +25,7 @@ from MDAnalysis.core import AtomGroup
 
 from molgri.constants import EXTENSIONS_STR, EXTENSIONS_TRJ
 from molgri.paths import PATH_OUTPUT_ENERGIES
-from molgri.space.rotations import two_vectors2rot
+from molgri.space.utils import two_vectors2rot
 
 
 class ParsedMolecule:

@@ -13,6 +13,7 @@ from scipy.constants import pi
 from scipy.spatial.transform import Rotation
 
 from molgri.constants import UNIQUE_TOL
+from molgri.space.rotations import skew
 
 
 def normalise_vectors(array: NDArray, axis: int = None, length: float = 1) -> NDArray:
@@ -553,3 +554,75 @@ def k_argmax_in_array(my_array: NDArray, k: int):
         k indices indicating larges item, second largest etc
     """
     return np.argpartition(my_array, -k)[-k:]
+
+
+def two_vectors2rot(x: NDArray, y: NDArray) -> NDArray:
+    """
+    Take vectors x and y (or arrays of vectors with the same number of elements and return the
+    rotational matrix that transforms x into y.
+
+    Args:
+        x: an array of shape (3,), first vector, or an array of vectors of size (N, 3)
+        y: an array of shape (3,),  second vector, or an array of vectors of size (N, 3)
+
+    Returns:
+        a 3x3 rotational matrix
+    """
+    # checking the inputs
+    assert y.shape == x.shape, "Arrays must be of same size."
+    if len(x.shape) == 1:
+        assert x.shape == (3,)
+    elif len(x.shape) == 2:
+        assert x.shape[1] == 3
+    else:
+        raise AttributeError("Arrays must be 1D or 2D")
+
+    # converting 1D vectors in (1, 3) shape
+    if y.shape == x.shape == (3,):
+        x = x[np.newaxis, :]
+        y = y[np.newaxis, :]
+        assert y.shape == x.shape == (1, 3)
+    N = len(x)
+
+    # if not normalised yet, normalise
+    x = normalise_vectors(x, axis=1)
+    y = normalise_vectors(y, axis=1)
+    assert np.allclose(np.linalg.norm(x, axis=1), 1) and np.allclose(np.linalg.norm(y, axis=1), 1)
+
+    v = np.cross(x, y)
+    s = np.linalg.norm(v, axis=1)
+    c = np.matmul(x, y.T)
+    c = c.diagonal()
+    np.seterr(all="ignore")
+    factor = np.divide((1 - c), s ** 2)
+    my_matrix = N_eye_matrices(N, d=3) + skew(v) + np.matmul(skew(v), skew(v)) * factor[:, np.newaxis, np.newaxis]
+    np.seterr(all="warn")
+    sinus_zero = s[:, np.newaxis, np.newaxis] == 0
+    cosinus_one = c[:, np.newaxis, np.newaxis] == 1
+    my_matrix = np.where(np.logical_and(sinus_zero, cosinus_one), N_eye_matrices(N, d=3), my_matrix)
+    my_matrix = np.where(np.logical_and(sinus_zero, ~cosinus_one),
+                         -N_eye_matrices(N, d=3), my_matrix)
+    if len(x) == len(y) == 1:
+        my_matrix = my_matrix[0]
+        assert my_matrix.shape == (3, 3)
+    else:
+        assert my_matrix.shape == (len(x), 3, 3)
+    return my_matrix
+
+
+def N_eye_matrices(N: int, d: int = 3):
+    """
+    Returns a (N, d, d) array in which each 'row' is an identity matrix.
+
+    Args:
+        N: number of rows
+        d: dimension of the identity matrix
+
+    Returns:
+        a "hyper"-matrix of identity matrices
+    """
+    shape = (N, d, d)
+    identity_d = np.zeros(shape)
+    idx = np.arange(shape[1])
+    identity_d[:, idx, idx] = 1
+    return identity_d
