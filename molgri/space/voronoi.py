@@ -18,10 +18,9 @@ from scipy.spatial import SphericalVoronoi, ConvexHull, Delaunay
 from scipy.spatial.distance import cdist
 
 from molgri.constants import UNIQUE_TOL
-from molgri.space.translations import get_between_radii
 from molgri.space.utils import (dist_on_sphere, distance_between_quaternions,
                                 exact_area_of_spherical_polygon, k_is_a_row, normalise_vectors, q_in_upper_sphere,
-                                random_quaternions,
+                                random_quaternions, get_between_radii,
                                 random_sphere_points, sort_points_on_sphere_ccw, which_row_is_k)
 
 

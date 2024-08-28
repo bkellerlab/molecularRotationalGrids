@@ -1,6 +1,4 @@
-import pandas as pd
 import numpy as np
-from scipy.constants import pi
 
 from molgri.space.rotobj import SphereGrid4DFactory, SphereGridFactory
 from molgri.constants import GRID_ALGORITHMS_3D, GRID_ALGORITHMS_4D

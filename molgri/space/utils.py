@@ -4,16 +4,14 @@ Useful functions for rotations and vectors.
 Functions that belong in this module perform simple conversions, normalisations or assertions that are useful at various
 points in the molgri.space subpackage.
 """
-from typing import Tuple
 
 import numpy as np
-from numpy._typing import ArrayLike, NDArray
+from numpy._typing import NDArray
 from numpy.typing import NDArray, ArrayLike
 from scipy.constants import pi
 from scipy.spatial.transform import Rotation
 
 from molgri.constants import UNIQUE_TOL
-from molgri.space.rotations import skew
 
 
 def normalise_vectors(array: NDArray, axis: int = None, length: float = 1) -> NDArray:
@@ -500,7 +498,7 @@ def _get_alpha_with_spherical_cosine_law(A: NDArray, B: NDArray, C: NDArray):
 
 def exact_area_of_spherical_polygon(vertices: NDArray, r: float = 1) -> float:
     """
-    Use the formula S=[\sum{\theta_i} - (n-2)\pindex_center]r^2 (Todhunter, I. (1886). Spherical Trigonometry), to calculate the
+    Use the formula S=[sum{theta_i} - (n-2)pindex_center]r^2 (Todhunter, I. (1886). Spherical Trigonometry), to calculate the
     area of a spherical polygon with given
     vertices. In the formula, r, is the radius of the sphere, n the number of polygon vertices, theta_i-s are the radian
     angles of a spherical polygon.
@@ -554,6 +552,34 @@ def k_argmax_in_array(my_array: NDArray, k: int):
         k indices indicating larges item, second largest etc
     """
     return np.argpartition(my_array, -k)[-k:]
+
+
+def skew(x: NDArray) -> NDArray:
+    """
+    Take a vector or an array of vectors and return its skew matrix/matrices.
+
+    Args:
+        x: a vector (3,) or (N, 3)
+
+    Returns:
+        skew matrix, see structure below
+    """
+
+    def skew_2D(m):
+        """Implement the definition of the skew matrix."""
+        return np.array([[0, -m[2], m[1]],
+                         [m[2], 0, -m[0]],
+                         [-m[1], m[0], 0]])
+
+    assert x.shape == (3,) or (len(x.shape) == 2 and x.shape[1] == 3)
+
+    if x.shape == (3,):
+        return skew_2D(x)
+    else:
+        skew_matrix = np.zeros((len(x), 3, 3))
+        for i, row in enumerate(x):
+            skew_matrix[i] = skew_2D(row)
+        return skew_matrix
 
 
 def two_vectors2rot(x: NDArray, y: NDArray) -> NDArray:
@@ -626,3 +652,48 @@ def N_eye_matrices(N: int, d: int = 3):
     idx = np.arange(shape[1])
     identity_d[:, idx, idx] = 1
     return identity_d
+
+
+def get_between_radii(my_array, include_zero=False) -> NDArray:
+    """
+    Get the radii at which Voronoi cells of the position grid should be positioned. This should be right in-between
+    two orientation point layers (except the first layer that is fully encapsulated by the first voronoi layer
+    and the last one that is above the last one so that the last layer of points is right in-between the two last
+    Voronoi cells
+
+    Returns:
+        an array of distances, same length as the self.get_radii array but with all distances larger than the
+        corresponding point radii
+    """
+    # get increments to each radius, remove first one and add an extra one at the end with same distance as
+    # second-to-last one
+    increments = list(get_increments(my_array))
+    if len(increments) > 1:
+        increments.pop(0)
+        increments.append(increments[-1])
+        increments = np.array(increments)
+        increments = increments / 2
+    else:
+        increments = np.array(increments)
+
+    between_radii = my_array + increments
+
+    if include_zero:
+        between_radii = np.concatenate([[0,], between_radii])
+    return between_radii
+
+
+def get_increments(my_array) -> NDArray:
+    """
+    Get an array where each element represents an increment needed to get to the next radius.
+
+    Example:
+        my_grid = np.array([10, 10.5, 11.2])
+        get_increments(my_grid) -> np.array([10, 0.5, 0.7])
+    """
+    increment_grid = [my_array[0]]
+    for start, stop in zip(my_array, my_array[1:]):
+        increment_grid.append(stop - start)
+    increment_grid = np.array(increment_grid)
+    assert np.all(increment_grid > 0), "Negative or zero increments in translation grid make no sense!"
+    return increment_grid
