@@ -13,7 +13,6 @@ import numpy as np
 from numpy.typing import NDArray
 
 from molgri.constants import NM2ANGSTROM
-from molgri.wrappers import save_or_use_saved
 
 
 class TranslationParser(object):
@@ -54,7 +53,6 @@ class TranslationParser(object):
     def get_name(self):
         return f"{self.grid_hash}"
 
-    @save_or_use_saved
     def get_trans_grid(self) -> NDArray:
         """Getter to access all distances from origin in angstorms."""
         return self.trans_grid

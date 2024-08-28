@@ -6,8 +6,7 @@ from numpy.typing import NDArray
 from molgri.space.fullgrid import FullGrid
 
 from molgri.molecules.transitions import AssignmentTool
-from molgri.molecules.writers import PtWriter
-from molgri.molecules.pts import Pseudotrajectory
+from molgri.molecules.pts import Pseudotrajectory, PtWriter
 from molgri.molecules.parsers import FileParser
 from molgri.paths import PATH_INPUT_BASEGRO, PATH_OUTPUT_PT, PATH_OUTPUT_AUTOSAVE
 from molgri.plotting.create_vmdlog import show_assignments

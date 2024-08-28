@@ -26,7 +26,6 @@ from molgri.space.utils import (find_inverse_quaternion, random_quaternions, ran
 from molgri.constants import UNIQUE_TOL, NAME2PRETTY_NAME, SMALL_NS
 from molgri.space.polytopes import Cube4DPolytope, IcosahedronPolytope, Cube3DPolytope
 from molgri.space.voronoi import RotobjVoronoi, AbstractVoronoi, HalfRotobjVoronoi, MikroVoronoi
-from molgri.wrappers import time_method, save_or_use_saved
 
 
 SPHERE_SURFACE = 4*pi
@@ -125,11 +124,6 @@ class SphereGridNDim(ABC):
     def _gen_grid(self) -> NDArray:
         raise NotImplementedError(f"Generating sphere grids with {self.algorithm_name} was not implemented!")
 
-    @time_method
-    def gen_and_time(self) -> NDArray:
-        """Same as generation, but prints the information about time needed. Useful for end users."""
-        return self._gen_grid()
-
 
     ##################################################################################################################
     #                      name and path getters
@@ -156,7 +150,6 @@ class SphereGridNDim(ABC):
         """Name used in printing and decorators, not suitable for file names."""
         return f"{NAME2PRETTY_NAME[self.gen_algorithm]} algorithm, {self.N} points"
 
-    @save_or_use_saved
     def get_spherical_voronoi(self):
         """
         A spherical grid (in 3D) can be used as a basis for a spherical Voronoi grid. In this case, each grid point is
@@ -426,13 +419,11 @@ class ConvergenceSphereGridFactory:
             list_sphere_grids.append(sg)
         return list_sphere_grids
 
-    @save_or_use_saved
     def get_list_sphere_grids(self):
         if not self.list_sphere_grids:
             self.list_sphere_grids = self.create()
         return self.list_sphere_grids
 
-    @save_or_use_saved
     def get_spherical_voronoi_areas(self):
         """
         Get plotting-ready data on the size of Voronoi areas for different numbers of points.
@@ -450,7 +441,6 @@ class ConvergenceSphereGridFactory:
         df = pd.DataFrame(data, columns=["N", "ideal area", "sph. Voronoi cell area"])
         return df
 
-    @save_or_use_saved
     def get_generation_times(self, repeats=5):
         """
         Get plotting-ready data on time needed to generate spherical grids of different sizes. Each generation is

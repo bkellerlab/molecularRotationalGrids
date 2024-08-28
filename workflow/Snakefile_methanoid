@@ -45,8 +45,7 @@ rule run_pt:
         cell_size_A = 30  # cubic box will be the output, this is size of the box in one dimension
     run:
         import numpy as np
-        from molgri.molecules.writers import PtWriter
-        from molgri.molecules.pts import Pseudotrajectory
+        from molgri.molecules.pts import Pseudotrajectory, PtWriter
         from molgri.molecules.parsers import FileParser
 
         # load grid and molecules

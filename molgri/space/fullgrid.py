@@ -24,10 +24,9 @@ from numpy.typing import NDArray
 from scipy.spatial.transform import Rotation
 from scipy.sparse import bmat, coo_array, diags
 
+from molgri.constants import ALL_GRID_ALGORITHMS, DEFAULT_ALGORITHM_B, DEFAULT_ALGORITHM_O
 from molgri.space.rotobj import SphereGrid3DFactory, SphereGrid3Dim, SphereGrid4DFactory
 from molgri.space.translations import TranslationParser, get_between_radii
-from molgri.naming import GridNameParser
-from molgri.wrappers import save_or_use_saved
 from molgri.space.utils import normalise_vectors
 
 
@@ -66,14 +65,13 @@ class FullGrid:
         t_grid_name: translation grid (a linear grid used to determine distances to origin)
     """
 
-    def __init__(self, b_grid_name: str, o_grid_name: str, t_grid_name: str, use_saved: bool = True):
+    def __init__(self, b_grid_name: str, o_grid_name: str, t_grid_name: str):
 
         """
         Args:
-            b_grid_name: of the form 'ico_17'
-            o_grid_name: of the form 'cube4D_12'
-            t_grid_name: of the form '[1, 3, 4.5]'
-            use_saved: try to obtain saved data if possible
+            b_grid_name: of the form 'ico_17' or '17' for default algorithm
+            o_grid_name: of the form 'cube4D_12' or '12' for default algorithm
+            t_grid_name: of the form '[1, 3, 4.5]' or ’range(2, 5, 20.2)' or 'linspace(1,5,50)'
         """
         # this is supposed to be a scaling factor to make metric of SO(3) comparable to R3
         # will be applied as self.factor**3 to volumes, self.factor**2 to areas and self.factor to distances
@@ -81,12 +79,9 @@ class FullGrid:
         self.b_grid_name = b_grid_name
         self.o_grid_name = o_grid_name
         self.t_grid_name = t_grid_name
-        b_grid_name = GridNameParser(b_grid_name, "b")
-        self.b_rotations = SphereGrid4DFactory.create(alg_name=b_grid_name.get_alg(), N=b_grid_name.get_N(),
-                                                      use_saved=use_saved)
-        self.position_grid = PositionGrid(o_grid_name=o_grid_name, t_grid_name=t_grid_name,
-                                          use_saved=use_saved)
-        self.use_saved = use_saved
+        b_grid_name = GridNameParser(b_grid_name, is_3d=False)
+        self.b_rotations = SphereGrid4DFactory.create(alg_name=b_grid_name.get_alg(), N=b_grid_name.get_N())
+        self.position_grid = PositionGrid(o_grid_name=o_grid_name, t_grid_name=t_grid_name)
 
     def __getattr__(self, name):
         """ Enable forwarding methods to self.position_grid, so that from FullGrid you can access all properties and
@@ -142,7 +137,6 @@ class FullGrid:
     def get_position_grid(self):
         return self.position_grid
 
-    @save_or_use_saved
     def get_total_volumes(self):
         """
         Return 6D volume of a particular point obtained from multiplying position space region and orientation space
@@ -173,7 +167,6 @@ class FullGrid:
         """Get a Rotation object (may encapsulate a list of rotations) from the body grid."""
         return Rotation.from_quat(self.b_rotations.get_grid_as_array())
 
-    @save_or_use_saved
     def get_full_grid_as_array(self) -> NDArray:
         """
         Return an array of shape (n_t*n_o_n_b, 7) where for every sequential step of pt, the first 3 coordinates
@@ -198,7 +191,6 @@ class FullGrid:
                 current_index += 1
         return result
 
-    @save_or_use_saved
     def get_full_prefactors(self):
         """
         Get the sparse array A_ij/(V_i*h_ij)
@@ -217,15 +209,12 @@ class FullGrid:
         prefactor_matrix.data /= all_volumes[prefactor_matrix.row]
         return prefactor_matrix
 
-    @save_or_use_saved
     def get_full_adjacency(self):
         return self._get_N_N(sel_property="adjacency")
 
-    @save_or_use_saved
     def get_full_distances(self):
         return self._get_N_N(sel_property="center_distances")
 
-    @save_or_use_saved
     def get_full_borders(self):
         return self._get_N_N(sel_property="border_len")
 
@@ -285,15 +274,13 @@ class FullGrid:
         return all_neighbours
 
 
-
-
 class PositionGrid:
 
     def __init__(self, o_grid_name: str, t_grid_name: str, use_saved: bool = True):
         """
         This is derived from FullGrid and contains methods that are connected to position grid.
         """
-        o_grid_name = GridNameParser(o_grid_name, "o")
+        o_grid_name = GridNameParser(o_grid_name, is_3d=True)
         self.o_rotations = SphereGrid3DFactory.create(alg_name=o_grid_name.get_alg(), N=o_grid_name.get_N(),
                                                       use_saved=use_saved)
         self.o_positions = self.o_rotations.get_grid_as_array()
@@ -321,7 +308,6 @@ class PositionGrid:
         """
         return self.t_grid.get_trans_grid()
 
-    @save_or_use_saved
     def get_position_grid_as_array(self) -> NDArray:
         """
         Get a position grid that is not structured layer-by-layer but is simply a 2D array of shape (N_t*N_o, 3) where
@@ -491,4 +477,55 @@ if __name__ == "__main__":
     #print(fg.b_rotations.get_grid_as_array(), "\n'''''''''''\n", from_full_array_to_o_b_t(my_array))
 
 
+class GridNameParser:
 
+    def __init__(self, name_string: str, is_3d: bool):
+        self.name_string = name_string
+        self.is_3d = is_3d
+
+    def get_N(self) -> int or None:
+        """
+        Try to find an integer representing number of grid points anywhere in the name.
+
+        Returns:
+            the number of points as an integer, if it can be found, else None
+
+        Raises:
+            ValueError if more than one integer present in the string (e.g. 'ico_12_17')
+        """
+        split_string = self.name_string.split("_")
+        candidates = []
+        for fragment in split_string:
+            if fragment.isnumeric():
+                candidates.append(int(fragment))
+        # >= 2 numbers found in the string
+        if len(candidates) > 1:
+            raise ValueError(f"Found two or more numbers in grid name {self.name_string},"
+                             f" can't determine num of points.")
+        # exactly one number in the string -> return it
+        elif len(candidates) == 1:
+            return candidates[0]
+        # no number in the string -> return None
+        else:
+            raise ValueError(f"No number in the provided string: {self.name_string}")
+
+    def get_alg(self) -> str:
+        split_string = self.name_string.split("_")
+        candidates = []
+        for fragment in split_string:
+            if fragment in ALL_GRID_ALGORITHMS:
+                candidates.append(fragment)
+        # >= 2 algorithms found in the string
+        if len(candidates) > 1:
+            raise ValueError(f"Found two or more algorithm names in grid name {self.name_string}, can't decide.")
+        # exactly one algorithm in the string -> return it
+        elif len(candidates) == 1:
+            return candidates[0]
+        # no algorithm given -> select default
+        else:
+            # default for 3D
+            if self.is_3d:
+                return DEFAULT_ALGORITHM_O
+            # default for 4D
+            else:
+                return DEFAULT_ALGORITHM_B
