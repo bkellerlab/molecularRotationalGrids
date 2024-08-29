@@ -34,21 +34,10 @@ rule run_pt:
     params:
         cell_size_A = 30  # cubic box will be the output, this is size of the box in one dimension
     run:
-        from molgri.molecules.pts import Pseudotrajectory, PtWriter
-        from molgri.molecules.parsers import FileParser
+        from molgri.io import PtWriter
 
-        # load grid and molecules
-        my_grid = np.load(input.grid)
-        my_molecule1 = FileParser(input.molecule1).as_parsed_molecule()
-        my_molecule2 = FileParser(input.molecule2).as_parsed_molecule()
-
-        # create PT
-        my_pt = Pseudotrajectory(my_molecule2,my_grid)
-
-        # write out .gro and .xtc files
-        my_writer = PtWriter("",my_molecule1)
-        my_writer.box = (params.cell_size_A, params.cell_size_A, params.cell_size_A, 90, 90, 90)
-        my_writer.write_full_pt(my_pt,path_structure=output.structure,path_trajectory=output.trajectory)
+        my_writer = PtWriter(input.molecule1, input.molecule2, cell_size_A=params.cell_size_A, path_grid=input.grid)
+        my_writer.write_full_pt(path_output_pt=output.trajectory, path_output_structure=output.structure)
 
 
 rule gromacs_rerun:
@@ -99,6 +88,7 @@ rule run_sqra:
     run:
         from molgri.molecules.parsers import XVGParser
         from molgri.molecules.transitions import SQRA
+        from molgri.io import GridReader
         from scipy import sparse
         from scipy.constants import k as k_B
 
@@ -109,9 +99,10 @@ rule run_sqra:
 
 
         # load input files
-        all_volumes = np.load(input.volumes)
-        all_surfaces = sparse.load_npz(input.borders_array)
-        all_distances = sparse.load_npz(input.distances_array)
+        gr = GridReader()
+        all_volumes = gr.load_volumes(input.volumes)
+        all_surfaces = gr.load_borders_array(input.borders_array)
+        all_distances = gr.load_distances_array(input.distances_array)
 
         # determine limits
         if wildcards.lower_lim == "None":

@@ -1,15 +1,13 @@
 from typing import Tuple
 
 import numpy as np
-from numpy.typing import NDArray
 from scipy.constants import pi
 from scipy.linalg import issymmetric
 
-from molgri.constants import DEFAULT_ALGORITHM_B, DEFAULT_ALGORITHM_O, GRID_ALGORITHMS_3D
+from molgri.constants import DEFAULT_ALGORITHM_B, DEFAULT_ALGORITHM_O
 from molgri.space.rotobj import SphereGrid3DFactory, SphereGrid4DFactory, SphereGridFactory, SphereGridNDim
 from molgri.space.utils import k_is_a_row
-from molgri.space.voronoi import RotobjVoronoi, HalfRotobjVoronoi
-from tests.test_rotobj import USE_SAVED
+from molgri.space.voronoi import RotobjVoronoi
 
 
 SPHERE_SURFACE = 4*pi
@@ -258,7 +256,6 @@ def test_rotobj_voronoi_4D():
     for N in [40, 272]:
         hypersphere = SphereGrid4DFactory.create(DEFAULT_ALGORITHM_B, N, use_saved=False)
         # uncomment for plotting
-        from molgri.plotting.spheregrid_plots import EightCellsPlot, SphereGridPlot
         my_voronoi = RotobjVoronoi(hypersphere.get_grid_as_array(only_upper=False), using_detailed_grid=True)
         half_voronoi = my_voronoi.get_related_half_voronoi()
 

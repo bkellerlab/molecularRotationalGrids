@@ -14,8 +14,6 @@ from workflow.snakemake_utils import log_the_run
 from molgri.constants import TAUS
 
 
-
-
 include: "Snakefile_grids"
 
 wildcard_constraints:
@@ -35,25 +33,11 @@ rule create_msm_gro:
         start_dist_A = 6,  # distance between centers of mass of both molecules in the combined structure
         cell_size_A = 30  # cubic box will be the output, this is size of the box in one dimension
     run:
-        import MDAnalysis as mda
-        from MDAnalysis import Merge
+        from molgri.io import PtWriter
 
-        central_molecule = mda.Universe(input.molecule1)
-        moving_molecule = mda.Universe(input.molecule2)
+        my_writer = PtWriter(input.molecule1, input.molecule2, cell_size_A=params.cell_size_A)
+        my_writer.write_structure(start_distance_A=params.start_dist_A, path_output_structure=output.structure)
 
-        # center the both molecules
-        com1 = central_molecule.atoms.center_of_mass()
-        com2 = moving_molecule.atoms.center_of_mass()
-        central_molecule.atoms.translate(-com1)
-        moving_molecule.atoms.translate(-com2)
-        # translate the second one
-        moving_molecule.atoms.translate([0, 0, float(params.start_dist_A)])
-
-        # merge and write
-        merged_u = Merge(central_molecule.atoms, moving_molecule.atoms)
-        merged_u.dimensions = (params.cell_size_A, params.cell_size_A, params.cell_size_A, 90, 90, 90)
-        with mda.Writer(output.structure) as writer:
-            writer.write(merged_u)
 
 rule run_msm_gromacs:
     """

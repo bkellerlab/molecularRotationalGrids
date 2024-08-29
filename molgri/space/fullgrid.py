@@ -28,9 +28,10 @@ from numpy.typing import NDArray
 from scipy.spatial.transform import Rotation
 from scipy.sparse import bmat, coo_array, diags
 
-from molgri.constants import ALL_GRID_ALGORITHMS, DEFAULT_ALGORITHM_B, DEFAULT_ALGORITHM_O, NM2ANGSTROM
+from molgri.constants import ALL_GRID_ALGORITHMS, DEFAULT_ALGORITHM_B, DEFAULT_ALGORITHM_O, NM2ANGSTROM, \
+    ZERO_ALGORITHM_3D, ZERO_ALGORITHM_4D
 from molgri.space.rotobj import SphereGrid3DFactory, SphereGrid3Dim, SphereGrid4DFactory
-from molgri.space.utils import get_between_radii, normalise_vectors
+from molgri.space.utils import get_between_radii, get_increments, normalise_vectors
 
 
 def from_full_array_to_o_b_t(full_array: NDArray) -> tuple:
@@ -366,7 +367,7 @@ class PositionGrid:
             multiply = between_radii ** 2 / 2 - subtracted_radii**2/2  # need to subtract area of previous level
         elif sel_property == "center_distances":
             # n_o elements will have the same distance
-            increments = self.t_grid.get_increments()
+            increments = get_increments(self.t_grid.get_trans_grid())
             my_diags = _t_and_o_2_positions(np.ones(len(self.o_rotations)), increments) # todo: test
             my_dtype = float
             # within a layer -> this is the arch at the level of points
@@ -510,6 +511,12 @@ class GridNameParser:
             raise ValueError(f"No number in the provided string: {self.name_string}")
 
     def get_alg(self) -> str:
+        # if number is 0 or 1, immediately return zero-alg
+        if self.get_N() == 0 or self.get_N() == 1:
+            if self.is_3d:
+                return ZERO_ALGORITHM_3D
+            else:
+                return ZERO_ALGORITHM_4D
         split_string = self.name_string.split("_")
         candidates = []
         for fragment in split_string:

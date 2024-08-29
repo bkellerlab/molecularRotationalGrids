@@ -2,16 +2,11 @@
 All workflow (anything to do with input/output files, creating figures etc. that only has to do with grids.
 """
 
-from time import time
-
-import numpy as np
-
 # add molgri directory
 import sys
 sys.path.append(".")
 
-from molgri.paths import PATH_OUTPUT_AUTOSAVE, PATH_OUTPUT_LOGGING
-from workflow.snakemake_utils import log_the_run
+from molgri.paths import PATH_OUTPUT_AUTOSAVE
 
 pepfile: "workflow/grid_pep.yaml"
 grids = pep.sample_table
@@ -30,23 +25,15 @@ rule run_grid:
         distances_array = f"{PATH_OUTPUT_AUTOSAVE}{{grid_identifier}}_distances_array.npz",
         borders_array= f"{PATH_OUTPUT_AUTOSAVE}{{grid_identifier}}_borders_array.npz",
         volumes = f"{PATH_OUTPUT_AUTOSAVE}{{grid_identifier}}_volumes.npy",
-    log: f"{PATH_OUTPUT_LOGGING}{{grid_identifier}}_full_array.log"
     params:
         b = lambda wc: grids.loc[wc.grid_identifier,"b_grid_name"],
         o = lambda wc: grids.loc[wc.grid_identifier,"o_grid_name"],
         t = lambda wc: grids.loc[wc.grid_identifier,"t_grid_name"]
     run:
-        t1 = time()
         from molgri.space.fullgrid import FullGrid
-        from scipy import sparse
+        from molgri.io import GridWriter
         fg = FullGrid(params.b, params.o, params.t)
-
-        # save full array
-        np.save(output.full_array, fg.get_full_grid_as_array())
-        # save geometric properties
-        sparse.save_npz(output.adjacency_array, fg.get_full_adjacency())
-        sparse.save_npz(output.borders_array,fg.get_full_borders())
-        sparse.save_npz(output.distances_array,fg.get_full_distances())
-        np.save(output.volumes,fg.get_total_volumes())
-        t2 = time()
-        log_the_run(wildcards.grid_identifier, None, output, log[0], params, t2-t1)
+        gw = GridWriter(fg)
+        gw.save_full_grid(output.full_array)
+        gw.save_geometry_full_grid(path_adjacency_array=output.adjacency_array, path_borders_array=output.borders_array,
+            path_distances_array=output.distances_array, path_volumes=output.volumes)

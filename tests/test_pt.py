@@ -1,38 +1,38 @@
 import numpy as np
 
-from molgri.molecules.writers import PtIOManager
+from MDAnalysis import Universe
+
+from molgri.io import PtWriter
 from molgri.scripts.set_up_io import copy_examples, freshly_create_all_folders
-from molgri.molecules.parsers import PtParser, ParsedMolecule
 from molgri.space.utils import angle_between_vectors, normalise_vectors
 from molgri.paths import PATH_INPUT_BASEGRO
 
 
-def same_distance(mol1: ParsedMolecule, mol2: ParsedMolecule):
+def same_distance(mol1: Universe, mol2: Universe):
     """Check that two molecules have the same distance from COM to origin."""
-    dist1 = np.linalg.norm(mol1.get_center_of_mass())
-    dist2 = np.linalg.norm(mol2.get_center_of_mass())
+    dist1 = np.linalg.norm(mol1.atoms.get_center_of_mass())
+    dist2 = np.linalg.norm(mol2.atoms.get_center_of_mass())
     assert np.isclose(dist1, dist2, atol=1e-3)
 
 
-def same_body_orientation(mol1: ParsedMolecule, mol2: ParsedMolecule):
+def same_body_orientation(mol1: Universe, mol2: Universe):
     """Check that two molecules (that should have the same atoms) have the same internal body orientation."""
     assert np.shape(mol1.atoms) == np.shape(mol2.atoms)
-    assert np.all(mol1.atom_types == mol2.atom_types)
     for atom1, atom2 in zip(mol1.atoms, mol2.atoms):
-        vec_com1 = mol1.get_center_of_mass()
+        vec_com1 = mol1.atoms.get_center_of_mass()
         vec_atom1 = atom1.position - vec_com1
         angle1 = angle_between_vectors(vec_com1, vec_atom1)
-        vec_com2 = mol2.get_center_of_mass()
+        vec_com2 = mol2.atoms.get_center_of_mass()
         vec_atom2 = atom2.position - vec_com2
         angle2 = angle_between_vectors(vec_com2, vec_atom2)
         assert np.isclose(angle1, angle2, atol=0.05)
 
 
-def same_origin_orientation(mol1: ParsedMolecule, mol2: ParsedMolecule):
+def same_origin_orientation(mol1: Universe, mol2: Universe):
     """Check that two molecules have COM on the same vector from the origin (have the same orientation with respect
     to origin)"""
-    unit_pos1 = normalise_vectors(mol1.get_center_of_mass())
-    unit_pos2 = normalise_vectors(mol2.get_center_of_mass())
+    unit_pos1 = normalise_vectors(mol1.atoms.get_center_of_mass())
+    unit_pos2 = normalise_vectors(mol2.atoms.get_center_of_mass())
     assert np.allclose(unit_pos1, unit_pos2, atol=1e-3)
 
 
