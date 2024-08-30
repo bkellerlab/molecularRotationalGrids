@@ -81,7 +81,7 @@ In msm, after finding most populated eigenvectors, you must look at frames that 
     my_assignments = np.load(path_assignments)
     # find the most populated states
     all_lists_to_insert = []
-    for i, eigenvec in enumerate(eigenvector_array.T[:num_eigenvec+1]):
+    for i, eigenvec in enumerate(eigenvector_array.T[:num_eigenvec]):
         magnitudes = eigenvec
         # zeroth eigenvector only interested in max absolute values
         if i == 0:
@@ -123,11 +123,11 @@ In msm, after finding most populated eigenvectors, you must look at frames that 
     all_str_to_replace = [f"REPLACE{i:02d}" for i in range(num_eigenvec * 2 + 1)]
     all_str_to_insert = [', '.join(map(str, list(el))) for el in all_lists_to_insert]
     # also replace the path
-    all_str_to_replace.append("MY_PATH")
+    all_str_to_replace.extend(["MY_PATH",]*6)
     # my path is the output script up to the file name
     my_path = os.path.dirname(path_output_script)
     print(my_path, type(my_path))
-    all_str_to_insert.append(my_path)
+    all_str_to_insert.extend([my_path]*6)
     case_insensitive_search_and_replace(path_vmd_script_template, path_output_script, all_str_to_replace, all_str_to_insert)
 
 

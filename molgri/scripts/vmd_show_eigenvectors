@@ -98,24 +98,24 @@ render TachyonInternal {MY_PATH}/0th_eigenvector.tga
 mol showrep 0 1 0
 mol showrep 0 2 1
 mol showrep 0 3 1
-render TachyonInternal /home/hanaz63/2024_molgri2/nobackup/molecularRotationalGrids/experiments/msm_water_argon_03/80_80_30_longer/5/1th_eigenvector.tga
+render TachyonInternal {MY_PATH}1th_eigenvector.tga
 mol showrep 0 4 1
 mol showrep 0 3 0
 mol showrep 0 2 0
 mol showrep 0 5 1
-render TachyonInternal /home/hanaz63/2024_molgri2/nobackup/molecularRotationalGrids/experiments/msm_water_argon_03/80_80_30_longer/5/2nd_eigenvector.tga
+render TachyonInternal {MY_PATH}2nd_eigenvector.tga
 mol showrep 0 6 1
 mol showrep 0 5 0
 mol showrep 0 4 0
 mol showrep 0 7 1
-render TachyonInternal /home/hanaz63/2024_molgri2/nobackup/molecularRotationalGrids/experiments/msm_water_argon_03/80_80_30_longer/5/3rd_eigenvector.tga
+render TachyonInternal {MY_PATH}3rd_eigenvector.tga
 mol showrep 0 7 0
 mol showrep 0 6 0
 mol showrep 0 8 1
 mol showrep 0 9 1
-render TachyonInternal /home/hanaz63/2024_molgri2/nobackup/molecularRotationalGrids/experiments/msm_water_argon_03/80_80_30_longer/5/4th_eigenvector.tga
+render TachyonInternal {MY_PATH}4th_eigenvector.tga
 mol showrep 0 10 1
 mol showrep 0 11 1
 mol showrep 0 9 0
 mol showrep 0 8 0
-render TachyonInternal /home/hanaz63/2024_molgri2/nobackup/molecularRotationalGrids/experiments/msm_water_argon_03/80_80_30_longer/5/5th_eigenvector.tga
+render TachyonInternal {MY_PATH}5th_eigenvector.tga
