@@ -201,7 +201,7 @@ rule run_decomposition_msm:
         eigenvectors = f"{PATH_EXPERIMENTS}{{unique_id}}/{{grid_identifier}}/{{tau}}/eigenvectors_msm_{{sigma}}_{{which}}.npy"
     params:
         # 1 and LR not right
-        tol = 1e-7,
+        tol = 1e-5,
         maxiter = 100000
     run:
         t1 = time()
