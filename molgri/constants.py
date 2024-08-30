@@ -7,7 +7,7 @@ from pkg_resources import resource_filename
 from scipy.constants import pi
 import numpy as np
 
-TAUS = np.array([2, 3, 5, 7, 10, 20, 30, 40, 50, 70, 100, 200, 300, 500, 1000], dtype=int)
+TAUS = np.array([2, 3, 5, 7, 10, 20, 30, 40, 50, 70, 100, 200, 300], dtype=int)
 
 PM2ANGSTROM = 0.01
 NM2ANGSTROM = 10

@@ -8,20 +8,19 @@ import numpy as np
 include: "Snakefile_grids"
 
 from molgri.paths import PATH_OUTPUT_AUTOSAVE, PATH_INPUT_BASEGRO, PATH_EXPERIMENTS
-from workflow.snakemake_utils import find_config_parameter_value, log_the_run, modify_mdrun, modify_topology
+from workflow.snakemake_utils import find_config_parameter_value, log_the_run, modify_mdrun, modify_topology, \
+    read_from_mdrun
 from molgri.constants import TAUS
-
-#ruleorder: run_msm_gromacs_in_water > run_msm_gromacs
 
 rule all:
     input:
         #"experiments/msm_water_in_water_01/300grand_long/assignments.npy"
         #expand(f"{PATH_EXPERIMENTS}{{unique_id}}/energy.xvg", unique_id="msm_water_in_water_snakemake")
         msm_all1 = expand(f"{PATH_EXPERIMENTS}{{unique_id}}/{{grid_identifier}}/its_{{is_corrected}}_{{sigma}}_{{which}}.png",
-            unique_id=[f"msm_water_in_water_{i:02d}" for i in range(5,17)], tau=TAUS,
+            unique_id=[f"msm_water_in_water_{i:02d}" for i in range(3,5)], tau=TAUS,
             grid_identifier=["80_80_very_short", "80_80_30_longer"], sigma=None, which="LR", is_corrected = ["msm"]),
         msm_all2 = expand(f"{PATH_EXPERIMENTS}{{unique_id}}/{{grid_identifier}}/{{tau}}/eigenvectors_{{is_corrected}}_{{sigma}}_{{which}}{{suffix}}",
-            unique_id=[f"msm_water_in_water_{i:02d}" for i in range(5,17)],
+            unique_id=[f"msm_water_in_water_{i:02d}" for i in range(3,5)],
             grid_identifier=["80_80_very_short", "80_80_30_longer"], sigma=None, which="LR",
             tau=TAUS, suffix=[".png", "_vmdlog_msm"], is_corrected = ["msm"]),
 
@@ -123,7 +122,7 @@ rule run_msm_gromacs_in_water:
         select_energy = f"{PATH_EXPERIMENTS}{{unique_id}}/select_energy",
         index_m1 = f"{PATH_EXPERIMENTS}{{unique_id}}/index_m1.ndx",
         select_centers= f"{PATH_EXPERIMENTS}{{unique_id}}/select_centers",
-    shadow: "full"
+    shadow: "minimal"
     output:
         only_water_structure = f"{PATH_EXPERIMENTS}{{unique_id}}/structure.gro",
         energy = f"{PATH_EXPERIMENTS}{{unique_id}}/energy.xvg",
@@ -340,18 +339,17 @@ rule run_plot_its_msm:
     input:
         eigenvalues = expand(f"{PATH_EXPERIMENTS}{{unique_id}}/{{grid_identifier}}/{{tau}}/eigenvalues_{{is_corrected}}_{{sigma}}_{{which}}.npy",
             tau=TAUS, allow_missing=True),
+        runfile= f"{PATH_EXPERIMENTS}{{unique_id}}/mdrun.mdp",
     output:
         plot_its = report(f"{PATH_EXPERIMENTS}{{unique_id}}/{{grid_identifier}}/its_{{is_corrected}}_{{sigma}}_{{which}}.png",
         category="MSM")
-    params:
-        writeout = 5,
-        timesteps = 0.001
     run:
-        # todo: read params from .mdp
+        writeout = int(read_from_mdrun(input.runfile, "nstxout"))
+        timesteps = float(read_from_mdrun(input.runfile, "dt"))
         from molgri.plotting.transition_plots import PlotlyTransitions
         pt = PlotlyTransitions(is_msm=True, path_eigenvalues=input.eigenvalues, path_eigenvectors=None,
             tau_array=TAUS)
-        pt.plot_its_msm(writeout=params.writeout, time_step_ps=params.timesteps)
+        pt.plot_its_msm(writeout=writeout, time_step_ps=timesteps)
         pt.save_to(output.plot_its)
         #print("y")
 

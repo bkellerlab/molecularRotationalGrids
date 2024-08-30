@@ -8,7 +8,8 @@ include: "Snakefile_grids"
 #include: "Snakefile_msm"
 
 from molgri.paths import PATH_OUTPUT_AUTOSAVE, PATH_INPUT_BASEGRO, PATH_EXPERIMENTS
-from workflow.snakemake_utils import find_config_parameter_value, modify_topology, modify_mdrun, log_the_run
+from workflow.snakemake_utils import find_config_parameter_value, modify_topology, modify_mdrun, log_the_run, \
+    read_from_mdrun
 from molgri.constants import TAUS
 
 #ruleorder: run_msm_gromacs_in_ar > run_msm_gromacs
@@ -305,19 +306,17 @@ rule run_plot_its_msm:
     input:
         eigenvalues = expand(f"{PATH_EXPERIMENTS}{{unique_id}}/{{grid_identifier}}/{{tau}}/eigenvalues_{{is_corrected}}_{{sigma}}_{{which}}.npy",
             tau=TAUS, allow_missing=True),
+        runfile= f"{PATH_EXPERIMENTS}{{unique_id}}/mdrun.mdp",
     output:
         plot_its = report(f"{PATH_EXPERIMENTS}{{unique_id}}/{{grid_identifier}}/its_{{is_corrected}}_{{sigma}}_{{which}}.png",
         category="MSM")
-    params:
-        writeout = 5,
-        timesteps = 0.001
     run:
-        # todo: read params from .mdp
+        writeout = int(read_from_mdrun(input.runfile,"nstxout"))
+        timesteps = float(read_from_mdrun(input.runfile,"dt"))
         from molgri.plotting.transition_plots import PlotlyTransitions
         pt = PlotlyTransitions(is_msm=True, path_eigenvalues=input.eigenvalues, path_eigenvectors=None,
             tau_array=TAUS)
-        pt.plot_its_msm(writeout=params.writeout, time_step_ps=params.timesteps)
-        print("")
+        pt.plot_its_msm(writeout=writeout, time_step_ps=timesteps)
         pt.save_to(output.plot_its)
 
 

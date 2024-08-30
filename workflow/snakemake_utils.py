@@ -53,3 +53,15 @@ def modify_topology(path_to_file, i, j, funct, low, up1, up2, force_constant):
             lines[k] = f"{i}\t{j}\t{funct}\t{low}\t{up1}\t{up2}\t{force_constant}\n"
     with open(path_to_file,"w") as f:
         f.writelines(lines)
+
+def read_from_mdrun(path_to_file, param_to_find):
+    with open(path_to_file, "r") as f:
+        lines = f.readlines()
+    for i, line in enumerate(lines):
+        if line.startswith(param_to_find):
+            my_line = line
+            if ";" in line:
+                my_line = line.split(";")[0]
+            return my_line.split("=")[1].strip()
+
+print()
