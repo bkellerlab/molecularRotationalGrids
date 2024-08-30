@@ -3,6 +3,7 @@ Vmdlogs are provided to VMD after loading the files to display specific styles a
 """
 import numpy as np
 from numpy.typing import NDArray
+import os
 
 from molgri.space.utils import k_argmax_in_array
 
@@ -121,7 +122,14 @@ In msm, after finding most populated eigenvectors, you must look at frames that 
     all_lists_to_insert = [list(map(lambda x: x + 1, sublist)) for sublist in all_lists_to_insert]
     all_str_to_replace = [f"REPLACE{i:02d}" for i in range(num_eigenvec * 2 + 1)]
     all_str_to_insert = [', '.join(map(str, list(el))) for el in all_lists_to_insert]
+    # also replace the path
+    all_str_to_replace.append("MY_PATH")
+    # my path is the output script up to the file name
+    my_path = os.path.dirname(path_output_script)
+    print(my_path, type(my_path))
+    all_str_to_insert.append(my_path)
     case_insensitive_search_and_replace(path_vmd_script_template, path_output_script, all_str_to_replace, all_str_to_insert)
+
 
 def show_assignments(path_vmd_script_template: str, path_output_script: str, assignment_array: NDArray):
     """
