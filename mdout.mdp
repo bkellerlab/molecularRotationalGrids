@@ -1,17 +1,17 @@
 ;
 ;	File 'mdout.mdp' was generated
-;	By user: unknown (399461)
+;	By user: hanaz63 (399461)
 ;	On host: qcw31
-;	At date: Wed Aug 28 12:31:24 2024
+;	At date: Fri Aug 30 14:18:57 2024
 ;
 ;	Created by:
 ;	                      :-) GROMACS - gmx grompp, 2022 (-:
 ;	
 ;	Executable:   /home/janjoswig/local/gromacs-2022/bin/gmx22
 ;	Data prefix:  /home/janjoswig/local/gromacs-2022
-;	Working dir:  /scratch/hanaz63/shadow/tmpn6392vx1
+;	Working dir:  /home/hanaz63/2024_molgri2/nobackup/molecularRotationalGrids/.snakemake/shadow/tmpdy5d8bkb
 ;	Command line:
-;	  gmx22 grompp -f experiments/msm_water_argon_17/mdrun.mdp -o result.tpr -c experiments/msm_water_argon_17/inserted_structure.gro -t experiments/msm_water_argon_17/equilibration_traj.trr -p experiments/msm_water_argon_17/topology.top
+;	  gmx22 grompp -f experiments/msm_mini3/mdrun.mdp -o result.tpr -c experiments/msm_mini3/structure.gro -p experiments/msm_mini3/topology.top
 
 ; VARIOUS PREPROCESSING OPTIONS
 ; Preprocessor information: use cpp syntax.
@@ -21,11 +21,11 @@ include                  =
 define                   = 
 
 ; RUN CONTROL PARAMETERS
-integrator               = sd
+integrator               = md
 ; Start time and timestep in ps
 tinit                    = 0
 dt                       = 0.002
-nsteps                   = 10000
+nsteps                   = 100000
 ; For exact run continuation or redoing part of a run
 init-step                = 0
 ; Part index is updated automatically on checkpointing (keeps files separate)
@@ -61,22 +61,22 @@ rtpi                     = 0.05
 
 ; OUTPUT CONTROL OPTIONS
 ; Output frequency for coords (x), velocities (v) and forces (f)
-nstxout                  = 5
+nstxout                  = 10
 nstvout                  = 0
 nstfout                  = 0
 ; Output frequency for energies to log file and energy file
 nstlog                   = 0
 nstcalcenergy            = 100
-nstenergy                = 5
+nstenergy                = 10
 ; Output frequency and precision for .xtc file
 nstxout-compressed       = 0
 compressed-x-precision   = 1000
 ; This selects the subset of atoms for the compressed
 ; trajectory file. You can select multiple groups. By
 ; default, all atoms will be written.
-compressed-x-grps        = SOLp
+compressed-x-grps        = 
 ; Selection of energy groups
-energygrps               = SOLp
+energygrps               = 
 
 ; NEIGHBORSEARCHING PARAMETERS
 ; cut-off scheme (Verlet: particle based cut-offs)
@@ -88,7 +88,7 @@ pbc                      = xyz
 periodic-molecules       = no
 ; Allowed energy error due to the Verlet buffer in kJ/mol/ps per atom,
 ; a value of -1 means: use rlist
-verlet-buffer-tolerance  = 1e-03
+verlet-buffer-tolerance  = 0.005
 ; nblist cut-off        
 rlist                    = 1
 ; long-range cut-off for switched potentials
@@ -138,7 +138,7 @@ print-nose-hoover-chain-variables = no
 ; Groups to couple separately
 tc-grps                  = System
 ; Time constant (ps) and reference temperature (K)
-tau_t                    = 1
+tau_t                    = 1.0
 ref_t                    = 300
 ; pressure coupling     
 pcoupl                   = Parrinello-Rahman
@@ -169,7 +169,7 @@ annealing-temp           =
 ; GENERATE VELOCITIES FOR STARTUP RUN
 gen_vel                  = no
 gen-temp                 = 300
-gen-seed                 = -1082135745
+gen-seed                 = -608592193
 
 ; OPTIONS FOR BONDS    
 constraints              = h-bonds

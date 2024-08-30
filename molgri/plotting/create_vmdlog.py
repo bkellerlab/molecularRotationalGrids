@@ -126,7 +126,6 @@ In msm, after finding most populated eigenvectors, you must look at frames that 
     all_str_to_replace.extend(["MY_PATH",]*6)
     # my path is the output script up to the file name
     my_path = os.path.dirname(path_output_script)
-    print(my_path, type(my_path))
     all_str_to_insert.extend([my_path]*6)
     case_insensitive_search_and_replace(path_vmd_script_template, path_output_script, all_str_to_replace, all_str_to_insert)
 

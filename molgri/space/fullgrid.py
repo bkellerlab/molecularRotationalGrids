@@ -474,21 +474,3 @@ def _t_and_o_2_positions(o_property, t_property):
 
 
 
-if __name__ == "__main__":
-    import matplotlib.pyplot as plt
-    import seaborn as sns
-
-    fg = FullGrid("13", "22", "[0.2, 0.3]")
-
-    my_array = fg.get_full_grid_as_array()
-
-    o, b, t = from_full_array_to_o_b_t(my_array)
-
-    print(np.allclose(fg.o_rotations.get_grid_as_array(), o))
-    print(np.allclose(fg.b_rotations.get_grid_as_array(), b))
-    print(np.allclose(fg.get_t_grid().get_trans_grid(), t))
-
-    #print(fg.b_rotations.get_grid_as_array(), "\n'''''''''''\n", from_full_array_to_o_b_t(my_array))
-
-
-

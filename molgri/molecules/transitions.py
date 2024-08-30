@@ -98,7 +98,6 @@ class AssignmentTool:
         reference_direction = self._determine_positive_directions(self.reference_universe)
         if reference_direction is None:
             raise ValueError("All atoms perpendicular to at least one of principal axes, can't determine direction.")
-        print("got ref direction")
         """
         I am very sorry that this part is optimized, parallelized and completely unreadable. Rely on tests to make 
         sure this stuff works and be happy that your calculations are no longer taking two days.
@@ -107,12 +106,9 @@ class AssignmentTool:
                                 ag=self.trajectory_universe.select_atoms(self.second_molecule_selection),
                                 reference_direction=reference_direction)
         frame_values = np.arange(self.last_step)
-        print("before pool")
         with Pool(self.n_jobs) as worker_pool:
             direction_frames = worker_pool.map(run_per_frame, frame_values)
-        print("after pool")
         produkt = np.matmul(direction_frames, inverse_pa)
-        print("got product")
         """
         Explanation: we have N_traj_len produkt matrices called P_i and N_quat reference matrices called R_i. The 
         matrix product R_i@P_i.T describes the rotation matrix needed to get from R_i to P_i. We want the magnitude 
@@ -128,7 +124,6 @@ class AssignmentTool:
         for i, rm in enumerate(reference_matrices):
             alignment_magnitudes[i] = Rotation.from_matrix(rm@produkt.transpose(0, 2, 1)).magnitude()
         result = np.argmin(alignment_magnitudes, axis=0)
-        print("got quat assignments")
         return result
 
     def _get_t_assignments(self) -> NDArray:
@@ -148,8 +143,6 @@ class AssignmentTool:
             self.trajectory_universe.select_atoms(self.second_molecule_selection))
         t_selection.run(stop=self.last_step)
         t_indices = t_selection.results['timeseries'].flatten()
-        import pandas as pd
-        print("distance assignment statistics", pd.DataFrame(t_indices).describe())
         return t_indices
 
     def _get_o_assignments(self) -> NDArray:
@@ -168,8 +161,6 @@ class AssignmentTool:
                                            self.trajectory_universe.select_atoms(self.second_molecule_selection))
         o_selection.run(stop=self.last_step)
         o_indices = o_selection.results['timeseries'].flatten()
-        import pandas as pd
-        print("direction assignment statistics", pd.DataFrame(o_indices).describe())
         return o_indices
 
     def _get_position_assignments(self):
@@ -331,7 +322,7 @@ class DecompositionTool:
         """
         self.matrix_to_decompose = matrix_to_decompose
 
-    def get_decomposition(self, tol: float, maxiter: int, which: str, sigma: Optional[float], k=20):
+    def get_decomposition(self, tol: float, maxiter: int, which: str, sigma: Optional[float], k=6):
         """
         The function for users - will decompose all matrices.
 

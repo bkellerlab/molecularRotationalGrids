@@ -22,7 +22,7 @@ rule all:
         msm_all2 = expand(f"{PATH_EXPERIMENTS}{{unique_id}}/{{grid_identifier}}/{{tau}}/eigenvectors_{{is_corrected}}_{{sigma}}_{{which}}{{suffix}}",
             unique_id=[f"msm_water_in_water_{i:02d}" for i in range(3,5)],
             grid_identifier=["80_80_very_short", "80_80_30_longer"], sigma=None, which="LR",
-            tau=TAUS, suffix=[".png", "_vmdlog_msm"], is_corrected = ["msm"]),
+            tau=10, suffix=[".png", "_vmdlog_msm"], is_corrected = ["msm"]),
 
 
 rule create_config_file_in_water:
@@ -40,7 +40,6 @@ rule create_config_file_in_water:
         experiments = pd.read_csv(input.experiments_database, index_col=0)
         columns = experiments.columns
         with open(output.config_file, "w") as f:
-            print(experiments, wildcards.unique_id)
             for i, parameter_value in enumerate(experiments.loc[wildcards.unique_id]):
                 f.write(f"{columns[i]}={parameter_value}\n")
 
@@ -122,7 +121,9 @@ rule run_msm_gromacs_in_water:
         select_energy = f"{PATH_EXPERIMENTS}{{unique_id}}/select_energy",
         index_m1 = f"{PATH_EXPERIMENTS}{{unique_id}}/index_m1.ndx",
         select_centers= f"{PATH_EXPERIMENTS}{{unique_id}}/select_centers",
-    shadow: "minimal"
+    benchmark:
+        f"{PATH_EXPERIMENTS}{{unique_id}}/gromacs_benchmark.txt"
+    shadow: "shallow"
     output:
         only_water_structure = f"{PATH_EXPERIMENTS}{{unique_id}}/structure.gro",
         energy = f"{PATH_EXPERIMENTS}{{unique_id}}/energy.xvg",
@@ -153,25 +154,19 @@ rule run_trajectory_assignment:
         trajectory = f"{PATH_EXPERIMENTS}{{unique_id}}/trajectory.trr",
         structure = f"{PATH_EXPERIMENTS}{{unique_id}}/structure.gro",
         molecule2 = f"{PATH_EXPERIMENTS}{{unique_id}}/m2.gro",
-    #wildcard_constraints:
-    #    grid_identifier = "(?!deeptime).*"
-    log:
-        log = f"{PATH_EXPERIMENTS}{{unique_id}}/{{grid_identifier}}/logging_assignments.log"
+    benchmark:
+        f"{PATH_EXPERIMENTS}{{unique_id}}/{{grid_identifier}}/assignment_benchmark.txt"
     output:
         assignments=f"{PATH_EXPERIMENTS}{{unique_id}}/{{grid_identifier}}/assignments.npy",
     run:
-        t1 = time()
         from molgri.molecules.transitions import AssignmentTool
 
         # using all inputs
         my_grid = np.load(input.full_array)
         at = AssignmentTool(my_grid,input.structure,input.trajectory, input.molecule2)
-        print("n")
 
         # saving output
         np.save(output.assignments,at.get_full_assignments())
-        t2 = time()
-        log_the_run(wildcards.unique_id, input, output, log.log, None, t2-t1)
 
 # rule run_deeptime_transition_matrix:
 #     """
@@ -223,8 +218,8 @@ rule run_msm_matrix:
     """
     input:
         assignments = f"{PATH_EXPERIMENTS}{{unique_id}}/{{grid_identifier}}/assignments.npy",
-    #log:
-    #    log = f"{PATH_EXPERIMENTS}{{unique_id}}/{{grid_identifier}}/{{tau}}/logging_msm_creation.log"
+    benchmark:
+        f"{PATH_EXPERIMENTS}{{unique_id}}/{{grid_identifier}}/{{tau}}/matrix_benchmark.txt"
     output:
         transition_matrix = f"{PATH_EXPERIMENTS}{{unique_id}}/{{grid_identifier}}/{{tau}}/transition_matrix.npz"
     run:
@@ -250,17 +245,16 @@ rule run_decomposition_msm:
     """
     input:
         transition_matrix = f"{PATH_EXPERIMENTS}{{unique_id}}/{{grid_identifier}}/{{tau}}/transition_matrix.npz"
-    log:
-        log = f"{PATH_EXPERIMENTS}{{unique_id}}/{{grid_identifier}}/{{tau}}/logging_msm_decomposition_{{sigma}}_{{which}}.log"
+    benchmark:
+        f"{PATH_EXPERIMENTS}{{unique_id}}/{{grid_identifier}}/{{tau}}/decomposition_benchmark_{{sigma}}_{{which}}.txt"
     output:
         eigenvalues = f"{PATH_EXPERIMENTS}{{unique_id}}/{{grid_identifier}}/{{tau}}/eigenvalues_msm_{{sigma}}_{{which}}.npy",
         eigenvectors = f"{PATH_EXPERIMENTS}{{unique_id}}/{{grid_identifier}}/{{tau}}/eigenvectors_msm_{{sigma}}_{{which}}.npy"
     params:
         # 1 and LR not right
-        tol = 1e-7,
+        tol = 1e-5,
         maxiter = 100000
     run:
-        t1 = time()
         from molgri.molecules.transitions import DecompositionTool
         from scipy import sparse
 
@@ -281,8 +275,6 @@ rule run_decomposition_msm:
         # saving to file
         np.save(output.eigenvalues, np.array(all_eigenval))
         np.save(output.eigenvectors, np.array(all_eigenvec))
-        t2 = time()
-        log_the_run(wildcards.unique_id, input, output, log.log, params, t2-t1)
 
 rule correct_msm_eigenvectors:
     """
@@ -327,7 +319,6 @@ rule run_plot_everything_msm:
         from molgri.plotting.transition_plots import PlotlyTransitions
         pt = PlotlyTransitions(is_msm=True, path_eigenvalues=input.eigenvalues, path_eigenvectors=input.eigenvectors,
             tau_array=None)
-        #print("new")
         # eigenvectors
         pt.plot_eigenvectors_flat(index_tau=wildcards.tau)
         pt.save_to(output.plot_eigenvectors, height=1200)
@@ -351,7 +342,6 @@ rule run_plot_its_msm:
             tau_array=TAUS)
         pt.plot_its_msm(writeout=writeout, time_step_ps=timesteps)
         pt.save_to(output.plot_its)
-        #print("y")
 
 
 rule compile_vmd_log_msm:
@@ -376,7 +366,6 @@ rule compile_vmd_log_msm:
 
         # load eigenvectors
         eigenvectors = np.load(input.eigenvectors)
-        #print("w")
 
         show_eigenvectors_MSM(input.script, output.vmdlog, input.assignments, eigenvector_array=eigenvectors,num_eigenvec=params.num_eigenvec,
             num_extremes=params.num_extremes)

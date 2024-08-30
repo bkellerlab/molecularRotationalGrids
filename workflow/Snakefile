@@ -18,14 +18,13 @@ ALL_UPPER = [None, 10, 20, 30, 50, 100, 300] # if energy above this the cell wil
 # no solvent msm and sqra
 rule all:
     input:
-        f"{PATH_EXPERIMENTS}relative_its_large.png"
-        # msm_all1 = expand(f"{PATH_EXPERIMENTS}{{unique_id}}/{{grid_identifier}}/its_{{is_corrected}}_{{sigma}}_{{which}}.png",
-        #     unique_id=[f"msm_tau_{i:02d}" for i in range(9,13)], tau=TAUS,
-        #     grid_identifier=["80_80_30_longer", "80_80_very_short", "300grand_long"], sigma=None, which="LR", is_corrected = ["msm"]),
-        # msm_all2 = expand(f"{PATH_EXPERIMENTS}{{unique_id}}/{{grid_identifier}}/{{tau}}/eigenvectors_{{is_corrected}}_{{sigma}}_{{which}}{{suffix}}",
-        #     unique_id=[f"msm_tau_{i:02d}" for i in range(9,13)],
-        #     grid_identifier=["80_80_30_longer", "80_80_very_short", "300grand_long"], sigma=None, which="LR",
-        #     tau=TAUS, suffix=[".png", "_vmdlog_msm"], is_corrected = ["msm"]),
+        msm_all1 = expand(f"{PATH_EXPERIMENTS}{{unique_id}}/{{grid_identifier}}/its_{{is_corrected}}_{{sigma}}_{{which}}.png",
+            unique_id=["msm_mini3"], tau=TAUS,
+            grid_identifier=["80_80_30_longer", "80_80_very_short"], sigma=None, which="LR", is_corrected = ["msm"]),
+        msm_all2 = expand(f"{PATH_EXPERIMENTS}{{unique_id}}/{{grid_identifier}}/{{tau}}/eigenvectors_{{is_corrected}}_{{sigma}}_{{which}}{{suffix}}",
+            unique_id=["msm_mini2"],
+            grid_identifier=["80_80_30_longer", "80_80_very_short"], sigma=None, which="LR",
+            tau=10, suffix=[".png", "_vmdlog_msm"], is_corrected = ["msm"]),
         # sqra1 = expand(f"{PATH_EXPERIMENTS}{{unique_id}}/{{grid_identifier}}/{{lower_lim}}-{{upper_lim}}/its_{{sigma}}_{{which}}.png",
         #     unique_id=[f"sqra_tau_{i:02d}" for i in range(1,5)], grid_identifier=["80_80_very_short"], sigma=[0], which=["SR"], lower_lim=None, upper_lim=None),   #["300grand_long", "80_80_30_short"]
         # sqra2 = expand(f"{PATH_EXPERIMENTS}{{unique_id}}/{{grid_identifier}}/{{lower_lim}}-{{upper_lim}}/eigenvectors_{{sigma}}_{{which}}_vmdlog_sqra",

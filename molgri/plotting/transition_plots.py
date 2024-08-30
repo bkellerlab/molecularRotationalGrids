@@ -164,7 +164,6 @@ class PlotlyTransitions:
             max_its = 0
             for i, eigenvals in enumerate(all_eigenvals.T):
                 its = np.array(-self.tau_array * writeout * time_step_ps / np.log(np.abs(eigenvals)))
-                print(self.path_eigenvalues, its)
                 if np.any(its) > max_its:
                     max_its = np.max(its)
                 if col==2:
