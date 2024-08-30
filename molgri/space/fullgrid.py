@@ -19,20 +19,12 @@ Objects:
 """
 from __future__ import annotations
 
-import hashlib
-import numbers
-from ast import literal_eval
-
 import numpy as np
 from numpy.typing import NDArray
 from scipy.spatial.transform import Rotation
 from scipy.sparse import bmat, coo_array, diags
 
-from molgri.constants import ALL_GRID_ALGORITHMS, DEFAULT_ALGORITHM_B, DEFAULT_ALGORITHM_O, NM2ANGSTROM, \
-    ZERO_ALGORITHM_3D, ZERO_ALGORITHM_4D
-from molgri.space.rotobj import SphereGrid3DFactory, SphereGrid3Dim, SphereGrid4DFactory
 from molgri.space.utils import get_between_radii, get_increments, normalise_vectors
-
 
 def from_full_array_to_o_b_t(full_array: NDArray) -> tuple:
     """
@@ -69,23 +61,14 @@ class FullGrid:
         t_grid_name: translation grid (a linear grid used to determine distances to origin)
     """
 
-    def __init__(self, b_grid_name: str, o_grid_name: str, t_grid_name: str):
-
-        """
-        Args:
-            b_grid_name: of the form 'ico_17' or '17' for default algorithm
-            o_grid_name: of the form 'cube4D_12' or '12' for default algorithm
-            t_grid_name: of the form '[1, 3, 4.5]' or ’range(2, 5, 20.2)' or 'linspace(1,5,50)'
-        """
+    def __init__(self, orientation_grid, direction_grid, distance_grid):
         # this is supposed to be a scaling factor to make metric of SO(3) comparable to R3
         # will be applied as self.factor**3 to volumes, self.factor**2 to areas and self.factor to distances
         self.factor = 2
-        self.b_grid_name = b_grid_name
-        self.o_grid_name = o_grid_name
-        self.t_grid_name = t_grid_name
-        b_grid_name = GridNameParser(b_grid_name, is_3d=False)
-        self.b_rotations = SphereGrid4DFactory.create(alg_name=b_grid_name.get_alg(), N=b_grid_name.get_N())
-        self.position_grid = PositionGrid(o_grid_name=o_grid_name, t_grid_name=t_grid_name)
+        self.orientation_grid = orientation_grid
+        self.direction_grid = direction_grid
+        self.distance_grid = distance_grid
+        self.position_grid = PositionGrid(direction_grid, distance_grid)
 
     def __getattr__(self, name):
         """ Enable forwarding methods to self.position_grid, so that from FullGrid you can access all properties and
@@ -100,19 +83,19 @@ class FullGrid:
         """
         Get number of points in quaternion grid.
         """
-        return self.b_rotations.get_N()
+        return len(self.orientation_grid.array)
 
     def get_o_N(self) -> int:
         """
         Get number of points in positions-on-a-sphere grid.
         """
-        return self.o_rotations.get_N()
+        return len(self.direction_grid.array)
 
     def get_t_N(self) -> int:
         """
         Get number of points in translation grid.
         """
-        return len(self.t_grid.get_trans_grid())
+        return len(self.distances_grid.array)
 
     def get_quaternion_index(self, full_grid_indices: NDArray = None) -> NDArray:
         """
@@ -148,7 +131,7 @@ class FullGrid:
 
         """
         pos_volumes = self.get_position_grid().get_all_position_volumes()
-        ori_volumes = self.b_rotations.get_spherical_voronoi().get_voronoi_volumes()
+        ori_volumes = self.orientation_grid.volumes
 
         all_volumes = []
         for o_rot in pos_volumes:
@@ -157,19 +140,14 @@ class FullGrid:
         return all_volumes
 
     def get_between_radii(self):
-        return get_between_radii(self.t_grid.get_trans_grid())
+        return get_between_radii(self.distance_grid.array)
 
     def get_adjacency_of_orientation_grid(self) -> coo_array:
-        return self.b_rotations.get_voronoi_adjacency(only_upper=True, include_opposing_neighbours=True)
-
-    def get_name(self) -> str:
-        """Name that is appropriate for saving."""
-        b_name = self.b_rotations.get_name(with_dim=False)
-        return f"b_{b_name}_{self.get_position_grid().get_name()}"
+        return self.orientation_grid.adjacency
 
     def get_body_rotations(self) -> Rotation:
         """Get a Rotation object (may encapsulate a list of rotations) from the body grid."""
-        return Rotation.from_quat(self.b_rotations.get_grid_as_array())
+        return Rotation.from_quat(self.orientation_grid.array)
 
     def get_full_grid_as_array(self) -> NDArray:
         """
@@ -185,7 +163,7 @@ class FullGrid:
         """
         result = np.full((len(self), 7), np.nan)
         position_grid = self.position_grid.get_position_grid_as_array()
-        quaternions = self.b_rotations.get_grid_as_array(only_upper=True)
+        quaternions = self.orientation_grid.array
         current_index = 0
         for o_rot in position_grid:
             for b_rot in quaternions:
@@ -214,26 +192,35 @@ class FullGrid:
         return prefactor_matrix
 
     def get_full_adjacency(self):
-        return self._get_N_N(sel_property="adjacency")
-
-    def get_full_distances(self):
-        return self._get_N_N(sel_property="center_distances")
-
-    def get_full_borders(self):
-        return self._get_N_N(sel_property="border_len")
-
-    def _get_N_N(self, sel_property="adjacency"):
-        full_sequence = self.get_full_grid_as_array()
-        n_total = len(full_sequence)
-        n_o = self.o_rotations.get_N()
-        n_b = self.b_rotations.get_N()
-        n_t = self.t_grid.get_N_trans()
-
-        position_adjacency = self.position_grid._get_N_N_position_array(sel_property=sel_property).toarray()
-        if n_b > 1:
-            orientation_adjacency = self.b_rotations.get_spherical_voronoi()._calculate_N_N_array(sel_property=sel_property)
+        position_adjacency = self.position_grid.get_adjacency_of_position_grid()
+        if self.get_b_N() > 1:
+            orientation_adjacency = self.orientation_grid.adjacency
         else:
             orientation_adjacency = coo_array([[False]], shape=(1, 1))
+        return self._get_N_N(position_adjacency=position_adjacency, orientation_adjacency=orientation_adjacency,
+                             sel_property="adjacency")
+
+    def get_full_distances(self):
+        position_adjacency = self.position_grid.get_distances_of_position_grid()
+        if self.get_b_N() > 1:
+            orientation_adjacency = self.orientation_grid.distances
+        else:
+            orientation_adjacency = coo_array([[False]], shape=(1, 1))
+        return self._get_N_N(position_adjacency=position_adjacency, orientation_adjacency=orientation_adjacency,
+                             sel_property="enter_distances")
+
+    def get_full_borders(self):
+        position_adjacency = self.position_grid.get_borders_of_position_grid()
+        if self.get_b_N() > 1:
+            orientation_adjacency = self.orientation_grid.borders
+        else:
+            orientation_adjacency = coo_array([[False]], shape=(1, 1))
+        return self._get_N_N(position_adjacency=position_adjacency, orientation_adjacency=orientation_adjacency,
+                             sel_property="border_len")
+
+    def _get_N_N(self, position_adjacency, orientation_adjacency, sel_property: str):
+        full_sequence = self.get_full_grid_as_array()
+        n_total = len(full_sequence)
 
         row = []
         col = []
@@ -242,9 +229,9 @@ class FullGrid:
         for i, line in enumerate(position_adjacency):
             for j, el in enumerate(line):
                 if el:
-                    for k in range(n_b):
-                        row.append(n_b * i + k)
-                        col.append(n_b * j + k)
+                    for k in range(self.get_b_N()):
+                        row.append(self.get_b_N() * i + k)
+                        col.append(self.get_b_N() * j + k)
                         values.append(el)
 
         if sel_property == "adjacency":
@@ -264,13 +251,13 @@ class FullGrid:
                                                 dtype=dtype)
 
         # along the diagonal blocks of size n_o*n_t that are neighbours exactly if their quaternions are neighbours
-        if n_t * n_o > 1:
+        if self.get_t_N() * self.get_o_N() > 1:
             my_blocks = [orientation_adjacency]
-            my_blocks.extend([None, ] * (n_t * n_o))
-            my_blocks = my_blocks * (n_t * n_o)
-            my_blocks = my_blocks[:-(n_t * n_o)]
+            my_blocks.extend([None, ] * (self.get_t_N() * self.get_o_N()))
+            my_blocks = my_blocks * (self.get_t_N() * self.get_o_N())
+            my_blocks = my_blocks[:-(self.get_t_N() * self.get_o_N())]
             my_blocks = np.array(my_blocks, dtype=object)
-            my_blocks = my_blocks.reshape((n_t * n_o), (n_t * n_o))
+            my_blocks = my_blocks.reshape((self.get_t_N() * self.get_o_N()), (self.get_t_N() * self.get_o_N()))
             same_position_neighbours = bmat(my_blocks, dtype=float) #block_array(my_blocks, dtype=dtype, format="coo")
         else:
             return coo_array(orientation_adjacency)
@@ -280,65 +267,41 @@ class FullGrid:
 
 class PositionGrid:
 
-    def __init__(self, o_grid_name: str, t_grid_name: str, use_saved: bool = True):
+    def __init__(self, direction_grid, distance_grid):
         """
         This is derived from FullGrid and contains methods that are connected to position grid.
         """
-        o_grid_name = GridNameParser(o_grid_name, is_3d=True)
-        self.o_rotations = SphereGrid3DFactory.create(alg_name=o_grid_name.get_alg(), N=o_grid_name.get_N(),
-                                                      use_saved=use_saved)
-        self.o_positions = self.o_rotations.get_grid_as_array()
-        self.t_grid = TranslationParser(t_grid_name)
-        self.use_saved = use_saved
+        self.direction_grid = direction_grid
+        self.distance_grid = distance_grid
 
     def __len__(self):
         """The length of the full grid is a product of lengths of all sub-grids"""
-        return self.o_rotations.get_N() * self.t_grid.get_N_trans()
-
-    def get_t_grid(self) -> TranslationParser:
-        return self.t_grid
-
-    def get_o_grid(self) -> SphereGrid3Dim:
-        return self.o_rotations
-
-    def get_name(self) -> str:
-        """Name that is appropriate for saving."""
-        o_name = self.o_rotations.get_name(with_dim=False)
-        return f"o_{o_name}_t_{self.t_grid.grid_hash}"
-
-    def get_radii(self) -> NDArray:
-        """
-        Get the radii at which points are positioned. Result is in Angstroms.
-        """
-        return self.t_grid.get_trans_grid()
+        return len(self.direction_grid.array) * len(self.distance_grid.array)
 
     def get_position_grid_as_array(self) -> NDArray:
         """
         Get a position grid that is not structured layer-by-layer but is simply a 2D array of shape (N_t*N_o, 3) where
         N_t is the length of translation grid and N_o the length of orientation grid.
         """
-        return _t_and_o_2_positions(o_property=self.get_o_grid().get_grid_as_array(only_upper=False),
-                                         t_property=self.get_radii())
+        return _t_and_o_2_positions(o_property=self.direction_grid.array, t_property=self.distance_grid.array)
 
     def get_all_position_volumes(self) -> NDArray:
         # o grid has the option to get size of areas -> need to be divided by 3 and multiplied with radius^3 to get
         # volumes in the first shell, later shells need previous shells subtracted
-        radius_above = get_between_radii(self.t_grid.get_trans_grid())
+        radius_above = get_between_radii(self.distance_grid.array)
         radius_below = np.concatenate(([0, ], radius_above[:-1]))
-        s_vor = self.get_o_grid().get_spherical_voronoi()
-        area = s_vor.get_voronoi_volumes()
+        area = self.direction_grid.volumes
         # but of rad 2?????
         cumulative_volumes = (_t_and_o_2_positions(o_property=area/3, t_property=radius_above**3) -
                               _t_and_o_2_positions(o_property=area/3, t_property=radius_below**3))
         return cumulative_volumes
 
-
     def _get_N_N_position_array(self, sel_property="adjacency"):
         flat_pos_grid = self.get_position_grid_as_array()
         n_points = len(flat_pos_grid)  # equals n_o*n_t
-        n_o = self.o_rotations.get_N()
-        n_t = self.t_grid.get_N_trans()
-        between_radii = get_between_radii(self.t_grid.get_trans_grid())
+        n_o = len(self.direction_grid.array)
+        n_t = len(self.distance_grid.array)
+        between_radii = get_between_radii(self.distance_grid.array)
 
         # First you have neighbours that occur from being at subsequent radii and the same ray
         # Since the position grid has all orientations at first r, then all at second r ...
@@ -350,30 +313,29 @@ class PositionGrid:
             my_diags = (True,)
             my_dtype = bool
             # within a layer
-            neig = self.o_rotations.get_voronoi_adjacency(only_upper=False, include_opposing_neighbours=False).toarray()
+            neig = self.direction_grid.adjacency.toarray()
             # what to multipy with in higher layers
             multiply = np.ones(n_t)
-        elif sel_property == "border_len":         # TODO TODO TODO
+        elif sel_property == "border_len":
             my_diags  = []
-            radius_1_areas = self.o_rotations.get_spherical_voronoi().get_voronoi_volumes()
+            radius_1_areas = self.direction_grid.volumes
             # last layer doesn't have a border up
             for layer_i, radius in enumerate(between_radii[:-1]):
-                my_diags.extend(radius_1_areas * radius**2)  # todo: test
+                my_diags.extend(radius_1_areas * radius**2)
             my_dtype = float
             # neighbours in the same layer -> this is the arch above (or angle in radians since unit sphere)
-            neig = self.o_rotations.get_cell_borders().toarray()
+            neig = self.direction_grid.borders.toarray()
             # area is angle/2pi  * pi r**2
             subtracted_radii = np.array([0, *between_radii[:-1]])
             multiply = between_radii ** 2 / 2 - subtracted_radii**2/2  # need to subtract area of previous level
         elif sel_property == "center_distances":
             # n_o elements will have the same distance
-            increments = get_increments(self.t_grid.get_trans_grid())
-            my_diags = _t_and_o_2_positions(np.ones(len(self.o_rotations)), increments) # todo: test
+            increments = get_increments(self.distance_grid.array)
+            my_diags = _t_and_o_2_positions(np.ones(len(self.direction_grid.array)), increments) # todo: test
             my_dtype = float
             # within a layer -> this is the arch at the level of points
-            neig = self.o_rotations.get_center_distances(only_upper=False,
-                                                                          include_opposing_neighbours=False).toarray()
-            multiply = self.get_radii()
+            neig = self.direction_grid.distances.toarray()
+            multiply = self.distance_grid.array
         else:
             raise ValueError(f"Not recognised argument property={sel_property}")
 
@@ -461,137 +423,6 @@ def _t_and_o_2_positions(o_property, t_property):
     assert len(result) == n_o*n_t
     return result
 
-
-
-
-if __name__ == "__main__":
-    fg = FullGrid("13", "22", "[0.2, 0.3]")
-
-    my_array = fg.get_full_grid_as_array()
-
-    o, b, t = from_full_array_to_o_b_t(my_array)
-
-    print(np.allclose(fg.o_rotations.get_grid_as_array(), o))
-    print(np.allclose(fg.b_rotations.get_grid_as_array(), b))
-    print(np.allclose(fg.get_t_grid().get_trans_grid(), t))
-
-    #print(fg.b_rotations.get_grid_as_array(), "\n'''''''''''\n", from_full_array_to_o_b_t(my_array))
-
-
-class GridNameParser:
-
-    def __init__(self, name_string: str, is_3d: bool):
-        self.name_string = name_string
-        self.is_3d = is_3d
-
-    def get_N(self) -> int or None:
-        """
-        Try to find an integer representing number of grid points anywhere in the name.
-
-        Returns:
-            the number of points as an integer, if it can be found, else None
-
-        Raises:
-            ValueError if more than one integer present in the string (e.g. 'ico_12_17')
-        """
-        split_string = self.name_string.split("_")
-        candidates = []
-        for fragment in split_string:
-            if fragment.isnumeric():
-                candidates.append(int(fragment))
-        # >= 2 numbers found in the string
-        if len(candidates) > 1:
-            raise ValueError(f"Found two or more numbers in grid name {self.name_string},"
-                             f" can't determine num of points.")
-        # exactly one number in the string -> return it
-        elif len(candidates) == 1:
-            return candidates[0]
-        # no number in the string -> return None
-        else:
-            raise ValueError(f"No number in the provided string: {self.name_string}")
-
-    def get_alg(self) -> str:
-        # if number is 0 or 1, immediately return zero-alg
-        if self.get_N() == 0 or self.get_N() == 1:
-            if self.is_3d:
-                return ZERO_ALGORITHM_3D
-            else:
-                return ZERO_ALGORITHM_4D
-        split_string = self.name_string.split("_")
-        candidates = []
-        for fragment in split_string:
-            if fragment in ALL_GRID_ALGORITHMS:
-                candidates.append(fragment)
-        # >= 2 algorithms found in the string
-        if len(candidates) > 1:
-            raise ValueError(f"Found two or more algorithm names in grid name {self.name_string}, can't decide.")
-        # exactly one algorithm in the string -> return it
-        elif len(candidates) == 1:
-            return candidates[0]
-        # no algorithm given -> select default
-        else:
-            # default for 3D
-            if self.is_3d:
-                return DEFAULT_ALGORITHM_O
-            # default for 4D
-            else:
-                return DEFAULT_ALGORITHM_B
-
-
-class TranslationParser(object):
-
-    """
-    User input is expected in nanometers (nm)!
-
-        Parse all ways in which the user may provide a linear translation grid. Currently supported formats:
-            - a list of numbers, eg '[1, 2, 3]'
-            - a linearly spaced list with optionally provided number of elements eg. 'linspace(1, 5, 50)'
-            - a range with optionally provided step, eg 'range(0.5, 3, 0.4)'
-    """
-
-    def __init__(self, user_input: str):
-        """
-        Args:
-            user_input: a string in one of allowed formats
-        """
-        self.user_input = user_input
-        if "linspace" in self.user_input:
-            bracket_input = self._read_within_brackets()
-            self.trans_grid = np.linspace(*bracket_input, dtype=float)
-        elif "range" in self.user_input:
-            bracket_input = self._read_within_brackets()
-            self.trans_grid = np.arange(*bracket_input, dtype=float)
-        else:
-            self.trans_grid = literal_eval(self.user_input)
-            self.trans_grid = np.array(self.trans_grid, dtype=float)
-            self.trans_grid = np.sort(self.trans_grid, axis=None)
-        # all values must be non-negative
-        assert np.all(self.trans_grid >= 0), "Distance from origin cannot be negative."
-        # convert to angstrom
-        self.trans_grid = self.trans_grid * NM2ANGSTROM
-        # we use a (shortened) hash value to uniquely identify the grid used, no matter how it's generated
-        self.grid_hash = int(hashlib.md5(self.trans_grid).hexdigest()[:8], 16)
-
-    def get_name(self):
-        return f"{self.grid_hash}"
-
-    def get_trans_grid(self) -> NDArray:
-        """Getter to access all distances from origin in angstorms."""
-        return self.trans_grid
-
-    def get_N_trans(self) -> int:
-        """Get the number of translations in this grid."""
-        return len(self.trans_grid)
-
-    def _read_within_brackets(self) -> tuple:
-        """
-        Helper function to aid reading linspace(start, stop, num) and arange(start, stop, step) formats.
-        """
-        str_in_brackets = self.user_input.split('(', 1)[1].split(')')[0]
-        str_in_brackets = literal_eval(str_in_brackets)
-        if isinstance(str_in_brackets, numbers.Number):
-            str_in_brackets = tuple((str_in_brackets,))
-        return str_in_brackets
 
 
 

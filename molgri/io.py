@@ -2,7 +2,12 @@
 Writers and readers for different objects (grids, pseudotrajectories ...) Inputs to methods should be PATHS and
 PARAMETERS.
 """
+import hashlib
+import numbers
+from abc import ABC
 import os
+from ast import literal_eval
+from functools import wraps
 
 import MDAnalysis as mda
 import numpy as np
@@ -12,8 +17,227 @@ from MDAnalysis import Merge
 from scipy import sparse
 
 # lots of imports just for typing
+from molgri.constants import ALL_GRID_ALGORITHMS, DEFAULT_ALGORITHM_B, DEFAULT_ALGORITHM_O, NM2ANGSTROM, \
+    ZERO_ALGORITHM_3D, \
+    ZERO_ALGORITHM_4D
 from molgri.molecules.pts import Pseudotrajectory
 from molgri.space.fullgrid import FullGrid
+from molgri.space.rotobj import SphereGrid3DFactory, SphereGrid4DFactory
+
+
+class AbstractWriter(ABC):
+
+    def __init__(self, output_folder: str):
+        self.output_folder = output_folder
+        _create_dir_or_empty_it(self.output_folder)
+
+    def write_all(self, **kwargs):
+        """
+        Save everything that should be saved.
+
+        This method assumes that every method beginning with save_ is a saving function.
+        """
+        object_methods = [method_name for method_name in dir(self)
+                          if callable(getattr(self, method_name)) and method_name.startswith("save_")]
+        for method in object_methods:
+            saving_method = getattr(self, method)
+            saving_method(**kwargs)
+
+
+class AbstractReader(ABC):
+
+    def __init__(self, output_folder: str):
+        self.output_folder = output_folder
+
+    def read_all(self, **kwargs):
+        """
+        Read everything that has been saved.
+
+        This method assumes that every method beginning with save_ is a saving function.
+        """
+        object_methods = [method_name for method_name in dir(self)
+                          if callable(getattr(self, method_name)) and method_name.startswith("load_")]
+        for method in object_methods:
+            saving_method = getattr(self, method)
+            saving_method(**kwargs)
+
+
+class RotObjWriter(AbstractWriter):
+
+    def __init__(self, rot_obj_name: str, is_3d: bool, output_folder: str):
+        super().__init__(output_folder)
+        self.is_3d = is_3d
+        rotobj_name = RotObjParser(rot_obj_name, is_3d=is_3d)
+        if is_3d:
+            self.rotobj = SphereGrid3DFactory.create(alg_name=rotobj_name.get_alg(), N=rotobj_name.get_N())
+        else:
+            self.rotobj = SphereGrid4DFactory.create(alg_name=rotobj_name.get_alg(), N=rotobj_name.get_N())
+        self.rotobj_voronoi = self.rotobj.get_spherical_voronoi()
+
+    def save_rotobj_array(self):
+        np.save(f"{self.output_folder}/array.npy", self.rotobj.get_grid_as_array())
+
+    def save_borders_array(self):
+        sparse.save_npz(f"{self.output_folder}/borders.npz", self.rotobj_voronoi.get_cell_borders())
+
+    def save_distances_array(self):
+        sparse.save_npz(f"{self.output_folder}/distances.npz", self.rotobj_voronoi.get_center_distances())
+
+    def save_adjacency_array(self):
+        sparse.save_npz(f"{self.output_folder}/adjancency.npz", self.rotobj_voronoi.get_voronoi_adjacency())
+
+    def save_volumes(self):
+        np.save(f"{self.output_folder}/volumes.npy", self.rotobj_voronoi.get_voronoi_volumes())
+
+
+class RotObjReader(AbstractReader):
+
+    def __init__(self, output_folder: str):
+        super().__init__(output_folder)
+        self.array = self._load_rotobj_array()
+        self.adjacency = self._load_adjacency_array()
+        self.borders = self._load_borders_array()
+        self.distances = self._load_distances_array()
+        self.volumes = self._load_volumes()
+
+    def _load_rotobj_array(self):
+        return np.load(f"{self.output_folder}/array.npy")
+
+    def _load_borders_array(self):
+        return sparse.load_npz(f"{self.output_folder}/borders.npz")
+
+    def _load_distances_array(self):
+        return sparse.load_npz(f"{self.output_folder}/distances.npz")
+
+    def _load_adjacency_array(self):
+        return sparse.load_npz(f"{self.output_folder}/adjancency.npz")
+
+    def _load_volumes(self):
+        return np.load(f"{self.output_folder}/volumes.npy")
+
+
+
+class RotObjParser:
+
+    def __init__(self, name_string: str, is_3d: bool):
+        self.name_string = name_string
+        self.is_3d = is_3d
+
+    def get_N(self) -> int or None:
+        """
+        Try to find an integer representing number of grid points anywhere in the name.
+
+        Returns:
+            the number of points as an integer, if it can be found, else None
+
+        Raises:
+            ValueError if more than one integer present in the string (e.g. 'ico_12_17')
+        """
+        split_string = self.name_string.split("_")
+        candidates = []
+        for fragment in split_string:
+            if fragment.isnumeric():
+                candidates.append(int(fragment))
+        # >= 2 numbers found in the string
+        if len(candidates) > 1:
+            raise ValueError(f"Found two or more numbers in grid name {self.name_string},"
+                             f" can't determine num of points.")
+        # exactly one number in the string -> return it
+        elif len(candidates) == 1:
+            return candidates[0]
+        # no number in the string -> return None
+        else:
+            raise ValueError(f"No number in the provided string: {self.name_string}")
+
+    def get_alg(self) -> str:
+        # if number is 0 or 1, immediately return zero-alg
+        if self.get_N() == 0 or self.get_N() == 1:
+            if self.is_3d:
+                return ZERO_ALGORITHM_3D
+            else:
+                return ZERO_ALGORITHM_4D
+        split_string = self.name_string.split("_")
+        candidates = []
+        for fragment in split_string:
+            if fragment in ALL_GRID_ALGORITHMS:
+                candidates.append(fragment)
+        # >= 2 algorithms found in the string
+        if len(candidates) > 1:
+            raise ValueError(f"Found two or more algorithm names in grid name {self.name_string}, can't decide.")
+        # exactly one algorithm in the string -> return it
+        elif len(candidates) == 1:
+            return candidates[0]
+        # no algorithm given -> select default
+        else:
+            # default for 3D
+            if self.is_3d:
+                return DEFAULT_ALGORITHM_O
+            # default for 4D
+            else:
+                return DEFAULT_ALGORITHM_B
+
+
+class TranslationWriter(AbstractWriter):
+
+    """
+    User input is expected in nanometers (nm)!
+
+        Parse all ways in which the user may provide a linear translation grid. Currently supported formats:
+            - a list of numbers, eg '[1, 2, 3]'
+            - a linearly spaced list with optionally provided number of elements eg. 'linspace(1, 5, 50)'
+            - a range with optionally provided step, eg 'range(0.5, 3, 0.4)'
+    """
+
+    def __init__(self, user_input: str, output_folder: str):
+        """
+        Args:
+            user_input: a string in one of allowed formats
+        """
+        super().__init__(output_folder)
+        self.user_input = user_input
+        if "linspace" in self.user_input:
+            bracket_input = self._read_within_brackets()
+            self.trans_grid = np.linspace(*bracket_input, dtype=float)
+        elif "range" in self.user_input:
+            bracket_input = self._read_within_brackets()
+            self.trans_grid = np.arange(*bracket_input, dtype=float)
+        else:
+            self.trans_grid = literal_eval(self.user_input)
+            self.trans_grid = np.array(self.trans_grid, dtype=float)
+            self.trans_grid = np.sort(self.trans_grid, axis=None)
+        # all values must be non-negative
+        assert np.all(self.trans_grid >= 0), "Distance from origin cannot be negative."
+        # convert to angstrom
+        self.trans_grid = self.trans_grid * NM2ANGSTROM
+
+    def save_trans_grid(self):
+        """Getter to access all distances from origin in angstorms."""
+        np.save(f"{self.output_folder}/array.npy", self.trans_grid)
+
+    def get_N_trans(self) -> int:
+        """Get the number of translations in this grid."""
+        return len(self.trans_grid)
+
+    def _read_within_brackets(self) -> tuple:
+        """
+        Helper function to aid reading linspace(start, stop, num) and arange(start, stop, step) formats.
+        """
+        str_in_brackets = self.user_input.split('(', 1)[1].split(')')[0]
+        str_in_brackets = literal_eval(str_in_brackets)
+        if isinstance(str_in_brackets, numbers.Number):
+            str_in_brackets = tuple((str_in_brackets,))
+        return str_in_brackets
+
+
+class TranslationReader(AbstractReader):
+
+    def __init__(self, output_folder: str):
+        super().__init__(output_folder)
+        self.array = self.load_trans_grid()
+
+    def load_trans_grid(self) -> NDArray:
+        """Getter to access all distances from origin in angstorms."""
+        return np.load(f"{self.output_folder}/array.npy")
 
 
 class GridReader:
@@ -40,37 +264,31 @@ class GridReader:
         return sparse.load_npz(path_adjacency_array)
 
 
-class GridWriter:
+class GridWriter(AbstractWriter):
     """
-    Saves important information of a grid object.
+    Interprets the strings of user input, constructs the grid. Saves important information of a grid object.
     """
 
-    # TODO: could also get input parameters to be able to create a grid
-    def __init__(self, my_full_grid: FullGrid):
-        self.full_grid = my_full_grid
+    def __init__(self, orientation_reader: RotObjReader, direction_reader: RotObjReader,
+                 distance_reader: TranslationReader, output_folder: str):
+        super().__init__(output_folder)
+        self.full_grid = FullGrid(orientation_grid=orientation_reader, direction_grid=direction_reader,
+                                  distance_grid=distance_reader)
 
-    def save_full_grid(self, path_full_array: str):
-        np.save(path_full_array, self.full_grid.get_full_grid_as_array())
+    def save_full_grid(self):
+        np.save(f"{self.output_folder}/array.npy", self.full_grid.get_full_grid_as_array())
 
-    def save_volumes(self, path_volumes):
-        np.save(path_volumes, self.full_grid.get_total_volumes())
+    def save_volumes(self):
+        np.save(f"{self.output_folder}/volumes.npy", self.full_grid.get_total_volumes())
 
-    def save_borders_array(self, path_borders_array):
-        sparse.save_npz(path_borders_array, self.full_grid.get_full_borders())
+    def save_borders_array(self):
+        sparse.save_npz(f"{self.output_folder}/borders.npz", self.full_grid.get_full_borders())
 
-    def save_distances_array(self, path_distances_array):
-        sparse.save_npz(path_distances_array, self.full_grid.get_full_distances())
+    def save_distances_array(self):
+        sparse.save_npz(f"{self.output_folder}/distances.npz", self.full_grid.get_full_distances())
 
-    def save_adjacency_array(self, path_adjacency_array):
-        sparse.save_npz(path_adjacency_array, self.full_grid.get_full_adjacency())
-
-    def save_geometry_full_grid(self, path_adjacency_array: str, path_borders_array: str, path_distances_array: str,
-                                path_volumes: str):
-        # convenience method so you can do all at once, order is unimportant
-        self.save_adjacency_array(path_adjacency_array)
-        self.save_distances_array(path_distances_array)
-        self.save_borders_array(path_borders_array)
-        self.save_volumes(path_volumes)
+    def save_adjacency_array(self):
+        sparse.save_npz(f"{self.output_folder}/adjacency.npz", self.full_grid.get_full_adjacency())
 
 
 class OneMoleculeReader:
@@ -218,7 +436,7 @@ class EnergyReader:
         table = pd.read_csv(path_energy, sep=r'\s+', comment='@', skiprows=13, header=None, names=column_names)
         return table
 
-    def _get_column_names(self, path_energy: str) -> tuple:
+    def _get_column_names(self, path_energy: str) -> list:
         result = ["Time [ps]"]
         with open(path_energy, "r") as f:
             for line in f:

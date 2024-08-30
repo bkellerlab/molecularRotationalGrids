@@ -1,12 +1,12 @@
 import numpy as np
-import pytest
 
 from molgri.io import EnergyReader
 from molgri.paths import PATH_TEST_FILES
 
+
 def test_energy_reader():
     my_e_reader = EnergyReader()
-    ######################### ONE COLUMN FILE ###########
+    # ONE COLUMN FILE #
     file1 = f"{PATH_TEST_FILES}one_column_xvg_file.xvg"
     one_column_df = my_e_reader.load_energy(file1)
     # correct length
@@ -22,7 +22,7 @@ def test_energy_reader():
     assert np.all(one_column_df.columns == ["Time [ps]", "Pressure"])
     assert np.allclose(my_e_reader.load_single_energy_column(file1, "Pressure"), one_column_df["Pressure"])
 
-    ######################### MULTIPLE COLUMN FILE ###########
+    # MULTIPLE COLUMN FILE #
     file2 = f"{PATH_TEST_FILES}multiple_column_xvg_file.xvg"
     one_column_df = my_e_reader.load_energy(file2)
     # correct length

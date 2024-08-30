@@ -86,9 +86,8 @@ rule run_sqra:
         energy_type="Potential",
         m_h2o = 3e-26 #kg
     run:
-        from molgri.molecules.parsers import XVGParser
         from molgri.molecules.transitions import SQRA
-        from molgri.io import GridReader
+        from molgri.io import GridReader, EnergyReader
         from scipy import sparse
         from scipy.constants import k as k_B
 
@@ -114,8 +113,7 @@ rule run_sqra:
         else:
             upper_limit = float(wildcards.upper_lim)
 
-        my_parsed = XVGParser(input.energy)
-        energies = my_parsed.get_parsed_energy().get_energies(params.energy_type)
+        energies = EnergyReader().load_single_energy_column(input.energy, params.energy_type)
 
         sqra = SQRA(energies=energies,volumes=all_volumes,distances=all_distances,surfaces=all_surfaces)
         rate_matrix = sqra.get_rate_matrix(D,params.T)

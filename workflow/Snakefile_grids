@@ -6,34 +6,50 @@ All workflow (anything to do with input/output files, creating figures etc. that
 import sys
 sys.path.append(".")
 
-from molgri.paths import PATH_OUTPUT_AUTOSAVE
+from molgri.paths import PATH_OUTPUT_ROTOBJ, PATH_OUTPUT_FULLGRID, PATH_OUTPUT_TRANS
+from molgri.io import RotObjWriter, RotObjReader, TranslationWriter
+
+
+# THIS DICTIONARY MUST NOT CHANGE BUT CAN BE EXPANDED
+TRANSLATION_NAMES = {"example_grid_20": "np.linspace(0.1, 0.5, 20)"}
 
 pepfile: "workflow/grid_pep.yaml"
 grids = pep.sample_table
 
 rule all_grids:
     input:
-        expand(f"{PATH_OUTPUT_AUTOSAVE}{{grid_identifier}}_full_array.npy", grid_identifier=grids.index)
+        expand(f"{PATH_OUTPUT_FULLGRID}{{orientations_name}}_{{directions_name}}_{{distances_name}}",
+            orientations_name=45, directions_name=30, distances_name=TRANSLATION_NAMES.keys())
+
+rule run_rotobj:
+    output:
+        rotobj = directory(f"{PATH_OUTPUT_ROTOBJ}{{dim}}D_{{rotobj_name}}")
+    run:
+        is_3d = wildcards.dim == 3
+        row = RotObjWriter(wildcards.rotobj_name, is_3d, output_folder=output.rotobj)
+        row.write_all()
+
+rule run_translations:
+    output:
+        trans = directory(f"{PATH_OUTPUT_TRANS}{{translations_name}}")
+    run:
+        user_input = TRANSLATION_NAMES[wildcards.translations_name]
+        row = TranslationWriter(user_input, output_folder=output.trans)
+        row.write_all()
+
 
 rule run_grid:
     """
     This rule should provide a full grid and its geometric parameters.
     """
+    input:
+        rotobj_3D = directory(f"{PATH_OUTPUT_ROTOBJ}3D_{{directions_name}}"),
+        rotobj_4D = directory(f"{PATH_OUTPUT_ROTOBJ}4D_{{orientations_name}}"),
+        translations = directory(f"{PATH_OUTPUT_TRANS}{{distances_name}}"),
     output:
-        full_array = f"{PATH_OUTPUT_AUTOSAVE}{{grid_identifier}}_full_array.npy",
-        adjacency_array = f"{PATH_OUTPUT_AUTOSAVE}{{grid_identifier}}_adjacency_array.npz",
-        distances_array = f"{PATH_OUTPUT_AUTOSAVE}{{grid_identifier}}_distances_array.npz",
-        borders_array= f"{PATH_OUTPUT_AUTOSAVE}{{grid_identifier}}_borders_array.npz",
-        volumes = f"{PATH_OUTPUT_AUTOSAVE}{{grid_identifier}}_volumes.npy",
-    params:
-        b = lambda wc: grids.loc[wc.grid_identifier,"b_grid_name"],
-        o = lambda wc: grids.loc[wc.grid_identifier,"o_grid_name"],
-        t = lambda wc: grids.loc[wc.grid_identifier,"t_grid_name"]
+        full_grid= directory(f"{PATH_OUTPUT_FULLGRID}{{orientations_name}}_{{directions_name}}_{{distances_name}}"),
     run:
-        from molgri.space.fullgrid import FullGrid
         from molgri.io import GridWriter
-        fg = FullGrid(params.b, params.o, params.t)
-        gw = GridWriter(fg)
-        gw.save_full_grid(output.full_array)
-        gw.save_geometry_full_grid(path_adjacency_array=output.adjacency_array, path_borders_array=output.borders_array,
-            path_distances_array=output.distances_array, path_volumes=output.volumes)
+        gw = GridWriter(orientation_reader=input.rotobj_4D, direction_reader=input.rotobj_3D,
+            distance_reader=input.translations, output_folder=output.full_grid)
+        gw.write_all()

@@ -9,7 +9,7 @@ import numpy as np
 import sys
 sys.path.append(".")
 
-from molgri.paths import PATH_OUTPUT_AUTOSAVE, PATH_INPUT_BASEGRO, PATH_EXPERIMENTS
+from molgri.paths import PATH_OUTPUT_AUTOSAVE, PATH_EXPERIMENTS
 from workflow.snakemake_utils import log_the_run
 from molgri.constants import TAUS
 
@@ -33,9 +33,9 @@ rule create_msm_gro:
         start_dist_A = 6,  # distance between centers of mass of both molecules in the combined structure
         cell_size_A = 30  # cubic box will be the output, this is size of the box in one dimension
     run:
-        from molgri.io import PtWriter
+        from molgri.io import TwoMoleculeWriter
 
-        my_writer = PtWriter(input.molecule1, input.molecule2, cell_size_A=params.cell_size_A)
+        my_writer = TwoMoleculeWriter(input.molecule1, input.molecule2, cell_size_A=params.cell_size_A)
         my_writer.write_structure(start_distance_A=params.start_dist_A, path_output_structure=output.structure)
 
 
@@ -82,14 +82,9 @@ rule run_trajectory_assignment:
         trajectory = f"{PATH_EXPERIMENTS}{{unique_id}}/trajectory.trr",
         structure = f"{PATH_EXPERIMENTS}{{unique_id}}/structure.gro",
         molecule2 = f"{PATH_EXPERIMENTS}{{unique_id}}/m2.gro",
-    #wildcard_constraints:
-    #    grid_identifier = "(?!deeptime).*"
-    log:
-        log = f"{PATH_EXPERIMENTS}{{unique_id}}/{{grid_identifier}}/logging_assignments.log"
     output:
         assignments=f"{PATH_EXPERIMENTS}{{unique_id}}/{{grid_identifier}}/assignments.npy",
     run:
-        t1 = time()
         from molgri.molecules.transitions import AssignmentTool
 
         # using all inputs
@@ -98,8 +93,6 @@ rule run_trajectory_assignment:
 
         # saving output
         np.save(output.assignments,at.get_full_assignments())
-        t2 = time()
-        log_the_run(wildcards.unique_id, input, output, log.log, None, t2-t1)
 
 # rule run_deeptime_transition_matrix:
 #     """

@@ -364,6 +364,7 @@ class SphereGrid3DFactory:
         selected_sub_obj.gen_grid()
         return selected_sub_obj
 
+
 class SphereGrid4DFactory:
 
     """
@@ -385,79 +386,3 @@ class SphereGrid4DFactory:
             raise ValueError(f"The algorithm {alg_name} not familiar to SphereGrid4DFactory.")
         selected_sub_obj.gen_grid()
         return selected_sub_obj
-
-
-class ConvergenceSphereGridFactory:
-
-    """
-    This is a central object for studying the convergence of SphereGridNDim objects with the number of dimensions.
-    """
-
-    def __init__(self, alg_name: str, dimensions: int, N_set = None, use_saved=True, **kwargs):
-        if N_set is None:
-            N_set = SMALL_NS
-        self.N_set = N_set
-        self.alg_name = alg_name
-        self.dimensions = dimensions
-        self.use_saved = use_saved
-        self.kwargs = kwargs
-        self.list_sphere_grids = []
-
-    def get_name(self):
-        N_min = self.N_set[0]
-        N_max = self.N_set[-1]
-        N_len = len(self.N_set)
-        return f"convergence_{self.alg_name}_{self.dimensions}d_{N_min}_{N_max}_{N_len}"
-
-    def create(self) -> list:
-        list_sphere_grids = []
-        for N in self.N_set:
-            if self.dimensions == 3:
-                sg = SphereGrid3DFactory.create(self.alg_name, N, use_saved=self.use_saved, **self.kwargs)
-            else:
-                sg = SphereGrid4DFactory.create(self.alg_name, N, use_saved=self.use_saved, **self.kwargs)
-            list_sphere_grids.append(sg)
-        return list_sphere_grids
-
-    def get_list_sphere_grids(self):
-        if not self.list_sphere_grids:
-            self.list_sphere_grids = self.create()
-        return self.list_sphere_grids
-
-    def get_spherical_voronoi_areas(self):
-        """
-        Get plotting-ready data on the size of Voronoi areas for different numbers of points.
-        """
-        data = []
-        for N, sg in zip(self.N_set, self.get_list_sphere_grids()):
-            real_N = len(sg.get_grid_as_array())
-            ideal_area = 4*pi/real_N
-            try:
-                real_areas = sg.get_cell_volumes()
-            except ValueError:
-                real_areas = [np.NaN] * real_N
-            for area in real_areas:
-                data.append([real_N, ideal_area, area])
-        df = pd.DataFrame(data, columns=["N", "ideal area", "sph. Voronoi cell area"])
-        return df
-
-    def get_generation_times(self, repeats=5):
-        """
-        Get plotting-ready data on time needed to generate spherical grids of different sizes. Each generation is
-        repeated several times to be able to estimate the error.
-        """
-        data = []
-        for N in self.N_set:
-            for _ in range(repeats):
-                t1 = time()
-                # cannot use saved if you are timing!
-                if self.dimensions == 3:
-                    sg = SphereGrid3DFactory.create(self.alg_name, N, use_saved=self.use_saved, **self.kwargs)
-                else:
-                    sg = SphereGrid4DFactory.create(self.alg_name, N, use_saved=self.use_saved, **self.kwargs)
-                t2 = time()
-                data.append([len(sg.get_grid_as_array()), t2 - t1])
-        df = pd.DataFrame(data, columns=["N", "Time [s]"])
-        return df
-
-
