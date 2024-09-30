@@ -1,4 +1,4 @@
-unique_id,coupling_constant_ps,integrator,traj_len,up1_nm,up2_nm,force,step_in_ps
+unique_id,coupling_constant_ps,integrator,traj_len,up1_nm,up2_nm,force,step_in_ps,epsilon-r
 msm_tau_09,0.001,sd,1000000000,0.5,0.7,500.0,0.001
 msm_tau_10,0.01,sd,1000000000,0.5,0.7,500.0,0.001
 msm_tau_11,0.1,sd,1000000000,0.5,0.7,500.0,0.001
@@ -16,4 +16,11 @@ sqra_tau_02,0.01,sd,17,0.5,0.7,500.0
 sqra_tau_03,0.1,sd,17,0.5,0.7,500.0
 sqra_tau_04,1,sd,1700,0.5,0.7,500.0
 one_sqra,0.001,sd,17,0.5,0.7,500.0
-msm_mini3,1,md,100000,0.5,0.7,500.0,0.002
+msm_mini3,1,md,1000000,0.5,0.7,500.0,0.002
+msm_tau_ex,1,sd,100000,0.5,0.7,500.0,0.002
+my_sqra_ex,1,sd,1700,0.5,0.7,500.0,0.002
+my_sqra_ex2,1,sd,1700,0.5,0.7,500.0,0.002
+MSM3_electrostatic_1_cc_1,1,sd,1000000000,0.5,0.7,500,0.002,1
+MSM3_electrostatic_1_cc_01,0.1,sd,1000000000,0.5,0.7,500,0.002,1
+MSM3_electrostatic_1_cc_001,0.01,sd,1000000000,0.5,0.7,500,0.002,1
+MSM3_electrostatic_1_cc_0001,0.001,sd,1000000000,0.5,0.7,500,0.002,1

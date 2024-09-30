@@ -155,7 +155,7 @@ def _create_dir_or_empty_it(directory_name):
 
 class PtWriter:
 
-    def __init__(self, name_to_save: str, parsed_central_molecule: ParsedMolecule):
+    def __init__(self, name_to_save: str, parsed_central_molecule: ParsedMolecule, box):
         """
         This class writes a pseudotrajectory to a file. A PT consists of one molecule that is stationary at
         origin and one that moves with every time step. The fixed molecule is provided when the class is created
@@ -169,7 +169,7 @@ class PtWriter:
         """
         self.central_molecule = parsed_central_molecule
         self.central_molecule.translate_to_origin()
-        self.box = self.central_molecule.get_box()
+        self.box = box
         self.file_name = name_to_save
 
     def _merge_and_write(self, writer: mda.Writer, pt: Pseudotrajectory):

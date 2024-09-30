@@ -2,8 +2,9 @@
 import sys
 sys.path.append(".")
 
+
 include: "Snakefile_grids"
-include: "Snakefile_sqra"
+
 include: "Snakefile_msm"
 
 from molgri.paths import PATH_OUTPUT_AUTOSAVE, PATH_INPUT_BASEGRO, PATH_EXPERIMENTS
@@ -18,21 +19,22 @@ ALL_UPPER = [None, 10, 20, 30, 50, 100, 300] # if energy above this the cell wil
 # no solvent msm and sqra
 rule all:
     input:
-        msm_all1 = expand(f"{PATH_EXPERIMENTS}{{unique_id}}/{{grid_identifier}}/its_{{is_corrected}}_{{sigma}}_{{which}}.png",
-            unique_id=["msm_mini3"], tau=TAUS,
-            grid_identifier=["80_80_30_longer", "80_80_very_short"], sigma=None, which="LR", is_corrected = ["msm"]),
-        msm_all2 = expand(f"{PATH_EXPERIMENTS}{{unique_id}}/{{grid_identifier}}/{{tau}}/eigenvectors_{{is_corrected}}_{{sigma}}_{{which}}{{suffix}}",
-            unique_id=["msm_mini2"],
-            grid_identifier=["80_80_30_longer", "80_80_very_short"], sigma=None, which="LR",
-            tau=10, suffix=[".png", "_vmdlog_msm"], is_corrected = ["msm"]),
-        # sqra1 = expand(f"{PATH_EXPERIMENTS}{{unique_id}}/{{grid_identifier}}/{{lower_lim}}-{{upper_lim}}/its_{{sigma}}_{{which}}.png",
-        #     unique_id=[f"sqra_tau_{i:02d}" for i in range(1,5)], grid_identifier=["80_80_very_short"], sigma=[0], which=["SR"], lower_lim=None, upper_lim=None),   #["300grand_long", "80_80_30_short"]
-        # sqra2 = expand(f"{PATH_EXPERIMENTS}{{unique_id}}/{{grid_identifier}}/{{lower_lim}}-{{upper_lim}}/eigenvectors_{{sigma}}_{{which}}_vmdlog_sqra",
-        # unique_id=[f"sqra_tau_{i:02d}" for i in range(1,5)], grid_identifier=["80_80_very_short"], sigma=[0], which=["SR"], lower_lim=None, upper_lim=None),
+        f"{PATH_EXPERIMENTS}my_sqra_ex/experiment_config.txt",
+        # msm_all1 = expand(f"{PATH_EXPERIMENTS}{{unique_id}}/{{grid_identifier}}/its_{{is_corrected}}_{{sigma}}_{{which}}.png",
+        #     unique_id=["msm_tau_ex"], tau=TAUS,
+        #     grid_identifier=["80_80_very_short","100K_grid7"], sigma=None, which="LR", is_corrected = ["msm"]),
+        # msm_all2 = expand(f"{PATH_EXPERIMENTS}{{unique_id}}/{{grid_identifier}}/{{tau}}/eigenvectors_{{is_corrected}}_{{sigma}}_{{which}}{{suffix}}",
+        #     unique_id=["msm_tau_ex"],
+        #     grid_identifier=["80_80_very_short","100K_grid7"], sigma=None, which="LR",
+        #     tau=10, suffix=[".png", "_vmdlog_msm"], is_corrected = ["msm"]),
+        sqra1=expand(f"experiments/{{unique_id}}/{{grid_identifier}}/{{lower_lim}}-{{upper_lim}}/its_{{sigma}}_{{which}}.png",
+             unique_id=["my_sqra_ex"], grid_identifier=["bigger_ideal"], sigma=[0], which=["SR"], lower_lim="None", upper_lim="None"),   #["300grand_long", "80_80_30_short"]
+        sqra2 = expand(f"experiments/{{unique_id}}/{{grid_identifier}}/{{lower_lim}}-{{upper_lim}}/eigenvectors_{{sigma}}_{{which}}_vmdlog_sqra",
+        unique_id=["my_sqra_ex"], grid_identifier=["bigger_ideal"], sigma=[0], which=["SR"], lower_lim="None", upper_lim="None"),
 
 rule create_config_file:
     """
-    The point here is to get the unique ID of the experiment, read all of its parameters from a database of experiments 
+    The point here is to get the unique ID of the experiment, read all of its parameters from a database of experiments
     and write them to a file within this experiment folder.
     """
     input:
@@ -50,175 +52,182 @@ rule create_config_file:
                 f.write(f"{columns[i]}={parameter_value}\n")
 
 
-rule prepare_water_water:
-    """
-    Here, everything is specific to a water-water system set up. Create a new folder in experiments/ and populate it 
-    with correctly defined inputs for the gromacs run etc.
-    """
-    input:
-        water_gro = f"{PATH_INPUT_BASEGRO}H2O.gro",
-        water_top = f"{PATH_INPUT_BASEGRO}H2O_H2O.top",
-        base_mdp_file = f"{PATH_INPUT_BASEGRO}mdrun.mdp",
-        select_group=f"{PATH_INPUT_BASEGRO}select_group_zero",
-        select_energy=f"{PATH_INPUT_BASEGRO}select_energy_five",
-        select_centers=f"{PATH_INPUT_BASEGRO}select_3_and_0",
-        index_m1=f"{PATH_INPUT_BASEGRO}index_first_mol.ndx",
-        config_file = f"{PATH_EXPERIMENTS}{{unique_id}}/experiment_config.txt"
-    output:
-        molecule1 = f"{PATH_EXPERIMENTS}{{unique_id}}/m1.gro",
-        molecule2 = f"{PATH_EXPERIMENTS}{{unique_id}}/m2.gro",
-        runfile = f"{PATH_EXPERIMENTS}{{unique_id}}/mdrun.mdp",
-        topology = f"{PATH_EXPERIMENTS}{{unique_id}}/topology.top",
-        select_group = f"{PATH_EXPERIMENTS}{{unique_id}}/select_group",
-        select_energy = f"{PATH_EXPERIMENTS}{{unique_id}}/select_energy",
-        select_centers = f"{PATH_EXPERIMENTS}{{unique_id}}/select_centers",
-        index_m1 = f"{PATH_EXPERIMENTS}{{unique_id}}/index_m1.ndx",
-    run:
-        import shutil
-        # stuff that can be copied without being modified
-        shutil.copy(input.water_gro,output.molecule1)
-        shutil.copy(input.water_gro,output.molecule2)
-        shutil.copy(input.select_group, output.select_group)
-        shutil.copy(input.select_energy,output.select_energy)
-        shutil.copy(input.select_centers,output.select_centers)
-        shutil.copy(input.index_m1, output.index_m1)
+# rule prepare_water_water:
+#     """
+#     Here, everything is specific to a water-water system set up. Create a new folder in experiments/ and populate it
+#     with correctly defined inputs for the gromacs run etc.
+#     """
+#     input:
+#         water_gro = f"{PATH_INPUT_BASEGRO}H2O.gro",
+#         water_top = f"{PATH_INPUT_BASEGRO}H2O_H2O.top",
+#         base_mdp_file = f"{PATH_INPUT_BASEGRO}mdrun.mdp",
+#         select_group=f"{PATH_INPUT_BASEGRO}select_group_zero",
+#         select_energy=f"{PATH_INPUT_BASEGRO}select_energy_five",
+#         select_centers=f"{PATH_INPUT_BASEGRO}select_3_and_0",
+#         index_m1=f"{PATH_INPUT_BASEGRO}index_first_mol.ndx",
+#         config_file = f"{PATH_EXPERIMENTS}{{unique_id}}/experiment_config.txt"
+#     output:
+#         molecule1 = f"{PATH_EXPERIMENTS}{{unique_id}}/m1.gro",
+#         molecule2 = f"{PATH_EXPERIMENTS}{{unique_id}}/m2.gro",
+#         runfile = f"{PATH_EXPERIMENTS}{{unique_id}}/mdrun.mdp",
+#         topology = f"{PATH_EXPERIMENTS}{{unique_id}}/topology.top",
+#         select_group = f"{PATH_EXPERIMENTS}{{unique_id}}/select_group",
+#         select_energy = f"{PATH_EXPERIMENTS}{{unique_id}}/select_energy",
+#         select_centers = f"{PATH_EXPERIMENTS}{{unique_id}}/select_centers",
+#         index_m1 = f"{PATH_EXPERIMENTS}{{unique_id}}/index_m1.ndx",
+#     run:
+#         import shutil
+#         # stuff that can be copied without being modified
+#         shutil.copy(input.water_gro,output.molecule1)
+#         shutil.copy(input.water_gro,output.molecule2)
+#         shutil.copy(input.select_group, output.select_group)
+#         shutil.copy(input.select_energy,output.select_energy)
+#         shutil.copy(input.select_centers,output.select_centers)
+#         shutil.copy(input.index_m1, output.index_m1)
+#
+#         # depending on config parameters, topology and runfile will be adapted
+#         shutil.copy(input.water_top, output.topology)
+#         shutil.copy(input.base_mdp_file, output.runfile)
+#
+#         # modify runfile with given parameters
+#         trajectory_len = find_config_parameter_value(input.config_file,"traj_len")
+#         integrator = find_config_parameter_value(input.config_file,"integrator")
+#         coupling = find_config_parameter_value(input.config_file,"coupling_constant_ps")
+#         step = find_config_parameter_value(input.config_file,"step_in_ps")
+#         modify_mdrun(output.runfile, "integrator", integrator)
+#         modify_mdrun(output.runfile,"nsteps",trajectory_len)
+#         modify_mdrun(output.runfile,"tau_t",coupling)
+#         modify_mdrun(output.runfile,"dt",step)
+#         modify_mdrun(output.runfile,"verlet-buffer-tolerance","1e-03")
+#         modify_mdrun(output.runfile,"pcoupl","no")
+#         modify_mdrun(output.runfile, "nstxout", "0")
+#         modify_mdrun(output.runfile,"nstenergy","0")
+#         modify_mdrun(output.runfile,"nstxout-compressed","5")
+#         # modify topology with given parameters
+#         up1_nm = find_config_parameter_value(input.config_file,"up1_nm")
+#         up2_nm = find_config_parameter_value(input.config_file,"up2_nm")
+#         force = find_config_parameter_value(input.config_file,"force")
+#         modify_topology(output.topology,i="1",j="4",funct=10,low=0.0,up1=up1_nm,up2=up2_nm,force_constant=force)
 
-        # depending on config parameters, topology and runfile will be adapted
-        shutil.copy(input.water_top, output.topology)
-        shutil.copy(input.base_mdp_file, output.runfile)
+include: "Snakefile_sqra"
 
-        # modify runfile with given parameters
-        trajectory_len = find_config_parameter_value(input.config_file,"traj_len")
-        integrator = find_config_parameter_value(input.config_file,"integrator")
-        coupling = find_config_parameter_value(input.config_file,"coupling_constant_ps")
-        step = find_config_parameter_value(input.config_file,"step_in_ps")
-        modify_mdrun(output.runfile, "integrator", integrator)
-        modify_mdrun(output.runfile,"nsteps",trajectory_len)
-        modify_mdrun(output.runfile,"tau_t",coupling)
-        modify_mdrun(output.runfile,"dt",step)
-        # modify topology with given parameters
-        up1_nm = find_config_parameter_value(input.config_file,"up1_nm")
-        up2_nm = find_config_parameter_value(input.config_file,"up2_nm")
-        force = find_config_parameter_value(input.config_file,"force")
-        modify_topology(output.topology,i="1",j="4",funct=10,low=0.0,up1=up1_nm,up2=up2_nm,force_constant=force)
-
-
-rule find_constant_factor:
-    input:
-        tau_msm_eigv = expand(f"{PATH_EXPERIMENTS}{{unique_id}}/{{grid_identifier}}/{{tau}}/eigenvalues_msm_{{sigma}}_{{which}}.npy", unique_id=[f"msm_tau_{i:02d}" for i in range(5, 8)],
-            grid_identifier=["80_80_very_short"], sigma=None, which="LR", tau=TAUS),
-        tau_sqra_eigv = expand(f"{PATH_EXPERIMENTS}{{unique_id}}/{{grid_identifier}}/{{lower_lim}}-{{upper_lim}}/eigenvalues_{{sigma}}_{{which}}.npy",
-            lower_lim="None",upper_lim="None",sigma=0, which="SR", unique_id=[f"sqra_tau_{i:02d}" for i in range(1, 4)],
-            grid_identifier=["80_80_very_short"])
-    output:
-        relative_its = report(f"{PATH_EXPERIMENTS}relative_its_large.png", category="comparison"),
-        comparison_table = expand(f"{PATH_EXPERIMENTS}comparison_table_{{tau}}.csv", tau=["2", "5", "10", "50"])
-    params:
-        #msm_indices_to_use = [2, 4],
-        writeout = 5,
-        timesteps = 0.002
-    run:
-        from molgri.constants import DIM_SQUARE
-        import numpy as np
-        import pandas as pd
-        import matplotlib
-        from matplotlib import ticker
-        matplotlib.use('Agg')
-        import matplotlib.pyplot as plt
-        import seaborn as sns
-        sns.set_context("notebook")
-        sns.set_palette("deep")
-        from collections import defaultdict
-        coupling_constants = [0.001, 0.01, 0.1]
-        num_tau = 2
-        #num_eigenval = 4
-        coupling_dict_msm = {"05": 0.001, "06": 0.01, "07": 0.1}
-        coupling_dict_sqra = {"01": 0.001, "02": 0.01, "03": 0.1}
-
-        # ratio first to second its
-        # go through different coupling constants
-        tau_dict = defaultdict(list)
-        for my_file_name in input.tau_msm_eigv:
-            my_tau = int(my_file_name.split("/")[3])
-            if my_tau in [2, 5, 10, 50]:
-                tau_dict[my_tau].append(my_file_name)
-
-
-
-
-
-        #sqras are easy:
-        sqra_eigenvalues_dict = dict()
-        for one_sqra_file in input.tau_sqra_eigv:
-            sqra_eigenvalues = np.load(one_sqra_file)[1:num_tau+1]
-            sqra_its = - 1/ sqra_eigenvalues
-            my_coupling = coupling_dict_sqra[one_sqra_file.split("/")[1].split("_")[-1]]
-            sqra_eigenvalues_dict[my_coupling] = sqra_its # because first one is zero
-
-
-
-        plt.ticklabel_format(style='plain',axis='x')
-        fig, ax = plt.subplots(len(tau_dict.keys()), 3, figsize=(2*3*DIM_SQUARE[0]/3, 2*len(tau_dict.keys())*DIM_SQUARE[0]/3))
-
-        ax_i = 0
-        for tau, my_msm_eigv in tau_dict.items():
-            msm_eigenvalues_dict = dict()
-            for one_msm_file in my_msm_eigv:
-                msm_eigenvalues = np.load(one_msm_file)[1:num_tau+1] # TODO: select really meaningful ones
-                my_coupling_name = one_msm_file.split("/")[1].split("_")[-1]
-                my_coupling = coupling_dict_msm[my_coupling_name]
-                msm_its = - tau*params.writeout*params.timesteps/np.log(np.abs(msm_eigenvalues))
-                msm_its = list(msm_its)
-                while len(msm_its) < num_tau:
-                    msm_its.append(np.NaN)
-                msm_eigenvalues_dict[my_coupling] = np.array(msm_its)
-            data = []
-            for i in coupling_constants:
-                to_add = []
-                to_add.extend(sqra_eigenvalues_dict[i])
-                to_add.extend(msm_eigenvalues_dict[i])
-                for j in range(num_tau):
-                    to_add.append(sqra_eigenvalues_dict[i][j]/msm_eigenvalues_dict[i][j])
-                to_add.append(sqra_eigenvalues_dict[i][0]/sqra_eigenvalues_dict[i][1])
-                to_add.append(msm_eigenvalues_dict[i][0] / msm_eigenvalues_dict[i][1])
-                data.append(to_add)
-            data = np.array(data)
-            my_tau_df = pd.DataFrame(data, index=coupling_constants, columns=["SQRA its1", "SQRA its2", "MSM its1",
-                                                                              "MSM its2", "SQRA its1/MSM its1",
-                                                                              "SQRA its2/MSM its2", "SQRA its1/SQRA its 2",
-                                                                              "MSM its 1/MSM its 2"])
-            with pd.option_context('display.max_rows',None,'display.max_columns',None):
-                print(my_tau_df)
-            my_tau_df.to_csv(output.comparison_table[ax_i])
-            sns.scatterplot(x=my_tau_df.index, y=my_tau_df["SQRA its1"], ax=ax[ax_i][0], legend=False)
-            sns.scatterplot(x=my_tau_df.index, y=my_tau_df["SQRA its2"] ,ax=ax[ax_i][0],legend=False)
-            sns.scatterplot(x=my_tau_df.index, y=my_tau_df["MSM its1"], ax=ax[ax_i][1], legend=False)
-            sns.scatterplot(x=my_tau_df.index, y=my_tau_df["MSM its2"] ,ax=ax[ax_i][1],legend=False)
-            sns.scatterplot(x=my_tau_df.index, y=my_tau_df["SQRA its1/MSM its1"], ax=ax[ax_i][2], legend=False)
-            sns.scatterplot(x=my_tau_df.index, y=my_tau_df["SQRA its2/MSM its2"] ,ax=ax[ax_i][2],legend=False)
-            sns.lineplot(x=my_tau_df.index, y=my_tau_df["SQRA its1"], ax=ax[ax_i][0], legend=False)
-            sns.lineplot(x=my_tau_df.index, y=my_tau_df["SQRA its2"] ,ax=ax[ax_i][0],legend=False)
-            sns.lineplot(x=my_tau_df.index, y=my_tau_df["MSM its1"], ax=ax[ax_i][1], legend=False)
-            sns.lineplot(x=my_tau_df.index, y=my_tau_df["MSM its2"] ,ax=ax[ax_i][1],legend=False)
-            sns.lineplot(x=my_tau_df.index, y=my_tau_df["SQRA its1/MSM its1"], ax=ax[ax_i][2], legend=False)
-            sns.lineplot(x=my_tau_df.index, y=my_tau_df["SQRA its2/MSM its2"] ,ax=ax[ax_i][2],legend=False)
-            ax[ax_i][1].set_title(r"Lag time $\tau$ ="+f"{tau*params.writeout*params.timesteps} ps")
-            for ax_j in range(3):
-                ax[ax_i][ax_j].set_xlabel("Coupling parameter [ps]")
-                ax[ax_i][ax_j].set_xscale("log")
-                ax[ax_i][ax_j].set_xticks(coupling_constants)
-                ax[ax_i][ax_j].xaxis.set_major_formatter(ticker.FormatStrFormatter('%.3f'))
-                ax[ax_i][ax_j].xaxis.set_minor_formatter(ticker.NullFormatter())
-            #ax[ax_i].ticklabel_format(useOffset=False)
-            ax[ax_i][0].set_ylabel(r"$its_{SQRA} [ps]$")
-            ax[ax_i][1].set_ylabel(r"$its_{MSM} [ps]$")
-            ax[ax_i][2].set_ylabel(r"$its_{SQRA}$/$its_{MSM}$")
-            ax_i += 1
-        fig.tight_layout()
-        fig.savefig(output.relative_its)
-
-
-
-
-
-
+# rule find_constant_factor:
+#     input:
+#         tau_msm_eigv = expand(f"{PATH_EXPERIMENTS}{{unique_id}}/{{grid_identifier}}/{{tau}}/eigenvalues_msm_{{sigma}}_{{which}}.npy", unique_id=[f"msm_tau_{i:02d}" for i in range(5, 8)],
+#             grid_identifier=["80_80_very_short"], sigma=None, which="LR", tau=TAUS),
+#         tau_sqra_eigv = expand(f"{PATH_EXPERIMENTS}{{unique_id}}/{{grid_identifier}}/{{lower_lim}}-{{upper_lim}}/eigenvalues_{{sigma}}_{{which}}.npy",
+#             lower_lim="None",upper_lim="None",sigma=0, which="SR", unique_id=[f"sqra_tau_{i:02d}" for i in range(1, 4)],
+#             grid_identifier=["80_80_very_short"])
+#     output:
+#         relative_its = report(f"{PATH_EXPERIMENTS}relative_its_large.png", category="comparison"),
+#         comparison_table = expand(f"{PATH_EXPERIMENTS}comparison_table_{{tau}}.csv", tau=["2", "5", "10", "50"])
+#     params:
+#         #msm_indices_to_use = [2, 4],
+#         writeout = 5,
+#         timesteps = 0.002
+#     run:
+#         from molgri.constants import DIM_SQUARE
+#         import numpy as np
+#         import pandas as pd
+#         import matplotlib
+#         from matplotlib import ticker
+#         matplotlib.use('Agg')
+#         import matplotlib.pyplot as plt
+#         import seaborn as sns
+#         sns.set_context("notebook")
+#         sns.set_palette("deep")
+#         from collections import defaultdict
+#         coupling_constants = [0.001, 0.01, 0.1]
+#         num_tau = 2
+#         #num_eigenval = 4
+#         coupling_dict_msm = {"05": 0.001, "06": 0.01, "07": 0.1}
+#         coupling_dict_sqra = {"01": 0.001, "02": 0.01, "03": 0.1}
+#
+#         # ratio first to second its
+#         # go through different coupling constants
+#         tau_dict = defaultdict(list)
+#         for my_file_name in input.tau_msm_eigv:
+#             my_tau = int(my_file_name.split("/")[3])
+#             if my_tau in [2, 5, 10, 50]:
+#                 tau_dict[my_tau].append(my_file_name)
+#
+#
+#
+#
+#
+#         #sqras are easy:
+#         sqra_eigenvalues_dict = dict()
+#         for one_sqra_file in input.tau_sqra_eigv:
+#             sqra_eigenvalues = np.load(one_sqra_file)[1:num_tau+1]
+#             sqra_its = - 1/ sqra_eigenvalues
+#             my_coupling = coupling_dict_sqra[one_sqra_file.split("/")[1].split("_")[-1]]
+#             sqra_eigenvalues_dict[my_coupling] = sqra_its # because first one is zero
+#
+#
+#
+#         plt.ticklabel_format(style='plain',axis='x')
+#         fig, ax = plt.subplots(len(tau_dict.keys()), 3, figsize=(2*3*DIM_SQUARE[0]/3, 2*len(tau_dict.keys())*DIM_SQUARE[0]/3))
+#
+#         ax_i = 0
+#         for tau, my_msm_eigv in tau_dict.items():
+#             msm_eigenvalues_dict = dict()
+#             for one_msm_file in my_msm_eigv:
+#                 msm_eigenvalues = np.load(one_msm_file)[1:num_tau+1] # TODO: select really meaningful ones
+#                 my_coupling_name = one_msm_file.split("/")[1].split("_")[-1]
+#                 my_coupling = coupling_dict_msm[my_coupling_name]
+#                 msm_its = - tau*params.writeout*params.timesteps/np.log(np.abs(msm_eigenvalues))
+#                 msm_its = list(msm_its)
+#                 while len(msm_its) < num_tau:
+#                     msm_its.append(np.NaN)
+#                 msm_eigenvalues_dict[my_coupling] = np.array(msm_its)
+#             data = []
+#             for i in coupling_constants:
+#                 to_add = []
+#                 to_add.extend(sqra_eigenvalues_dict[i])
+#                 to_add.extend(msm_eigenvalues_dict[i])
+#                 for j in range(num_tau):
+#                     to_add.append(sqra_eigenvalues_dict[i][j]/msm_eigenvalues_dict[i][j])
+#                 to_add.append(sqra_eigenvalues_dict[i][0]/sqra_eigenvalues_dict[i][1])
+#                 to_add.append(msm_eigenvalues_dict[i][0] / msm_eigenvalues_dict[i][1])
+#                 data.append(to_add)
+#             data = np.array(data)
+#             my_tau_df = pd.DataFrame(data, index=coupling_constants, columns=["SQRA its1", "SQRA its2", "MSM its1",
+#                                                                               "MSM its2", "SQRA its1/MSM its1",
+#                                                                               "SQRA its2/MSM its2", "SQRA its1/SQRA its 2",
+#                                                                               "MSM its 1/MSM its 2"])
+#             with pd.option_context('display.max_rows',None,'display.max_columns',None):
+#                 print(my_tau_df)
+#             my_tau_df.to_csv(output.comparison_table[ax_i])
+#             sns.scatterplot(x=my_tau_df.index, y=my_tau_df["SQRA its1"], ax=ax[ax_i][0], legend=False)
+#             sns.scatterplot(x=my_tau_df.index, y=my_tau_df["SQRA its2"] ,ax=ax[ax_i][0],legend=False)
+#             sns.scatterplot(x=my_tau_df.index, y=my_tau_df["MSM its1"], ax=ax[ax_i][1], legend=False)
+#             sns.scatterplot(x=my_tau_df.index, y=my_tau_df["MSM its2"] ,ax=ax[ax_i][1],legend=False)
+#             sns.scatterplot(x=my_tau_df.index, y=my_tau_df["SQRA its1/MSM its1"], ax=ax[ax_i][2], legend=False)
+#             sns.scatterplot(x=my_tau_df.index, y=my_tau_df["SQRA its2/MSM its2"] ,ax=ax[ax_i][2],legend=False)
+#             sns.lineplot(x=my_tau_df.index, y=my_tau_df["SQRA its1"], ax=ax[ax_i][0], legend=False)
+#             sns.lineplot(x=my_tau_df.index, y=my_tau_df["SQRA its2"] ,ax=ax[ax_i][0],legend=False)
+#             sns.lineplot(x=my_tau_df.index, y=my_tau_df["MSM its1"], ax=ax[ax_i][1], legend=False)
+#             sns.lineplot(x=my_tau_df.index, y=my_tau_df["MSM its2"] ,ax=ax[ax_i][1],legend=False)
+#             sns.lineplot(x=my_tau_df.index, y=my_tau_df["SQRA its1/MSM its1"], ax=ax[ax_i][2], legend=False)
+#             sns.lineplot(x=my_tau_df.index, y=my_tau_df["SQRA its2/MSM its2"] ,ax=ax[ax_i][2],legend=False)
+#             ax[ax_i][1].set_title(r"Lag time $\tau$ ="+f"{tau*params.writeout*params.timesteps} ps")
+#             for ax_j in range(3):
+#                 ax[ax_i][ax_j].set_xlabel("Coupling parameter [ps]")
+#                 ax[ax_i][ax_j].set_xscale("log")
+#                 ax[ax_i][ax_j].set_xticks(coupling_constants)
+#                 ax[ax_i][ax_j].xaxis.set_major_formatter(ticker.FormatStrFormatter('%.3f'))
+#                 ax[ax_i][ax_j].xaxis.set_minor_formatter(ticker.NullFormatter())
+#             #ax[ax_i].ticklabel_format(useOffset=False)
+#             ax[ax_i][0].set_ylabel(r"$its_{SQRA} [ps]$")
+#             ax[ax_i][1].set_ylabel(r"$its_{MSM} [ps]$")
+#             ax[ax_i][2].set_ylabel(r"$its_{SQRA}$/$its_{MSM}$")
+#             ax_i += 1
+#         fig.tight_layout()
+#         fig.savefig(output.relative_its)
+#
+#
+#
+#
+#
+#
+#

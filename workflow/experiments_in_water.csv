@@ -1,9 +1,12 @@
 unique_id,coupling_constant_ps,integrator,traj_len,up1_nm,up2_nm,force,step_in_ps
+msm_water_in_water_ex,1,md,100000,0.5,0.7,500.0,0.002
 msm_water_in_water_01,1,md,10000000,0.5,0.7,500.0,0.002
-msm_water_in_water_02,10,md,10000,0.5,0.7,500.0,0.002
-msm_water_in_water_03,1,md,100000,0.5,0.7,500.0,0.002
+msm_water_in_water_02,10,md,1000000,0.5,0.7,500.0,0.002
+msm_water_in_water_03,1,md,1000000,0.5,0.7,500.0,0.002
 msm_water_in_water_04,10,md,100000,0.5,0.7,500.0,0.002
 msm_water_in_water_05,1,md,10000000,0.5,0.7,500.0,0.002
 msm_water_in_water_06,10,md,10000000,0.5,0.7,500.0,0.002
 msm_water_in_water_07,1,md,100000000,0.5,0.7,500.0,0.002
 msm_water_in_water_08,10,md,100000000,0.5,0.7,500.0,0.002
+msm_water_in_water_09,1,md,100000000,0.5,0.7,500.0,0.002
+msm_water_in_water_10,10,md,100000000,0.5,0.7,500.0,0.002

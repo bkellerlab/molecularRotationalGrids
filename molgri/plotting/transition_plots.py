@@ -15,7 +15,7 @@ from plotly.subplots import make_subplots
 
 WIDTH = 600
 HEIGHT = 600
-NUM_EIGENV = 6
+NUM_EIGENV = 10
 
 class PlotlyTransitions:
 
@@ -36,7 +36,7 @@ class PlotlyTransitions:
         Args:
             path_to_save (): path to which to save (recommended: .png, pdfs have weird errors)
         """
-        self.fig.write_image(path_to_save, width=width, height=height)
+        self.fig.write_image(path_to_save, width=width, height=height, scale=2)
         self.fig = go.Figure()
 
     def plot_eigenvalues(self, index_tau: int = 0, **kwargs) -> None:
@@ -101,8 +101,15 @@ class PlotlyTransitions:
 
         """
         eigenvecs = np.load(self.path_eigenvectors)
+        print(np.min([NUM_EIGENV, eigenvecs.shape[1]]))
+        real_num_eigenv = int(np.min([NUM_EIGENV, eigenvecs.shape[1]]))
+        print("NUM EIGENV", NUM_EIGENV, "len veigenvecs", len(eigenvecs.T), "real", real_num_eigenv)
+        if real_num_eigenv == 0:
+            return
 
-        self.fig = make_subplots(rows=NUM_EIGENV, cols=1, subplot_titles=[f"Eigenvector {i}" for i in range(NUM_EIGENV)])
+        self.fig = make_subplots(rows=real_num_eigenv, cols=1, shared_yaxes='all')
+        #subplot_titles=[f"Eigenvector {i}" for i in range(
+        #    NUM_EIGENV)]
 
 
 
@@ -110,10 +117,16 @@ class PlotlyTransitions:
         # else: (number_cells, num_eigenvectors)
         if len(eigenvecs.shape) == 3:
             eigenvecs = eigenvecs[index_tau]
-        for i in range(NUM_EIGENV):
+
+        for i in range(real_num_eigenv):
             data = eigenvecs.T[i]
-            self.fig.add_trace(go.Scatter(y=data), row=i+1, col=1)  # 1-based counting
-            self.fig.update_layout(yaxis=dict(range=[np.min(eigenvecs), np.max(eigenvecs)]))
+            self.fig.add_trace(go.Scatter(y=data, line_color="black"), row=i+1, col=1)  # 1-based counting
+        for i in range(real_num_eigenv):
+            if i == 0:
+                self.fig['layout'][f'yaxis']['title'] = f"Eigenv. {i}"
+            else:
+                self.fig['layout'][f'yaxis{i+1}']['title'] = f"Eigenv. {i}"
+        self.fig['layout'][f'xaxis6']['title'] = "Grid cell index"
         self.fig.update_layout(showlegend=False)
 
     def plot_heatmap(self, index_tau: int = 0):
@@ -137,9 +150,9 @@ class PlotlyTransitions:
         # cut-off because the values are over a range of magnitudes
         self.fig.update_coloraxes(cmin=-5, cmid=0, cmax=5)
 
-    def plot_its_msm(self, writeout=5, time_step_ps=0.02) -> None:
+    def plot_its_msm(self, writeout=5, time_step_ps=0.002) -> None:
         xs = self.tau_array * writeout * time_step_ps
-        self.fig = make_subplots(1, 2, shared_yaxes=True)
+        self.fig = make_subplots(1, 2, shared_yaxes=False)
         row=1
         all_eigenvals = []
         for el in self.path_eigenvalues:
@@ -156,7 +169,9 @@ class PlotlyTransitions:
             # gray triangle
             self.fig.add_scatter(x=[0, xs[-1], xs[-1]], y=[0, 0, xs[-1]], mode="lines", fill="toself", fillcolor="gray",
                                  line=dict(width=0), row=row, col=col)
-            self.fig.update_layout(showlegend=False, xaxis_title=r"$\tau [ps]$", yaxis_title="ITS [ps]")
+            self.fig.update_layout(showlegend=False, xaxis_title=r"$\tau [ps]$", yaxis_title=r"ITS [ps]")
+            self.fig.update_xaxes(title_text=r"$\tau [ps]$", row=1, col=col)
+            self.fig.update_yaxes(title_text=r"ITS [ps]", row=1, col=col)
             # eigenvalues
             cols = DEFAULT_PLOTLY_COLORS
 
@@ -164,15 +179,15 @@ class PlotlyTransitions:
             max_its = 0
             for i, eigenvals in enumerate(all_eigenvals.T):
                 its = np.array(-self.tau_array * writeout * time_step_ps / np.log(np.abs(eigenvals)))
+                print("MSM ITS", self.path_eigenvalues, "\n", its)
                 if np.any(its) > max_its:
                     max_its = np.max(its)
                 if col==2:
-                    xs = xs[:10]
-                    its = its[:10]
+                    xs = xs[:5]
+                    its = its[:5]
                     self.fig.update_xaxes(range=[np.min(xs), np.max(xs)], row=row, col=col)
                 self.fig.add_scatter(x=xs, y=its, mode="lines+markers", line=dict(width=2, color=cols[i]), row=row,
                                      col=col)
-            self.fig.update_yaxes(range=[0, max_its], row=row, col=col)
 
 
 

@@ -1,24 +1,106 @@
 """
 All of the workflows relating to pseudotrajectories, subsequent SQRAs and their related outputs (figures ...)
 """
-from time import time
-
-import numpy as np
-
 # add molgri directory
 import sys
-
-from workflow.snakemake_utils import find_config_parameter_value
-
 sys.path.append(".")
-
-from molgri.paths import PATH_OUTPUT_AUTOSAVE, PATH_INPUT_BASEGRO, PATH_EXPERIMENTS
 
 include: "Snakefile_grids"
 
-wildcard_constraints:
-    unique_id=".*sqra.*"
+import numpy as np
 
+from workflow.snakemake_utils import find_config_parameter_value, modify_mdrun, modify_topology
+
+from molgri.paths import PATH_OUTPUT_AUTOSAVE, PATH_INPUT_BASEGRO, PATH_EXPERIMENTS
+
+#wildcard_constraints:
+#    unique_id=".*sqra.*"
+
+# rule all:
+#     input:
+#         #f"{PATH_EXPERIMENTS}my_sqra_ex2/80_80_very_short/indices_lowest_E.csv"
+#         expand(f"{PATH_EXPERIMENTS}{{unique_id}}/{{grid_identifier}}/its.csv",
+#             unique_id=[f"SQRA_electrostatic_{elec}_cc_{cc}" for elec in ["1", "80"] for cc in [ "0001"]],
+#             grid_identifier=["alternative"]),
+#          sqra1 = expand(f"{PATH_EXPERIMENTS}{{unique_id}}/{{grid_identifier}}/{{lower_lim}}-{{upper_lim}}/its_{{sigma}}_{{which}}.png",
+#              unique_id=[f"SQRA_electrostatic_{elec}_cc_{cc}" for elec in ["1", "80"] for cc in ["0001"]],grid_identifier=["alternative"],sigma=[
+#                  0],which=["SR"],lower_lim="None",upper_lim=["None"]),  #["300grand_long", "80_80_30_short"]
+#          sqra2=expand(f"{PATH_EXPERIMENTS}{{unique_id}}/{{grid_identifier}}/{{lower_lim}}-{{upper_lim}}/eigenvector{{i}}_{{sigma}}_{{which}}_sqra.tga", i=[0],
+#       unique_id=[f"SQRA_electrostatic_{elec}_cc_{cc}" for elec in ["1", "80"] for cc in ["0001"]], grid_identifier=["alternative"], sigma=[0], which=["SR"], lower_lim="None", upper_lim=["None"]),   #["300grand_long", "80_80_30_short"]
+
+# rule create_config_file:
+#     """
+#     The point here is to get the unique ID of the experiment, read all of its parameters from a database of experiments
+#     and write them to a file within this experiment folder.
+#     """
+#     input:
+#         experiments_database = "workflow/experiments.csv"
+#     output:
+#         config_file = f"{PATH_EXPERIMENTS}{{unique_id}}/experiment_config.txt"
+#     run:
+#         # read in all parameters
+#         import pandas as pd
+#         experiments = pd.read_csv(input.experiments_database, index_col=0)
+#         columns = experiments.columns
+#         with open(output.config_file, "w") as f:
+#             print(experiments, wildcards.unique_id)
+#             for i, parameter_value in enumerate(experiments.loc[wildcards.unique_id]):
+#                 f.write(f"{columns[i]}={parameter_value}\n")
+#
+#
+rule prepare_water_water:
+    """
+    Here, everything is specific to a water-water system set up. Create a new folder in experiments/ and populate it
+    with correctly defined inputs for the gromacs run etc.
+    """
+    input:
+        water_gro = f"{PATH_INPUT_BASEGRO}H2O.gro",
+        water_top = f"{PATH_INPUT_BASEGRO}H2O_H2O.top",
+        base_mdp_file = f"{PATH_INPUT_BASEGRO}mdrun.mdp",
+        select_group=f"{PATH_INPUT_BASEGRO}select_group_zero",
+        select_energy=f"{PATH_INPUT_BASEGRO}select_energy_five",
+        select_centers=f"{PATH_INPUT_BASEGRO}select_3_and_0",
+        index_m1=f"{PATH_INPUT_BASEGRO}index_first_mol.ndx",
+        config_file = f"{PATH_EXPERIMENTS}{{unique_id}}/experiment_config.txt"
+    output:
+        molecule1 = f"{PATH_EXPERIMENTS}{{unique_id}}/m1.gro",
+        molecule2 = f"{PATH_EXPERIMENTS}{{unique_id}}/m2.gro",
+        runfile = f"{PATH_EXPERIMENTS}{{unique_id}}/mdrun.mdp",
+        topology = f"{PATH_EXPERIMENTS}{{unique_id}}/topology.top",
+        select_group = f"{PATH_EXPERIMENTS}{{unique_id}}/select_group",
+        select_energy = f"{PATH_EXPERIMENTS}{{unique_id}}/select_energy",
+        select_centers = f"{PATH_EXPERIMENTS}{{unique_id}}/select_centers",
+        index_m1 = f"{PATH_EXPERIMENTS}{{unique_id}}/index_m1.ndx",
+    run:
+        import shutil
+        # stuff that can be copied without being modified
+        shutil.copy(input.water_gro,output.molecule1)
+        shutil.copy(input.water_gro,output.molecule2)
+        shutil.copy(input.select_group, output.select_group)
+        shutil.copy(input.select_energy,output.select_energy)
+        shutil.copy(input.select_centers,output.select_centers)
+        shutil.copy(input.index_m1, output.index_m1)
+
+        # depending on config parameters, topology and runfile will be adapted
+        shutil.copy(input.water_top, output.topology)
+        shutil.copy(input.base_mdp_file, output.runfile)
+
+        # modify runfile with given parameters
+        trajectory_len = find_config_parameter_value(input.config_file,"traj_len")
+        integrator = find_config_parameter_value(input.config_file,"integrator")
+        coupling = find_config_parameter_value(input.config_file,"coupling_constant_ps")
+        step = find_config_parameter_value(input.config_file,"step_in_ps")
+        dielectric_constant = find_config_parameter_value(input.config_file,"epsilon-r")
+        modify_mdrun(output.runfile, "integrator", "md")
+        modify_mdrun(output.runfile,"nsteps",trajectory_len)
+        modify_mdrun(output.runfile,"tau_t",coupling)
+        modify_mdrun(output.runfile,"dt",step)
+        modify_mdrun(output.runfile,"epsilon-r",dielectric_constant)
+        # modify topology with given parameters
+        up1_nm = find_config_parameter_value(input.config_file,"up1_nm")
+        up2_nm = find_config_parameter_value(input.config_file,"up2_nm")
+        force = find_config_parameter_value(input.config_file,"force")
+        modify_topology(output.topology,i="1",j="4",funct=10,low=0.0,up1=up1_nm,up2=up2_nm,force_constant=force)
 
 rule run_pt:
     """
@@ -47,8 +129,9 @@ rule run_pt:
         my_pt = Pseudotrajectory(my_molecule2,my_grid)
 
         # write out .gro and .xtc files
-        my_writer = PtWriter("",my_molecule1)
-        my_writer.box = (params.cell_size_A, params.cell_size_A, params.cell_size_A, 90, 90, 90)
+        #my_writer = PtWriter("",my_molecule1)
+        box = (params.cell_size_A, params.cell_size_A, params.cell_size_A, 90, 90, 90)
+        my_writer = PtWriter("", my_molecule1,box)
         my_writer.write_full_pt(my_pt,path_structure=output.structure,path_trajectory=output.trajectory)
 
 
@@ -65,6 +148,10 @@ rule gromacs_rerun:
         topology = f"{PATH_EXPERIMENTS}{{unique_id}}/topology.top",
         select_energy = f"{PATH_EXPERIMENTS}{{unique_id}}/select_energy",
     shadow: "copy-minimal"
+    log:
+        log = f"{PATH_EXPERIMENTS}{{unique_id}}/{{grid_identifier}}/logging_gromacs.log"
+    benchmark:
+        f"{PATH_EXPERIMENTS}{{unique_id}}/{{grid_identifier}}/gromacs_benchmark.txt"
     output:
         energy = f"{PATH_EXPERIMENTS}{{unique_id}}/{{grid_identifier}}/energy.xvg",
     # use with arguments like path_structure path_trajectory path_topology path_default_files path_output_energy
@@ -73,9 +160,35 @@ rule gromacs_rerun:
         #!/bin/bash
         export PATH="/home/janjoswig/local/gromacs-2022/bin:$PATH"
         gmx22 grompp -f {input.runfile} -c {input.structure} -p {input.topology} -o result.tpr
-        gmx22 mdrun -s result.tpr -rerun {input.trajectory}
+        gmx22 mdrun -s result.tpr -rerun {input.trajectory} -g {log.log}
         gmx22 energy -f ener.edr -o {output.energy} < {input.select_energy}
         """
+
+rule lowest_e_structures:
+    input:
+        energy = f"{PATH_EXPERIMENTS}{{unique_id}}/{{grid_identifier}}/all_energies.xvg",
+    output:
+        list_structures = f"{PATH_EXPERIMENTS}{{unique_id}}/{{grid_identifier}}/indices_lowest_E.csv"
+    params:
+        num = 10
+    run:
+        from molgri.space.utils import k_argmin_in_array
+        from molgri.molecules.parsers import XVGParser
+
+        my_parsed = XVGParser(input.energy)
+        energies2 = my_parsed.get_parsed_energy().get_energies("Coulomb (SR)")
+        energies5 = my_parsed.get_parsed_energy().get_energies("LJ (SR)")
+        energies6 = my_parsed.get_parsed_energy().get_energies("Potential")
+        energies7 = my_parsed.get_parsed_energy().get_energies("Disper. corr.")
+
+        all_lowest_ind = k_argmin_in_array(energies6, k=params.num)
+        all_lowest_E = energies6[all_lowest_ind]
+        sort_index = np.argsort(all_lowest_E)
+        sorted_indices = all_lowest_ind[sort_index]
+        print("POTENTIAL")
+        print(", ".join([str(x+1) for x in all_lowest_ind]))
+        print(all_lowest_E)
+        np.savetxt(output.list_structures, sorted_indices)
 
 
 rule run_sqra:
@@ -93,7 +206,6 @@ rule run_sqra:
         rate_matrix = f"{PATH_EXPERIMENTS}{{unique_id}}/{{grid_identifier}}/{{lower_lim}}-{{upper_lim}}/rate_matrix.npz",
         index_list = f"{PATH_EXPERIMENTS}{{unique_id}}/{{grid_identifier}}/{{lower_lim}}-{{upper_lim}}/index_list.npy",
     params:
-        D=0.0126,# diffusion constant in Angstrom^2/ps
         T=273,# temperature in K
         energy_type="Potential",
         m_h2o = 3e-26 #kg
@@ -102,12 +214,13 @@ rule run_sqra:
         from molgri.molecules.transitions import SQRA
         from scipy import sparse
         from scipy.constants import k as k_B
+        from scipy.constants import pi
 
-        tau = coupling = find_config_parameter_value(input.config_file,"coupling_constant_ps")
+        tau = float(find_config_parameter_value(input.config_file,"coupling_constant_ps")) * 1e-12 # now in s
 
-        D = k_B * params.T * float(tau) * 1e-12 / params.m_h2o *1e8 # units should be A^2/ps
-        print(f"Diffusion const D={D}")
-
+        D = k_B * params.T *tau / params.m_h2o  # in m^2/s
+        D*= 1e8  # now in A^2/ps
+        print(f"Diffusion const D={D} ")
 
         # load input files
         all_volumes = np.load(input.volumes)
@@ -131,6 +244,8 @@ rule run_sqra:
         rate_matrix = sqra.get_rate_matrix(D,params.T)
         rate_matrix, index_list = sqra.cut_and_merge(rate_matrix,T=params.T,lower_limit=lower_limit,
             upper_limit=upper_limit)
+
+        print(np.max(rate_matrix.data),np.min(rate_matrix.data),np.average(rate_matrix.data),np.std(rate_matrix.data))
 
         # saving to file
         sparse.save_npz(output.rate_matrix,rate_matrix)
@@ -188,6 +303,111 @@ rule print_rate_size:
             sns.scatterplot(data=my_df, x=r"Lower lim [k_BT]", y=f"Eigenvalue {i}", hue=r"Upper lim [k_BT]", ax=subax)
         plt.savefig(output.eigenvalue_size)
 
+rule transition_from_rate_matrix:
+    input:
+        #rate_matrix = f"{PATH_EXPERIMENTS}SQRA_electrostatic_1_cc_0001/80_80_very_short/None-None/rate_matrix.npz"
+        rate_matrix = f"{PATH_EXPERIMENTS}one_sqra/small_ideal/None-100/rate_matrix.npz",
+    output:
+        transition_matrix=f"{PATH_EXPERIMENTS}one_sqra/small_ideal/None-100/transition_matrix.npz"
+    params:
+        tau_msm = 0.1, # ps
+    run:
+        from scipy import sparse
+        from scipy.sparse.linalg import expm
+
+        rate_matrix = sparse.load_npz(input.rate_matrix)
+        transition_matrix = expm(params.tau_msm * rate_matrix)
+        sparse.save_npz(output.transition_matrix, transition_matrix)
+
+rule run_pcca_plus:
+    input:
+        eigenvectors = f"experiments/SQRA_electrostatic_1_cc_0001/80_80_very_short/None-None/eigenvectors_0_SR.npy",
+        #eigenvectors= f"/home/hanaz63/2024_molgri2/nobackup/important_experiments_backup/vacuum_msm_02/80_80_very_short/10/eigenvectors_msm_None_LR.npy",
+        assignments = f"/home/hanaz63/2024_molgri2/nobackup/important_experiments_backup/vacuum_msm_02/80_80_very_short/assignments.npy",
+        #rate_matrix= f"{PATH_EXPERIMENTS}one_sqra/small_ideal/None-None/rate_matrix.npz",
+    params:
+        tau_msm = 0.1,
+        num_states = 4
+    run:
+        from scipy import sparse
+        from sklearn_extra.cluster import CommonNNClustering
+        from sklearn.cluster import DBSCAN, KMeans, OPTICS
+        import pandas as pd
+
+        eigenvectors = np.load(input.eigenvectors)[:,:6]
+        print("SHAPE", eigenvectors.shape)
+
+        # OPTICS min samples 10 max eps inf
+
+        # for eps in [0.0000001]:
+        #     for min_samples in [2 ]:
+        #         #clustering = CommonNNClustering(eps=eps, min_samples=min_samples).fit(eigenvectors)
+        #         #print("EPS", eps, "MIN", min_samples)
+        #         clustering = KMeans(n_clusters=12).fit(eigenvectors)
+        #         my_labels = clustering.labels_
+        #         unique, counts = np.unique(my_labels, return_counts=True)
+        #         print(unique[np.where(counts>10)[0]], counts[np.where(counts>10)[0]])
+        #         np.save("labels_msm.npy", my_labels)
+
+
+        import matplotlib.pyplot as plt
+        import seaborn as sns
+
+        sns.set_style("white")
+        fig, ax = plt.subplots(1,1,subplot_kw={"projection": "3d"})
+        c = np.load("labels.npy").astype(int)
+        palette_sqra = ["black", "yellow", "orange", "green", "blue", "cyan", "purple", "gray", "pink", "red"]  #pop over 10
+        #palette = ["black", "yellow", "orange", "green", "blue", "cyan", "purple", "gray", "pink", "red"]   # pop over 20
+
+        assignments = np.load(input.assignments)
+        first_evec = eigenvectors.T[1]
+        second_evec = eigenvectors.T[2]
+        third_evec = eigenvectors.T[3]
+        unique, counts = np.unique(c,return_counts=True)
+        #print(unique, counts)
+        for i, label in enumerate(unique[np.where(counts>1)[0]]):
+            cluster = np.where(c == label)[0]
+            #ssign = np.nonzero(np.in1d(assignments,cluster))[0]
+            #assign = np.where([assignments==k for k in cluster])[0]
+            #print(assign[:10], assign.shape)
+            #print([pa[i],]*len(cluster))
+            ax.scatter(first_evec[cluster],second_evec[cluster],third_evec[cluster],c=[palette_sqra[i],]*len(cluster))
+            population = len(cluster)
+            if population > 50:
+                print(f"{label} with population {len(cluster)} ######## \n",", ".join([str(x + 1) for x in np.random.choice(cluster,30)]))
+            else:
+                print(f"{label} with population {len(cluster)} ######## \n",", ".join([str(x + 1) for x in cluster]))
+            print()
+
+        plt.savefig("myplot.png", dpi=600)
+        #plt.show()
+
+        # for label, count in zip(unique, counts):
+        #     if count > 100:
+
+
+
+
+        # non-negative elements
+        # assert np.all(transition_matrix >= 0), "Contains negative elements"
+        # # elements of each row sum up to one
+
+
+        #.
+        #
+        # for i, row in enumerate(sym_transition_matrix):
+        #     sym_transition_matrix[i] /= np.sum(row)
+        #     #if not np.isclose(np.sum(row), 1):
+        #     #    print(np.sum(row))
+        #
+        # msm = MarkovStateModel(sym_transition_matrix,stationary_distribution=stationary_distribution,
+        #     reversible=True,n_eigenvalues=None,ncv=None,count_model=None,transition_matrix_tolerance=1e-04,lagtime=None)
+        # print(msm.transition_matrix_tolerance)
+        #
+        # my_pcca = msm.pcca(params.num_states)
+        #
+        # print(my_pcca.__dict__)
+
 rule run_decomposition:
     """
     As output we want to have eigenvalues, eigenvectors. Es input we get a (sparse) rate matrix.
@@ -197,8 +417,10 @@ rule run_decomposition:
     output:
         eigenvalues = f"{PATH_EXPERIMENTS}{{unique_id}}/{{grid_identifier}}/{{lower_lim}}-{{upper_lim}}/eigenvalues_{{sigma}}_{{which}}.npy",
         eigenvectors = f"{PATH_EXPERIMENTS}{{unique_id}}/{{grid_identifier}}/{{lower_lim}}-{{upper_lim}}/eigenvectors_{{sigma}}_{{which}}.npy",
+    benchmark:
+        f"{PATH_EXPERIMENTS}{{unique_id}}/{{grid_identifier}}/{{lower_lim}}-{{upper_lim}}/decomposition_benchmark_{{sigma}}_{{which}}..txt"
     params:
-        tol=1e-8,
+        tol=1e-5,
         maxiter=100000,
     run:
         from scipy import sparse
@@ -231,14 +453,14 @@ rule run_plot_everything_sqra:
     output:
         plot_eigenvectors=f"{PATH_EXPERIMENTS}{{unique_id}}/{{grid_identifier}}/{{lower_lim}}-{{upper_lim}}/eigenvectors_{{sigma}}_{{which}}.png",
         plot_eigenvalues=f"{PATH_EXPERIMENTS}{{unique_id}}/{{grid_identifier}}/{{lower_lim}}-{{upper_lim}}/eigenvalues_{{sigma}}_{{which}}.png",
-        plot_its=report(f"{PATH_EXPERIMENTS}{{unique_id}}/{{grid_identifier}}/{{lower_lim}}-{{upper_lim}}/its_{{sigma}}_{{which}}.png", category="SQRA"),
+        plot_its=report(f"{PATH_EXPERIMENTS}{{unique_id}}/{{grid_identifier}}/{{lower_lim}}-{{upper_lim}}/its_{{sigma}}_{{which}}.png", category="{unique_id}"),
     run:
         from molgri.plotting.transition_plots import PlotlyTransitions
 
         pt = PlotlyTransitions(is_msm=False,path_eigenvalues=input.eigenvalues,path_eigenvectors=input.eigenvectors)
         # eigenvectors
         pt.plot_eigenvectors_flat()
-        pt.save_to(output.plot_eigenvectors,height=1200)
+        pt.save_to(output.plot_eigenvectors,height=800, width=400)
         # eigenvalues
         pt.plot_eigenvalues()
         pt.save_to(output.plot_eigenvalues)
@@ -255,23 +477,53 @@ rule compile_vmd_log:
     play <vmdlog file>
     """
     input:
+        structure = f"{PATH_EXPERIMENTS}{{unique_id}}/{{grid_identifier}}/structure.gro",
+        trajectory = f"{PATH_EXPERIMENTS}{{unique_id}}/{{grid_identifier}}/trajectory.trr",
         eigenvectors = f"{PATH_EXPERIMENTS}{{unique_id}}/{{grid_identifier}}/{{lower_lim}}-{{upper_lim}}/eigenvectors_{{sigma}}_{{which}}.npy",
         index_list = f"{PATH_EXPERIMENTS}{{unique_id}}/{{grid_identifier}}/{{lower_lim}}-{{upper_lim}}/index_list.npy",
         # in the script only the numbers for frames need to be changed.
-        script="molgri/scripts/vmd_show_eigenvectors"
+        script="molgri/scripts/vmd_show_eigenvectors_sqra"
     output:
-        vmdlog = f"{PATH_EXPERIMENTS}{{unique_id}}/{{grid_identifier}}/{{lower_lim}}-{{upper_lim}}/eigenvectors_{{sigma}}_{{which}}_vmdlog_sqra"
+        vmdlog = f"{PATH_EXPERIMENTS}{{unique_id}}/{{grid_identifier}}/{{lower_lim}}-{{upper_lim}}/eigenvectors_{{sigma}}_{{which}}_vmdlog_sqra",
+        fig_tga = expand(f"{PATH_EXPERIMENTS}{{unique_id}}/{{grid_identifier}}/{{lower_lim}}-{{upper_lim}}/eigenvector{{i}}_{{sigma}}_{{which}}_sqra.tga", i=[0, 1, 2, 3, 4], allow_missing=True),
+        fig_png= report(expand(f"{PATH_EXPERIMENTS}{{unique_id}}/{{grid_identifier}}/{{lower_lim}}-{{upper_lim}}/eigenvector{{i}}_{{sigma}}_{{which}}_sqra.png",i=[0, 1, 2, 3, 4],allow_missing=True),
+        category="{unique_id}")
     params:
-        num_extremes=50,
+        num_extremes=30,
         num_eigenvec=6  # only show the first num_eigenvec
     run:
+        import subprocess
         from molgri.plotting.create_vmdlog import show_eigenvectors
 
         # load eigenvectors
         eigenvectors = np.load(input.eigenvectors)
         index_list = np.load(input.index_list,allow_pickle=True)
-        if not index_list:
+        if not np.any(index_list):
             index_list = None
         else:
             index_list = list(index_list)
-        show_eigenvectors(input.script,output.vmdlog,eigenvector_array=eigenvectors,num_eigenvec=params.num_eigenvec,num_extremes=params.num_extremes,index_list=index_list)
+        print(" ")
+        show_eigenvectors(input.script,output.vmdlog,eigenvector_array=eigenvectors,num_eigenvec=params.num_eigenvec,
+            num_extremes=params.num_extremes,index_list=index_list, figure_paths=output.fig_tga)
+        shell("vmd {input.structure} {input.trajectory} < {output.vmdlog}")
+        for el_tga, el_png in zip(output.fig_tga, output.fig_png):
+            shell("convert {el_tga} {el_png}")
+
+rule print_its:
+    input:
+        eigenvalues = expand(f"{PATH_EXPERIMENTS}{{unique_id}}/{{grid_identifier}}/{{lower_lim}}-{{upper_lim}}/eigenvalues_{{sigma}}_{{which}}.npy",
+            sigma="0", which="SR", lower_lim="None", upper_lim="None", allow_missing=True),
+    output:
+        data = f"{PATH_EXPERIMENTS}{{unique_id}}/{{grid_identifier}}/its.csv"
+    run:
+        import pandas as pd
+
+        all_its = []
+        for one_eigenvalues_file in input.eigenvalues:
+            eigenvals = np.load(one_eigenvalues_file)[1:]  # dropping the first one as it should be zero and cause issues
+            all_its.append([-1 / (eigenval) for eigenval in eigenvals])
+        my_df = pd.DataFrame(all_its, columns=[f"ITS {i} [ps]" for i in range(1, len(all_its[0])+1)])
+        my_df.to_csv(output.data)
+
+
+

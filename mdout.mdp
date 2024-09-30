@@ -1,17 +1,17 @@
 ;
 ;	File 'mdout.mdp' was generated
 ;	By user: hanaz63 (399461)
-;	On host: qcw31
-;	At date: Fri Aug 30 14:18:57 2024
+;	On host: qcm08
+;	At date: Sat Sep 28 20:22:19 2024
 ;
 ;	Created by:
 ;	                      :-) GROMACS - gmx grompp, 2022 (-:
 ;	
 ;	Executable:   /home/janjoswig/local/gromacs-2022/bin/gmx22
 ;	Data prefix:  /home/janjoswig/local/gromacs-2022
-;	Working dir:  /home/hanaz63/2024_molgri2/nobackup/molecularRotationalGrids/.snakemake/shadow/tmpdy5d8bkb
+;	Working dir:  /home/hanaz63/2024_molgri2/nobackup/molecularRotationalGrids/.snakemake/shadow/tmpb0_922na
 ;	Command line:
-;	  gmx22 grompp -f experiments/msm_mini3/mdrun.mdp -o result.tpr -c experiments/msm_mini3/structure.gro -p experiments/msm_mini3/topology.top
+;	  gmx22 grompp -f experiments/vacuum_msm_01/mdrun.mdp -o result.tpr -c experiments/vacuum_msm_01/structure.gro -p experiments/vacuum_msm_01/topology.top
 
 ; VARIOUS PREPROCESSING OPTIONS
 ; Preprocessor information: use cpp syntax.
@@ -21,11 +21,11 @@ include                  =
 define                   = 
 
 ; RUN CONTROL PARAMETERS
-integrator               = md
+integrator               = sd
 ; Start time and timestep in ps
 tinit                    = 0
-dt                       = 0.002
-nsteps                   = 100000
+dt                       = 0.001
+nsteps                   = 40000000
 ; For exact run continuation or redoing part of a run
 init-step                = 0
 ; Part index is updated automatically on checkpointing (keeps files separate)
@@ -61,15 +61,15 @@ rtpi                     = 0.05
 
 ; OUTPUT CONTROL OPTIONS
 ; Output frequency for coords (x), velocities (v) and forces (f)
-nstxout                  = 10
+nstxout                  = 0
 nstvout                  = 0
 nstfout                  = 0
 ; Output frequency for energies to log file and energy file
 nstlog                   = 0
 nstcalcenergy            = 100
-nstenergy                = 10
+nstenergy                = 0
 ; Output frequency and precision for .xtc file
-nstxout-compressed       = 0
+nstxout-compressed       = 5
 compressed-x-precision   = 1000
 ; This selects the subset of atoms for the compressed
 ; trajectory file. You can select multiple groups. By
@@ -95,12 +95,12 @@ rlist                    = 1
 
 ; OPTIONS FOR ELECTROSTATICS AND VDW
 ; Method for doing electrostatics
-coulombtype              = pme
+coulombtype              = cut-off
 coulomb-modifier         = Potential-shift-Verlet
 rcoulomb-switch          = 0
 rcoulomb                 = 1.4
 ; Relative dielectric constant for the medium and the reaction field
-epsilon-r                = 1
+epsilon-r                = 1.0
 epsilon-rf               = 0
 ; Method for doing Van der Waals
 vdw-type                 = Cut-off
@@ -132,7 +132,7 @@ implicit-solvent         = no
 ; OPTIONS FOR WEAK COUPLING ALGORITHMS
 ; Temperature coupling  
 tcoupl                   = V-rescale
-nsttcouple               = -1
+nsttcouple               = 1
 nh-chain-length          = 10
 print-nose-hoover-chain-variables = no
 ; Groups to couple separately
@@ -141,7 +141,7 @@ tc-grps                  = System
 tau_t                    = 1.0
 ref_t                    = 300
 ; pressure coupling     
-pcoupl                   = Parrinello-Rahman
+pcoupl                   = no
 pcoupltype               = isotropic
 nstpcouple               = -1
 ; Time constant (ps), compressibility (1/bar) and reference P (bar)
@@ -167,9 +167,9 @@ annealing-time           =
 annealing-temp           = 
 
 ; GENERATE VELOCITIES FOR STARTUP RUN
-gen_vel                  = no
+gen_vel                  = yes
 gen-temp                 = 300
-gen-seed                 = -608592193
+gen-seed                 = 1038086079
 
 ; OPTIONS FOR BONDS    
 constraints              = h-bonds

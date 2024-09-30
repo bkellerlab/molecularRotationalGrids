@@ -18,7 +18,7 @@ def case_insensitive_search_and_replace(file_read, file_write, all_search_word, 
 
 
 def show_eigenvectors(path_vmd_script_template: str, path_output_script: str, eigenvector_array: NDArray,
-                      num_eigenvec: int, num_extremes: int, index_list: list = None):
+                      num_eigenvec: int, num_extremes: int, index_list: list = None, figure_paths: list = None):
     """
     Create a vmdlog that shows most + and - parts of the first few eigenvectors
 
@@ -70,15 +70,24 @@ def show_eigenvectors(path_vmd_script_template: str, path_output_script: str, ei
     all_lists_to_insert = [list(map(lambda x: x + 1, sublist)) for sublist in all_lists_to_insert]
     all_str_to_replace = [f"REPLACE{i:02d}" for i in range(len(all_lists_to_insert))]
     all_str_to_insert = [', '.join(map(str, list(el))) for el in all_lists_to_insert]
+    all_str_to_replace.extend([f"REPLACE_PATH{i}" for i in range(5)])
+    all_str_to_insert.extend(figure_paths)
+    print(path_vmd_script_template, path_output_script)
     case_insensitive_search_and_replace(path_vmd_script_template, path_output_script, all_str_to_replace, all_str_to_insert)
 
 
 def show_eigenvectors_MSM(path_vmd_script_template: str, path_output_script: str, path_assignments: str,
-                          eigenvector_array: NDArray, num_eigenvec: int, num_extremes: int):
+                          eigenvector_array: NDArray, num_eigenvec: int, num_extremes: int, figure_paths: list =
+                          None, only_indices = None):
     """
 In msm, after finding most populated eigenvectors, you must look at frames that have been assigned to this state.
     """
     my_assignments = np.load(path_assignments)
+    # print("len bef", len(my_assignments))
+    # if only_indices is not None:
+    #     print("len ind", np.where(only_indices[:len(my_assignments)])[0])
+    #     my_assignments = my_assignments[np.where(only_indices[:len(my_assignments)])[0]]
+    # print("len aft", len(my_assignments))
     # find the most populated states
     all_lists_to_insert = []
     for i, eigenvec in enumerate(eigenvector_array.T[:num_eigenvec]):
@@ -90,7 +99,7 @@ In msm, after finding most populated eigenvectors, you must look at frames that 
             original_index_populated = []
             for mp in most_populated:
                 try:
-                    original_index_populated.extend(np.random.choice(np.where(my_assignments==mp)[0], 10))
+                    original_index_populated.extend(np.random.choice(np.where(my_assignments==mp)[0], 1))
                 except ValueError:
                     # no occurences are that cell
                     pass
@@ -102,7 +111,7 @@ In msm, after finding most populated eigenvectors, you must look at frames that 
             original_index_positive = []
             for mp in most_positive:
                 try:
-                    original_index_positive.extend(np.random.choice(np.where(my_assignments==mp)[0], 10))
+                    original_index_positive.extend(np.random.choice(np.where(my_assignments==mp)[0], 1))
                 except ValueError:
                     # no occurences are that cell
                     pass
@@ -111,7 +120,7 @@ In msm, after finding most populated eigenvectors, you must look at frames that 
             original_index_negative = []
             for mn in most_negative:
                 try:
-                    original_index_negative.extend(np.random.choice(np.where(my_assignments==mn)[0], 10))
+                    original_index_negative.extend(np.random.choice(np.where(my_assignments==mn)[0], 1))
                 except ValueError:
                     # no occurences are that cell
                     pass
@@ -120,13 +129,11 @@ In msm, after finding most populated eigenvectors, you must look at frames that 
             all_lists_to_insert.append(original_index_negative)
     # adding 1 to all because VMD uses enumeration starting with 1
     all_lists_to_insert = [list(map(lambda x: x + 1, sublist)) for sublist in all_lists_to_insert]
-    all_str_to_replace = [f"REPLACE{i:02d}" for i in range(num_eigenvec * 2 + 1)]
+    all_str_to_replace = [f"REPLACE{i:02d}" for i in range(num_eigenvec * 2 - 1)]
     all_str_to_insert = [', '.join(map(str, list(el))) for el in all_lists_to_insert]
     # also replace the path
-    all_str_to_replace.extend(["MY_PATH",]*6)
-    # my path is the output script up to the file name
-    my_path = os.path.dirname(path_output_script)
-    all_str_to_insert.extend([my_path]*6)
+    all_str_to_replace.extend([f"REPLACE_PATH{i}" for i in range(5)])
+    all_str_to_insert.extend(figure_paths)
     case_insensitive_search_and_replace(path_vmd_script_template, path_output_script, all_str_to_replace, all_str_to_insert)
 
 

@@ -66,7 +66,7 @@ class FullGrid:
         t_grid_name: translation grid (a linear grid used to determine distances to origin)
     """
 
-    def __init__(self, b_grid_name: str, o_grid_name: str, t_grid_name: str, use_saved: bool = True):
+    def __init__(self, b_grid_name: str, o_grid_name: str, t_grid_name: str, use_saved: bool = True, factor=2):
 
         """
         Args:
@@ -77,7 +77,7 @@ class FullGrid:
         """
         # this is supposed to be a scaling factor to make metric of SO(3) comparable to R3
         # will be applied as self.factor**3 to volumes, self.factor**2 to areas and self.factor to distances
-        self.factor = 2
+        self.factor = factor
         self.b_grid_name = b_grid_name
         self.o_grid_name = o_grid_name
         self.t_grid_name = t_grid_name
@@ -198,7 +198,6 @@ class FullGrid:
                 current_index += 1
         return result
 
-    @save_or_use_saved
     def get_full_prefactors(self):
         """
         Get the sparse array A_ij/(V_i*h_ij)
@@ -217,25 +216,21 @@ class FullGrid:
         prefactor_matrix.data /= all_volumes[prefactor_matrix.row]
         return prefactor_matrix
 
-    @save_or_use_saved
     def get_full_adjacency(self):
         return self._get_N_N(sel_property="adjacency")
 
-    @save_or_use_saved
-    def get_full_distances(self):
-        return self._get_N_N(sel_property="center_distances")
+    def get_full_distances(self, **kwargs):
+        return self._get_N_N(sel_property="center_distances", **kwargs)
 
-    @save_or_use_saved
     def get_full_borders(self):
         return self._get_N_N(sel_property="border_len")
 
-    def _get_N_N(self, sel_property="adjacency"):
+    def _get_N_N(self, sel_property="adjacency", only_position=False, only_orientation=False):
         full_sequence = self.get_full_grid_as_array()
         n_total = len(full_sequence)
         n_o = self.o_rotations.get_N()
         n_b = self.b_rotations.get_N()
         n_t = self.t_grid.get_N_trans()
-
         position_adjacency = self.position_grid._get_N_N_position_array(sel_property=sel_property).toarray()
         if n_b > 1:
             orientation_adjacency = self.b_rotations.get_spherical_voronoi()._calculate_N_N_array(sel_property=sel_property)
@@ -260,7 +255,7 @@ class FullGrid:
         elif sel_property == "border_len":
             dtype = float
             my_factor = self.factor**2
-        elif sel_property == "center_distances":
+        elif sel_property == "center_distances" or "only_position_distances":
             dtype = float
             my_factor = self.factor
         else:
@@ -281,7 +276,13 @@ class FullGrid:
             same_position_neighbours = bmat(my_blocks, dtype=float) #block_array(my_blocks, dtype=dtype, format="coo")
         else:
             return coo_array(orientation_adjacency)
+        print(same_position_neighbours.shape, same_position_neighbours.shape)
+        if only_position:
+            return same_position_neighbours
+        if only_orientation:
+            return same_orientation_neighbours
         all_neighbours = same_position_neighbours + same_orientation_neighbours
+
         return all_neighbours
 
 
