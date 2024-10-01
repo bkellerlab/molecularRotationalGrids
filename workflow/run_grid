@@ -15,6 +15,7 @@ grids = pep.sample_table
 
 rule all_grids:
     input:
+
         expand(f"{PATH_OUTPUT_AUTOSAVE}{{grid_identifier}}_full_array.npy", grid_identifier="bigger_ideal_1000")
 
 rule run_grid:

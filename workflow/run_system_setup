@@ -1,0 +1,49 @@
+import sys
+sys.path.append(".")
+
+from molgri.paths import PATH_OUTPUT_AUTOSAVE, PATH_INPUT_BASEGRO, PATH_EXPERIMENTS
+
+import yaml
+import os
+
+
+import pandas as pd
+
+
+AVAILABLE_SETUPS = ["water_vacuum"]
+# general functionality
+
+rule record_experiment:
+    """
+    The CSV file provides an overview of parameters for all experiments that were conducted. Run this rule to update it 
+    with any new experiments/{experiment_id}/configuration_file.yaml file.
+    """
+    input:
+        configuration_files = expand(f"{PATH_EXPERIMENTS}/{{setup_type}}/{{experiment_id}}/configuration_file.yaml",
+            experiment_id=os.listdir(f"{PATH_EXPERIMENTS}/{{setup_type}}/", setup_type=AVAILABLE_SETUPS))
+    output:
+        all_experiments = "all_experiments.csv",
+    run:
+        list_experimental_parameters = []
+        for filename in input.all_experiments:
+            with open(filename,'r') as fh:
+                df = pd.json_normalize(yaml.safe_load(fh.read()))
+            list_experimental_parameters.append(df)
+        # make a pandas dataframe of all combined elements and write it to file
+        df_experiments = pd.concat(list_experimental_parameters,axis=0,ignore_index=True)
+        df_experiments.to_csv(output.all_experiments)
+
+
+# here folow specific rules for specific systems, currently:
+# keyword water_vacuum: two water molecules in vacuum
+# keyword water_helium: two water molecules in a box of helium-like LJ particles
+# keyword pyridine: two pyridine molecules in vacuum
+
+
+rule set_up_water_vacuum:
+    output:
+        configuration_file = f"{PATH_EXPERIMENTS}/{{setup_type}}/{{experiment_id}}
+    params:
+        experiment_name = "example_water_vacuum"
+        tau_coupling =
+    run:
