@@ -214,3 +214,13 @@ If this repository has helped you, please cite the following publication:
 Zupan, Hana, Frederick Heinz, and Bettina G. Keller. "Grid-based state space exploration for molecular binding." Canadian Journal of Chemistry (2022)
 
 arXiv preprint available at: [https://arxiv.org/abs/2211.00566](https://arxiv.org/abs/2211.00566)
+
+
+# Using pipelines
+
+1) Look at input/default_configuration_file.yaml and change the VALUES (not keys!) of experiment set-up settings if needed.
+[Note: you can create other common config files and provide them in the next line as --configfile]
+2) Run: snakemake --snakefile workflow/run_system_setup --cores 4 --config experiment_type=<select from: water_in_helium, water_in_vacuum> -F
+
+To update the lists of all existing experiment set-ups, run:
+snakemake --snakefile workflow/run_system_setup --cores 4 record_existing_experiments

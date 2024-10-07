@@ -1,49 +1,253 @@
+import re
 import sys
+
+import peppy
+
 sys.path.append(".")
 
-from molgri.paths import PATH_OUTPUT_AUTOSAVE, PATH_INPUT_BASEGRO, PATH_EXPERIMENTS
+from molgri.paths import PATH_OUTPUT_AUTOSAVE, PATH_INPUT_BASEGRO, PATH_EXPERIMENTS, PATH_INPUT_BASEGRO
+from snakemake_utils import modify_mdrun, modify_topology
 
 import yaml
 import os
-
-
+import numpy as np
 import pandas as pd
 
+# just for testing
+PATH_EXPERIMENTS = "ex_exp/"
 
-AVAILABLE_SETUPS = ["water_vacuum"]
-# general functionality
 
-rule record_experiment:
-    """
-    The CSV file provides an overview of parameters for all experiments that were conducted. Run this rule to update it 
-    with any new experiments/{experiment_id}/configuration_file.yaml file.
-    """
+# experiment type should be set up with config
+EXPERIMENT_TYPE = config['experiment_type']
+ALL_EXPERIMENT_TYPES = ["water_in_vacuum", "water_in_helium"]
+for ex_type in ALL_EXPERIMENT_TYPES:
+    if not os.path.isdir(f"{PATH_EXPERIMENTS}{ex_type}/"):
+        os.mkdir(f"{PATH_EXPERIMENTS}{ex_type}/")
+assert EXPERIMENT_TYPE in ALL_EXPERIMENT_TYPES, f"cannot select this experiment type, choose from: {ALL_EXPERIMENT_TYPES}"
+
+# parameters are read from a table
+experiment_table = pd.read_csv(f"workflow/experiments_to_run.csv", index_col=0)
+
+rule all:
     input:
-        configuration_files = expand(f"{PATH_EXPERIMENTS}/{{setup_type}}/{{experiment_id}}/configuration_file.yaml",
-            experiment_id=os.listdir(f"{PATH_EXPERIMENTS}/{{setup_type}}/", setup_type=AVAILABLE_SETUPS))
+        setups = expand(f"{PATH_EXPERIMENTS}{EXPERIMENT_TYPE}/{{experiment_id}}/{{what}}",
+            experiment_id=experiment_table.index, what=["configuration_file.yaml", "mdrun.mdp"]),
+        summary = f"{PATH_EXPERIMENTS}{EXPERIMENT_TYPE}/summary_experiments.csv"
+
+rule set_up_any_run:
+    """
+    Here we only create the configuration file with information from the table.
+    """
     output:
-        all_experiments = "all_experiments.csv",
+        config_file=f"{PATH_EXPERIMENTS}{EXPERIMENT_TYPE}/{{experiment_id}}/configuration_file.yaml"
     run:
-        list_experimental_parameters = []
-        for filename in input.all_experiments:
+        print(f"Will set up experiments of type {EXPERIMENT_TYPE}:")
+        print(experiment_table)
+        correct_row = experiment_table.loc[wildcards.experiment_id]
+        with open(output.config_file,"w") as f:
+            yaml.dump(correct_row.to_dict(),f)
+
+def find_all_config_files(parent_dir, file_to_find="configuration_file.yaml"):
+    to_return = []
+    for root, dirs, files in os.walk(parent_dir,topdown=False):
+        for name in files:
+            if name == file_to_find:
+                to_return.append(os.path.join(root,name))
+    return to_return
+
+rule record_experiments:
+    input:
+        all_configurations = find_all_config_files(f"{PATH_EXPERIMENTS}{EXPERIMENT_TYPE}", file_to_find="configuration_file.yaml")
+    output:
+        summary = f"{PATH_EXPERIMENTS}{EXPERIMENT_TYPE}/summary_experiments.csv"
+    run:
+        li = []
+        # Only loading 3 files:
+        for filename in input.all_configurations:
             with open(filename,'r') as fh:
                 df = pd.json_normalize(yaml.safe_load(fh.read()))
-            list_experimental_parameters.append(df)
-        # make a pandas dataframe of all combined elements and write it to file
-        df_experiments = pd.concat(list_experimental_parameters,axis=0,ignore_index=True)
-        df_experiments.to_csv(output.all_experiments)
+                df.index = [filename.split("/")[2]]
+            li.append(df)
+        if li:
+            concatenated_pds = pd.concat(li)
+            concatenated_pds.to_csv(output.summary)
+        else:
+            pd.DataFrame(["No experiments yet."]).to_csv(output.summary)
 
 
+########################################################################################################################
+# START HELP FUNCTIONS
+
+def find_config_parameter_value(config_file, parameter_name):
+    with open(config_file) as stream:
+        try:
+            loaded_yaml = yaml.safe_load(stream)
+        except yaml.YAMLError as exc:
+            print(exc)
+        return loaded_yaml[parameter_name]
+
+
+def modify_mdrun(path_to_file, param_to_change, new_value):
+    with open(path_to_file,"r") as f:
+        lines = f.readlines()
+    for i, line in enumerate(lines):
+        if line.startswith(param_to_change):
+            lines[i] = f"{param_to_change} = {new_value}\n"
+            break
+    # if the parameter doesn't exist, add it
+    else:
+        lines.append(f"{param_to_change} = {new_value}\n")
+    with open(path_to_file,"w") as f:
+        f.writelines(lines)
+
+
+def modify_topology(path_to_file, i, j, funct, low, up1, up2, force_constant):
+    with open(path_to_file,"r") as f:
+        lines = f.readlines()
+    for k, line in enumerate(lines):
+        if line.startswith("[ angles ]"):
+            break
+        split_line = line.strip().split()
+        if len(split_line) >= 2 and split_line[0] == i and split_line[1] == j:
+            lines[k] = f"{i}\t{j}\t{funct}\t{low}\t{up1}\t{up2}\t{force_constant}\n"
+    with open(path_to_file,"w") as f:
+        f.writelines(lines)
+
+
+def read_from_mdrun(path_to_file, param_to_find):
+    with open(path_to_file,"r") as f:
+        lines = f.readlines()
+    for i, line in enumerate(lines):
+        if line.startswith(param_to_find):
+            my_line = line
+            if ";" in line:
+                my_line = line.split(";")[0]
+            return my_line.split("=")[1].strip()
+
+
+def completely_modify_mdrun(config_file, mdrun_file):
+    trajectory_len = find_config_parameter_value(config_file,"traj_len")
+    integrator = find_config_parameter_value(config_file,"integrator")
+    coupling = find_config_parameter_value(config_file,"coupling_constant_ps")
+    step = find_config_parameter_value(config_file,"step_in_ps")
+    dielectric_constant = find_config_parameter_value(config_file,"epsilon-r")
+    save_frequency = find_config_parameter_value(config_file, "save_frequency")
+    modify_mdrun(mdrun_file,"integrator",integrator)
+    modify_mdrun(mdrun_file,"nsteps",trajectory_len)
+    modify_mdrun(mdrun_file,"tau_t",coupling)
+    modify_mdrun(mdrun_file,"dt",step)
+    modify_mdrun(mdrun_file,"nstxout-compressed",save_frequency)
+    modify_mdrun(mdrun_file,"epsilon-r",dielectric_constant)
+
+
+def introduce_water_restraint(config_file, topology_file):
+    up1 = find_config_parameter_value(config_file, "up1_nm")
+    up2 = find_config_parameter_value(config_file,"up2_nm")
+    force = find_config_parameter_value(config_file,"force")
+    modify_topology(topology_file,i="1",j="4",funct=10,low=0.0,
+        up1=up1,up2=up2,force_constant=force)
+    print(f"Introduced water restraint from {up1} nm to {up2} nm quadratic potential with k={force}")
+
+# END HELP FUNCTIONS
+########################################################################################################################
+
+
+
+########################################################################################################################
+# START SPECIFIC SET-UPS
 # here folow specific rules for specific systems, currently:
-# keyword water_vacuum: two water molecules in vacuum
-# keyword water_helium: two water molecules in a box of helium-like LJ particles
+# keyword water_in_vacuum: two water molecules in vacuum
+# keyword water_in_helium: two water molecules in a box of helium-like LJ particles
 # keyword pyridine: two pyridine molecules in vacuum
 
 
 rule set_up_water_vacuum:
+    """
+    Here we just copy the files but don't modify them.
+    """
+    input:
+        config_file = f"{PATH_EXPERIMENTS}water_in_vacuum/{{experiment_id}}/configuration_file.yaml",
+        water_gro = f"{PATH_INPUT_BASEGRO}H2O.gro",
+        water_top = f"{PATH_INPUT_BASEGRO}H2O_H2O.top",
+        select_group=f"{PATH_INPUT_BASEGRO}select_group_zero",
+        select_energy=f"{PATH_INPUT_BASEGRO}select_energy_five",
+        select_centers=f"{PATH_INPUT_BASEGRO}select_3_and_0",
+        index_m1=f"{PATH_INPUT_BASEGRO}index_first_mol.ndx",
+        runfile= f"{PATH_INPUT_BASEGRO}mdrun.mdp",
     output:
-        configuration_file = f"{PATH_EXPERIMENTS}/{{setup_type}}/{{experiment_id}}
-    params:
-        experiment_name = "example_water_vacuum"
-        tau_coupling =
+        molecule1 = f"{PATH_EXPERIMENTS}water_in_vacuum/{{experiment_id}}/m1.gro",
+        molecule2 = f"{PATH_EXPERIMENTS}water_in_vacuum/{{experiment_id}}/m2.gro",
+        topology = f"{PATH_EXPERIMENTS}water_in_vacuum/{{experiment_id}}/topology.top",
+        select_group = f"{PATH_EXPERIMENTS}water_in_vacuum/{{experiment_id}}/select_group",
+        select_energy = f"{PATH_EXPERIMENTS}water_in_vacuum/{{experiment_id}}/select_energy",
+        select_centers = f"{PATH_EXPERIMENTS}water_in_vacuum/{{experiment_id}}/select_centers",
+        index_m1 = f"{PATH_EXPERIMENTS}water_in_vacuum/{{experiment_id}}/index_m1.ndx",
+        runfile= f"{PATH_EXPERIMENTS}water_in_vacuum/{{experiment_id}}/mdrun.mdp",
     run:
+        # first copy all inputs to outputs
+        import shutil
+        shutil.copy(input.water_gro,output.molecule1)
+        shutil.copy(input.water_gro,output.molecule2)
+        shutil.copy(input.select_group, output.select_group)
+        shutil.copy(input.select_energy,output.select_energy)
+        shutil.copy(input.select_centers,output.select_centers)
+        shutil.copy(input.index_m1, output.index_m1)
+        shutil.copy(input.water_top, output.topology)
+        shutil.copy(input.runfile,output.runfile)
+
+        # modifying files
+        completely_modify_mdrun(input.config_file, output.runfile)
+        introduce_water_restraint(input.config_file, output.topology)
+
+
+rule set_up_water_helium:
+    input:
+        config_file = f"{PATH_EXPERIMENTS}water_in_helium/{{experiment_id}}/configuration_file.yaml",
+        start_structures_all = f"{PATH_INPUT_BASEGRO}nvt_fake_ar.gro",
+        water_gro= f"{PATH_INPUT_BASEGRO}H2O.gro",
+        forcefield1 = f"{PATH_INPUT_BASEGRO}argon_forcefield.itp",
+        forcefield2 = f"{PATH_INPUT_BASEGRO}ffnonbonded.itp",
+        forcefield3 = f"{PATH_INPUT_BASEGRO}ffbonded.itp",
+        water_in_arg_top = f"{PATH_INPUT_BASEGRO}topol_fake_ar.top",
+        water_top= f"{PATH_INPUT_BASEGRO}H2O_H2Op.top",
+        select_group=f"{PATH_INPUT_BASEGRO}select_group_zero",
+        select_centers=f"{PATH_INPUT_BASEGRO}select_3_and_0",
+        index_m1=f"{PATH_INPUT_BASEGRO}index_first_mol.ndx",
+        select_two=f"{PATH_INPUT_BASEGRO}select_2",
+        runfile= f"{PATH_INPUT_BASEGRO}mdrun.mdp",
+    output:
+        molecule1 = f"{PATH_EXPERIMENTS}water_in_helium/{{experiment_id}}/m1.gro",
+        molecule2 = f"{PATH_EXPERIMENTS}water_in_helium/{{experiment_id}}/m2.gro",
+        select_two= f"{PATH_EXPERIMENTS}water_in_helium/{{experiment_id}}/select_two",
+        start_structures = f"{PATH_EXPERIMENTS}water_in_helium/{{experiment_id}}/inserted_structure.gro",
+        forcefield1=f"{PATH_EXPERIMENTS}water_in_helium/{{experiment_id}}/argon_forcefield.itp",
+        forcefield2=f"{PATH_EXPERIMENTS}water_in_helium/{{experiment_id}}/ffnonbonded.itp",
+        forcefield3=f"{PATH_EXPERIMENTS}water_in_helium/{{experiment_id}}/ffbonded.itp",
+        topology = f"{PATH_EXPERIMENTS}water_in_helium/{{experiment_id}}/topology.top",
+        water_top= f"{PATH_EXPERIMENTS}water_in_helium/{{experiment_id}}/H2O_H2Op.top",
+        select_group = f"{PATH_EXPERIMENTS}water_in_helium/{{experiment_id}}/select_group",
+        select_centers = f"{PATH_EXPERIMENTS}water_in_helium/{{experiment_id}}/select_centers",
+        index_m1 = f"{PATH_EXPERIMENTS}water_in_helium/{{experiment_id}}/index_m1.ndx",
+        runfile= f"{PATH_EXPERIMENTS}water_in_helium/{{experiment_id}}/mdrun.mdp",
+    run:
+        import shutil
+        shutil.copy(input.water_gro,output.molecule1)
+        shutil.copy(input.water_gro,output.molecule2)
+        shutil.copy(input.select_group, output.select_group)
+        shutil.copy(input.select_centers,output.select_centers)
+        shutil.copy(input.index_m1, output.index_m1)
+        shutil.copy(input.water_top, output.water_top)
+        shutil.copy(input.select_two,output.select_two)
+        shutil.copy(input.forcefield1, output.forcefield1)
+        shutil.copy(input.forcefield2,output.forcefield2)
+        shutil.copy(input.forcefield3,output.forcefield3)
+        shutil.copy(input.start_structures_all, output.start_structures)
+        shutil.copy(input.water_in_arg_top,output.topology)
+        shutil.copy(input.runfile,output.runfile)
+
+        # modifying files
+        completely_modify_mdrun(input.config_file,output.runfile)
+        introduce_water_restraint(input.config_file,output.topology)
+
+# END SPECIFIC SET-UPS
+########################################################################################################################
