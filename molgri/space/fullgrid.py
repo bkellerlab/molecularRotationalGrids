@@ -376,6 +376,8 @@ class PositionGrid:
             # area is angle/2pi  * pi r**2
             subtracted_radii = np.array([0, *between_radii[:-1]])
             multiply = between_radii ** 2 / 2 - subtracted_radii**2/2  # need to subtract area of previous level
+        elif sel_property == "cartesian_center_distances":
+            pass
         elif sel_property == "center_distances":
             # n_o elements will have the same distance
             increments = self.t_grid.get_increments()
@@ -442,6 +444,9 @@ class PositionGrid:
 
     def get_distances_of_position_grid(self) -> coo_array:
         return self._get_N_N_position_array(sel_property="center_distances")
+
+    def get_cartesian_distances_of_position_grid(self) -> coo_array:
+        return self._get_N_N_position_array(sel_property="cartesian_center_distances")
 
 
 def _t_and_o_2_positions(o_property, t_property):

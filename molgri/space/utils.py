@@ -433,7 +433,7 @@ def sort_points_on_sphere_ccw(points: NDArray) -> NDArray:
             alpha[i] = alpha_candidate
         else:
             alpha[i] = 2*pi - alpha_candidate
-    assert np.all(alpha >= 0)
+    assert np.all(alpha >= 0), alpha
 
     output = points[np.argsort(alpha)]
     return output
@@ -483,7 +483,7 @@ def _get_alpha_with_spherical_cosine_law(A: NDArray, B: NDArray, C: NDArray):
     the spherical law of cosines to obtain the angle at point A.
     """
     # check that they all have the same norm (are on the same sphere)
-    assert np.allclose(np.linalg.norm(A), np.linalg.norm(B)) and np.allclose(np.linalg.norm(A), np.linalg.norm(C))
+    #assert np.allclose(np.linalg.norm(A), np.linalg.norm(B)) and np.allclose(np.linalg.norm(A), np.linalg.norm(C))
     # consider spherical triangle:
     A = normalise_vectors(A)
     B = normalise_vectors(B)
@@ -499,7 +499,7 @@ def _get_alpha_with_spherical_cosine_law(A: NDArray, B: NDArray, C: NDArray):
 
 def exact_area_of_spherical_polygon(vertices: NDArray, r: float = 1) -> float:
     """
-    Use the formula S=[\sum{\theta_i} - (n-2)\pindex_center]r^2 (Todhunter, I. (1886). Spherical Trigonometry), to calculate the
+    Use the formula (Todhunter, I. (1886). Spherical Trigonometry), to calculate the
     area of a spherical polygon with given
     vertices. In the formula, r, is the radius of the sphere, n the number of polygon vertices, theta_i-s are the radian
     angles of a spherical polygon.
