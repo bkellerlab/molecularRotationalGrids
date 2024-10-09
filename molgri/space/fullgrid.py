@@ -278,7 +278,6 @@ class FullGrid:
             same_position_neighbours = bmat(my_blocks, dtype=float) #block_array(my_blocks, dtype=dtype, format="coo")
         else:
             return coo_array(orientation_adjacency)
-        print(same_position_neighbours.shape, same_position_neighbours.shape)
         if only_position:
             return same_position_neighbours
         if only_orientation:
@@ -306,7 +305,7 @@ class PositionGrid:
             # extend t by additional point
             t_additional = list(self.t_grid.trans_grid)
             increments = self.t_grid.get_increments()
-            t_additional.append(t_additional.trans_grid[-1]+increments[-1])
+            t_additional.append(self.t_grid.trans_grid[-1]+increments[-1])
             # create position grid with additional t points
             extended_position_grid = _t_and_o_2_positions(o_property=self.get_o_grid().get_grid_as_array(
                 only_upper=False), t_property=t_additional)

@@ -15,8 +15,7 @@ grids = pep.sample_table
 
 rule all_grids:
     input:
-
-        expand(f"{PATH_OUTPUT_AUTOSAVE}{{grid_identifier}}_full_array.npy", grid_identifier="bigger_ideal_1000")
+        expand(f"{PATH_OUTPUT_AUTOSAVE}{{grid_identifier}}_full_array.npy", grid_identifier="cartesian_80_80_very_short")
 
 rule run_grid:
     """
@@ -27,18 +26,17 @@ rule run_grid:
         adjacency_array = f"{PATH_OUTPUT_AUTOSAVE}{{grid_identifier}}_adjacency_array.npz",
         distances_array = f"{PATH_OUTPUT_AUTOSAVE}{{grid_identifier}}_distances_array.npz",
         borders_array= f"{PATH_OUTPUT_AUTOSAVE}{{grid_identifier}}_borders_array.npz",
-        position_dist_array= f"{PATH_OUTPUT_AUTOSAVE}{{grid_identifier}}_position_dist_array.npz",
-        position_ori_array= f"{PATH_OUTPUT_AUTOSAVE}{{grid_identifier}}_position_ori_array.npz",
         volumes = f"{PATH_OUTPUT_AUTOSAVE}{{grid_identifier}}_volumes.npy",
     params:
         b = lambda wc: grids.loc[wc.grid_identifier,"b_grid_name"],
         o = lambda wc: grids.loc[wc.grid_identifier,"o_grid_name"],
         t = lambda wc: grids.loc[wc.grid_identifier,"t_grid_name"],
-        factor=1
+        factor=1,
+        is_cartesian = True,
     run:
         from molgri.space.fullgrid import FullGrid
         from scipy import sparse
-        fg = FullGrid(params.b, params.o, params.t, factor=params.factor)
+        fg = FullGrid(params.b, params.o, params.t, factor=params.factor, position_grid_cartesian=params.is_cartesian)
 
         # save full array
         np.save(output.full_array, fg.get_full_grid_as_array())
@@ -46,6 +44,4 @@ rule run_grid:
         sparse.save_npz(output.adjacency_array, fg.get_full_adjacency())
         sparse.save_npz(output.borders_array,fg.get_full_borders())
         sparse.save_npz(output.distances_array,fg.get_full_distances())
-        sparse.save_npz(output.position_dist_array,fg.get_full_distances(only_position=True, only_orientation=False))
-        sparse.save_npz(output.position_ori_array,fg.get_full_distances(only_position=False,only_orientation=True))
         np.save(output.volumes,fg.get_total_volumes())

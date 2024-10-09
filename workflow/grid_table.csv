@@ -60,3 +60,4 @@ sample_name,b_grid_name,o_grid_name,t_grid_name
 "bigger_ideal_1000",40,42,"'linspace(0.2, 0.5, 30)'"
 "bigger_ideal_5000",40,42,"'linspace(0.2, 0.5, 30)'"
 "alternative",50,80,"'linspace(0.2,0.7,20)'"
+"cartesian_80_80_very_short",80,80,"'linspace(0.2, 0.4, 10)'"
