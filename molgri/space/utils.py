@@ -15,6 +15,46 @@ from scipy.spatial.transform import Rotation
 from molgri.constants import UNIQUE_TOL
 
 
+def order_points(polygon_points_3d: NDArray):
+    """
+    Order vertices of the polygon, may be clockwise or anticlockwise.
+
+    Args:
+        polygon_points_3d: array shape (N, 3), each row should be a point (at least three points needed).
+    """
+    first_point = polygon_points_3d[0]
+    different_point = polygon_points_3d[1]
+    # calculate the central point of the polygon as you are interested in angles or vectors from center to vertices
+    center = np.mean(polygon_points_3d, axis=0)
+    # need a normal vector to have a consistent way of determining the sign of the angles
+    normal_vector = np.cross(first_point - center, different_point - center)
+    alphas = [0]
+    for point in polygon_points_3d[1:]:
+        A = (point - center)
+        B = (first_point - center)
+        C = np.cross(A, B)
+        direction = np.sign(C.dot(normal_vector))
+        alphas.append(direction * np.arccos(np.round(np.dot(A, B) / np.linalg.norm(A) / np.linalg.norm(B), 5)))
+    order = np.argsort(alphas)
+    return np.array([polygon_points_3d[i] for i in order])
+
+
+def get_polygon_area(ordered_polygon_points_3d: NDArray):
+    """
+    Obtain the surface area of any flat polygon using Shoelace formula.
+
+    Args:
+        ordered_polygon_points_3d: array (N, 3), each row is a vertex of the polygon and they MUST be sorted!
+    """
+    all_triangle_areas = 0
+    n = len(ordered_polygon_points_3d)
+    for k in range(1, n - 1):
+        all_triangle_areas += 0.5 * np.abs(np.linalg.norm(
+            np.cross(ordered_polygon_points_3d[0] - ordered_polygon_points_3d[k],
+                     ordered_polygon_points_3d[k + 1] - ordered_polygon_points_3d[k])))
+    return all_triangle_areas
+
+
 def normalise_vectors(array: NDArray, axis: int = None, length: float = 1) -> NDArray:
     """
     Returns the unit vector of the vector or along some axis of an array.

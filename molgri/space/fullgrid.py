@@ -21,6 +21,7 @@ from __future__ import annotations
 
 import numpy as np
 from numpy.typing import NDArray
+from scipy.spatial import ConvexHull, Voronoi
 from scipy.spatial.transform import Rotation
 from scipy.sparse import bmat, coo_array, diags
 
@@ -28,7 +29,7 @@ from molgri.space.rotobj import SphereGrid3DFactory, SphereGrid3Dim, SphereGrid4
 from molgri.space.translations import TranslationParser, get_between_radii
 from molgri.naming import GridNameParser
 from molgri.wrappers import save_or_use_saved
-from molgri.space.utils import normalise_vectors
+from molgri.space.utils import normalise_vectors, get_polygon_area, order_points
 
 
 def from_full_array_to_o_b_t(full_array: NDArray) -> tuple:
@@ -66,7 +67,8 @@ class FullGrid:
         t_grid_name: translation grid (a linear grid used to determine distances to origin)
     """
 
-    def __init__(self, b_grid_name: str, o_grid_name: str, t_grid_name: str, use_saved: bool = True, factor=2):
+    def __init__(self, b_grid_name: str, o_grid_name: str, t_grid_name: str, use_saved: bool = True, factor=2,
+                 position_grid_cartesian=False):
 
         """
         Args:
@@ -85,7 +87,7 @@ class FullGrid:
         self.b_rotations = SphereGrid4DFactory.create(alg_name=b_grid_name.get_alg(), N=b_grid_name.get_N(),
                                                       use_saved=use_saved)
         self.position_grid = PositionGrid(o_grid_name=o_grid_name, t_grid_name=t_grid_name,
-                                          use_saved=use_saved)
+                                          use_saved=use_saved, position_grid_cartesian=position_grid_cartesian)
         self.use_saved = use_saved
 
     def __getattr__(self, name):
@@ -290,7 +292,7 @@ class FullGrid:
 
 class PositionGrid:
 
-    def __init__(self, o_grid_name: str, t_grid_name: str, use_saved: bool = True):
+    def __init__(self, o_grid_name: str, t_grid_name: str, use_saved: bool = True, position_grid_cartesian=False):
         """
         This is derived from FullGrid and contains methods that are connected to position grid.
         """
@@ -299,6 +301,17 @@ class PositionGrid:
                                                       use_saved=use_saved)
         self.o_positions = self.o_rotations.get_grid_as_array()
         self.t_grid = TranslationParser(t_grid_name)
+        self.position_grid_cartesian=position_grid_cartesian
+        if self.position_grid_cartesian:
+            # extend t by additional point
+            t_additional = list(self.t_grid.trans_grid)
+            increments = self.t_grid.get_increments()
+            t_additional.append(t_additional.trans_grid[-1]+increments[-1])
+            # create position grid with additional t points
+            extended_position_grid = _t_and_o_2_positions(o_property=self.get_o_grid().get_grid_as_array(
+                only_upper=False), t_property=t_additional)
+            # create regular voronoi
+            self.voronoi_cells = Voronoi(extended_position_grid)
         self.use_saved = use_saved
 
     def __len__(self):
@@ -331,7 +344,55 @@ class PositionGrid:
         return _t_and_o_2_positions(o_property=self.get_o_grid().get_grid_as_array(only_upper=False),
                                          t_property=self.get_radii())
 
+    def get_cartesian_volumes(self):
+        new_volumes = np.zeros(len(self.get_position_grid_as_array()))
+        for idx, i_region in enumerate(self.voronoi.point_region):
+            # Open cells are removed from the calculation of the total volume
+            if -1 not in self.voronoi.regions[i_region]:
+                new_volumes[idx] = ConvexHull(self.voronoi.vertices[self.voronoi.regions[i_region]]).volume
+        return new_volumes
+
+    def get_cartesian_distances(self):
+        new_h_matrix = self.get_adjacency_of_position_grid()
+        points = self.get_position_grid_as_array()
+        new_data = []
+        for row, col in zip(new_h_matrix.row, new_h_matrix.col):
+            new_data.append(np.linalg.norm(points[row] - points[col]))
+        new_h_matrix.data = np.array(new_data)
+        return new_h_matrix
+
+    def _get_coordinates_of_border_polygons(self):
+        """
+        These are 3d coordinates and not yet sorted. A list must be returned as the dimension is different every time.
+        """
+        new_S_matrix = self.get_adjacency_of_position_grid()
+        all_polygons_3d = []
+        ind = 0
+        for row, col in zip(new_S_matrix.row, new_S_matrix.col):
+            row_region = self.voronoi.point_region[row]
+            indices_row_regions = self.voronoi.regions[row_region]
+            # vertices_row = normal_voronoi.vertices[indices_row_regions]
+            col_region = self.voronoi.point_region[col]
+            # vertices_col = normal_voronoi.vertices[normal_voronoi.regions[col_region]]
+            indices_col_regions = self.voronoi.regions[col_region]
+            shared_vertices = set(indices_row_regions).intersection(set(indices_col_regions))
+            all_polygons_3d.append(np.array([x for i, x in enumerate(self.voronoi.vertices) if i in shared_vertices]))
+            ind += 1
+        return all_polygons_3d
+
+
+    def get_cartesian_surfaces(self):
+        new_S_matrix = self.get_adjacency_of_position_grid()
+        all_polygons = self._get_coordinates_of_border_polygons()
+        all_areas_data = []
+        for polygon in all_polygons:
+            all_areas_data.append(get_polygon_area(order_points(polygon)))
+        new_S_matrix.data = all_areas_data
+        return new_S_matrix
+
     def get_all_position_volumes(self) -> NDArray:
+        if self.position_grid_cartesian:
+            return self.get_cartesian_volumes()
         # o grid has the option to get size of areas -> need to be divided by 3 and multiplied with radius^3 to get
         # volumes in the first shell, later shells need previous shells subtracted
         radius_above = get_between_radii(self.t_grid.get_trans_grid())
@@ -440,13 +501,14 @@ class PositionGrid:
         return self._get_N_N_position_array(sel_property="adjacency")
 
     def get_borders_of_position_grid(self) -> coo_array:
+        if self.position_grid_cartesian:
+            return self.get_cartesian_surfaces()
         return self._get_N_N_position_array(sel_property="border_len")
 
     def get_distances_of_position_grid(self) -> coo_array:
+        if self.position_grid_cartesian:
+            return self.get_cartesian_distances()
         return self._get_N_N_position_array(sel_property="center_distances")
-
-    def get_cartesian_distances_of_position_grid(self) -> coo_array:
-        return self._get_N_N_position_array(sel_property="cartesian_center_distances")
 
 
 def _t_and_o_2_positions(o_property, t_property):
