@@ -1,38 +1,49 @@
-import re
 import sys
-
-import peppy
 
 sys.path.append(".")
 
-from molgri.paths import PATH_OUTPUT_AUTOSAVE, PATH_INPUT_BASEGRO, PATH_EXPERIMENTS, PATH_INPUT_BASEGRO
+from molgri.paths import PATH_INPUT_BASEGRO
 from snakemake_utils import modify_mdrun, modify_topology
 
 import yaml
-import os
-import numpy as np
-import pandas as pd
 
 # just for testing
 PATH_EXPERIMENTS = "ex_exp/"
 
+# TODO: the user inputs can instead be replaced with config["config_key"] and a configuration file provided
+#################################  FOR THE USER TO ADAPT FOR EACH NEW EXPERIMENT #######################################
+EXPERIMENT_ID = "mini_run"
+EXPERIMENT_TYPE = "water_in_vacuum"
+INTEGRATOR = "sd"
+NSTEPS = 2000
+TAU_T_PS = 1.0
+TIME_STEP_PS = 0.001
+UPPER_BOUND1_NM = 0.5
+UPPER_BOUND2_NM = 0.7
+FORCE_CONSTANT_RESTRAINT = 500
+EPSILON = 1
+SAVE_FREQUENCY = 5
+##############################################  END: USER ADAPTATION ###################################################
+
+CONFIGURATION_DICT = {"nsteps": NSTEPS,
+                      "integrator": INTEGRATOR,
+                      "coupling_constant_ps": TAU_T_PS,
+                      "step_in_ps": TIME_STEP_PS,
+                      "up1_nm": UPPER_BOUND1_NM,
+                      "up2_nm": UPPER_BOUND2_NM,
+                      "force": FORCE_CONSTANT_RESTRAINT,
+                      "epsilon-r": EPSILON,
+                      "save_frequency": SAVE_FREQUENCY}
 
 # experiment type should be set up with config
-EXPERIMENT_TYPE = config['experiment_type']
 ALL_EXPERIMENT_TYPES = ["water_in_vacuum", "water_in_helium"]
-for ex_type in ALL_EXPERIMENT_TYPES:
-    if not os.path.isdir(f"{PATH_EXPERIMENTS}{ex_type}/"):
-        os.mkdir(f"{PATH_EXPERIMENTS}{ex_type}/")
 assert EXPERIMENT_TYPE in ALL_EXPERIMENT_TYPES, f"cannot select this experiment type, choose from: {ALL_EXPERIMENT_TYPES}"
-
-# parameters are read from a table
-experiment_table = pd.read_csv(f"workflow/experiments_to_run.csv", index_col=0)
 
 rule all:
     input:
-        setups = expand(f"{PATH_EXPERIMENTS}{EXPERIMENT_TYPE}/{{experiment_id}}/{{what}}",
-            experiment_id=experiment_table.index, what=["configuration_file.yaml", "mdrun.mdp"]),
-        summary = f"{PATH_EXPERIMENTS}{EXPERIMENT_TYPE}/summary_experiments.csv"
+        setups = expand(f"{PATH_EXPERIMENTS}{EXPERIMENT_TYPE}/{EXPERIMENT_ID}/{{what}}",
+            what=["configuration_file.yaml", "mdrun.mdp"]),
+
 
 rule set_up_any_run:
     """
@@ -41,38 +52,8 @@ rule set_up_any_run:
     output:
         config_file=f"{PATH_EXPERIMENTS}{EXPERIMENT_TYPE}/{{experiment_id}}/configuration_file.yaml"
     run:
-        print(f"Will set up experiments of type {EXPERIMENT_TYPE}:")
-        print(experiment_table)
-        correct_row = experiment_table.loc[wildcards.experiment_id]
         with open(output.config_file,"w") as f:
-            yaml.dump(correct_row.to_dict(),f)
-
-def find_all_config_files(parent_dir, file_to_find="configuration_file.yaml"):
-    to_return = []
-    for root, dirs, files in os.walk(parent_dir,topdown=False):
-        for name in files:
-            if name == file_to_find:
-                to_return.append(os.path.join(root,name))
-    return to_return
-
-rule record_experiments:
-    input:
-        all_configurations = find_all_config_files(f"{PATH_EXPERIMENTS}{EXPERIMENT_TYPE}", file_to_find="configuration_file.yaml")
-    output:
-        summary = f"{PATH_EXPERIMENTS}{EXPERIMENT_TYPE}/summary_experiments.csv"
-    run:
-        li = []
-        # Only loading 3 files:
-        for filename in input.all_configurations:
-            with open(filename,'r') as fh:
-                df = pd.json_normalize(yaml.safe_load(fh.read()))
-                df.index = [filename.split("/")[2]]
-            li.append(df)
-        if li:
-            concatenated_pds = pd.concat(li)
-            concatenated_pds.to_csv(output.summary)
-        else:
-            pd.DataFrame(["No experiments yet."]).to_csv(output.summary)
+            yaml.dump(CONFIGURATION_DICT,f)
 
 
 ########################################################################################################################
@@ -126,7 +107,7 @@ def read_from_mdrun(path_to_file, param_to_find):
 
 
 def completely_modify_mdrun(config_file, mdrun_file):
-    trajectory_len = find_config_parameter_value(config_file,"traj_len")
+    trajectory_len = find_config_parameter_value(config_file,"nsteps")
     integrator = find_config_parameter_value(config_file,"integrator")
     coupling = find_config_parameter_value(config_file,"coupling_constant_ps")
     step = find_config_parameter_value(config_file,"step_in_ps")
@@ -158,12 +139,11 @@ def introduce_water_restraint(config_file, topology_file):
 # here folow specific rules for specific systems, currently:
 # keyword water_in_vacuum: two water molecules in vacuum
 # keyword water_in_helium: two water molecules in a box of helium-like LJ particles
-# keyword pyridine: two pyridine molecules in vacuum
 
 
 rule set_up_water_vacuum:
     """
-    Here we just copy the files but don't modify them.
+    Copy and prepare all the files to be able to run simulations or grid calculations for water in vacuum.
     """
     input:
         config_file = f"{PATH_EXPERIMENTS}water_in_vacuum/{{experiment_id}}/configuration_file.yaml",
@@ -201,6 +181,9 @@ rule set_up_water_vacuum:
 
 
 rule set_up_water_helium:
+    """
+    Copy and prepare all the files to be able to run simulations or grid calculations for water in helium
+    """
     input:
         config_file = f"{PATH_EXPERIMENTS}water_in_helium/{{experiment_id}}/configuration_file.yaml",
         start_structures_all = f"{PATH_INPUT_BASEGRO}nvt_fake_ar.gro",

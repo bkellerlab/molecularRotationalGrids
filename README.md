@@ -217,10 +217,21 @@ arXiv preprint available at: [https://arxiv.org/abs/2211.00566](https://arxiv.or
 
 
 # Using pipelines
+## Creating grids
+1) The pipeline for grid creation is found in workflow/run_grid.
+2) In this file, grid name along with properties like the number of points and the radii can be specified.
+3) Run: snakemake --snakefile workflow/run_grid --cores 4
+4) This creates files for grid points, adjacencies, volumes, distances and areas associated with this grid set-up.
+5) To create an overview of parameters for all already created grids, run Additionally, the parameters of the set-up will be recorded in the file grid_summary.csv
+6) To create different grids, repeat this process while changing the name and parameters in workflow/run_grid.
 
-1) Look at input/default_configuration_file.yaml and change the VALUES (not keys!) of experiment set-up settings if needed.
-[Note: you can create other common config files and provide them in the next line as --configfile]
-2) Run: snakemake --snakefile workflow/run_system_setup --cores 4 --config experiment_type=<select from: water_in_helium, water_in_vacuum> -F
+## Creating experiment set-ups
+7) The pipeline for experiment set-up is found in workflow/run_grid.
+8) In this file you can change the parametrs to vary the set-up
+9) Run: snakemake --snakefile workflow/run_system_setup --cores 4
+10) This will modify the files as described by the parameters and copy the needed input files into a directory <experiment_id>. Now you are ready to run msm or sqra experiments.
+11) You can also add new set-up rules at the bottom by defining files that should be copied (structure, topology, possibly modifies force fields, mdrun file, index files ...)
 
-To update the lists of all existing experiment set-ups, run:
-snakemake --snakefile workflow/run_system_setup --cores 4 record_existing_experiments
+## Creating records
+Records are useful to have an overview of experiments that have been set-up so far and their parameters. To obtain (or update) summary files run
+snakemake --snakefile workflow/run_records --cores 4

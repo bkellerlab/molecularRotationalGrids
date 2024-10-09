@@ -157,6 +157,10 @@ jupyter/
 experiments/
 .virtual_documents
 *.html
+
+# don't ignore input files referenced in workflow/run_system_setup
+
+# water in vacuum
 !input/H2O.gro
 !input/H2O_H2O.top
 !input/mdrun.mdp
@@ -164,5 +168,15 @@ experiments/
 !input/select_energy_five
 !input/select_group_zero
 !input/index_first_mol.ndx
+
+# water in helium
+!input/nvt_fake_ar.gro
+!input/argon_forcefield.itp
+!input/ffnonbonded.itp
+!input/ffbonded.itp
+!input/topol_fake_ar.top
+!input/H2O_H2Op.top
+
+
 
 ex_exp

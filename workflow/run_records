@@ -1,0 +1,45 @@
+import pandas as pd
+import yaml
+import os
+
+PATH_EXPERIMENTS = "ex_exp/"
+ALL_EXPERIMENT_TYPES = [file for file in os.listdir(PATH_EXPERIMENTS) if os.path.isdir(f"{PATH_EXPERIMENTS}{file}/")]
+
+rule all:
+    input:
+        summary=expand(f"{PATH_EXPERIMENTS}{{experiment_type}}/summary_experiments.csv", experiment_type=ALL_EXPERIMENT_TYPES)
+
+def find_all_config_files(wildcards):
+    """
+    Return a list of paths to all configuration_file.yaml within "<path_experiments>/<experiment_type>/".
+    """
+    to_return = []
+    for root, dirs, files in os.walk(f"{PATH_EXPERIMENTS}{wildcards.experiment_type}/",topdown=False):
+        for name in files:
+            if name == "configuration_file.yaml":
+                to_return.append(os.path.join(root,name))
+    return to_return
+
+rule record_experiments:
+    """
+    This rule looks into every directory within "<path_experiments>/<experiment_type>/" that contains a configuration 
+    file. It will then compile all these configuration files in pandas dataframe that is both printed and saved to
+    "<path_experiments>/<experiment_type>/summary_experiments.csv".
+    """
+    input:
+        find_all_config_files
+    output:
+        summary = f"{PATH_EXPERIMENTS}{{experiment_type}}/summary_experiments.csv"
+    run:
+        li = []
+        for filename in input:
+            with open(filename,'r') as fh:
+                df = pd.json_normalize(yaml.safe_load(fh.read()))
+                df.index = [filename.split("/")[2]]
+            li.append(df)
+        if li:
+            concatenated_pds = pd.concat(li)
+            concatenated_pds.to_csv(output.summary)
+            print(f"ALL EXPERIMENTS OF TYPE {wildcards.experiment_type}\n", concatenated_pds.to_markdown(), "\n")
+        else:
+            pd.DataFrame(["No experiments yet."]).to_csv(output.summary)

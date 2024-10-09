@@ -6,38 +6,73 @@ import numpy as np
 
 # add molgri directory
 import sys
+import yaml
+from scipy import sparse
+
+
 sys.path.append(".")
+from molgri.space.fullgrid import FullGrid
 
-from molgri.paths import PATH_OUTPUT_AUTOSAVE, PATH_OUTPUT_LOGGING
 
-pepfile: "workflow/grid_pep.yaml"
-grids = pep.sample_table
+PATH_EXPERIMENTS = "ex_exp/"
+PATH_GRIDS = f"{PATH_EXPERIMENTS}grids/"
+
+# TODO: the user inputs can instead be replaced with config["config_key"] and a configuration file provided
+#################################  FOR THE USER TO ADAPT FOR EACH NEW EXPERIMENT #######################################
+GRID_NAME = "small_ideal"
+NUMBER_ORIENTATIONS = 8
+NUMBER_DIRECTIONS = 12
+RADIAL_DISTANCES_NM = "'linspace(0.2, 0.5, 20)'"
+FACTOR_ORIENTATION_TO_POSITION = 1
+POSITION_GRID_IS_CARTESIAN = False
+##############################################  END: USER ADAPTATION ###################################################
+
 
 rule all_grids:
     input:
-        expand(f"{PATH_OUTPUT_AUTOSAVE}{{grid_identifier}}_full_array.npy", grid_identifier="cartesian_80_80_very_short")
+        expand(f"{PATH_GRIDS}{{grid_identifier}}/full_array.npy", grid_identifier=GRID_NAME),
+
+rule create_config_file:
+    """
+    Simply create a config file. Instead, you can also create it by hand.
+    """
+    output:
+        configuration = f"{PATH_GRIDS}{{grid_identifier}}/configuration_file.yaml",
+    params:
+        n_points_orientations = str(NUMBER_ORIENTATIONS),
+        n_points_directions = str(NUMBER_DIRECTIONS),
+        radial_distances_nm = RADIAL_DISTANCES_NM,
+        factor_orientation_to_position=FACTOR_ORIENTATION_TO_POSITION,
+        position_grid_cartesian = POSITION_GRID_IS_CARTESIAN
+    run:
+        # dump parameters to config file
+        with open(output.configuration,"w") as f:
+            yaml.dump(dict(params),f)
+
 
 rule run_grid:
     """
     This rule should provide a full grid and its geometric parameters.
     """
+    input:
+        configuration = rules.create_config_file.output.configuration
     output:
-        full_array = f"{PATH_OUTPUT_AUTOSAVE}{{grid_identifier}}_full_array.npy",
-        adjacency_array = f"{PATH_OUTPUT_AUTOSAVE}{{grid_identifier}}_adjacency_array.npz",
-        distances_array = f"{PATH_OUTPUT_AUTOSAVE}{{grid_identifier}}_distances_array.npz",
-        borders_array= f"{PATH_OUTPUT_AUTOSAVE}{{grid_identifier}}_borders_array.npz",
-        volumes = f"{PATH_OUTPUT_AUTOSAVE}{{grid_identifier}}_volumes.npy",
-    params:
-        b = lambda wc: grids.loc[wc.grid_identifier,"b_grid_name"],
-        o = lambda wc: grids.loc[wc.grid_identifier,"o_grid_name"],
-        t = lambda wc: grids.loc[wc.grid_identifier,"t_grid_name"],
-        factor=1,
-        is_cartesian = True,
-    run:
-        from molgri.space.fullgrid import FullGrid
-        from scipy import sparse
-        fg = FullGrid(params.b, params.o, params.t, factor=params.factor, position_grid_cartesian=params.is_cartesian)
+        full_array = f"{PATH_GRIDS}{{grid_identifier}}/full_array.npy",
+        adjacency_array = f"{PATH_GRIDS}{{grid_identifier}}/adjacency_array.npz",
+        distances_array = f"{PATH_GRIDS}{{grid_identifier}}/distances_array.npz",
+        borders_array= f"{PATH_GRIDS}{{grid_identifier}}/borders_array.npz",
+        volumes = f"{PATH_GRIDS}{{grid_identifier}}/volumes.npy",
 
+    benchmark:
+        f"{PATH_GRIDS}{{grid_identifier}}/grid_benchmark.txt"
+    run:
+        # load parameters
+        with open(input.configuration) as stream:
+            loaded_params = yaml.safe_load(stream)
+        # create a grid
+        fg = FullGrid(loaded_params["n_points_orientations"], loaded_params["n_points_directions"],
+            loaded_params["radial_distances_nm"], factor=loaded_params["factor_orientation_to_position"],
+            position_grid_cartesian=loaded_params["position_grid_cartesian"])
         # save full array
         np.save(output.full_array, fg.get_full_grid_as_array())
         # save geometric properties
