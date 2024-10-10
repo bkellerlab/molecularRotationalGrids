@@ -63,5 +63,3 @@ def read_from_mdrun(path_to_file, param_to_find):
             if ";" in line:
                 my_line = line.split(";")[0]
             return my_line.split("=")[1].strip()
-
-print()

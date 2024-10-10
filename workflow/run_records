@@ -16,7 +16,7 @@ def find_all_config_files(wildcards):
     to_return = []
     for root, dirs, files in os.walk(f"{PATH_EXPERIMENTS}{wildcards.experiment_type}/",topdown=False):
         for name in files:
-            if name == "configuration_file.yaml":
+            if name == "record_config.yaml":
                 to_return.append(os.path.join(root,name))
     return to_return
 
@@ -40,6 +40,5 @@ rule record_experiments:
         if li:
             concatenated_pds = pd.concat(li)
             concatenated_pds.to_csv(output.summary)
-            print(f"ALL EXPERIMENTS OF TYPE {wildcards.experiment_type}\n", concatenated_pds.to_markdown(), "\n")
         else:
             pd.DataFrame(["No experiments yet."]).to_csv(output.summary)
