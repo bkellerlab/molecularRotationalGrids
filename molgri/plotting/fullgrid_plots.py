@@ -5,31 +5,124 @@ Plot position grids in space, Voronoi cells and their volumes etc.
 """
 
 import plotly.express as px
+import pandas as pd
 import plotly.graph_objects as go
 import plotly.io as pio
+import numpy as np
+from scipy.sparse import coo_matrix
 
 pio.templates.default = "simple_white"
 
 WIDTH = 600
 HEIGHT = 600
-NUM_EIGENV = 10
+
+
+def add_fake_legend(fig, color_dict):
+    """
+    Adds a fake legend to a Plotly figure using annotations.
+
+    Parameters:
+        fig: The Plotly figure object to modify.
+        color_dict: Dictionary where keys are legend labels and values are corresponding colors.
+    """
+    # Set the initial position for the annotations
+    x_start = 0.45
+    y_start = 1.0
+    y_step = 0.05
+
+    # Add an annotation for each entry in the color_dict
+    annotations = []
+    for i, (label, color) in enumerate(color_dict.items()):
+        annotations.append(
+            go.layout.Annotation(
+                x=x_start,  # Position to the right of the plot
+                y=y_start - i * y_step,  # Spacing between legend items
+                xref="paper", yref="paper",  # Relative position in the plot
+                showarrow=False,  # No arrow
+                text=f'<span style="color:{color};">⬤</span> {label}',  # Custom text with colored marker
+                font=dict(size=12, color='black'),
+                align='left',
+                xanchor='left',
+            )
+        )
+
+    # Add annotations to the figure
+    fig.update_layout(annotations=annotations)
+
 
 def plot_adjacency_array(my_adjacency_array, path_to_save):
-    color_continuous_scale = [(0, "white"), (1, "black")]
+    color_continuous_scale = [(0, "white"), (0.5, "red"), (1, "black")]
     fig = go.Figure(go.Heatmap(x=my_adjacency_array.row, y=my_adjacency_array.col, z=my_adjacency_array.data,
-                    colorscale=color_continuous_scale))
+                    colorscale=color_continuous_scale, showscale=False, zmin=0, zmax=1))
     fig.update_layout(coloraxis_showscale=False)
-    # TODO: 0, 0 in top left, label on colorbar, special cmap for adjacency
+    fig.update_yaxes(autorange="reversed", showticklabels=False, ticks="", showline=True, mirror=True,
+                     title="Grid point index")
+    fig.update_xaxes( showticklabels=False, ticks="", showline=True, mirror=True,
+                      title="Grid point index", side ="top", ticksuffix = "  ")
+    # title depends if it is total adjacency or separately orientation and position
+    if np.any(np.isclose(my_adjacency_array.data, 0.5)):
+        add_fake_legend(fig,{"position neighbours\n(same orientation)": "red", "orientation neighbours\n(same position)": "black"})
+        #fig.update_layout(title="Red: position neighbours, black: orientation neighbours")
     fig.write_image(path_to_save, width=WIDTH, height=HEIGHT, scale=2)
 
-def plot_array_heatmap(my_array, path_to_save, cmap=None):
+
+def plot_array_heatmap(my_array, path_to_save):
     fig = go.Figure(go.Heatmap(x=my_array.row, y=my_array.col, z=my_array.data))
-    # TODO: 0, 0 in top left, label on colorbar, special cmap for adjacency
+    fig.update_yaxes(autorange="reversed", showticklabels=False, ticks="", showline=True, mirror=True,
+                     title="Grid point index")
+    fig.update_xaxes(showticklabels=False, ticks="", showline=True, mirror=True,
+                     title="Grid point index", side="top", ticksuffix="  ")
     fig.write_image(path_to_save, width=WIDTH, height=HEIGHT, scale=2)
 
-def plot_violin(my_array, path_to_save):
-    fig = go.Figure(data=go.Violin(y=my_array, line_color='black',
-                                   fillcolor='lightseagreen', opacity=0.6))
+
+def plot_violin_position_orientation(my_array, adjacency_position, path_to_save):
+    df = pd.DataFrame(data=my_array.data, columns=["data"])
+    from_where = []
+    # determine whether it comes from position grid
+    position_pairs =list(zip(adjacency_position.row, adjacency_position.col))
+    for row, col in zip(my_array.row, my_array.col):
+        if (row, col) in position_pairs:
+            from_where.append("orientation neighbours")
+        else:
+            from_where.append("position neighbours")
+    df['which'] = from_where
+    violin1 = go.Violin(
+        y=df[df.values == "orientation neighbours"]["data"],
+        name='Group 1',  # Name shown in the legend
+        line_color='black'
+    )
+
+    # Create the second violin plot (group 2) on the right y-axis
+    violin2 = go.Violin(
+        y=df[df.values == "position neighbours"]["data"],
+        name='Group 2',  # Name shown in the legend
+        line_color='red',
+        yaxis='y2'  # Plot this on the second y-axis
+    )
+
+    # Create the figure and add both violin plots
+    fig = go.Figure(data=[violin1, violin2])
+
+    # Update layout to add a second y-axis
+    fig.update_layout(
+        yaxis=dict(
+            title='Orientation neighbours (same position)',
+            showline=True,
+            tickfont=dict(color='black'),
+            titlefont=dict(color='black'),
+            ticks="",
+        ),
+        yaxis2=dict(
+            title='Position neighbours (same orientation)',
+            overlaying='y',  # Overlay this y-axis on the same plot
+            side='right',  # Place it on the right
+            showline=True,
+            ticks="",
+            tickfont=dict(color='red'),
+            titlefont=dict(color='red'),
+        ),
+    )
+    # TODO: remove legend, proper x labels
     fig.write_image(path_to_save, width=WIDTH, height=HEIGHT, scale=2)
 
 # import numpy as np

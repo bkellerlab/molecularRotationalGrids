@@ -75,10 +75,12 @@ rule plot_grid:
         distances_heatmap = f"{PATH_GRIDS}{{grid_identifier}}/distances_heatmap.png",
         borders_heatmap= f"{PATH_GRIDS}{{grid_identifier}}/borders_heatmap.png",
         adjacency_heatmap= f"{PATH_GRIDS}{{grid_identifier}}/adjacency_heatmap.png",
-        volumes_violin = f"{PATH_GRIDS}{{grid_identifier}}/volumes_violinplot.png"
+        adjacency_heatmap_pos_ori = f"{PATH_GRIDS}{{grid_identifier}}/adjacency_heatmap_position_orientation.png",
+        distances_violin= f"{PATH_GRIDS}{{grid_identifier}}/distances_violinplot.png",
+        borders_violin= f"{PATH_GRIDS}{{grid_identifier}}/borders_violinplot.png"
     run:
         from scipy import sparse
-        from molgri.plotting.fullgrid_plots import plot_array_heatmap, plot_violin, plot_adjacency_array
+        from molgri.plotting.fullgrid_plots import plot_array_heatmap, plot_violin_position_orientation, plot_adjacency_array
 
         # load
         distances = sparse.load_npz(input.distances_array).tocoo()
@@ -86,16 +88,19 @@ rule plot_grid:
         adjacency = sparse.load_npz(input.adjacency_array).tocoo()
         adjacency_only_position = sparse.load_npz(input.adjacency_only_position).tocoo()
         adjacency_only_orientation = sparse.load_npz(input.adjacency_only_orientation).tocoo()
+        sum_adj = adjacency_only_position+0.5*adjacency_only_orientation
         volumes = np.load(input.volumes)
 
         # all heatmaps
         plot_adjacency_array(adjacency,output.adjacency_heatmap)
+        plot_adjacency_array(sum_adj.tocoo(),output.adjacency_heatmap_pos_ori)
         plot_array_heatmap(distances, output.distances_heatmap)
         plot_array_heatmap(borders,output.borders_heatmap)
-        #plot_array_heatmap(adjacency,output.adjacency_heatmap)
 
         # all violin plots
-        print("Position", adjacency_only_position.col, adjacency_only_position.row, adjacency_only_position.data)
-        plot_violin(volumes, output.volumes_violin)
+        #print("Position", adjacency_only_position.col, adjacency_only_position.row, adjacency_only_position.data)
+        #plot_violin_position_orientation(volumes, output.volumes_violin)
+        plot_violin_position_orientation(distances, adjacency_only_position, output.distances_violin)
+        plot_violin_position_orientation(borders, adjacency_only_position, output.borders_violin)
 
-        # all grid/voronoi/3d plots
+        # TODO: all grid/voronoi/3d plots
