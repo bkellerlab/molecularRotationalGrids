@@ -217,6 +217,9 @@ arXiv preprint available at: [https://arxiv.org/abs/2211.00566](https://arxiv.or
 
 
 # Using pipelines
+
+snakemake --snakefile workflow/run_sqra --cores 4 --configfile input/default_configuration_file.yaml
+
 ## Creating grids
 1) The pipeline for grid creation is found in workflow/run_grid.
 2) In this file, grid name along with properties like the number of points and the radii can be specified.

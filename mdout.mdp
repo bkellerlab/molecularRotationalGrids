@@ -1,17 +1,17 @@
 ;
 ;	File 'mdout.mdp' was generated
 ;	By user: hanaz63 (399461)
-;	On host: qcm08
-;	At date: Sat Sep 28 20:22:19 2024
+;	On host: qcw31
+;	At date: Fri Oct 11 10:55:01 2024
 ;
 ;	Created by:
 ;	                      :-) GROMACS - gmx grompp, 2022 (-:
 ;	
 ;	Executable:   /home/janjoswig/local/gromacs-2022/bin/gmx22
 ;	Data prefix:  /home/janjoswig/local/gromacs-2022
-;	Working dir:  /home/hanaz63/2024_molgri2/nobackup/molecularRotationalGrids/.snakemake/shadow/tmpb0_922na
+;	Working dir:  /home/hanaz63/2024_molgri2/nobackup/molecularRotationalGrids/.snakemake/shadow/tmp119mqoe5
 ;	Command line:
-;	  gmx22 grompp -f experiments/vacuum_msm_01/mdrun.mdp -o result.tpr -c experiments/vacuum_msm_01/structure.gro -p experiments/vacuum_msm_01/topology.top
+;	  gmx22 grompp -f ex_exp/msm_water_in_vacuum/example/mdrun.mdp -o result.tpr -c ex_exp/msm_water_in_vacuum/example/structure.gro -p ex_exp/msm_water_in_vacuum/example/topology.top
 
 ; VARIOUS PREPROCESSING OPTIONS
 ; Preprocessor information: use cpp syntax.
@@ -25,7 +25,7 @@ integrator               = sd
 ; Start time and timestep in ps
 tinit                    = 0
 dt                       = 0.001
-nsteps                   = 40000000
+nsteps                   = 2000
 ; For exact run continuation or redoing part of a run
 init-step                = 0
 ; Part index is updated automatically on checkpointing (keeps files separate)
@@ -100,7 +100,7 @@ coulomb-modifier         = Potential-shift-Verlet
 rcoulomb-switch          = 0
 rcoulomb                 = 1.4
 ; Relative dielectric constant for the medium and the reaction field
-epsilon-r                = 1.0
+epsilon-r                = 1
 epsilon-rf               = 0
 ; Method for doing Van der Waals
 vdw-type                 = Cut-off
@@ -132,16 +132,16 @@ implicit-solvent         = no
 ; OPTIONS FOR WEAK COUPLING ALGORITHMS
 ; Temperature coupling  
 tcoupl                   = V-rescale
-nsttcouple               = 1
+nsttcouple               = -1
 nh-chain-length          = 10
 print-nose-hoover-chain-variables = no
 ; Groups to couple separately
 tc-grps                  = System
 ; Time constant (ps) and reference temperature (K)
-tau_t                    = 1.0
+tau_t                    = 0.001
 ref_t                    = 300
 ; pressure coupling     
-pcoupl                   = no
+pcoupl                   = Parrinello-Rahman
 pcoupltype               = isotropic
 nstpcouple               = -1
 ; Time constant (ps), compressibility (1/bar) and reference P (bar)
@@ -167,9 +167,9 @@ annealing-time           =
 annealing-temp           = 
 
 ; GENERATE VELOCITIES FOR STARTUP RUN
-gen_vel                  = yes
+gen_vel                  = no
 gen-temp                 = 300
-gen-seed                 = 1038086079
+gen-seed                 = 2008674015
 
 ; OPTIONS FOR BONDS    
 constraints              = h-bonds

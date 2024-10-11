@@ -1,18 +1,17 @@
 """
 All of the workflows relating to pseudotrajectories, subsequent SQRAs and their related outputs (figures ...)
 """
-# add molgri directory
+
 import sys
-sys.path.append(".")
-
-include: "run_grid"
-
 import numpy as np
 import yaml
 
-from workflow.snakemake_utils import find_config_parameter_value, modify_mdrun, modify_topology
+# add molgri directory
+sys.path.append(".")
+from workflow.snakemake_utils import modify_mdrun, modify_topology
+from molgri.paths import PATH_INPUT_BASEGRO, PATH_EXPERIMENTS
 
-from molgri.paths import PATH_OUTPUT_AUTOSAVE, PATH_INPUT_BASEGRO, PATH_EXPERIMENTS
+include: "run_grid"
 
 PATH_EXPERIMENTS = "ex_exp/"
 
@@ -21,6 +20,8 @@ if config["experiment_type"]!= "sqra_in_vacuum":
 
 EXPERIMENT_TYPE = config["experiment_type"]
 GRID_ID = config["grid_identifier"]
+
+# TODO: enable different set-ups
 
 rule all:
     input:
@@ -47,10 +48,10 @@ rule set_up_sqra_in_vacuum:
         select_energy = f"{PATH_EXPERIMENTS}{{experiment_type}}/{{grid_identifier}}/select_energy",
         runfile= f"{PATH_EXPERIMENTS}{{experiment_type}}/{{grid_identifier}}/mdrun.mdp",
     params:
-        tau_t = config["params_sqra"]["tau_t"],
-        up1_nm = config["params_sqra"]["up1_nm"],
-        up2_nm = config["params_sqra"]["up2_nm"],
-        force_constant_restraint = config["params_sqra"]["force_constant_restraint"],
+        tau_t = config["params_setup"]["tau_t"],
+        up1_nm = config["params_setup"]["up1_nm"],
+        up2_nm = config["params_setup"]["up2_nm"],
+        force_constant_restraint = config["params_setup"]["force_constant_restraint"],
     run:
         # first copy all inputs to outputs
         import shutil
@@ -172,7 +173,7 @@ rule run_sqra:
         T=float(config["params_sqra"]["temperature_K"]),
         energy_type=config["params_sqra"]["energy_type"],
         m_h2o = float(config["params_sqra"]["mass_kg"]),
-        tau = float(config["params_sqra"]["tau_t"]),
+        tau = float(config["params_setup"]["tau_t"]),
         lower_lim = config["params_sqra"]["lower_lim_rate_matrix"],
         upper_lim = config["params_sqra"]["upper_lim_rate_matrix"],
     run:

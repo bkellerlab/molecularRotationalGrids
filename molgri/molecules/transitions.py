@@ -38,7 +38,7 @@ class AssignmentTool:
     """
 
     def __init__(self, full_array: NDArray, path_structure: str, path_trajectory: str, path_reference_m2: str,
-                 stop=None):
+                 stop=None, include_outliers = False):
         self.full_array = full_array
         # these grids are also in A
         self.o_array, self.b_array, self.t_array = from_full_array_to_o_b_t(self.full_array)
@@ -48,6 +48,7 @@ class AssignmentTool:
         self.second_molecule_selection = self._determine_second_molecule()
         first_molecule = self.trajectory_universe.select_atoms("not " + self.second_molecule_selection)
         self.trajectory_universe.trajectory.add_transformations(trans.translate(-first_molecule.center_of_mass()))
+        self.include_outliers = include_outliers
         self.stop = stop
         if stop is None:
             self.stop = len(self.trajectory_universe.trajectory)
@@ -185,13 +186,28 @@ class AssignmentTool:
             an integer array as long as the trajectory, each element an index of the closest point of the radial grid
             like [0, 0, 0, 1, 1, 1, 2 ...] (for a PT with 3 orientations)
         """
-        #np.nan if np.linalg.norm(ag.center_of_mass()) > self.t_array[-1] else
-        t_selection = AnalysisFromFunction(
-            lambda ag: np.argmin(np.abs(self.t_array - np.linalg.norm(np.minimum(np.mod(ag.center_of_mass(),
-                                                                                      self.trajectory_universe.dimensions[:3]),
-                                             np.mod(-ag.center_of_mass(), self.trajectory_universe.dimensions[:3]))))),
-            self.trajectory_universe.trajectory,
-            self.trajectory_universe.select_atoms(self.second_molecule_selection))
+        if self.include_outliers:
+            t_selection = AnalysisFromFunction(
+                lambda ag: np.argmin(np.abs(self.t_array - np.linalg.norm(np.minimum(np.mod(ag.center_of_mass(),
+                                                                                            self.trajectory_universe.dimensions[
+                                                                                            :3]),
+                                                                                     np.mod(-ag.center_of_mass(),
+                                                                                            self.trajectory_universe.dimensions[
+                                                                                            :3]))))),
+                self.trajectory_universe.trajectory,
+                self.trajectory_universe.select_atoms(self.second_molecule_selection))
+        else:
+            t_selection = AnalysisFromFunction(
+                lambda ag: np.nan if np.linalg.norm(ag.center_of_mass()) > self.t_array[-1] else np.argmin(np.abs(
+                    self.t_array - np.linalg.norm(np.minimum(np.mod(ag.center_of_mass(),
+                                                                                            self.trajectory_universe.dimensions[
+                                                                                            :3]),
+                                                                                     np.mod(-ag.center_of_mass(),
+                                                                                            self.trajectory_universe.dimensions[
+                                                                                            :3]))))),
+                self.trajectory_universe.trajectory,
+                self.trajectory_universe.select_atoms(self.second_molecule_selection))
+
         t_selection.run(stop=self.stop)
         t_indices = t_selection.results['timeseries'].flatten()
         print("t statistics", pd.DataFrame(t_indices).describe())
