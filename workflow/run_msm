@@ -17,7 +17,7 @@ PATH_EXPERIMENTS = "ex_exp/"
 
 
 # here add other experiment types that should be performed with this pipeline
-if config["experiment_type"] not in ["msm_water_in_vacuum"]:
+if config["experiment_type"] not in ["msm_water_in_vacuum", "msm_water_in_helium"]:
     raise AttributeError(f"This pipeline should be used for MSM experiments. Your experiment type {config['experiment_type']} is not available here.")
 
 EXPERIMENT_TYPE = config["experiment_type"]
@@ -53,6 +53,75 @@ rule prepare_water_in_vacuum:
         select_centers=f"{PATH_INPUT_BASEGRO}select_3_and_0",
         index_m1=f"{PATH_INPUT_BASEGRO}index_first_mol.ndx",
     output:
+        molecule1 = f"{PATH_EXPERIMENTS}{{experiment_type}}/{{unique_id}}/m1.gro",
+        molecule2 = f"{PATH_EXPERIMENTS}{{experiment_type}}/{{unique_id}}/m2.gro",
+        runfile = f"{PATH_EXPERIMENTS}{{experiment_type}}/{{unique_id}}/mdrun.mdp",
+        topology = f"{PATH_EXPERIMENTS}{{experiment_type}}/{{unique_id}}/topology.top",
+        select_group = f"{PATH_EXPERIMENTS}{{experiment_type}}/{{unique_id}}/select_group",
+        select_centers = f"{PATH_EXPERIMENTS}{{experiment_type}}/{{unique_id}}/select_centers",
+        index_m1 = f"{PATH_EXPERIMENTS}{{experiment_type}}/{{unique_id}}/index_m1.ndx",
+    params:
+        nsteps = config["params_setup"]["nsteps"],
+        integrator = config["params_setup"]["integrator"],
+        dt_ps = config["params_setup"]["dt_ps"],
+        energy_writeout_frequency = config["params_setup"]["energy_writeout_frequency"],
+        compressed_writeout_frequency = config["params_setup"]["compressed_writeout_frequency"],
+        epsilon = config["params_setup"]["epsilon"],
+        tau_t= config["params_setup"]["tau_t"],
+        up1_nm= config["params_setup"]["up1_nm"],
+        up2_nm= config["params_setup"]["up2_nm"],
+        force_constant_restraint= config["params_setup"]["force_constant_restraint"],
+    run:
+        import shutil
+        # stuff that can be copied without being modified
+        shutil.copy(input.water_gro,output.molecule1)
+        shutil.copy(input.water_gro,output.molecule2)
+        shutil.copy(input.select_group, output.select_group)
+
+        shutil.copy(input.select_centers,output.select_centers)
+        shutil.copy(input.index_m1, output.index_m1)
+
+        # depending on config parameters, topology and runfile will be adapted
+        shutil.copy(input.water_top, output.topology)
+        shutil.copy(input.base_mdp_file, output.runfile)
+
+        # modify runfile with given parameters
+        modify_mdrun(output.runfile, "integrator", params.integrator)
+        modify_mdrun(output.runfile,"nsteps",params.nsteps)
+        modify_mdrun(output.runfile,"tau_t",params.tau_t)
+        modify_mdrun(output.runfile,"dt",params.dt_ps)
+        modify_mdrun(output.runfile,"nstenergy", params.energy_writeout_frequency)
+        modify_mdrun(output.runfile,"nstxout-compressed",params.compressed_writeout_frequency)
+        modify_mdrun(output.runfile,"epsilon-r",params.epsilon)
+        # modify topology with given parameters
+        modify_topology(output.topology,i="1",j="4",funct=10,low=0.0,up1=params.up1_nm,up2=params.up2_nm,
+            force_constant=params.force_constant_restraint)
+
+rule prepare_water_in_helium:
+    """
+    Here, everything is specific to a water-water system set up. Create a new folder in experiments/ and populate it
+    with correctly defined inputs for the gromacs run etc.
+    """
+    wildcard_constraints:
+        experiment_type=".*water_in_helium.*"
+    input:
+        start_structures_all = f"{PATH_INPUT_BASEGRO}nvt_fake_ar.gro",
+        forcefield1 = f"{PATH_INPUT_BASEGRO}argon_forcefield.itp",
+        forcefield2 = f"{PATH_INPUT_BASEGRO}ffnonbonded.itp",
+        forcefield3 = f"{PATH_INPUT_BASEGRO}ffbonded.itp",
+        water_in_arg_top = f"{PATH_INPUT_BASEGRO}topol_fake_ar.top",
+        water_gro = f"{PATH_INPUT_BASEGRO}H2O.gro",
+        water_top = f"{PATH_INPUT_BASEGRO}H2O_H2Op.top",
+        base_mdp_file = f"{PATH_INPUT_BASEGRO}mdrun.mdp",
+        select_group=f"{PATH_INPUT_BASEGRO}select_group_zero",
+        select_centers=f"{PATH_INPUT_BASEGRO}select_3_and_0",
+        index_m1=f"{PATH_INPUT_BASEGRO}index_first_mol.ndx",
+    output:
+        tart_structures = f"{PATH_EXPERIMENTS}{{experiment_type}}/{{unique_id}}/inserted_structure.gro",
+        forcefield1 = f"{PATH_EXPERIMENTS}{{experiment_type}}/{{unique_id}}/argon_forcefield.itp",
+        forcefield2 = f"{PATH_EXPERIMENTS}{{experiment_type}}/{{unique_id}}/ffnonbonded.itp",
+        forcefield3 = f"{PATH_EXPERIMENTS}{{experiment_type}}/{{unique_id}}/ffbonded.itp",
+        water_top= f"{PATH_EXPERIMENTS}{{experiment_type}}/{{unique_id}}/H2O_H2Op.top",
         molecule1 = f"{PATH_EXPERIMENTS}{{experiment_type}}/{{unique_id}}/m1.gro",
         molecule2 = f"{PATH_EXPERIMENTS}{{experiment_type}}/{{unique_id}}/m2.gro",
         runfile = f"{PATH_EXPERIMENTS}{{experiment_type}}/{{unique_id}}/mdrun.mdp",

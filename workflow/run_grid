@@ -20,7 +20,7 @@ GRID_ID = config["grid_identifier"]
 
 rule all_grids:
     input:
-        f"{PATH_GRIDS}{GRID_ID}/full_array.npy",
+        expand(f"{PATH_GRIDS}{GRID_ID}/{{what}}", what=["full_array.npy", "distances_heatmap.png"]),
     log:
         logfile = f"{PATH_GRIDS}{GRID_ID}/record_config.yaml",
     run:
@@ -34,6 +34,8 @@ rule run_grid:
     output:
         full_array = f"{PATH_GRIDS}{{grid_identifier}}/full_array.npy",
         adjacency_array = f"{PATH_GRIDS}{{grid_identifier}}/adjacency_array.npz",
+        adjacency_only_position = f"{PATH_GRIDS}{{grid_identifier}}/adjacency_array_position.npz",
+        adjacency_only_orientation = f"{PATH_GRIDS}{{grid_identifier}}/adjacency_array_orientation.npz",
         distances_array = f"{PATH_GRIDS}{{grid_identifier}}/distances_array.npz",
         borders_array= f"{PATH_GRIDS}{{grid_identifier}}/borders_array.npz",
         volumes = f"{PATH_GRIDS}{{grid_identifier}}/volumes.npy",
@@ -54,6 +56,46 @@ rule run_grid:
         np.save(output.full_array, fg.get_full_grid_as_array())
         # save geometric properties
         sparse.save_npz(output.adjacency_array, fg.get_full_adjacency())
+        sparse.save_npz(output.adjacency_only_position,fg.get_full_adjacency(only_position=True))
+        sparse.save_npz(output.adjacency_only_orientation,fg.get_full_adjacency(only_orientation=True))
         sparse.save_npz(output.borders_array,fg.get_full_borders())
         sparse.save_npz(output.distances_array,fg.get_full_distances())
         np.save(output.volumes,fg.get_total_volumes())
+
+rule plot_grid:
+    input:
+        full_array = rules.run_grid.output.full_array,
+        adjacency_array = rules.run_grid.output.adjacency_array,
+        adjacency_only_position= rules.run_grid.output.adjacency_only_position,
+        adjacency_only_orientation= rules.run_grid.output.adjacency_only_orientation,
+        distances_array = rules.run_grid.output.distances_array,
+        borders_array = rules.run_grid.output.borders_array,
+        volumes = rules.run_grid.output.volumes,
+    output:
+        distances_heatmap = f"{PATH_GRIDS}{{grid_identifier}}/distances_heatmap.png",
+        borders_heatmap= f"{PATH_GRIDS}{{grid_identifier}}/borders_heatmap.png",
+        adjacency_heatmap= f"{PATH_GRIDS}{{grid_identifier}}/adjacency_heatmap.png",
+        volumes_violin = f"{PATH_GRIDS}{{grid_identifier}}/volumes_violinplot.png"
+    run:
+        from scipy import sparse
+        from molgri.plotting.fullgrid_plots import plot_array_heatmap, plot_violin, plot_adjacency_array
+
+        # load
+        distances = sparse.load_npz(input.distances_array).tocoo()
+        borders = sparse.load_npz(input.borders_array).tocoo()
+        adjacency = sparse.load_npz(input.adjacency_array).tocoo()
+        adjacency_only_position = sparse.load_npz(input.adjacency_only_position).tocoo()
+        adjacency_only_orientation = sparse.load_npz(input.adjacency_only_orientation).tocoo()
+        volumes = np.load(input.volumes)
+
+        # all heatmaps
+        plot_adjacency_array(adjacency,output.adjacency_heatmap)
+        plot_array_heatmap(distances, output.distances_heatmap)
+        plot_array_heatmap(borders,output.borders_heatmap)
+        #plot_array_heatmap(adjacency,output.adjacency_heatmap)
+
+        # all violin plots
+        print("Position", adjacency_only_position.col, adjacency_only_position.row, adjacency_only_position.data)
+        plot_violin(volumes, output.volumes_violin)
+
+        # all grid/voronoi/3d plots

@@ -404,7 +404,7 @@ rule compile_vmd_log:
             index_list = list(index_list)
         show_eigenvectors(input.script,output.vmdlog,eigenvector_array=eigenvectors,num_eigenvec=params.num_eigenvec,
             num_extremes=params.num_extremes,index_list=index_list, figure_paths=output.fig_tga)
-        shell("vmd {input.structure} {input.trajectory} < {output.vmdlog}")
+        shell("vmd  -dispdev text {input.structure} {input.trajectory} < {output.vmdlog}")
         for el_tga, el_png in zip(output.fig_tga, output.fig_png):
             shell("convert {el_tga} {el_png}")
 

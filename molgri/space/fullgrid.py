@@ -218,14 +218,15 @@ class FullGrid:
         prefactor_matrix.data /= all_volumes[prefactor_matrix.row]
         return prefactor_matrix
 
-    def get_full_adjacency(self):
-        return self._get_N_N(sel_property="adjacency")
+    def get_full_adjacency(self, **kwargs):
+        return self._get_N_N(sel_property="adjacency", **kwargs)
 
     def get_full_distances(self, **kwargs):
         return self._get_N_N(sel_property="center_distances", **kwargs)
 
     def get_full_borders(self):
         return self._get_N_N(sel_property="border_len")
+
 
     def _get_N_N(self, sel_property="adjacency", only_position=False, only_orientation=False):
         full_sequence = self.get_full_grid_as_array()
