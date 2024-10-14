@@ -62,6 +62,7 @@ rule run_grid:
         sparse.save_npz(output.distances_array,fg.get_full_distances())
         np.save(output.volumes,fg.get_total_volumes())
 
+# todo: have a timeout for plotting, if not done in 10min it is just not important enough
 rule plot_grid:
     input:
         full_array = rules.run_grid.output.full_array,

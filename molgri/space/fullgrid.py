@@ -346,10 +346,10 @@ class PositionGrid:
 
     def get_cartesian_volumes(self):
         new_volumes = np.zeros(len(self.get_position_grid_as_array()))
-        for idx, i_region in enumerate(self.voronoi.point_region):
+        for idx, i_region in enumerate(self.voronoi_cells.point_region):
             # Open cells are removed from the calculation of the total volume
-            if -1 not in self.voronoi.regions[i_region]:
-                new_volumes[idx] = ConvexHull(self.voronoi.vertices[self.voronoi.regions[i_region]]).volume
+            if -1 not in self.voronoi_cells.regions[i_region]:
+                new_volumes[idx] = ConvexHull(self.voronoi_cells.vertices[self.voronoi_cells.regions[i_region]]).volume
         return new_volumes
 
     def get_cartesian_distances(self):
@@ -369,14 +369,14 @@ class PositionGrid:
         all_polygons_3d = []
         ind = 0
         for row, col in zip(new_S_matrix.row, new_S_matrix.col):
-            row_region = self.voronoi.point_region[row]
-            indices_row_regions = self.voronoi.regions[row_region]
+            row_region = self.voronoi_cells.point_region[row]
+            indices_row_regions = self.voronoi_cells.regions[row_region]
             # vertices_row = normal_voronoi.vertices[indices_row_regions]
-            col_region = self.voronoi.point_region[col]
+            col_region = self.voronoi_cells.point_region[col]
             # vertices_col = normal_voronoi.vertices[normal_voronoi.regions[col_region]]
-            indices_col_regions = self.voronoi.regions[col_region]
+            indices_col_regions = self.voronoi_cells.regions[col_region]
             shared_vertices = set(indices_row_regions).intersection(set(indices_col_regions))
-            all_polygons_3d.append(np.array([x for i, x in enumerate(self.voronoi.vertices) if i in shared_vertices]))
+            all_polygons_3d.append(np.array([x for i, x in enumerate(self.voronoi_cells.vertices) if i in shared_vertices]))
             ind += 1
         return all_polygons_3d
 

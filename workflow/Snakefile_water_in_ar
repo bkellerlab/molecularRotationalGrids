@@ -17,42 +17,6 @@ ALL_I = [483, 383, 222, 123, 314, 108, 104, 135, 261, 270, 208, 226, 493,
        374, 408, 424, 226, 193, 363, 401, 337, 360,  86, 334, 466,
         28] #328,
 
-rule all:
-    input:
-        msm_all4=expand(f"{PATH_EXPERIMENTS}{{unique_id}}/{{grid_identifier}}/assignments_{{i}}.npy", i=np.arange(19, dtype=int),
-            unique_id=["FAKE2_argon2_cc1_1", "FAKE2_argon2_cc10_1", "FAKE2_argon2_cc1_80", "FAKE2_argon2_cc10_80"], grid_identifier=["80_80_very_short"]),
-#        msm_all1=expand(f"{PATH_EXPERIMENTS}{{unique_id}}/{{grid_identifier}}/its_{{is_corrected}}_{{sigma}}_{{which}}.png",
-#            unique_id=["FAKE2_argon2_cc1_1", "FAKE2_argon2_cc10_1", "FAKE2_argon2_cc1_80", "FAKE2_argon2_cc10_80"],tau=TAUS,
-#            grid_identifier=[ "80_80_very_short"],sigma="None",which="LR",is_corrected=["msm"]),
-#        msm_all2=expand(f"{PATH_EXPERIMENTS}{{unique_id}}/{{grid_identifier}}/{{tau}}/eigenvector_{{i}}_{{sigma}}_{{which}}_{{is_corrected}}.png",i=[0, 1, 2, 3, 4],
-#            unique_id=["FAKE2_argon2_cc1_1", "FAKE2_argon2_cc10_1", "FAKE2_argon2_cc1_80", "FAKE2_argon2_cc10_80"],
-#            grid_identifier=["80_80_very_short"],sigma="None",which="LR",
-#            tau=[10],suffix=[".png", "_vmdlog_msm"],is_corrected=["msm"]),
-#        msm_all3=expand(f"{PATH_EXPERIMENTS}{{unique_id}}/{{grid_identifier}}/{{tau}}/eigenvectors_{{is_corrected}}_{{sigma}}_{{which}}.png",
-#            unique_id=["FAKE2_argon2_cc1_1", "FAKE2_argon2_cc10_1", "FAKE2_argon2_cc1_80", "FAKE2_argon2_cc10_80"], grid_identifier=["80_80_very_short"],sigma="None",which="LR",
-#            tau=[10],suffix=[".png", "_vmdlog_msm"],is_corrected=["msm"]),
-
-
-
-rule create_config_file_in_argon:
-    """
-    The point here is to get the unique ID of the experiment, read all of its parameters from a database of experiments 
-    and write them to a file within this experiment folder.
-    """
-    input:
-        experiments_database = "workflow/experiments_in_ar.csv"
-    output:
-        config_file = f"{PATH_EXPERIMENTS}{{unique_id}}/experiment_config.txt"
-    run:
-        # read in all parameters
-        import pandas as pd
-        experiments = pd.read_csv(input.experiments_database, index_col=0)
-        columns = experiments.columns
-        with open(output.config_file, "w") as f:
-            print(experiments, wildcards.unique_id)
-            for i, parameter_value in enumerate(experiments.loc[wildcards.unique_id]):
-                f.write(f"{columns[i]}={parameter_value}\n")
-
 
 rule prepare_water_water_in_argon:
     """

@@ -15,22 +15,19 @@ include: "run_grid"
 
 PATH_EXPERIMENTS = "ex_exp/"
 
-if config["experiment_type"]!= "sqra_in_vacuum":
+if config["experiment_type"]!= "sqra_water_in_vacuum":
     raise AttributeError(f"This pipeline should be used for SQRA experiments in vacuum. Your experiment type is {config['experiment_type']} instead of 'sqra_in_vacuum'")
 
 EXPERIMENT_TYPE = config["experiment_type"]
+EXPERIMENT_ID = config["experiment_id"]
 GRID_ID = config["grid_identifier"]
 
 # TODO: enable different set-ups
 
 rule all:
     input:
-        f"{PATH_EXPERIMENTS}{EXPERIMENT_TYPE}/{GRID_ID}/its.csv",
-    log:
-        logfile = f"{PATH_EXPERIMENTS}{EXPERIMENT_TYPE}/{GRID_ID}/record_config.yaml",
-    run:
-        with open(log.logfile,"w") as f:
-            yaml.dump(config,f)
+        expand(f"{PATH_EXPERIMENTS}{EXPERIMENT_TYPE}/{EXPERIMENT_ID}/{GRID_ID}/{{what}}",
+            what=["its.png", "eigenvectors_vmdlog", "eigenvalues.png", "its.csv"]),
 
 rule set_up_sqra_in_vacuum:
     """
@@ -42,11 +39,11 @@ rule set_up_sqra_in_vacuum:
         select_energy=f"{PATH_INPUT_BASEGRO}select_energy_five",
         runfile= f"{PATH_INPUT_BASEGRO}mdrun.mdp",
     output:
-        molecule1 = f"{PATH_EXPERIMENTS}{{experiment_type}}/{{grid_identifier}}/m1.gro",
-        molecule2 = f"{PATH_EXPERIMENTS}{{experiment_type}}/{{grid_identifier}}/m2.gro",
-        topology = f"{PATH_EXPERIMENTS}{{experiment_type}}/{{grid_identifier}}/topology.top",
-        select_energy = f"{PATH_EXPERIMENTS}{{experiment_type}}/{{grid_identifier}}/select_energy",
-        runfile= f"{PATH_EXPERIMENTS}{{experiment_type}}/{{grid_identifier}}/mdrun.mdp",
+        molecule1 = f"{PATH_EXPERIMENTS}{{experiment_type}}/{{experiment_id}}/{{grid_identifier}}/m1.gro",
+        molecule2 = f"{PATH_EXPERIMENTS}{{experiment_type}}/{{experiment_id}}/{{grid_identifier}}/m2.gro",
+        topology = f"{PATH_EXPERIMENTS}{{experiment_type}}/{{experiment_id}}/{{grid_identifier}}/topology.top",
+        select_energy = f"{PATH_EXPERIMENTS}{{experiment_type}}/{{experiment_id}}/{{grid_identifier}}/select_energy",
+        runfile= f"{PATH_EXPERIMENTS}{{experiment_type}}/{{experiment_id}}/{{grid_identifier}}/mdrun.mdp",
     params:
         tau_t = config["params_setup"]["tau_t"],
         up1_nm = config["params_setup"]["up1_nm"],
@@ -75,8 +72,8 @@ rule run_pt:
         molecule2 = rules.set_up_sqra_in_vacuum.output.molecule2,
         grid = rules.run_grid.output.full_array
     output:
-        structure = f"{PATH_EXPERIMENTS}{{experiment_type}}/{{grid_identifier}}/structure.gro",
-        trajectory = f"{PATH_EXPERIMENTS}{{experiment_type}}/{{grid_identifier}}/trajectory.trr"
+        structure = f"{PATH_EXPERIMENTS}{{experiment_type}}/{{experiment_id}}/{{grid_identifier}}/structure.gro",
+        trajectory = f"{PATH_EXPERIMENTS}{{experiment_type}}/{{experiment_id}}/{{grid_identifier}}/trajectory.trr"
     params:
         cell_size_A = config["params_sqra"]["cell_size_A"]  # cubic box will be the output, this is size of the box in one dimension
     run:
@@ -112,11 +109,11 @@ rule gromacs_rerun:
         select_energy = rules.set_up_sqra_in_vacuum.output.select_energy,
     shadow: "copy-minimal"
     log:
-        log = f"{PATH_EXPERIMENTS}{{experiment_type}}/{{grid_identifier}}/logging_gromacs.log"
+        log = f"{PATH_EXPERIMENTS}{{experiment_type}}/{{experiment_id}}/{{grid_identifier}}/logging_gromacs.log"
     benchmark:
-        f"{PATH_EXPERIMENTS}{{experiment_type}}/{{grid_identifier}}/gromacs_benchmark.txt"
+        f"{PATH_EXPERIMENTS}{{experiment_type}}/{{experiment_id}}/{{grid_identifier}}/gromacs_benchmark.txt"
     output:
-        energy = f"{PATH_EXPERIMENTS}{{experiment_type}}/{{grid_identifier}}/energy.xvg",
+        energy = f"{PATH_EXPERIMENTS}{{experiment_type}}/{{experiment_id}}/{{grid_identifier}}/energy.xvg",
     # use with arguments like path_structure path_trajectory path_topology path_default_files path_output_energy
     shell:
         """
@@ -131,7 +128,7 @@ rule lowest_e_structures:
     input:
         energy = rules.gromacs_rerun.output.energy
     output:
-        list_structures = f"{PATH_EXPERIMENTS}{{experiment_type}}/{{grid_identifier}}/indices_lowest_E.csv"
+        list_structures = f"{PATH_EXPERIMENTS}{{experiment_type}}/{{experiment_id}}/{{grid_identifier}}/indices_lowest_E.csv"
     params:
         num = config["params_sqra"]["number_lowest_E_structures"]
     run:
@@ -165,10 +162,10 @@ rule run_sqra:
         borders_array = rules.run_grid.output.borders_array,
         volumes = rules.run_grid.output.volumes,
     output:
-        rate_matrix = f"{PATH_EXPERIMENTS}{{experiment_type}}/{{grid_identifier}}/rate_matrix.npz",
-        index_list = f"{PATH_EXPERIMENTS}{{experiment_type}}/{{grid_identifier}}/index_list.npy",
+        rate_matrix = f"{PATH_EXPERIMENTS}{{experiment_type}}/{{experiment_id}}/{{grid_identifier}}/rate_matrix.npz",
+        index_list = f"{PATH_EXPERIMENTS}{{experiment_type}}/{{experiment_id}}/{{grid_identifier}}/index_list.npy",
     benchmark:
-        f"{PATH_EXPERIMENTS}{{experiment_type}}/{{grid_identifier}}/rate_matrix_benchmark.txt"
+        f"{PATH_EXPERIMENTS}{{experiment_type}}/{{experiment_id}}/{{grid_identifier}}/rate_matrix_benchmark.txt"
     params:
         T=float(config["params_sqra"]["temperature_K"]),
         energy_type=config["params_sqra"]["energy_type"],
@@ -314,10 +311,10 @@ rule run_decomposition:
     input:
         rate_matrix = rules.run_sqra.output.rate_matrix
     output:
-        eigenvalues = f"{PATH_EXPERIMENTS}{{experiment_type}}/{{grid_identifier}}/eigenvalues.npy",
-        eigenvectors = f"{PATH_EXPERIMENTS}{{experiment_type}}/{{grid_identifier}}/eigenvectors.npy",
+        eigenvalues = f"{PATH_EXPERIMENTS}{{experiment_type}}/{{experiment_id}}/{{grid_identifier}}/eigenvalues.npy",
+        eigenvectors = f"{PATH_EXPERIMENTS}{{experiment_type}}/{{experiment_id}}/{{grid_identifier}}/eigenvectors.npy",
     benchmark:
-        f"{PATH_EXPERIMENTS}{{experiment_type}}/{{grid_identifier}}/decomposition_benchmark.txt"
+        f"{PATH_EXPERIMENTS}{{experiment_type}}/{{experiment_id}}/{{grid_identifier}}/decomposition_benchmark.txt"
     params:
         tol=config["params_sqra"]["tol"],
         maxiter=config["params_sqra"]["maxiter"],
@@ -352,9 +349,9 @@ rule run_plot_everything_sqra:
         eigenvalues = rules.run_decomposition.output.eigenvalues,
         eigenvectors = rules.run_decomposition.output.eigenvectors,
     output:
-        plot_eigenvectors=f"{PATH_EXPERIMENTS}{{experiment_type}}/{{grid_identifier}}/eigenvectors.png",
-        plot_eigenvalues=f"{PATH_EXPERIMENTS}{{experiment_type}}/{{grid_identifier}}/eigenvalues.png",
-        plot_its=report(f"{PATH_EXPERIMENTS}{{experiment_type}}/{{grid_identifier}}/its.png", category="{experiment_id}"),
+        plot_eigenvectors=f"{PATH_EXPERIMENTS}{{experiment_type}}/{{experiment_id}}/{{grid_identifier}}/eigenvectors.png",
+        plot_eigenvalues=f"{PATH_EXPERIMENTS}{{experiment_type}}/{{experiment_id}}/{{grid_identifier}}/eigenvalues.png",
+        plot_its=report(f"{PATH_EXPERIMENTS}{{experiment_type}}/{{experiment_id}}/{{grid_identifier}}/its.png", category="{experiment_id}"),
     run:
         from molgri.plotting.transition_plots import PlotlyTransitions
 
@@ -385,9 +382,9 @@ rule compile_vmd_log:
         # in the script only the numbers for frames need to be changed.
         script="molgri/scripts/vmd_show_eigenvectors_sqra"
     output:
-        vmdlog = f"{PATH_EXPERIMENTS}{{experiment_type}}/{{grid_identifier}}/eigenvectors_vmdlog",
-        fig_tga = expand(f"{PATH_EXPERIMENTS}{{experiment_type}}/{{grid_identifier}}/eigenvector{{i}}.tga", i=[0, 1, 2, 3, 4], allow_missing=True),
-        fig_png= report(expand(f"{PATH_EXPERIMENTS}{{experiment_type}}/{{grid_identifier}}/eigenvector{{i}}.png",i=[0, 1, 2, 3, 4],allow_missing=True),
+        vmdlog = f"{PATH_EXPERIMENTS}{{experiment_type}}/{{experiment_id}}/{{grid_identifier}}/eigenvectors_vmdlog",
+        fig_tga = expand(f"{PATH_EXPERIMENTS}{{experiment_type}}/{{experiment_id}}/{{grid_identifier}}/eigenvector{{i}}.tga", i=[0, 1, 2, 3, 4], allow_missing=True),
+        fig_png= report(expand(f"{PATH_EXPERIMENTS}{{experiment_type}}/{{experiment_id}}/{{grid_identifier}}/eigenvector{{i}}.png",i=[0, 1, 2, 3, 4],allow_missing=True),
         category="{experiment_type}")
     params:
         num_extremes=config["params_sqra"]["num_extremes_to_plot"],
@@ -412,7 +409,7 @@ rule print_its:
     input:
         eigenvalues = rules.run_decomposition.output.eigenvalues
     output:
-        data = f"{PATH_EXPERIMENTS}{{experiment_type}}/{{grid_identifier}}/its.csv"
+        data = f"{PATH_EXPERIMENTS}{{experiment_type}}/{{experiment_id}}/{{grid_identifier}}/its.csv"
     run:
         import pandas as pd
 

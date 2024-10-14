@@ -38,6 +38,7 @@ rule all:
         with open(log.logfile,"w") as f:
             yaml.dump(config,f)
 
+################## specific to water in vacuum #################
 rule prepare_water_in_vacuum:
     """
     Here, everything is specific to a water-water system set up. Create a new folder in experiments/ and populate it
@@ -97,6 +98,8 @@ rule prepare_water_in_vacuum:
         modify_topology(output.topology,i="1",j="4",funct=10,low=0.0,up1=params.up1_nm,up2=params.up2_nm,
             force_constant=params.force_constant_restraint)
 
+################## specific to water in helium #################
+# TODO: keep introducing helium option
 rule prepare_water_in_helium:
     """
     Here, everything is specific to a water-water system set up. Create a new folder in experiments/ and populate it
@@ -105,7 +108,7 @@ rule prepare_water_in_helium:
     wildcard_constraints:
         experiment_type=".*water_in_helium.*"
     input:
-        start_structures_all = f"{PATH_INPUT_BASEGRO}nvt_fake_ar.gro",
+        full_structure = f"{PATH_INPUT_BASEGRO}nvt_fake_ar.gro",
         forcefield1 = f"{PATH_INPUT_BASEGRO}argon_forcefield.itp",
         forcefield2 = f"{PATH_INPUT_BASEGRO}ffnonbonded.itp",
         forcefield3 = f"{PATH_INPUT_BASEGRO}ffbonded.itp",
@@ -117,11 +120,11 @@ rule prepare_water_in_helium:
         select_centers=f"{PATH_INPUT_BASEGRO}select_3_and_0",
         index_m1=f"{PATH_INPUT_BASEGRO}index_first_mol.ndx",
     output:
-        tart_structures = f"{PATH_EXPERIMENTS}{{experiment_type}}/{{unique_id}}/inserted_structure.gro",
+        full_structure= f"{PATH_EXPERIMENTS}{{experiment_type}}/{{unique_id}}/structure.gro",
         forcefield1 = f"{PATH_EXPERIMENTS}{{experiment_type}}/{{unique_id}}/argon_forcefield.itp",
         forcefield2 = f"{PATH_EXPERIMENTS}{{experiment_type}}/{{unique_id}}/ffnonbonded.itp",
         forcefield3 = f"{PATH_EXPERIMENTS}{{experiment_type}}/{{unique_id}}/ffbonded.itp",
-        water_top= f"{PATH_EXPERIMENTS}{{experiment_type}}/{{unique_id}}/H2O_H2Op.top",
+        water_top = f"{PATH_EXPERIMENTS}{{experiment_type}}/{{unique_id}}/water_topol.top",
         molecule1 = f"{PATH_EXPERIMENTS}{{experiment_type}}/{{unique_id}}/m1.gro",
         molecule2 = f"{PATH_EXPERIMENTS}{{experiment_type}}/{{unique_id}}/m2.gro",
         runfile = f"{PATH_EXPERIMENTS}{{experiment_type}}/{{unique_id}}/mdrun.mdp",
@@ -146,7 +149,10 @@ rule prepare_water_in_helium:
         shutil.copy(input.water_gro,output.molecule1)
         shutil.copy(input.water_gro,output.molecule2)
         shutil.copy(input.select_group, output.select_group)
-
+        shutil.copy(input.forcefield1,output.forcefield1)
+        shutil.copy(input.forcefield2,output.forcefield2)
+        shutil.copy(input.forcefield3,output.forcefield3)
+        shutil.copy(input.full_structure,output.full_structure)
         shutil.copy(input.select_centers,output.select_centers)
         shutil.copy(input.index_m1, output.index_m1)
 
@@ -165,13 +171,15 @@ rule prepare_water_in_helium:
         # modify topology with given parameters
         modify_topology(output.topology,i="1",j="4",funct=10,low=0.0,up1=params.up1_nm,up2=params.up2_nm,
             force_constant=params.force_constant_restraint)
-
+################## end specific set-ups #################
 
 # note: here we don't wanna refer to specific rule outputs as different rules for set up may be used
 rule create_msm_gro:
     """
     Create a structure from two molecules. Expected in the folder: m1.gro, m2.gro
     """
+    wildcard_constraints:
+        experiment_type=".*water_in_vacuum.*"
     input:
         molecule1 = f"{PATH_EXPERIMENTS}{{experiment_type}}/{{unique_id}}/m1.gro",
         molecule2 = f"{PATH_EXPERIMENTS}{{experiment_type}}/{{unique_id}}/m2.gro",
@@ -209,7 +217,7 @@ rule run_msm_gromacs:
     energies.
     """
     input:
-        structure = rules.create_msm_gro.output.structure,
+        structure = f"{PATH_EXPERIMENTS}{{experiment_type}}/{{unique_id}}/structure.gro",
         runfile = f"{PATH_EXPERIMENTS}{{experiment_type}}/{{unique_id}}/mdrun.mdp",
         topology = f"{PATH_EXPERIMENTS}{{experiment_type}}/{{unique_id}}/topology.top",
         select_group = f"{PATH_EXPERIMENTS}{{experiment_type}}/{{unique_id}}/select_group",
