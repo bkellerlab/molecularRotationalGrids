@@ -67,6 +67,8 @@ rule plot_grid:
         distances_array = rules.run_grid.output.distances_array,
         borders_array = rules.run_grid.output.borders_array,
         volumes = rules.run_grid.output.volumes,
+    params:
+        position_grid_cartesian = bool(config["params_grid"]["position_grid_is_cartesian"])
     output:
         distances_heatmap = f"{PATH_GRIDS}{{grid_identifier}}/distances_heatmap.png",
         borders_heatmap= f"{PATH_GRIDS}{{grid_identifier}}/borders_heatmap.png",
@@ -76,7 +78,8 @@ rule plot_grid:
         borders_violin= f"{PATH_GRIDS}{{grid_identifier}}/borders_violinplot.png"
     run:
         from scipy import sparse
-        from molgri.plotting.fullgrid_plots import plot_array_heatmap, plot_violin_position_orientation, plot_adjacency_array
+        from molgri.plotting.fullgrid_plots import (plot_array_heatmap, plot_violin_position_orientation,
+                                                    plot_adjacency_array)
 
         # load
         distances = sparse.load_npz(input.distances_array).tocoo()
@@ -98,7 +101,4 @@ rule plot_grid:
         #plot_violin_position_orientation(volumes, output.volumes_violin)
         plot_violin_position_orientation(distances, adjacency_only_position, output.distances_violin)
         plot_violin_position_orientation(borders, adjacency_only_position, output.borders_violin)
-
-
-        # TODO: all grid/voronoi/3d plots
 

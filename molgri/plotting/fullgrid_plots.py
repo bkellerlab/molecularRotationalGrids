@@ -9,9 +9,15 @@ import pandas as pd
 import plotly.graph_objects as go
 import plotly.io as pio
 import numpy as np
-from scipy.sparse import coo_matrix
+from mpl_toolkits.mplot3d.art3d import Poly3DCollection
+import matplotlib.pyplot as plt
+from scipy.spatial import Voronoi
+
+from molgri.plotting.voronoi_plots import VoronoiPlot
+from molgri.space.voronoi import PositionVoronoi
 
 pio.templates.default = "simple_white"
+rng = np.random.default_rng(11)
 
 WIDTH = 600
 HEIGHT = 600
@@ -73,6 +79,45 @@ def plot_array_heatmap(my_array, path_to_save):
     fig.update_xaxes(showticklabels=False, ticks="", showline=True, mirror=True,
                      title="Grid point index", side="top", ticksuffix="  ")
     fig.write_image(path_to_save, width=WIDTH, height=HEIGHT, scale=2)
+
+def plot_cartesian_voronoi(position_grid):
+        normal_voronoi = Voronoi(position_grid)
+        normal_voronoi_vertices = normal_voronoi.vertices
+        polygons = []
+        for ri, region in enumerate(normal_voronoi.regions):
+            # only plot those polygons for which all vertices are defined
+            if np.all(np.asarray(region) >= 0) and len(region) > 0:
+                poly = []
+                for rv in normal_voronoi.ridge_vertices:
+                    if np.isin(rv, region).all():
+                        poly.append(normal_voronoi.vertices[rv])
+                polygons.append(poly)
+
+        fig = plt.figure(figsize=(10,10))
+        ax = fig.add_subplot(111, projection='3d')
+
+        # only plot two
+        polygons = [polygons[0],polygons[-1], ]
+
+        # now cycle thorugh all available polygons
+        for poly in polygons:
+            polygon = Poly3DCollection(poly, alpha=0.5,
+                                       facecolors=rng.uniform(0, 1, 3),
+                                       linewidths=0.5, edgecolors='black')
+            ax.add_collection3d(polygon)
+
+
+        ax.scatter(*position_grid.T, color="black", s=20)
+        ax.scatter(*normal_voronoi_vertices.T, color="blue", s=20)
+
+
+def plot_spherical_voronoi(o_grid, t_grid):
+        pv = PositionVoronoi(o_grid, point_radii=t_grid)
+        vp= VoronoiPlot(pv)
+        vp.plot_one_region(10,color="red", save=False, fig=vp.fig,ax=vp.ax)
+        vp.plot_one_region(45,color="blue", save=False, fig=vp.fig,ax=vp.ax)
+        vp.ax.set_axis_off()
+        plt.show()
 
 
 def plot_violin_position_orientation(my_array, adjacency_position, path_to_save):
