@@ -21,9 +21,10 @@ def _create_pseudotraj(grid: NDArray, m1="H2O.gro", m2="H2O.gro", path_structure
                        path_trajectory=f"{PATH_OUTPUT_PT}temp.trr"):
     molecule1 = FileParser(f"{PATH_INPUT_BASEGRO}{m1}").as_parsed_molecule()
     molecule2 = FileParser(f"{PATH_INPUT_BASEGRO}{m2}").as_parsed_molecule()
+    box = molecule1.box
 
     my_pt = Pseudotrajectory(molecule2, grid)
-    my_writer = PtWriter("", molecule1)
+    my_writer = PtWriter("", molecule1, box)
     my_writer.write_full_pt(my_pt, path_structure=path_structure,
                             path_trajectory=path_trajectory)
 
@@ -38,6 +39,7 @@ def test_position_grid_assignments():
     n_b = my_grid.get_b_N()
     n_position_grid = my_grid.get_o_N() * my_grid.get_t_N()
     repeated_natural_num = np.repeat(np.arange(n_position_grid), n_b)
+    print(at._get_position_assignments())
     assert np.all(repeated_natural_num == at._get_position_assignments())
     # with the same pt but a smaller fullgrid, I expect an equal number of structures in every cell
     num_o = 500
@@ -125,6 +127,7 @@ def test_full_grid_assignments():
     at = AssignmentTool(my_grid.get_full_grid_as_array(), path_structure=f"{PATH_OUTPUT_PT}temp.gro",
                         path_trajectory=f"{PATH_OUTPUT_PT}temp.trr",
                         path_reference_m2=f"{PATH_INPUT_BASEGRO}H2O.gro")
+    print(at.get_full_assignments())
     assert np.all(np.arange(len(at.trajectory_universe.trajectory)) == at.get_full_assignments())
 
     # non-perfect divisions, same sizes
@@ -137,8 +140,8 @@ def test_full_grid_assignments():
 
 
 if __name__ == "__main__":
-    #test_position_grid_assignments()
-    view_quaternion_assignments()
+    test_position_grid_assignments()
+    #view_quaternion_assignments()
     #test_quaternion_grid_assignments()
     #test_full_grid_assignments()
 

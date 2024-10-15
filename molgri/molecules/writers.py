@@ -57,7 +57,7 @@ class PtIOManager:
         self.full_grid = FullGrid(b_grid_name=b_grid_name, o_grid_name=o_grid_name, t_grid_name=t_grid_name)
         # initiating writer and pseudotrajectory objects
         self.writer = PtWriter(name_to_save=self.determine_pt_name(),
-                               parsed_central_molecule=self.central_molecule)
+                               parsed_central_molecule=self.central_molecule, box=self.rotating_molecule.box)
         self.pt = Pseudotrajectory(self.rotating_molecule, self.full_grid.get_full_grid_as_array())
         # if the user doesn't select a name, use names of the two molecules as the default
         if output_name is None:

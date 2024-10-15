@@ -197,8 +197,9 @@ class AssignmentTool:
                 self.trajectory_universe.trajectory,
                 self.trajectory_universe.select_atoms(self.second_molecule_selection))
         else:
+            outer_bound = self.t_array[-1] + 0.5*(self.t_array[-1]-self.t_array[-2])
             t_selection = AnalysisFromFunction(
-                lambda ag: np.nan if np.linalg.norm(ag.center_of_mass()) > self.t_array[-1] else np.argmin(np.abs(
+                lambda ag: np.nan if np.linalg.norm(ag.center_of_mass()) > outer_bound else np.argmin(np.abs(
                     self.t_array - np.linalg.norm(np.minimum(np.mod(ag.center_of_mass(),
                                                                                             self.trajectory_universe.dimensions[
                                                                                             :3]),
@@ -221,11 +222,16 @@ class AssignmentTool:
         """
         # now using a normalized com and a metric on a sphere, determine which of o_grid_points is closest
         o_selection = AnalysisFromFunction(lambda ag: np.argmin(cdist(self.o_array, normalise_vectors(
-            np.minimum(np.mod(ag.center_of_mass(), self.trajectory_universe.dimensions[:3]),
-                       np.mod(-ag.center_of_mass(), self.trajectory_universe.dimensions[:3])))[np.newaxis, :],
-            metric="cos"), axis=0),
+            ag.center_of_mass()[np.newaxis, :]),
+            metric="euclidean"), axis=0),
                                            self.trajectory_universe.trajectory,
                                            self.trajectory_universe.select_atoms(self.second_molecule_selection))
+        # o_selection = AnalysisFromFunction(lambda ag: np.argmin(cdist(self.o_array, normalise_vectors(
+        #     np.minimum(np.mod(ag.center_of_mass(), self.trajectory_universe.dimensions[:3]),
+        #                np.mod(-ag.center_of_mass(), self.trajectory_universe.dimensions[:3])))[np.newaxis, :],
+        #     metric="euclidean"), axis=0),
+        #                                    self.trajectory_universe.trajectory,
+        #                                    self.trajectory_universe.select_atoms(self.second_molecule_selection))
         o_selection.run(stop=self.stop)
         o_indices = o_selection.results['timeseries'].flatten()
         print("o statistics", pd.DataFrame(o_indices).describe())
