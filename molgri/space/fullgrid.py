@@ -28,7 +28,6 @@ from scipy.sparse import bmat, coo_array, diags
 from molgri.space.rotobj import SphereGrid3DFactory, SphereGrid3Dim, SphereGrid4DFactory
 from molgri.space.translations import TranslationParser, get_between_radii
 from molgri.naming import GridNameParser
-from molgri.wrappers import save_or_use_saved
 from molgri.space.utils import normalise_vectors, get_polygon_area, order_points
 
 
@@ -144,7 +143,6 @@ class FullGrid:
     def get_position_grid(self):
         return self.position_grid
 
-    @save_or_use_saved
     def get_total_volumes(self):
         """
         Return 6D volume of a particular point obtained from multiplying position space region and orientation space
@@ -175,7 +173,6 @@ class FullGrid:
         """Get a Rotation object (may encapsulate a list of rotations) from the body grid."""
         return Rotation.from_quat(self.b_rotations.get_grid_as_array())
 
-    @save_or_use_saved
     def get_full_grid_as_array(self) -> NDArray:
         """
         Return an array of shape (n_t*n_o_n_b, 7) where for every sequential step of pt, the first 3 coordinates
@@ -335,7 +332,6 @@ class PositionGrid:
         """
         return self.t_grid.get_trans_grid()
 
-    @save_or_use_saved
     def get_position_grid_as_array(self) -> NDArray:
         """
         Get a position grid that is not structured layer-by-layer but is simply a 2D array of shape (N_t*N_o, 3) where
@@ -359,6 +355,8 @@ class PositionGrid:
         for row, col in zip(new_h_matrix.row, new_h_matrix.col):
             new_data.append(np.linalg.norm(points[row] - points[col]))
         new_h_matrix.data = np.array(new_data)
+        print("cartesian_distances", new_data[5], np.linalg.norm(points[new_h_matrix.row[5]]),
+              np.linalg.norm(points[new_h_matrix.col[5]]))
         return new_h_matrix
 
     def _get_coordinates_of_border_polygons(self):
@@ -387,7 +385,7 @@ class PositionGrid:
         all_areas_data = []
         for polygon in all_polygons:
             all_areas_data.append(get_polygon_area(order_points(polygon)))
-        new_S_matrix.data = all_areas_data
+        new_S_matrix.data = np.array(all_areas_data)
         return new_S_matrix
 
     def get_all_position_volumes(self) -> NDArray:
@@ -406,6 +404,10 @@ class PositionGrid:
 
 
     def _get_N_N_position_array(self, sel_property="adjacency"):
+        if self.position_grid_cartesian and sel_property == "border_len":
+            return self.get_cartesian_surfaces().tocoo()
+        elif self.position_grid_cartesian and sel_property=="center_distances":
+            return self.get_cartesian_distances().tocoo()
         flat_pos_grid = self.get_position_grid_as_array()
         n_points = len(flat_pos_grid)  # equals n_o*n_t
         n_o = self.o_rotations.get_N()
@@ -437,11 +439,13 @@ class PositionGrid:
             # area is angle/2pi  * pi r**2
             subtracted_radii = np.array([0, *between_radii[:-1]])
             multiply = between_radii ** 2 / 2 - subtracted_radii**2/2  # need to subtract area of previous level
-        elif sel_property == "cartesian_center_distances":
-            pass
         elif sel_property == "center_distances":
             # n_o elements will have the same distance
-            increments = self.t_grid.get_increments()
+            increments = self.t_grid.get_increments()[1:]
+            increments = list(increments)
+            increments.append(increments[-1])
+            increments = np.array(increments)
+            print(increments)
             my_diags = _t_and_o_2_positions(np.ones(len(self.o_rotations)), increments) # todo: test
             my_dtype = float
             # within a layer -> this is the arch at the level of points
@@ -485,7 +489,7 @@ class PositionGrid:
         else:
             same_radius_neighbours = coo_array(neig) * multiply
         all_neighbours = same_ray_neighbours + same_radius_neighbours
-        return all_neighbours
+        return all_neighbours.tocoo()
 
     def get_adjacency_of_position_grid(self) -> coo_array:
         """

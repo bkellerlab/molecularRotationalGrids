@@ -24,7 +24,7 @@ GRID_ID = config["grid_identifier"]
 
 # TODO: enable different set-ups
 
-rule all:
+rule all_sqra:
     input:
         expand(f"{PATH_EXPERIMENTS}{EXPERIMENT_TYPE}/{EXPERIMENT_ID}/{GRID_ID}/{{what}}",
             what=["its.png", "eigenvectors_vmdlog", "eigenvalues.png", "its.csv"]),
@@ -107,7 +107,7 @@ rule gromacs_rerun:
         runfile = rules.set_up_sqra_in_vacuum.output.runfile,
         topology = rules.set_up_sqra_in_vacuum.output.topology,
         select_energy = rules.set_up_sqra_in_vacuum.output.select_energy,
-    shadow: "copy-minimal"
+    #shadow: "copy-minimal"
     log:
         log = f"{PATH_EXPERIMENTS}{{experiment_type}}/{{experiment_id}}/{{grid_identifier}}/logging_gromacs.log"
     benchmark:
@@ -117,11 +117,13 @@ rule gromacs_rerun:
     # use with arguments like path_structure path_trajectory path_topology path_default_files path_output_energy
     shell:
         """
-        #!/bin/bash
+        initial_dir=$(pwd)
+        cd $(dirname {input.structure})
         export PATH="/home/janjoswig/local/gromacs-2022/bin:$PATH"
-        gmx22 grompp -f {input.runfile} -c {input.structure} -p {input.topology} -o result.tpr
-        gmx22 mdrun -s result.tpr -rerun {input.trajectory} -g {log.log}
-        gmx22 energy -f ener.edr -o {output.energy} < {input.select_energy}
+        gmx22 grompp -f $(basename {input.runfile}) -c $(basename {input.structure}) -p $(basename {input.topology}) -o result.tpr
+        gmx22 mdrun -s result.tpr -rerun $(basename {input.trajectory}) -g $(basename {log.log})
+        gmx22 energy -f ener.edr -o $(basename {output.energy}) < $(basename {input.select_energy})
+        cd "$initial_dir" || exit
         """
 
 rule lowest_e_structures:

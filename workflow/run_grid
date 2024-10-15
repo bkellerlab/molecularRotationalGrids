@@ -20,12 +20,7 @@ GRID_ID = config["grid_identifier"]
 
 rule all_grids:
     input:
-        expand(f"{PATH_GRIDS}{GRID_ID}/{{what}}", what=["full_array.npy", "distances_heatmap.png"]),
-    log:
-        logfile = f"{PATH_GRIDS}{GRID_ID}/record_config.yaml",
-    run:
-        with open(log.logfile,"w") as f:
-            yaml.dump(config,f)
+        expand(f"{PATH_GRIDS}{GRID_ID}/{{what}}", what=["full_array.npy"]),
 
 rule run_grid:
     """
@@ -104,4 +99,6 @@ rule plot_grid:
         plot_violin_position_orientation(distances, adjacency_only_position, output.distances_violin)
         plot_violin_position_orientation(borders, adjacency_only_position, output.borders_violin)
 
+
         # TODO: all grid/voronoi/3d plots
+

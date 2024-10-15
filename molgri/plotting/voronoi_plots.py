@@ -94,7 +94,7 @@ class VoronoiPlot(RepresentationCollection):
         X = relevant_points.T[0]
         Y = relevant_points.T[1]
         Z = relevant_points.T[2]
-        self.ax.plot_trisurf(X, Y, triangles=triangles, alpha=alpha, color=color, linewidth=0, Z=Z)
+        self.ax.plot_trisurf(X, Y, triangles=triangles, alpha=alpha, color=color, linewidth=0, Z=Z, linewidths=0.5, edgecolors='black')
 
     @plot3D_method
     def plot_vertices_of_i(self, index_center: int = 0, color="blue", labels=True, reduced=False, region=False,

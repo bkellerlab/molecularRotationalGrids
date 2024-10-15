@@ -4,37 +4,186 @@ import sys
 sys.path.append(".")
 from molgri.paths import PATH_INPUT_BASEGRO
 
+#include: "run_sqra"
+#include: "run_msm"
+
 PATH_EXPERIMENTS = "ex_exp/"
 
-ALL_SQRA_EXPERIMENTS = {"grid": {"80_80_very_short": {"num_orientations": 80,
-                                                 "num_directions": 80,
-                                                 "radial_distances_nm": 'linspace(0.2, 0.4, 10)',
-                                                 "factor_orientation_to_position":1,
-                                                 "position_grid_is_cartesian": False},
-                                 "cartesian_80_80_very_short": {"num_orientations": 80,
-                                                           "num_directions": 80,
-                                                           "radial_distances_nm": 'linspace(0.2, 0.4, 10)',
-                                                           "factor_orientation_to_position":1,
-                                                           "position_grid_is_cartesian": True}
-                                 },
+ALL_GRID_EXPERIMENTS = {
+    "80_80_very_short": {"num_orientations": 80,
+                         "num_directions": 80,
+                         "radial_distances_nm": 'linspace(0.2, 0.4, 10)',
+                         "factor_orientation_to_position":1,
+                         "position_grid_is_cartesian": False},
+    "cartesian_80_80_very_short": {"num_orientations": 80,
+                                   "num_directions": 80,
+                                   "radial_distances_nm": 'linspace(0.2, 0.4, 10)',
+                                   "factor_orientation_to_position":1,
+                                   "position_grid_is_cartesian": True},
+    "1_5_80": {"num_orientations": 1,
+               "num_directions": 80,
+               "radial_distances_nm": 'linspace(0.2, 0.4, 5)',
+               "factor_orientation_to_position":1,
+               "position_grid_is_cartesian": False},
+    "cartesian_1_5_80": {"num_orientations": 1,
+                         "num_directions": 80,
+                         "radial_distances_nm": 'linspace(0.2, 0.4, 5)',
+                         "factor_orientation_to_position":1,
+                         "position_grid_is_cartesian": True},
+    "1_10_80": {"num_orientations": 1,
+               "num_directions": 80,
+               "radial_distances_nm": 'linspace(0.2, 0.4, 10)',
+               "factor_orientation_to_position": 1,
+               "position_grid_is_cartesian": False},
+    "cartesian_1_10_80": {"num_orientations": 1,
+                         "num_directions": 80,
+                         "radial_distances_nm": 'linspace(0.2, 0.4, 10)',
+                         "factor_orientation_to_position": 1,
+                         "position_grid_is_cartesian": True},
+    "1_15_80": {"num_orientations": 1,
+               "num_directions": 80,
+               "radial_distances_nm": 'linspace(0.2, 0.4, 15)',
+               "factor_orientation_to_position": 1,
+               "position_grid_is_cartesian": False},
+    "cartesian_1_15_80": {"num_orientations": 1,
+                         "num_directions": 80,
+                         "radial_distances_nm": 'linspace(0.2, 0.4, 15)',
+                         "factor_orientation_to_position": 1,
+                         "position_grid_is_cartesian": True},
+    "1_5_20": {"num_orientations": 1,
+               "num_directions": 20,
+               "radial_distances_nm": 'linspace(0.2, 0.4, 5)',
+               "factor_orientation_to_position": 1,
+               "position_grid_is_cartesian": False},
+    "cartesian_1_5_20": {"num_orientations": 1,
+                         "num_directions": 20,
+                         "radial_distances_nm": 'linspace(0.2, 0.4, 5)',
+                         "factor_orientation_to_position": 1,
+                         "position_grid_is_cartesian": True},
+    "1_10_20": {"num_orientations": 1,
+                "num_directions": 20,
+                "radial_distances_nm": 'linspace(0.2, 0.4, 10)',
+                "factor_orientation_to_position": 1,
+                "position_grid_is_cartesian": False},
+    "cartesian_1_10_20": {"num_orientations": 1,
+                          "num_directions": 20,
+                          "radial_distances_nm": 'linspace(0.2, 0.4, 10)',
+                          "factor_orientation_to_position": 1,
+                          "position_grid_is_cartesian": True},
+    "1_15_20": {"num_orientations": 1,
+                "num_directions": 20,
+                "radial_distances_nm": 'linspace(0.2, 0.4, 15)',
+                "factor_orientation_to_position": 1,
+                "position_grid_is_cartesian": False},
+    "cartesian_1_15_20": {"num_orientations": 1,
+                          "num_directions": 20,
+                          "radial_distances_nm": 'linspace(0.2, 0.4, 15)',
+                          "factor_orientation_to_position": 1,
+                          "position_grid_is_cartesian": True},
+    "1_5_320": {"num_orientations": 1,
+               "num_directions": 320,
+               "radial_distances_nm": 'linspace(0.2, 0.4, 5)',
+               "factor_orientation_to_position": 1,
+               "position_grid_is_cartesian": False},
+    "cartesian_1_5_320": {"num_orientations": 1,
+                         "num_directions": 320,
+                         "radial_distances_nm": 'linspace(0.2, 0.4, 5)',
+                         "factor_orientation_to_position": 1,
+                         "position_grid_is_cartesian": True},
+    "1_10_320": {"num_orientations": 1,
+                "num_directions": 320,
+                "radial_distances_nm": 'linspace(0.2, 0.4, 10)',
+                "factor_orientation_to_position": 1,
+                "position_grid_is_cartesian": False},
+    "cartesian_1_10_320": {"num_orientations": 1,
+                          "num_directions": 320,
+                          "radial_distances_nm": 'linspace(0.2, 0.4, 10)',
+                          "factor_orientation_to_position": 1,
+                          "position_grid_is_cartesian": True},
+    "1_15_320": {"num_orientations": 1,
+                "num_directions": 320,
+                "radial_distances_nm": 'linspace(0.2, 0.4, 15)',
+                "factor_orientation_to_position": 1,
+                "position_grid_is_cartesian": False},
+    "cartesian_1_15_320": {"num_orientations": 1,
+                          "num_directions": 320,
+                          "radial_distances_nm": 'linspace(0.2, 0.4, 15)',
+                          "factor_orientation_to_position": 1,
+                          "position_grid_is_cartesian": True},
+}
+
+
+ALL_SQRA_EXPERIMENTS = {"grid": ("80_80_very_short","cartesian_80_80_very_short"),
                         "setup": {"tau_t_1": {"tau_t": 1},
                                   "tau_t_2": {"tau_t": 0.1},
                                   "tau_t_3": {"tau_t": 0.01},
                                   "tau_t_4": {"tau_t": 0.001},
                                   }}
 
+ALL_MSM_VACUUM_EXPERIMENTS = {"grid": ("80_80_very_short","cartesian_80_80_very_short"),
+                              "setup": {"tau_t_1": {"tau_t": 1, "nsteps": 10000},
+                                        "tau_t_2": {"tau_t": 0.1, "nsteps": 10000},
+                                        "tau_t_3": {"tau_t": 0.01, "nsteps": 10000},
+                                        "tau_t_4": {"tau_t": 0.001, "nsteps": 10000},
+                                        }}
+
+ALL_MSM_HELIUM_EXPERIMENTS = {"grid": ("80_80_very_short", "cartesian_80_80_very_short"),
+                              "setup": {"tau_t_1": {"tau_t": 1, "nsteps": 10000},
+                                        "tau_t_2": {"tau_t": 0.1, "nsteps": 10000},
+                                        "tau_t_3": {"tau_t": 0.01, "nsteps": 10000},
+                                        "tau_t_4": {"tau_t": 0.001, "nsteps": 10000},
+                                        },}
+
 rule all:
     input:
-        config_files = expand(f"{PATH_EXPERIMENTS}{{experiment_type}}/{{experiment_id}}/{{grid_id}}/total_benchmark.txt",
-            experiment_id=ALL_SQRA_EXPERIMENTS["setup"].keys(),
-            grid_id=ALL_SQRA_EXPERIMENTS["grid"].keys(),
-            experiment_type="sqra_water_in_vacuum"),
+        config_files_grid = expand(f"{PATH_EXPERIMENTS}{{experiment_type}}/{{grid_id}}/total_benchmark.txt",
+            experiment_type="grids",
+            grid_id=ALL_GRID_EXPERIMENTS.keys()),
+        # config_files_msm_vacuum = expand(f"{PATH_EXPERIMENTS}{{experiment_type}}/{{experiment_id}}/{{grid_id}}/total_benchmark.txt",
+        #     experiment_id=ALL_MSM_VACUUM_EXPERIMENTS["setup"].keys(),
+        #     grid_id=ALL_MSM_VACUUM_EXPERIMENTS["grid"],
+        #     experiment_type="msm_water_in_vacuum"),
+        # config_files_msm_helium = expand(f"{PATH_EXPERIMENTS}{{experiment_type}}/{{experiment_id}}/{{grid_id}}/total_benchmark.txt",
+        #     experiment_id=ALL_MSM_HELIUM_EXPERIMENTS["setup"].keys(),
+        #     grid_id=ALL_MSM_HELIUM_EXPERIMENTS["grid"],
+        #     experiment_type="msm_water_in_helium"),
 
-
-
-rule create_config_all_sqra_water_in_vacuum:
+rule create_config_only_grid:
     """
-    Prepare configuration files to feed into sqra pipeline. This might change but currently means:
+    Prepare configuration files to feed into sqra/msm pipeline. This might change but currently means:
+    - grids 80_80_very_short and cartesian_80_80_very_short
+    - tau_t = 1, 0.1, 0.01 and 0.001 ps
+    """
+    wildcard_constraints:
+        experiment_type=".*grid.*"
+    input:
+        default_config = f"{PATH_INPUT_BASEGRO}default_configuration_file.yaml"
+    output:
+        config = f"{PATH_EXPERIMENTS}{{experiment_type}}/{{grid_id}}/config_file.yaml"
+    run:
+        # prepare grid config files
+        my_grid_dict = ALL_GRID_EXPERIMENTS[wildcards.grid_id]
+
+        with open(input.default_config,'r') as f:
+            doc = yaml.safe_load(f)
+
+        # change the keywords
+        doc["experiment_type"] = wildcards.experiment_type
+        doc["experiment_id"] = "run_grid_only"
+        doc["grid_identifier"] = wildcards.grid_id
+
+        # change grid params
+        for key, value in my_grid_dict.items():
+            doc["params_grid"][key] = value
+
+        with open(output.config,"w") as f:
+            yaml.dump(doc,f)
+
+
+
+rule create_config_all:
+    """
+    Prepare configuration files to feed into sqra/msm pipeline. This might change but currently means:
     - grids 80_80_very_short and cartesian_80_80_very_short
     - tau_t = 1, 0.1, 0.01 and 0.001 ps
     """
@@ -44,8 +193,16 @@ rule create_config_all_sqra_water_in_vacuum:
         config = f"{PATH_EXPERIMENTS}{{experiment_type}}/{{experiment_id}}/{{grid_id}}/config_file.yaml"
     run:
         # prepare grid config files
-        my_grid_dict = ALL_SQRA_EXPERIMENTS["grid"][wildcards.grid_id]
-        my_experiment_dict = ALL_SQRA_EXPERIMENTS["setup"][wildcards.experiment_id]
+        my_grid_dict = ALL_GRID_EXPERIMENTS[wildcards.grid_id]
+
+        if wildcards.experiment_type == "sqra_water_in_vacuum":
+            my_experiment_dict = ALL_SQRA_EXPERIMENTS["setup"][wildcards.experiment_id]
+        elif wildcards.experiment_type == "msm_water_in_vacuum":
+            my_experiment_dict = ALL_MSM_VACUUM_EXPERIMENTS["setup"][wildcards.experiment_id]
+        elif wildcards.experiment_type == "msm_water_in_helium":
+            my_experiment_dict = ALL_MSM_HELIUM_EXPERIMENTS["setup"][wildcards.experiment_id]
+        else:
+            raise ValueError(f"Don't know what configs to try for experiment type {wildcards.experiment_type}")
 
         with open(input.default_config,'r') as f:
             doc = yaml.safe_load(f)
@@ -66,12 +223,31 @@ rule create_config_all_sqra_water_in_vacuum:
         with open(output.config,"w") as f:
             yaml.dump(doc,f)
 
+
+rule run_all_grids:
+    """
+    In the shell run each of configuration set-ups.
+    """
+    wildcard_constraints:
+        experiment_type=".*grid.*"
+    input:
+        config_file = rules.create_config_only_grid.output.config,
+        pipeline = "workflow/run_grid"
+    benchmark:
+        f"{PATH_EXPERIMENTS}{{experiment_type}}/{{grid_id}}/total_benchmark.txt"
+    resources:
+        cores = 10
+    shell:
+        "snakemake --snakefile {input.pipeline} --cores {resources.cores} --configfile {input.config_file} -F --rerun-incomplete"
+
 rule run_all_sqra_water_in_vacuum:
     """
     In the shell run each of configuration set-ups.
     """
+    wildcard_constraints:
+        experiment_type=".*sqra_water_in_vacuum.*"
     input:
-        config_file = f"{PATH_EXPERIMENTS}{{experiment_type}}/{{experiment_id}}/{{grid_id}}/config_file.yaml",
+        config_file = rules.create_config_all.output.config,
         pipeline = "workflow/run_sqra"
     benchmark:
         f"{PATH_EXPERIMENTS}{{experiment_type}}/{{experiment_id}}/{{grid_id}}/total_benchmark.txt"
@@ -79,3 +255,19 @@ rule run_all_sqra_water_in_vacuum:
         cores = 10
     shell:
         "snakemake --snakefile {input.pipeline} --cores {resources.cores} --configfile {input.config_file}"
+
+rule run_all_msm_water_in_vacuum:
+    """
+    In the shell run each of configuration set-ups.
+    """
+    wildcard_constraints:
+        experiment_type=".*msm_water_in.*"
+    input:
+        config_file = rules.create_config_all.output.config,
+        pipeline = "workflow/run_msm"
+    benchmark:
+        f"{PATH_EXPERIMENTS}{{experiment_type}}/{{experiment_id}}/{{grid_id}}/total_benchmark.txt"
+    resources:
+        cores = 10
+    shell:
+        "snakemake --snakefile {input.pipeline} --cores {resources.cores} --configfile {input.config_file} --rerun-incomplete --keep-going --nolock"

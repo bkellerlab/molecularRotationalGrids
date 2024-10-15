@@ -5,10 +5,9 @@ All of the workflows relating to production of trajectories, subsequent MSMs and
 import sys
 sys.path.append(".")
 import numpy as np
-import yaml
 
 
-from molgri.paths import PATH_OUTPUT_AUTOSAVE, PATH_INPUT_BASEGRO, PATH_EXPERIMENTS
+from molgri.paths import PATH_INPUT_BASEGRO, PATH_EXPERIMENTS
 from workflow.snakemake_utils import modify_mdrun, modify_topology, read_from_mdrun
 
 include: "run_grid"
@@ -27,16 +26,11 @@ TAUS = np.array(config["params_msm"]["taus_msm_all"])
 TAUS_TO_PLOT = np.array(config["params_msm"]["taus_msm_to_plot"])
 
 
-rule all:
+rule all_msm:
     input:
         expand(f"{PATH_EXPERIMENTS}{EXPERIMENT_TYPE}/{EXPERIMENT_ID}/{GRID_ID}/{{what}}", what=["its.png"]),
         expand(f"{PATH_EXPERIMENTS}{EXPERIMENT_TYPE}/{EXPERIMENT_ID}/{GRID_ID}/{{tau}}/{{what}}", tau=TAUS_TO_PLOT,
             what=["eigenvectors_vmdlog", "eigenvalues.png", "its.csv"])
-    log:
-        logfile = f"{PATH_EXPERIMENTS}{EXPERIMENT_TYPE}/{EXPERIMENT_ID}/{GRID_ID}/record_config.yaml",
-    run:
-        with open(log.logfile,"w") as f:
-            yaml.dump(config,f)
 
 ################## specific to water in vacuum #################
 rule prepare_water_in_vacuum:
@@ -45,7 +39,7 @@ rule prepare_water_in_vacuum:
     with correctly defined inputs for the gromacs run etc.
     """
     wildcard_constraints:
-        experiment_type=".*water_in_vacuum.*"
+        experiment_type=".*msm_water_in_vacuum.*"
     input:
         water_gro = f"{PATH_INPUT_BASEGRO}H2O.gro",
         water_top = f"{PATH_INPUT_BASEGRO}H2O_H2O.top",
@@ -98,88 +92,13 @@ rule prepare_water_in_vacuum:
         modify_topology(output.topology,i="1",j="4",funct=10,low=0.0,up1=params.up1_nm,up2=params.up2_nm,
             force_constant=params.force_constant_restraint)
 
-################## specific to water in helium #################
-# TODO: keep introducing helium option
-rule prepare_water_in_helium:
-    """
-    Here, everything is specific to a water-water system set up. Create a new folder in experiments/ and populate it
-    with correctly defined inputs for the gromacs run etc.
-    """
-    wildcard_constraints:
-        experiment_type=".*water_in_helium.*"
-    input:
-        full_structure = f"{PATH_INPUT_BASEGRO}nvt_fake_ar.gro",
-        forcefield1 = f"{PATH_INPUT_BASEGRO}argon_forcefield.itp",
-        forcefield2 = f"{PATH_INPUT_BASEGRO}ffnonbonded.itp",
-        forcefield3 = f"{PATH_INPUT_BASEGRO}ffbonded.itp",
-        water_in_arg_top = f"{PATH_INPUT_BASEGRO}topol_fake_ar.top",
-        water_gro = f"{PATH_INPUT_BASEGRO}H2O.gro",
-        water_top = f"{PATH_INPUT_BASEGRO}H2O_H2Op.top",
-        base_mdp_file = f"{PATH_INPUT_BASEGRO}mdrun.mdp",
-        select_group=f"{PATH_INPUT_BASEGRO}select_group_zero",
-        select_centers=f"{PATH_INPUT_BASEGRO}select_3_and_0",
-        index_m1=f"{PATH_INPUT_BASEGRO}index_first_mol.ndx",
-    output:
-        full_structure= f"{PATH_EXPERIMENTS}{{experiment_type}}/{{unique_id}}/structure.gro",
-        forcefield1 = f"{PATH_EXPERIMENTS}{{experiment_type}}/{{unique_id}}/argon_forcefield.itp",
-        forcefield2 = f"{PATH_EXPERIMENTS}{{experiment_type}}/{{unique_id}}/ffnonbonded.itp",
-        forcefield3 = f"{PATH_EXPERIMENTS}{{experiment_type}}/{{unique_id}}/ffbonded.itp",
-        water_top = f"{PATH_EXPERIMENTS}{{experiment_type}}/{{unique_id}}/water_topol.top",
-        molecule1 = f"{PATH_EXPERIMENTS}{{experiment_type}}/{{unique_id}}/m1.gro",
-        molecule2 = f"{PATH_EXPERIMENTS}{{experiment_type}}/{{unique_id}}/m2.gro",
-        runfile = f"{PATH_EXPERIMENTS}{{experiment_type}}/{{unique_id}}/mdrun.mdp",
-        topology = f"{PATH_EXPERIMENTS}{{experiment_type}}/{{unique_id}}/topology.top",
-        select_group = f"{PATH_EXPERIMENTS}{{experiment_type}}/{{unique_id}}/select_group",
-        select_centers = f"{PATH_EXPERIMENTS}{{experiment_type}}/{{unique_id}}/select_centers",
-        index_m1 = f"{PATH_EXPERIMENTS}{{experiment_type}}/{{unique_id}}/index_m1.ndx",
-    params:
-        nsteps = config["params_setup"]["nsteps"],
-        integrator = config["params_setup"]["integrator"],
-        dt_ps = config["params_setup"]["dt_ps"],
-        energy_writeout_frequency = config["params_setup"]["energy_writeout_frequency"],
-        compressed_writeout_frequency = config["params_setup"]["compressed_writeout_frequency"],
-        epsilon = config["params_setup"]["epsilon"],
-        tau_t= config["params_setup"]["tau_t"],
-        up1_nm= config["params_setup"]["up1_nm"],
-        up2_nm= config["params_setup"]["up2_nm"],
-        force_constant_restraint= config["params_setup"]["force_constant_restraint"],
-    run:
-        import shutil
-        # stuff that can be copied without being modified
-        shutil.copy(input.water_gro,output.molecule1)
-        shutil.copy(input.water_gro,output.molecule2)
-        shutil.copy(input.select_group, output.select_group)
-        shutil.copy(input.forcefield1,output.forcefield1)
-        shutil.copy(input.forcefield2,output.forcefield2)
-        shutil.copy(input.forcefield3,output.forcefield3)
-        shutil.copy(input.full_structure,output.full_structure)
-        shutil.copy(input.select_centers,output.select_centers)
-        shutil.copy(input.index_m1, output.index_m1)
-
-        # depending on config parameters, topology and runfile will be adapted
-        shutil.copy(input.water_top, output.topology)
-        shutil.copy(input.base_mdp_file, output.runfile)
-
-        # modify runfile with given parameters
-        modify_mdrun(output.runfile, "integrator", params.integrator)
-        modify_mdrun(output.runfile,"nsteps",params.nsteps)
-        modify_mdrun(output.runfile,"tau_t",params.tau_t)
-        modify_mdrun(output.runfile,"dt",params.dt_ps)
-        modify_mdrun(output.runfile,"nstenergy", params.energy_writeout_frequency)
-        modify_mdrun(output.runfile,"nstxout-compressed",params.compressed_writeout_frequency)
-        modify_mdrun(output.runfile,"epsilon-r",params.epsilon)
-        # modify topology with given parameters
-        modify_topology(output.topology,i="1",j="4",funct=10,low=0.0,up1=params.up1_nm,up2=params.up2_nm,
-            force_constant=params.force_constant_restraint)
-################## end specific set-ups #################
-
 # note: here we don't wanna refer to specific rule outputs as different rules for set up may be used
 rule create_msm_gro:
     """
     Create a structure from two molecules. Expected in the folder: m1.gro, m2.gro
     """
     wildcard_constraints:
-        experiment_type=".*water_in_vacuum.*"
+        experiment_type=".*msm_water_in_vacuum.*"
     input:
         molecule1 = f"{PATH_EXPERIMENTS}{{experiment_type}}/{{unique_id}}/m1.gro",
         molecule2 = f"{PATH_EXPERIMENTS}{{experiment_type}}/{{unique_id}}/m2.gro",
@@ -216,6 +135,8 @@ rule run_msm_gromacs:
     This rule gets structure, trajectory, topology and gromacs run file as input, as output we are only interested in
     energies.
     """
+    wildcard_constraints:
+        experiment_type=".*msm_water_in_vacuum.*"
     input:
         structure = f"{PATH_EXPERIMENTS}{{experiment_type}}/{{unique_id}}/structure.gro",
         runfile = f"{PATH_EXPERIMENTS}{{experiment_type}}/{{unique_id}}/mdrun.mdp",
@@ -230,18 +151,138 @@ rule run_msm_gromacs:
         f"{PATH_EXPERIMENTS}{{experiment_type}}/{{unique_id}}/gromacs_benchmark.txt"
     output:
         trajectory = f"{PATH_EXPERIMENTS}{{experiment_type}}/{{unique_id}}/trajectory.xtc",
-        temp = f"{PATH_EXPERIMENTS}{{experiment_type}}/{{unique_id}}/temp.xtc"
+        temp=f"{PATH_EXPERIMENTS}{{experiment_type}}/{{unique_id}}/temp.xtc",
+        temp2=f"{PATH_EXPERIMENTS}{{experiment_type}}/{{unique_id}}/temp2.xtc"
     shell:
         """
-        #!/bin/bash
+        initial_dir=$(pwd)
+        cd $(dirname {input.structure})
         export PATH="/home/janjoswig/local/gromacs-2022/bin:$PATH"
-        gmx22 grompp -f {input.runfile} -o result.tpr -c {input.structure} -p {input.topology}
-        gmx22 trjconv -f {input.structure} -s result.tpr -o temp.trr < {input.select_group}
-        gmx22 mdrun -s result.tpr -x {output.temp} -e ener.edr -g {log.log}
-        gmx22 trjconv -f {output.temp} -s result.tpr -pbc mol -center -o temp2.trr -n {input.index_m1} < {input.select_centers}
-        gmx22 trjconv -fit rot+trans -f temp2.trr -o {output.trajectory} -s {input.structure} -n {input.index_m1} < {input.select_centers}
+        gmx22 grompp -f $(basename {input.runfile}) -o result.tpr -c $(basename {input.structure}) -p $(basename {input.topology})
+        gmx22 trjconv -f $(basename {input.structure}) -s result.tpr -o temp.trr < $(basename {input.select_group})
+        gmx22 mdrun -s result.tpr -x $(basename {output.temp}) -e ener.edr -g $(basename {log.log})
+        gmx22 trjconv -f $(basename {output.temp}) -s result.tpr -pbc mol -center -o $(basename {output.temp2}) -n $(basename {input.index_m1}) < $(basename {input.select_centers})
+        gmx22 trjconv -fit rot+trans -f $(basename {output.temp2}) -o $(basename {output.trajectory}) -s $(basename {input.structure}) -n $(basename {input.index_m1}) < $(basename {input.select_centers})
+        cd "$initial_dir" || exit
         """
 
+
+
+################## specific to water in helium #################
+rule prepare_water_in_helium:
+    """
+    Here, everything is specific to a water-water system set up. Create a new folder in experiments/ and populate it
+    with correctly defined inputs for the gromacs run etc.
+    """
+    wildcard_constraints:
+        experiment_type=".*msm_water_in_helium.*"
+    input:
+        full_structure = f"{PATH_INPUT_BASEGRO}nvt_fake_ar.gro",
+        forcefield1 = f"{PATH_INPUT_BASEGRO}argon_forcefield.itp",
+        forcefield2 = f"{PATH_INPUT_BASEGRO}ffnonbonded.itp",
+        forcefield3 = f"{PATH_INPUT_BASEGRO}ffbonded.itp",
+        water_in_arg_top = f"{PATH_INPUT_BASEGRO}topol_fake_ar.top",
+        water_gro = f"{PATH_INPUT_BASEGRO}H2O.gro",
+        #water_top = f"{PATH_INPUT_BASEGRO}H2O_H2Op.top",
+        base_mdp_file = f"{PATH_INPUT_BASEGRO}mdrun.mdp",
+        select_group=f"{PATH_INPUT_BASEGRO}select_group_zero",
+        select_centers=f"{PATH_INPUT_BASEGRO}select_3_and_0",
+        select_two=f"{PATH_INPUT_BASEGRO}select_2",
+        index_m1=f"{PATH_INPUT_BASEGRO}index_first_mol.ndx",
+    output:
+        full_structure= f"{PATH_EXPERIMENTS}{{experiment_type}}/{{unique_id}}/full_structure.gro",
+        forcefield1 = f"{PATH_EXPERIMENTS}{{experiment_type}}/{{unique_id}}/argon_forcefield.itp",
+        forcefield2 = f"{PATH_EXPERIMENTS}{{experiment_type}}/{{unique_id}}/ffnonbonded.itp",
+        forcefield3 = f"{PATH_EXPERIMENTS}{{experiment_type}}/{{unique_id}}/ffbonded.itp",
+        molecule1 = f"{PATH_EXPERIMENTS}{{experiment_type}}/{{unique_id}}/m1.gro",
+        molecule2 = f"{PATH_EXPERIMENTS}{{experiment_type}}/{{unique_id}}/m2.gro",
+        runfile = f"{PATH_EXPERIMENTS}{{experiment_type}}/{{unique_id}}/mdrun.mdp",
+        topology = f"{PATH_EXPERIMENTS}{{experiment_type}}/{{unique_id}}/topology.top",
+        select_group = f"{PATH_EXPERIMENTS}{{experiment_type}}/{{unique_id}}/select_group",
+        select_centers = f"{PATH_EXPERIMENTS}{{experiment_type}}/{{unique_id}}/select_centers",
+        select_two = f"{PATH_EXPERIMENTS}{{experiment_type}}/{{unique_id}}/select_two",
+        index_m1 = f"{PATH_EXPERIMENTS}{{experiment_type}}/{{unique_id}}/index_m1.ndx",
+    params:
+        nsteps = config["params_setup"]["nsteps"],
+        integrator = config["params_setup"]["integrator"],
+        dt_ps = config["params_setup"]["dt_ps"],
+        energy_writeout_frequency = config["params_setup"]["energy_writeout_frequency"],
+        compressed_writeout_frequency = config["params_setup"]["compressed_writeout_frequency"],
+        epsilon = config["params_setup"]["epsilon"],
+        tau_t= config["params_setup"]["tau_t"],
+        up1_nm= config["params_setup"]["up1_nm"],
+        up2_nm= config["params_setup"]["up2_nm"],
+        force_constant_restraint= config["params_setup"]["force_constant_restraint"],
+    run:
+        import shutil
+        # stuff that can be copied without being modified
+        shutil.copy(input.water_gro,output.molecule1)
+        shutil.copy(input.water_gro,output.molecule2)
+        shutil.copy(input.select_group, output.select_group)
+        shutil.copy(input.forcefield1,output.forcefield1)
+        shutil.copy(input.forcefield2,output.forcefield2)
+        shutil.copy(input.forcefield3,output.forcefield3)
+        shutil.copy(input.full_structure,output.full_structure)
+        shutil.copy(input.select_centers,output.select_centers)
+        shutil.copy(input.select_two,output.select_two)
+        shutil.copy(input.index_m1, output.index_m1)
+
+        # depending on config parameters, topology and runfile will be adapted
+        shutil.copy(input.water_in_arg_top, output.topology)
+        shutil.copy(input.base_mdp_file, output.runfile)
+
+        # modify runfile with given parameters
+        modify_mdrun(output.runfile, "integrator", params.integrator)
+        modify_mdrun(output.runfile,"nsteps",params.nsteps)
+        modify_mdrun(output.runfile,"tau_t",params.tau_t)
+        modify_mdrun(output.runfile,"dt",params.dt_ps)
+        modify_mdrun(output.runfile,"nstenergy", params.energy_writeout_frequency)
+        modify_mdrun(output.runfile,"nstxout-compressed",params.compressed_writeout_frequency)
+        modify_mdrun(output.runfile,"epsilon-r",params.epsilon)
+        # modify topology with given parameters
+        modify_topology(output.topology,i="1",j="4",funct=10,low=0.0,up1=params.up1_nm,up2=params.up2_nm,
+            force_constant=params.force_constant_restraint)
+
+rule run_msm_gromacs_in_helium:
+    """
+    This rule gets structure, trajectory, topology and gromacs run file as input, as output we are only interested in 
+    energies.
+    """
+    wildcard_constraints:
+        experiment_type=".*msm_water_in_helium.*"
+    input:
+        structure=rules.prepare_water_in_helium.output.full_structure,
+        runfile = rules.prepare_water_in_helium.output.runfile,
+        topology = rules.prepare_water_in_helium.output.topology,
+        select_group = rules.prepare_water_in_helium.output.select_group,
+        select_two= rules.prepare_water_in_helium.output.select_two,
+        index_m1 = rules.prepare_water_in_helium.output.index_m1,
+        select_centers= rules.prepare_water_in_helium.output.select_centers,
+    log:
+         log = f"{PATH_EXPERIMENTS}{{experiment_type}}/{{unique_id}}/logging_gromacs.log"
+    benchmark:
+        f"{PATH_EXPERIMENTS}{{experiment_type}}/{{unique_id}}/gromacs_benchmark.txt"
+    shadow: "shallow"
+    output:
+        only_water_structure = f"{PATH_EXPERIMENTS}{{experiment_type}}/{{unique_id}}/structure.gro",
+        trajectory= f"{PATH_EXPERIMENTS}{{experiment_type}}/{{unique_id}}/trajectory.xtc",
+        temp= f"{PATH_EXPERIMENTS}{{experiment_type}}/{{unique_id}}/temp.xtc",
+        temp2 = f"{PATH_EXPERIMENTS}{{experiment_type}}/{{unique_id}}/temp2.xtc"
+    shell:
+        """
+        initial_dir=$(pwd)
+        cd $(dirname {input.structure})
+        export PATH="/home/janjoswig/local/gromacs-2022/bin:$PATH"
+        gmx22 trjconv -f $(basename {input.structure}) -s $(basename {input.structure}) -o $(basename {output.only_water_structure}) < $(basename {input.select_two})
+        gmx22 grompp -f $(basename {input.runfile}) -o result.tpr -c $(basename {input.structure}) -p $(basename {input.topology})
+        gmx22 trjconv -f $(basename {input.structure}) -s result.tpr -o $(basename {output.temp})  < $(basename {input.select_group})
+        gmx22 mdrun -s result.tpr -x $(basename {output.temp}) -e ener.edr -g $(basename {log.log})
+        gmx22 trjconv -f $(basename {output.temp}) -s result.tpr -pbc mol -center -o $(basename {output.temp2}) -n $(basename {input.index_m1}) < $(basename {input.select_centers})
+        gmx22 trjconv -fit rot+trans -f $(basename {output.temp2}) -o $(basename {output.trajectory}) -s $(basename {input.structure}) -n $(basename {input.index_m1}) < $(basename {input.select_centers})
+        cd "$initial_dir" || exit
+        """
+
+################## end specific set-ups #################
 
 
 rule run_trajectory_assignment:
@@ -255,16 +296,16 @@ rule run_trajectory_assignment:
 
     input:
         full_array = rules.run_grid.output.full_array,
-        trajectory = rules.run_msm_gromacs.output.trajectory,
-        structure = rules.create_msm_gro.output.structure,
-        molecule2 = rules.create_msm_gro.input.molecule2,
-        runfile= rules.run_msm_gromacs.input.runfile,
+        trajectory = f"{PATH_EXPERIMENTS}{{experiment_type}}/{{unique_id}}/trajectory.xtc",
+        structure = f"{PATH_EXPERIMENTS}{{experiment_type}}/{{unique_id}}/structure.gro",
+        molecule2 = f"{PATH_EXPERIMENTS}{{experiment_type}}/{{unique_id}}/m2.gro",
+        runfile= f"{PATH_EXPERIMENTS}{{experiment_type}}/{{unique_id}}/mdrun.mdp",
     benchmark:
         f"{PATH_EXPERIMENTS}{{experiment_type}}/{{unique_id}}/{{grid_identifier}}/assignment_benchmark.txt"
     output:
         assignments=f"{PATH_EXPERIMENTS}{{experiment_type}}/{{unique_id}}/{{grid_identifier}}/assignments.npy",
     params:
-        include_outliers = config["params_msm"]["include_outliers"]
+        include_outliers = config["params_grid"]["include_outliers"]
     run:
         from molgri.molecules.transitions import AssignmentTool
 
@@ -471,8 +512,8 @@ rule compile_vmd_log:
     play <vmdlog file>
     """
     input:
-        structure = rules.create_msm_gro.output.structure,
-        trajectory = rules.run_msm_gromacs.output.trajectory,
+        structure = f"{PATH_EXPERIMENTS}{{experiment_type}}/{{unique_id}}/structure.gro",
+        trajectory = f"{PATH_EXPERIMENTS}{{experiment_type}}/{{unique_id}}/trajectory.xtc",
         eigenvectors=rules.run_decomposition_msm.output.eigenvectors,
         assignments=rules.run_trajectory_assignment.output.assignments,
         # in the script only the numbers for frames need to be changed.
@@ -501,7 +542,7 @@ rule compile_vmd_log:
 rule print_its:
     input:
         eigenvalues = rules.run_decomposition_msm.output.eigenvalues,
-        runfile= rules.run_msm_gromacs.input.runfile
+        runfile= f"{PATH_EXPERIMENTS}{{experiment_type}}/{{unique_id}}/mdrun.mdp"
     output:
         data = f"{PATH_EXPERIMENTS}{{experiment_type}}/{{unique_id}}/{{grid_identifier}}/{{tau}}/its.csv"
     run:
