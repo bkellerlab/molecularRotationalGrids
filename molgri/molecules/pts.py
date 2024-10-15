@@ -7,6 +7,7 @@ For this purpose, Writers in molgri.writers module are provided.
 """
 from typing import Tuple, Generator
 
+from MDAnalysis import Universe
 from numpy.typing import NDArray
 from scipy.spatial.transform import Rotation
 
@@ -15,7 +16,7 @@ from molgri.molecules.parsers import ParsedMolecule
 
 class Pseudotrajectory:
 
-    def __init__(self, molecule: ParsedMolecule, full_grid: NDArray):
+    def __init__(self, molecule: Universe, full_grid: NDArray):
         """
         A Pseudotrajectory (PT) is a generator of frames in which a molecule assumes new positions in accordance
         with a grid. Initiate with molecule in any position, the method .generate_pseudotrajectory will make sure
@@ -45,8 +46,6 @@ class Pseudotrajectory:
             frame index, molecule with current position attribute
         """
         fg = self.full_grid
-        # center second molecule if not centered yet
-        self.molecule.translate_to_origin()
         starting_positions = self.molecule.atoms.positions
         for se3_coo in fg:
             self.molecule.atoms.positions = starting_positions

@@ -30,6 +30,7 @@ seaborn = ">=0.12.2"
 ipython = "~=8.12.2"
 tqdm = "~=4.66.0"
 
+plotly = "^5.24.1"
 [build-system]
 requires = ["poetry-core>=1.0.0"]
 #requires = {file = "requirements.txt"}#["poetry-core"]

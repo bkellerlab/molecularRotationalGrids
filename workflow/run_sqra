@@ -15,24 +15,29 @@ include: "run_grid"
 
 PATH_EXPERIMENTS = "ex_exp/"
 
-if config["experiment_type"]!= "sqra_water_in_vacuum":
+if config["experiment_type"] not in ["sqra_water_in_vacuum", "guanidinium_xyz"]:
     raise AttributeError(f"This pipeline should be used for SQRA experiments in vacuum. Your experiment type is {config['experiment_type']} instead of 'sqra_in_vacuum'")
 
 EXPERIMENT_TYPE = config["experiment_type"]
 EXPERIMENT_ID = config["experiment_id"]
 GRID_ID = config["grid_identifier"]
 
+print(EXPERIMENT_TYPE)
+
 # TODO: enable different set-ups
 
 rule all_sqra:
     input:
-        expand(f"{PATH_EXPERIMENTS}{EXPERIMENT_TYPE}/{EXPERIMENT_ID}/{GRID_ID}/{{what}}",
-            what=["its.png", "eigenvectors_vmdlog", "eigenvalues.png", "its.csv"]),
+        f"{PATH_EXPERIMENTS}{EXPERIMENT_TYPE}/{EXPERIMENT_ID}/{GRID_ID}/structure.xyz"
+        # expand(f"{PATH_EXPERIMENTS}{EXPERIMENT_TYPE}/{EXPERIMENT_ID}/{GRID_ID}/{{what}}",
+        #     what=["its.png", "eigenvectors_vmdlog", "eigenvalues.png", "its.csv"]),
 
 rule set_up_sqra_in_vacuum:
     """
     Copy and prepare all the files to be able to run simulations or grid calculations for water in vacuum.
     """
+    wildcard_constraints:
+        experiment_type=".*water.*"
     input:
         water_gro = f"{PATH_INPUT_BASEGRO}H2O.gro",
         water_top = f"{PATH_INPUT_BASEGRO}H2O_H2O.top",
@@ -63,6 +68,49 @@ rule set_up_sqra_in_vacuum:
         modify_topology(output.topology,i="1",j="4",funct=10,low=0.0,
             up1=params.up1_nm,up2=params.up2_nm,force_constant=params.force_constant_restraint)
 
+rule set_up_guanidinium_xyz:
+    """
+    Copy and prepare all the files to be able to run simulations or grid calculations for water in vacuum.
+    """
+    wildcard_constraints:
+        experiment_type=".*guanidinium.*"
+    input:
+        structure = f"{PATH_INPUT_BASEGRO}Guanidinium/guanidinium.xyz",
+    output:
+        molecule1 = f"{PATH_EXPERIMENTS}{{experiment_type}}/{{experiment_id}}/{{grid_identifier}}/m1.xyz",
+        molecule2 = f"{PATH_EXPERIMENTS}{{experiment_type}}/{{experiment_id}}/{{grid_identifier}}/m2.xyz",
+    params:
+        tau_t = config["params_setup"]["tau_t"],
+        up1_nm = config["params_setup"]["up1_nm"],
+        up2_nm = config["params_setup"]["up2_nm"],
+        force_constant_restraint = config["params_setup"]["force_constant_restraint"],
+    run:
+        # first copy all inputs to outputs
+        import shutil
+        print(input.structure, output.molecule1)
+        shutil.copy(input.structure,output.molecule1)
+        shutil.copy(input.structure,output.molecule2)
+
+rule run_pt_guanidinium:
+    """
+    This rule should produce the .gro and .xtc files of the pseudotrajectory.
+    """
+    wildcard_constraints:
+        experiment_type=".*guanidinium.*"
+    input:
+        molecule1 = rules.set_up_guanidinium_xyz.output.molecule1,
+        molecule2 = rules.set_up_guanidinium_xyz.output.molecule2,
+        grid = rules.run_grid.output.full_array
+    output:
+        structure = f"{PATH_EXPERIMENTS}{{experiment_type}}/{{experiment_id}}/{{grid_identifier}}/structure.xyz",
+        trajectory = f"{PATH_EXPERIMENTS}{{experiment_type}}/{{experiment_id}}/{{grid_identifier}}/trajectory.xyz"
+    params:
+        cell_size_A = config["params_sqra"]["cell_size_A"]  # cubic box will be the output, this is size of the box in one dimension
+    run:
+        from molgri.io import PtWriter
+        my_writer = PtWriter(input.molecule1, input.molecule2, cell_size_A=params.cell_size_A, path_grid=input.grid)
+        my_writer.write_full_pt(path_output_pt=output.trajectory, path_output_structure=output.structure)
+
 rule run_pt:
     """
     This rule should produce the .gro and .xtc files of the pseudotrajectory.
@@ -73,26 +121,13 @@ rule run_pt:
         grid = rules.run_grid.output.full_array
     output:
         structure = f"{PATH_EXPERIMENTS}{{experiment_type}}/{{experiment_id}}/{{grid_identifier}}/structure.gro",
-        trajectory = f"{PATH_EXPERIMENTS}{{experiment_type}}/{{experiment_id}}/{{grid_identifier}}/trajectory.trr"
+        trajectory = f"{PATH_EXPERIMENTS}{{experiment_type}}/{{experiment_id}}/{{grid_identifier}}/trajectory.gro"
     params:
         cell_size_A = config["params_sqra"]["cell_size_A"]  # cubic box will be the output, this is size of the box in one dimension
     run:
-        from molgri.molecules.writers import PtWriter
-        from molgri.molecules.pts import Pseudotrajectory
-        from molgri.molecules.parsers import FileParser
-
-        # load grid and molecules
-        my_grid = np.load(input.grid)
-        my_molecule1 = FileParser(input.molecule1).as_parsed_molecule()
-        my_molecule2 = FileParser(input.molecule2).as_parsed_molecule()
-
-        # create PT
-        my_pt = Pseudotrajectory(my_molecule2,my_grid)
-
-        # write out .gro and .xtc files
-        box = (params.cell_size_A, params.cell_size_A, params.cell_size_A, 90, 90, 90)
-        my_writer = PtWriter("", my_molecule1,box)
-        my_writer.write_full_pt(my_pt,path_structure=output.structure,path_trajectory=output.trajectory)
+        from molgri.io import PtWriter
+        my_writer = PtWriter(input.molecule1, input.molecule2, cell_size_A=params.cell_size_A, path_grid=input.grid)
+        my_writer.write_full_pt(path_output_pt=output.trajectory, path_output_structure=output.structure)
 
 
 rule gromacs_rerun:
