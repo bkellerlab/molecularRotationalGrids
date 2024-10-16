@@ -5,8 +5,7 @@ from abc import ABC, abstractmethod
 
 from molgri.space.fullgrid import FullGrid
 from molgri.space.rotobj import SphereGridFactory
-from molgri.space.utils import dist_on_sphere, normalise_vectors, all_row_norms_equal_k
-from molgri.plotting.fullgrid_plots import FullGridPlot
+from molgri.space.utils import normalise_vectors, all_row_norms_equal_k
 import matplotlib.pyplot as plt
 
 # tests should always be performed on fresh data
@@ -82,28 +81,18 @@ class IdealIcosahedron(IdealPolyhedron):
         return 1.10714872
 
 
-def _visualise_fg(fg7: FullGrid):
-    fgp7 = FullGridPlot(fg7)
-    fgp7.plot_positions(labels=True, save=False)
-    fgp7.plot_position_voronoi(ax=fgp7.ax, fig=fgp7.fig, save=False, plot_vertex_points=True)
-    plt.show()
-
 
 def get_tetrahedron_grid(visualise=False, **kwargs):
     # simplest possible example: voronoi cells need at least 4 points to be created
     # with 4 points we expect tetrahedron angles
     fg = FullGrid(b_grid_name="randomQ_1", o_grid_name=f"cube3D_4", t_grid_name="[0.3]", **kwargs)
 
-    if visualise:
-        _visualise_fg(fg)
     return fg
 
 
 def get_icosahedron_grid(visualise=False, **kwargs):
     my_fg = FullGrid(b_grid_name="1", o_grid_name=f"ico_12", t_grid_name="[0.2, 0.4]", **kwargs)
 
-    if visualise:
-        _visualise_fg(my_fg)
     return my_fg
 
 
@@ -412,13 +401,6 @@ def test_voronoi_regression():
 def test_position_adjacency():
     # mini examples that you can calculate by hand
     fg = FullGrid(b_grid_name="randomQ_15", o_grid_name="ico_4", t_grid_name="[0.1, 0.2]", use_saved=USE_SAVED)
-    # visualize
-    # from molgri.plotting.fullgrid_plots import FullGridPlot
-    # import matplotlib.pyplot as plt
-    # fgp = FullGridPlot(fg)
-    # fgp.plot_positions(save=False, labels=True)
-    # fgp.plot_position_voronoi(ax=fgp.ax, fig=fgp.fig, save=False)
-    # plt.show()
 
     n_points = 2*4
     # neighbours to everyone in same layer (not itself) + right above
