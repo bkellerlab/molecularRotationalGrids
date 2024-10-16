@@ -170,13 +170,12 @@ rule lowest_e_structures:
         num = config["params_sqra"]["number_lowest_E_structures"]
     run:
         from molgri.space.utils import k_argmin_in_array
-        from molgri.molecules.parsers import XVGParser
-
-        my_parsed = XVGParser(input.energy)
-        energies2 = my_parsed.get_parsed_energy().get_energies("Coulomb (SR)")
-        energies5 = my_parsed.get_parsed_energy().get_energies("LJ (SR)")
-        energies6 = my_parsed.get_parsed_energy().get_energies("Potential")
-        energies7 = my_parsed.get_parsed_energy().get_energies("Disper. corr.")
+        from molgri.io import EnergyReader
+        er = EnergyReader().load_energy(input.energy)
+        energies2 = er["Coulomb (SR)"]
+        energies5 = er["LJ (SR)"]
+        energies6 = er["Potential"]
+        energies7 = er["Disper. corr."]
 
         all_lowest_ind = k_argmin_in_array(energies6, k=params.num)
         all_lowest_E = energies6[all_lowest_ind]
@@ -211,7 +210,7 @@ rule run_sqra:
         lower_lim = config["params_sqra"]["lower_lim_rate_matrix"],
         upper_lim = config["params_sqra"]["upper_lim_rate_matrix"],
     run:
-        from molgri.molecules.parsers import XVGParser
+        from molgri.io import EnergyReader
         from molgri.molecules.transitions import SQRA
         from scipy import sparse
         from scipy.constants import k as k_B
@@ -237,8 +236,7 @@ rule run_sqra:
         else:
             upper_limit = float(params.upper_lim)
 
-        my_parsed = XVGParser(input.energy)
-        energies = my_parsed.get_parsed_energy().get_energies(params.energy_type)
+        energies = EnergyReader().load_single_energy_column(input.energy, params.energy_type)
 
         sqra = SQRA(energies=energies,volumes=all_volumes,distances=all_distances,surfaces=all_surfaces)
         rate_matrix = sqra.get_rate_matrix(D,params.T)

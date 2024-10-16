@@ -10,14 +10,12 @@ ParsedTrajectory. Those are the objects that other modules should access.
 """
 
 import os
-from copy import copy
 from pathlib import Path
 from typing import Generator, Tuple, List, Callable
 
 import numpy as np
 
 import pandas as pd
-from MDAnalysis.auxiliary.XVG import XVGReader
 from numpy.typing import NDArray
 from scipy.spatial.transform import Rotation
 import MDAnalysis as mda
@@ -247,11 +245,7 @@ class FileParser:
         return Path(self.path_trajectory).stem
 
     def get_parsed_trajectory(self, default_atom_selection=None):
-        if not self.path_energy:
-            parsed_energies = None
-        else:
-            xvg_parser = XVGParser(self.path_energy)
-            parsed_energies = xvg_parser.get_parsed_energy()
+        parsed_energies = None
 
         name = self.get_topology_file_name()
         molecule_generator = self.generate_frame_as_molecule
@@ -324,86 +318,10 @@ class PtParser(FileParser):
         return self.generate_frame_as_molecule(atom_selection=self.get_atom_selection_c())
 
 
-class ParsedEnergy:
-
-    def __init__(self, energies: NDArray, labels, unit):
-        self.energies = energies
-        self.labels = labels
-        self.unit = unit
-
-    def get_energies(self, energy_type: str):
-        if energy_type not in self.labels:
-            raise ValueError(f"Energy type {energy_type} not available, choose from: {self.labels}")
-        i = self.labels.index(energy_type)
-        return self.energies[:, i]
-
-
-class XVGParser(object):
-
-    def __init__(self, path_xvg: str):
-        # this is done in order to function with .xvg ending or with no ending
-        if not path_xvg.endswith(".xvg"):
-            self.path_name = f"{path_xvg}.xvg"
-        else:
-            self.path_name = path_xvg
-        reader = XVGReader(self.path_name)
-        self.all_values = reader._auxdata_values
-        reader.close()
-
-    def get_parsed_energy(self):
-        return ParsedEnergy(self.get_all_columns(), self.get_all_labels(), self.get_y_unit())
-
-    def get_all_columns(self) -> NDArray:
-        return self.all_values
-
-    def get_all_labels(self) -> tuple:
-        result = ["None"]
-        with open(self.path_name, "r") as f:
-            for line in f:
-                # parse column number
-                for i in range(0, 10):
-                    if line.startswith(f"@ s{i} legend"):
-                        split_line = line.split('"')
-                        result.append(split_line[-2])
-                if not line.startswith("@") and not line.startswith("#"):
-                    break
-        return tuple(result)
-
-    def get_y_unit(self) -> str:
-        y_unit = None
-        with open(self.path_name, "r") as f:
-            for line in f:
-                # parse property unit
-                if line.startswith("@    yaxis  label"):
-                    split_line = line.split('"')
-                    y_unit = split_line[1]
-                    break
-        if y_unit is None:
-            print("Warning: energy units could not be detected in the xvg file.")
-            y_unit = "[?]"
-        return y_unit
-
-    def get_column_index_by_name(self, column_label) -> Tuple[str, int]:
-        correct_column = None
-        with open(self.path_name, "r") as f:
-            for line in f:
-                # parse column number
-                if f'"{column_label}"' in line:
-                    split_line = line.split(" ")
-                    correct_column = int(split_line[1][1:]) + 1
-                if not line.startswith("@") and not line.startswith("#"):
-                    break
-        if correct_column is None:
-            print(f"Warning: a column with label {column_label} not found in the XVG file. Using the first y-axis "
-                  f"column instead.")
-            column_label = "XVG column 1"
-            correct_column = 1
-        return column_label, correct_column
-
 
 class ParsedTrajectory:
 
-    def __init__(self, name: str, molecule_generator: Callable, energies: ParsedEnergy, is_pt=False,
+    def __init__(self, name: str, molecule_generator: Callable, energies, is_pt=False,
                  default_atom_selection=None, dt=1):
         self.name = name
         self.is_pt = is_pt
@@ -505,15 +423,3 @@ class ParsedTrajectory:
         if ens is None:
             return coms[:N], None
         return coms[:N], ens[:N]
-
-
-if __name__ == "__main__":
-    from molgri.paths import PATH_INPUT_BASEGRO
-    from scipy.spatial.transform import Rotation
-    my_molecule = FileParser(f"{PATH_INPUT_BASEGRO}H2O.gro").as_parsed_molecule()
-    rr = Rotation.random()
-    print(rr.as_matrix())
-    print(my_molecule.atoms.masses)
-    my_molecule.rotate_about_body(rr)
-    print(np.round(my_molecule.get_positions()/10, 3))
-
