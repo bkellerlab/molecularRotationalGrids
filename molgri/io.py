@@ -155,7 +155,8 @@ class PtWriter(TwoMoleculeWriter):
         """
         super().__init__(path_molecule1, path_molecule2, cell_size_A)
         self.grid_array = GridReader().load_full_grid(path_grid)
-        self.pt = Pseudotrajectory(self.central_molecule, self.moving_molecule, self.grid_array)
+        self.pt_universe = Pseudotrajectory(self.central_molecule, self.moving_molecule, self.grid_array).get_pt_as_universe()
+        self.pt_universe.dimensions = self.dimensions
         self.n_atoms = len(self.central_molecule.atoms) + len(self.moving_molecule.atoms)
 
     def write_full_pt(self, path_output_pt: str, path_output_structure: str):
@@ -163,24 +164,11 @@ class PtWriter(TwoMoleculeWriter):
         Write the trajectory file as well as the structure file (only at the first time-step).
 
         Args:
-            pt: a Pseudotrajectory object with method .generate_pseudotrajectory() that generates ParsedMolecule objects
-            path_trajectory: where trajectory should be saved
-            path_structure: where topology should be saved
+            path_output_pt: where trajectory should be saved
+            path_output_structure: where topology should be saved
         """
-        print(self.central_molecule, self.moving_molecule, path_output_pt)
-        trajectory_writer = mda.Writer(path_output_pt, n_atoms=self.n_atoms, multiframe=True)
-        last_i = 0
-        for i, merged_frame in self.pt.generate_pseudotrajectory():
-            # for the first frame write out topology
-            if i == 0:
-                distance = np.linalg.norm(self.grid_array[i][:3])
-                self.write_structure(start_distance_A=distance, path_output_structure=path_output_structure)
-            merged_frame.dimensions = self.dimensions
-            trajectory_writer.write(merged_frame)
-            last_i = i
-        product_of_grids = len(self.grid_array)
-        assert last_i + 1 == product_of_grids, f"Length of PT not correct, {last_i}=/={product_of_grids}"
-        trajectory_writer.close()
+        self.pt_universe.atoms.write(path_output_pt, frames='all')
+        self.pt_universe.atoms.write(path_output_structure, frames=self.pt_universe.trajectory[[0]])
 
     def write_full_pt_in_directory(self, path_output_pt: str, path_output_structure: str):
         """
@@ -194,14 +182,11 @@ class PtWriter(TwoMoleculeWriter):
         """
         directory_name, extension_trajectory = os.path.splitext(path_output_pt)
         _create_dir_or_empty_it(directory_name)
-        for i, merged_frame in self.pt.generate_pseudotrajectory():
-            if i == 0:
-                distance = np.linalg.norm(self.grid_array[i][:3])
-                self.write_structure(start_distance_A=distance, path_output_structure=path_output_structure)
-            f = f"{directory_name}/{i}{extension_trajectory}"
-            merged_frame.dimensions = self.dimensions
-            with mda.Writer(f) as structure_writer:
-                structure_writer.write(merged_frame)
+
+        for i, ts in enumerate(self.pt_universe.trajectory):
+            self.pt_universe.atoms.write(f"{directory_name}/{str(i).zfill(10)}{extension_trajectory}")
+
+        self.pt_universe.atoms.write(path_output_structure, frames=self.pt_universe.trajectory[[0]])
 
 
 class EnergyReader:
