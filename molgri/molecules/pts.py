@@ -16,7 +16,7 @@ from scipy.spatial.transform import Rotation
 
 class Pseudotrajectory:
 
-    def __init__(self, molecule1: Universe, molecule2: Universe, full_grid: NDArray):
+    def __init__(self, molecule1: Universe, molecule2: Universe, full_grid: NDArray, dimensions = None):
         """
         A Pseudotrajectory (PT) is a generator of frames in which a molecule assumes new positions in accordance
         with a grid. Initiate with molecule in any position, the method .generate_pseudotrajectory will make sure
@@ -31,6 +31,8 @@ class Pseudotrajectory:
         self.full_grid = full_grid
         self.current_frame = 0
         self.pt = None
+        if dimensions is not None:
+            self.static_molecule.dimensions = dimensions
 
     def get_full_grid(self):
         return self.full_grid
@@ -68,6 +70,7 @@ class Pseudotrajectory:
 
             combined_universe = Universe(universes[0]._topology, frames, format=MemoryReader)
             self.pt = combined_universe
+            self.pt.dimensions = self.static_molecule.dimensions
         return self.pt
 
     def _determine_which_molecule(self, return_mol2=True) -> str:

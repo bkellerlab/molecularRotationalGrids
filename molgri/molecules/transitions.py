@@ -7,16 +7,17 @@ implemented.
 from typing import Optional, Tuple, Sequence, Any
 from multiprocessing import Pool
 from functools import partial
-import warnings
-warnings.filterwarnings("ignore")
 from time import time
 
 import numpy as np
+import pandas as pd
 from MDAnalysis.analysis.base import AnalysisFromFunction
+from MDAnalysis import Universe
 from numpy.typing import NDArray
 from scipy.sparse import coo_array, csr_array, diags, dok_array
 from scipy.sparse.linalg import eigs
 from scipy.spatial.distance import cdist
+from scipy.spatial.transform import Rotation
 from scipy.constants import k as kB, N_A
 import MDAnalysis.transformations as trans
 
@@ -35,18 +36,19 @@ class AssignmentTool:
     This tool is used to assign trajectory frames to grid cells.
     """
 
-    def __init__(self, full_array: NDArray, path_structure: str, path_trajectory: str, path_reference_m2: str,
-                 stop=None, include_outliers = False):
+    def __init__(self, full_array: NDArray, full_universe: Universe, second_molecule: Universe,
+                 stop=None, include_outliers = False, cartesian_grid = True):
         self.full_array = full_array
         # these grids are also in A
         self.o_array, self.b_array, self.t_array = from_full_array_to_o_b_t(self.full_array)
         # whatever the format, MDAnalysis automatically converts to A
-        self.trajectory_universe = mda.Universe(path_structure, path_trajectory)
-        self.reference_universe = mda.Universe(path_reference_m2)
+        self.trajectory_universe = full_universe
+        self.reference_universe = second_molecule
         self.second_molecule_selection = self._determine_second_molecule()
         first_molecule = self.trajectory_universe.select_atoms("not " + self.second_molecule_selection)
         self.trajectory_universe.trajectory.add_transformations(trans.translate(-first_molecule.center_of_mass()))
         self.include_outliers = include_outliers
+        self.cartesian_grid = cartesian_grid
         self.stop = stop
         if stop is None:
             self.stop = len(self.trajectory_universe.trajectory)
@@ -186,27 +188,15 @@ class AssignmentTool:
         """
         if self.include_outliers:
             t_selection = AnalysisFromFunction(
-                lambda ag: np.argmin(np.abs(self.t_array - np.linalg.norm(np.minimum(np.mod(ag.center_of_mass(),
-                                                                                            self.trajectory_universe.dimensions[
-                                                                                            :3]),
-                                                                                     np.mod(-ag.center_of_mass(),
-                                                                                            self.trajectory_universe.dimensions[
-                                                                                            :3]))))),
+                lambda ag: np.argmin(np.abs(self.t_array - np.linalg.norm(ag.center_of_mass()))),
                 self.trajectory_universe.trajectory,
                 self.trajectory_universe.select_atoms(self.second_molecule_selection))
         else:
             outer_bound = self.t_array[-1] + 0.5*(self.t_array[-1]-self.t_array[-2])
             t_selection = AnalysisFromFunction(
-                lambda ag: np.nan if np.linalg.norm(ag.center_of_mass()) > outer_bound else np.argmin(np.abs(
-                    self.t_array - np.linalg.norm(np.minimum(np.mod(ag.center_of_mass(),
-                                                                                            self.trajectory_universe.dimensions[
-                                                                                            :3]),
-                                                                                     np.mod(-ag.center_of_mass(),
-                                                                                            self.trajectory_universe.dimensions[
-                                                                                            :3]))))),
+                lambda ag: np.nan if np.linalg.norm(ag.center_of_mass()) > outer_bound else np.argmin(np.abs(self.t_array - np.linalg.norm(ag.center_of_mass()))),
                 self.trajectory_universe.trajectory,
                 self.trajectory_universe.select_atoms(self.second_molecule_selection))
-
         t_selection.run(stop=self.stop)
         t_indices = t_selection.results['timeseries'].flatten()
         print("t statistics", pd.DataFrame(t_indices).describe())

@@ -305,99 +305,26 @@ rule run_trajectory_assignment:
     output:
         assignments=f"{PATH_EXPERIMENTS}{{experiment_type}}/{{unique_id}}/{{grid_identifier}}/assignments.npy",
     params:
-        include_outliers = config["params_grid"]["include_outliers"]
+        include_outliers = config["params_grid"]["include_outliers"],
+        cartesian_grid = config["params_grid"]["position_grid_is_cartesian"]
     run:
         from molgri.molecules.transitions import AssignmentTool
+        from molgri.io import TwoMoleculeReader, OneMoleculeReader
+
+        trajectory_universe = TwoMoleculeReader(input.structure,input.trajectory).get_full_pt()
+        molecule2_universe = OneMoleculeReader(input.molecule2).get_molecule()
 
         # using all inputs
         my_grid = np.load(input.full_array)
 
-        at = AssignmentTool(my_grid,input.structure,input.trajectory, input.molecule2)
+        at = AssignmentTool(my_grid, trajectory_universe, molecule2_universe, cartesian_grid=params.cartesian_grid,
+            include_outliers=params.include_outliers)
         assignments = at.get_full_assignments()
         print("NUM NANS1", np.count_nonzero(np.isnan(assignments)))
 
         # saving output
         np.save(output.assignments,assignments)
 
-# rule combine_trajectory_assignment:
-#     """
-#     A step before MSM - assign every frame of the trajectory to the corresponding cell
-#
-#     As input we need the trajectory, structure and full array of the grid we wanna assign to.
-#
-#     As output we get a cell index for every frame of the trajectory.
-#     """
-#     input:
-#         part_assignments = expand(f"{PATH_EXPERIMENTS}{{unique_id}}/{{grid_identifier}}/assignments_{{i}}.npy",i=ALL_I,  allow_missing=True)
-#     output:
-#         assignments=f"{PATH_EXPERIMENTS}{{unique_id}}/{{grid_identifier}}/assignments.npy",
-#     benchmark:
-#         f"{PATH_EXPERIMENTS}{{unique_id}}/{{grid_identifier}}/combine_assignment_benchmark.txt"
-#     run:
-#         print(input.part_assignments)
-#         all_assignments = []
-#         for one_assignment_file in input.part_assignments:
-#             one_file = np.load(one_assignment_file)
-#             print(one_assignment_file, one_file.shape)
-#             all_assignments.append(one_file)
-#         # saving output
-#         all_assignments = np.concatenate(all_assignments)
-#         print("SHAPE", all_assignments.shape)
-#         np.save(output.assignments, all_assignments)
-#
-# rule combine_trajectory:
-#     input:
-#         part_traj= expand(f"{PATH_EXPERIMENTS}{{unique_id}}/trajectory_slice2_{{i}}.xtc", i=ALL_I, allow_missing=True)
-#     output:
-#         assignments=f"{PATH_EXPERIMENTS}{{unique_id}}/trajectory_combined.xtc",
-#     shell:
-#         """
-#         #!/bin/bash
-#         export PATH="/home/janjoswig/local/gromacs-2022/bin:$PATH"
-#         echo gmx22 trjcat -f {input.part_traj} -o {output.assignments} -cat
-#         gmx22 trjcat -f {input.part_traj} -o {output.assignments} -cat
-#         """
-
-# rule run_deeptime_transition_matrix:
-#     """
-#     A step before MSM - assign every frame of the trajectory to the corresponding cell
-#
-#     As input we need the trajectory, structure and full array of the grid we wanna assign to.
-#
-#     As output we get a cell index for every frame of the trajectory.
-#     """
-#
-#     input:
-#         trajectory = "experiments/{unique_id}/trajectory.trr",
-#         structure = "experiments/{unique_id}/structure.gro",
-#     wildcard_constraints:
-#         grid_identifier = "deeptime.*"
-#     log:
-#         log = "experiments/{unique_id}/{grid_identifier}/logging_assignments.log"
-#     output:
-#         assignments="experiments/{unique_id}/{grid_identifier}/assignments.npy",
-#     run:
-#         t1 = time()
-#         import MDAnalysis as mda
-#         from deeptime.clustering import KMeans
-#
-#         estimator = KMeans(
-#             n_clusters=40,# place 100 cluster centers
-#             init_strategy='uniform',# uniform initialization strategy
-#             max_iter=5000,# don't actually perform the optimization, just place centers
-#             fixed_seed=13,
-#             n_jobs=8,
-#         )
-#
-#         trajectory_universe = mda.Universe(input.structure,input.trajectory)
-#         all_positions = []
-#         for ts in trajectory_universe.trajectory:
-#             all_positions.extend(ts.positions[3:].flatten())
-#         clustering = estimator.fit(np.array(all_positions)).fetch_model()
-#         my_assignments = clustering.transform(np.array(all_positions))
-#         np.save(output.assignments,my_assignments)
-#         t2 = time()
-#         log_the_run(wildcards.unique_id, input, output, log.log, None, t2-t1)
 
 rule run_msm_matrix:
     """
