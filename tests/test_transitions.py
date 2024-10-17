@@ -2,13 +2,13 @@ import sys
 
 import numpy as np
 from numpy.typing import NDArray
+from MDAnalysis import Universe
 
+
+from molgri.io import OneMoleculeReader
 from molgri.space.fullgrid import FullGrid
-
 from molgri.molecules.transitions import AssignmentTool
-from molgri.molecules.writers import PtWriter
 from molgri.molecules.pts import Pseudotrajectory
-from molgri.molecules.parsers import FileParser
 from molgri.paths import PATH_INPUT_BASEGRO, PATH_OUTPUT_PT, PATH_OUTPUT_AUTOSAVE
 from molgri.plotting.create_vmdlog import show_assignments
 
@@ -17,22 +17,20 @@ def _create_grid(o="15", b="9", t="[0.2, 0.3, 0.4]"):
     return my_array
 
 
-def _create_pseudotraj(grid: NDArray, m1="H2O.gro", m2="H2O.gro", path_structure=f"{PATH_OUTPUT_PT}temp.gro",
+def _create_pseudotraj(grid: NDArray, m1="input/H2O.gro", m2="input/H2O.gro", path_structure=f"{PATH_OUTPUT_PT}temp.gro",
                        path_trajectory=f"{PATH_OUTPUT_PT}temp.trr"):
-    molecule1 = FileParser(f"{PATH_INPUT_BASEGRO}{m1}").as_parsed_molecule()
-    molecule2 = FileParser(f"{PATH_INPUT_BASEGRO}{m2}").as_parsed_molecule()
-    box = molecule1.box
-
-    my_pt = Pseudotrajectory(molecule2, grid)
-    my_writer = PtWriter("", molecule1, box)
-    my_writer.write_full_pt(my_pt, path_structure=path_structure,
-                            path_trajectory=path_trajectory)
+    om1 = OneMoleculeReader(m1).get_molecule()
+    om2 = OneMoleculeReader(m2).get_molecule()
+    pt = Pseudotrajectory(om1, om2, grid)
+    return pt.get_pt_as_universe()
 
 
 def test_position_grid_assignments():
     # if I input a pt and same FullGrid, the first n_b assignments are to 0th position, then 1st ...
     my_grid = _create_grid()
-    _create_pseudotraj(my_grid.get_full_grid_as_array())
+    my_grid_array = my_grid.my_grid.get_full_grid_as_array()
+    my_pt_universe = _create_pseudotraj(my_grid_array)
+
     at = AssignmentTool(my_grid.get_full_grid_as_array(), path_structure=f"{PATH_OUTPUT_PT}temp.gro",
                         path_trajectory=f"{PATH_OUTPUT_PT}temp.trr",
                         path_reference_m2=f"{PATH_INPUT_BASEGRO}H2O.gro")

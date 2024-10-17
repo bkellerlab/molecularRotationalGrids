@@ -32,6 +32,47 @@ def same_origin_orientation(mol1: AtomGroup, mol2: AtomGroup):
     assert np.allclose(unit_pos1, unit_pos2, atol=1e-5)
 
 
+def test_getting_each_molecule():
+    """
+    Test that:
+    - full pseudo-trajectory has correct element types and positions for each
+    - one molecule pseudo-trajectory overtakes the correct names and positions
+    - coordinates of first molecule don't change, COM is at origin whole time
+    - coordinates of the second molecule change every step
+    """
+    grid = FullGrid(f"7", f"6", "range(1, 5, 0.5)")
+    grid_array = grid.get_full_grid_as_array()
+    distances = grid.get_position_grid().get_radii()
+    pt = Pseudotrajectory(OneMoleculeReader("input/H2O.gro").get_molecule(), OneMoleculeReader(
+        "input/NH3.gro").get_molecule(), grid_array)
+
+    full_universe = pt.get_pt_as_universe()
+    assert np.all(full_universe.atoms.types == ["O", "H", "H", "N", "H", "H", "H"]), full_universe.atoms.types
+    assert np.all(full_universe.atoms.names == ["OW", "HW1", "HW2", "N", "H", "H", "H"]), full_universe.atoms.names
+    for frame in full_universe.trajectory:
+        assert frame.positions.shape == (7, 3)
+
+    universe_atom1 = pt.get_one_molecule_pt_as_universe(return_mol2=False)
+    assert np.all(universe_atom1.atoms.types == ["O", "H", "H"])
+    assert np.all(universe_atom1.atoms.names == ["OW", "HW1", "HW2"])
+    first_position = universe_atom1.atoms.positions.copy()
+    for frame_one, frame in zip(universe_atom1.trajectory, full_universe.trajectory):
+        assert np.allclose(frame_one.positions, frame.positions[:3])
+        assert np.allclose(first_position, frame_one.positions)
+        assert np.allclose(universe_atom1.atoms.center_of_mass(), 0)
+
+    universe_atom2 = pt.get_one_molecule_pt_as_universe(return_mol2=True)
+    assert np.all(universe_atom2.atoms.types == ["N", "H", "H", "H"])
+    assert np.all(universe_atom2.atoms.names == ["N", "H", "H", "H"])
+    first_position = universe_atom2.atoms.positions.copy()
+    index = 0
+    for frame_one, frame in zip(universe_atom2.trajectory, full_universe.trajectory):
+        assert np.allclose(frame_one.positions, frame.positions[3:]), frame_one.positions-frame.positions[3:]
+        if index != 0:
+            assert not np.allclose(first_position, frame_one.positions)
+        assert not np.allclose(universe_atom2.atoms.center_of_mass(), 0)
+        index += 1
+
 def test_pt_len():
     """
     Test that PTs are of correct length.
@@ -63,14 +104,16 @@ def test_pt_translations():
     distances = grid.get_position_grid().get_radii()
     pt = Pseudotrajectory(OneMoleculeReader("input/H2O.gro").get_molecule(), OneMoleculeReader(
         "input/H2O.gro").get_molecule(), grid_array)
-    for i, frame in pt.generate_pseudotrajectory():
+    pt_universe = pt.get_pt_as_universe()
+    for i, frame in enumerate(pt_universe.trajectory):
         # first three atoms should be basically at zero
-        assert np.allclose(frame.select_atoms("bynum 1:3").center_of_mass(), 0)
+        assert np.allclose(pt_universe.select_atoms("bynum 1:3").center_of_mass(), 0)
         # other three atoms (0, 0, distance)
-        com2 = frame.select_atoms("bynum 4:6").center_of_mass()
+        com2 = pt_universe.select_atoms("bynum 4:6").center_of_mass()
         assert np.isclose(com2[0], 0)
         assert np.isclose(com2[1], 0)
         assert np.isclose(com2[2], distances[i])
+
 
 def test_pt_rotations_origin():
     """
@@ -204,6 +247,7 @@ def test_order_of_operations():
 if __name__ == "__main__":
     freshly_create_all_folders()
     copy_examples()
+    test_getting_each_molecule()
     test_pt_len()
     test_pt_translations()
     test_pt_rotations_origin()
