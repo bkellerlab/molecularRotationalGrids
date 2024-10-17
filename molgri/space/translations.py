@@ -13,7 +13,6 @@ import numpy as np
 from numpy.typing import NDArray
 
 from molgri.constants import NM2ANGSTROM
-from molgri.wrappers import save_or_use_saved
 
 
 class TranslationParser(object):
@@ -27,13 +26,12 @@ class TranslationParser(object):
             - a range with optionally provided step, eg 'range(0.5, 3, 0.4)'
     """
 
-    def __init__(self, user_input: str, use_saved=True):
+    def __init__(self, user_input: str):
         """
         Args:
             user_input: a string in one of allowed formats
         """
         self.user_input = user_input
-        self.use_saved = use_saved
         if "linspace" in self.user_input:
             bracket_input = self._read_within_brackets()
             self.trans_grid = np.linspace(*bracket_input, dtype=float)
@@ -54,7 +52,6 @@ class TranslationParser(object):
     def get_name(self):
         return f"{self.grid_hash}"
 
-    @save_or_use_saved
     def get_trans_grid(self) -> NDArray:
         """Getter to access all distances from origin in angstorms."""
         return self.trans_grid

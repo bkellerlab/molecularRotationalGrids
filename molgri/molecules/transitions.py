@@ -110,7 +110,7 @@ class AssignmentTool:
         run_per_frame = partial(self._complex_mdanalysis_func,
                                 ag=self.trajectory_universe.select_atoms(self.second_molecule_selection),
                                 reference_direction=reference_direction)
-        frame_values = np.arange(stop=self.stop) #self.within_R #
+        frame_values = np.arange(stop=self.stop)
         with Pool(1) as worker_pool:
             direction_frames = worker_pool.map(run_per_frame, frame_values)
         # t_selection = AnalysisFromFunction(
@@ -148,35 +148,16 @@ class AssignmentTool:
         print(pd.DataFrame(result).describe())
         return np.array(result)
 
-    # def _get_quaternion_assignments(self):
-    #     """
-    #     Assign every frame of the trajectory to the closest quaternion from the b_grid_points.
-    #     """
-    #     # find PA and direction of reference structure
-    #     reference_principal_axes = self.reference_universe.atoms.principal_axes().T
-    #     inverse_pa = np.linalg.inv(reference_principal_axes)
-    #     reference_direction = self._determine_positive_directions(self.reference_universe)
-    #
-    #     # find PA and direction along trajectory
-    #     pa_frames = AnalysisFromFunction(lambda ag: ag.principal_axes().T, self.trajectory_universe.trajectory,
-    #                                      self.trajectory_universe.select_atoms(self.second_molecule_selection))
-    #     pa_frames.run()
-    #     pa_frames = pa_frames.results['timeseries']
-    #
-    #     direction_frames = AnalysisFromFunction(lambda ag: np.tile(self._determine_positive_directions(
-    #         ag) / reference_direction, (3, 1)),
-    #                                             self.trajectory_universe.trajectory,
-    #                                             self.trajectory_universe.select_atoms(self.second_molecule_selection))
-    #     direction_frames.run(stop=self.stop)
-    #     direction_frames = direction_frames.results['timeseries']
-    #     directed_pas = np.multiply(pa_frames, direction_frames)
-    #     produkt = np.matmul(directed_pas, inverse_pa)
-    #     # get the quaternions that caused the rotation from reference to each frame
-    #     calc_quat = np.round(Rotation.from_matrix(produkt).as_quat(), 6)
-    #     b_indices = np.argmin(cdist(self.b_array, calc_quat, metric=distance_between_quaternions), axis=0)
-    #     # almost everything correct but the order is somehow mixed???
-    #     print("q statistics", pd.DataFrame(b_indices).describe())
-    #     return b_indices
+    def _t_assignment_function(self, ag):
+        min_dist_to_gridpoint = np.argmin(np.abs(self.t_array - np.linalg.norm(ag.center_of_mass())))
+        if self.include_outliers:
+            return min_dist_to_gridpoint
+        else:
+            outer_bound = self.t_array[-1] + 0.5 * (self.t_array[-1] - self.t_array[-2])
+            if np.linalg.norm(ag.center_of_mass()) > outer_bound:
+                return np.nan
+            else:
+                return min_dist_to_gridpoint
 
     def _get_t_assignments(self) -> NDArray:
         """
@@ -186,21 +167,25 @@ class AssignmentTool:
             an integer array as long as the trajectory, each element an index of the closest point of the radial grid
             like [0, 0, 0, 1, 1, 1, 2 ...] (for a PT with 3 orientations)
         """
-        if self.include_outliers:
-            t_selection = AnalysisFromFunction(
-                lambda ag: np.argmin(np.abs(self.t_array - np.linalg.norm(ag.center_of_mass()))),
-                self.trajectory_universe.trajectory,
-                self.trajectory_universe.select_atoms(self.second_molecule_selection))
-        else:
-            outer_bound = self.t_array[-1] + 0.5*(self.t_array[-1]-self.t_array[-2])
-            t_selection = AnalysisFromFunction(
-                lambda ag: np.nan if np.linalg.norm(ag.center_of_mass()) > outer_bound else np.argmin(np.abs(self.t_array - np.linalg.norm(ag.center_of_mass()))),
-                self.trajectory_universe.trajectory,
-                self.trajectory_universe.select_atoms(self.second_molecule_selection))
+        t_selection = AnalysisFromFunction(
+            lambda ag: self._t_assignment_function(ag),
+            self.trajectory_universe.trajectory,
+            self.trajectory_universe.select_atoms(self.second_molecule_selection))
         t_selection.run(stop=self.stop)
         t_indices = t_selection.results['timeseries'].flatten()
         print("t statistics", pd.DataFrame(t_indices).describe())
         return t_indices
+
+    def _o_assignment_function(self, ag):
+        if self.cartesian_grid:
+            metric = "euclidean"
+        else:
+            metric = "cos"
+
+        all_possible_distances = cdist(self.o_array, normalise_vectors(
+            ag.center_of_mass()[np.newaxis, :]), metric=metric)
+        return np.argmin(all_possible_distances, axis=0)
+
 
     def _get_o_assignments(self) -> NDArray:
         """
@@ -209,17 +194,9 @@ class AssignmentTool:
             an array of position grid indices
         """
         # now using a normalized com and a metric on a sphere, determine which of o_grid_points is closest
-        o_selection = AnalysisFromFunction(lambda ag: np.argmin(cdist(self.o_array, normalise_vectors(
-            ag.center_of_mass()[np.newaxis, :]),
-            metric="euclidean"), axis=0),
+        o_selection = AnalysisFromFunction(lambda ag: self._o_assignment_function(ag),
                                            self.trajectory_universe.trajectory,
                                            self.trajectory_universe.select_atoms(self.second_molecule_selection))
-        # o_selection = AnalysisFromFunction(lambda ag: np.argmin(cdist(self.o_array, normalise_vectors(
-        #     np.minimum(np.mod(ag.center_of_mass(), self.trajectory_universe.dimensions[:3]),
-        #                np.mod(-ag.center_of_mass(), self.trajectory_universe.dimensions[:3])))[np.newaxis, :],
-        #     metric="euclidean"), axis=0),
-        #                                    self.trajectory_universe.trajectory,
-        #                                    self.trajectory_universe.select_atoms(self.second_molecule_selection))
         o_selection.run(stop=self.stop)
         o_indices = o_selection.results['timeseries'].flatten()
         print("o statistics", pd.DataFrame(o_indices).describe())
@@ -236,231 +213,6 @@ class AssignmentTool:
 
     def get_full_assignments(self) -> NDArray:
         return self._get_position_assignments() * len(self.b_array) + self._get_quaternion_assignments()
-
-# class AssignmentTool:
-#     """
-#     This tool is used to assign trajectory frames to grid cells.
-#     """
-#
-#     def __init__(self, full_array: NDArray, path_structure: str, path_trajectory: str or list, path_reference_m2:
-#     str, start=None, stop=None, n_jobs=1):
-#         self.full_array = full_array
-#         # these grids are also in A
-#         self.o_array, self.b_array, self.t_array = from_full_array_to_o_b_t(self.full_array)
-#         # whatever the format, MDAnalysis automatically converts to A
-#         self.trajectory_universe = mda.Universe(path_structure, path_trajectory, in_memory=False)
-#         self.reference_universe = mda.Universe(path_reference_m2)
-#         self.second_molecule_selection = self._determine_second_molecule()
-#         first_molecule = self.trajectory_universe.select_atoms("not " + self.second_molecule_selection)
-#         self.trajectory_universe.trajectory.add_transformations(trans.translate(-first_molecule.center_of_mass()))
-#         self.n_jobs = n_jobs
-#         if stop is not None:
-#             self.stop = stop
-#         else:
-#             self.stop = len(self.trajectory_universe.trajectory)
-#             print("STOP is", self.stop)
-#         if start is not None:
-#             self.start = start
-#         else:
-#             self.start = 0
-#
-#     def _determine_second_molecule(self):
-#         num_atoms_total = len(self.trajectory_universe.atoms)
-#         num_atoms_m2 = len(self.reference_universe.atoms)
-#         # indexing in MDAnalysis is 1-based
-#         # we look for indices of the second molecule
-#         num_atoms_m1 = num_atoms_total - num_atoms_m2
-#         # indices are inclusive
-#         return f"bynum  {num_atoms_m1+1}:{num_atoms_total+1}"
-#
-#     def _determine_positive_directions(self, current_universe):
-#         pas = current_universe.atoms.principal_axes()
-#         com = current_universe.atoms.center_of_mass()
-#         directions = [0, 0, 0]
-#         for atom_pos in current_universe.atoms.positions:
-#             for i, pa in enumerate(pas):
-#                 # need to round to avoid problems - assigning direction with atoms very close to 0
-#                 cosalpha = np.round(pa.dot(atom_pos - com), 6)
-#                 directions[i] = np.sign(cosalpha)
-#             if not np.any(np.isclose(directions, 0)):
-#                 return np.array(directions)
-#             # if exactly one unknown use the other two and properties of righthanded systems to get third
-#             elif np.sum(np.isclose(directions, 0)) == 1:
-#                 # only these combinations of directions are possible in righthanded coordinate systems
-#                 allowed_righthanded = [[1, 1, 1], [-1, 1, -1], [1, -1, -1], [-1, -1, 1]]
-#                 for ar in allowed_righthanded:
-#                     # exactly two identical (and the third is zero)
-#                     if np.sum(np.isclose(ar, directions)) == 2:
-#                         directions = ar
-#                         return np.array(directions)
-#
-#     def _complex_mdanalysis_func(self, frame_index, ag, reference_direction):
-#         # index the trajectory to set it to the frame_index frame
-#         ag.universe.trajectory[frame_index]
-#         return np.multiply(ag.principal_axes().T, np.tile(self._determine_positive_directions(ag) / reference_direction, (3, 1)))
-#
-#     def _get_rotation_matrices(self):
-#         """
-#         For every frame in the trajectory, find the exact quaternion needed to go from reference structure of
-#         molecule2 to structure of molecule2 in this frame (this is exact if trajectory is done with rigid molecules,
-#         otherwise it must be an approximation).
-#         """
-#         reference_principal_axes = self.reference_universe.atoms.principal_axes().T
-#         inverse_pa = np.linalg.inv(reference_principal_axes)
-#         reference_direction = self._determine_positive_directions(self.reference_universe)
-#         if reference_direction is None:
-#             raise ValueError("All atoms perpendicular to at least one of principal axes, can't determine direction.")
-#         """
-#         I am very sorry that this part is optimized, parallelized and completely unreadable. Rely on tests to make
-#         sure this stuff works and be happy that your calculations are no longer taking two days.
-#         """
-#         run_per_frame = partial(self._complex_mdanalysis_func,
-#                                 ag=self.trajectory_universe.select_atoms(self.second_molecule_selection),
-#                                 reference_direction=reference_direction)
-#         frame_values = np.arange(start=self.start, stop=self.stop) #self.within_R #
-#         with Pool(self.n_jobs) as worker_pool:
-#             direction_frames = worker_pool.map(run_per_frame, frame_values)
-#         # t_selection = AnalysisFromFunction(
-#         #     lambda ag: self._complex_mdanalysis_func,
-#         #     self.trajectory_universe.trajectory,
-#         #     self.trajectory_universe.select_atoms(self.second_molecule_selection))
-#         # t_selection.run(start=self.start, stop=self.stop)  # frames=self.within_R
-#         # direction_frames = t_selection.results['timeseries']
-#         return np.matmul(direction_frames, inverse_pa)
-#
-#     # def _get_coms_m2(self):
-#     #     initial_com = self.trajectory_universe.select_atoms(self.second_molecule_selection).center_of_mass()
-#     #     coms = AnalysisFromFunction(lambda ag: np.linalg.norm(ag.center_of_mass()-initial_com),
-#     #                                        self.trajectory_universe.trajectory,
-#     #                                        self.trajectory_universe.select_atoms(self.second_molecule_selection))
-#     #     coms.run(start=self.start, stop=self.stop) #frames=self.within_R
-#     #     return coms.results['timeseries'].flatten()
-#
-#     def _get_quaternion_assignments(self):
-#         """
-#         Assign every perfect-fit quaternion to the closest-available quaternion from the b_grid_points.
-#         """
-#         t1=time()
-#         my_quaternions = self._get_rotation_matrices()
-#         """
-#         Explanation: we have N_traj_len produkt matrices called P_i and N_quat reference matrices called R_i. The
-#         matrix product R_i@P_i.T describes the rotation matrix needed to get from R_i to P_i. We want the magnitude
-#         of this rotation to be as small as possible.
-#
-#         So we calculate the matrix of magnitudes of size N_quat x N_traj_len and select the index of the smallest
-#         magnitude per row.
-#
-#         This part of the function should be pretty fast.
-#         """
-#         reference_matrices = Rotation(self.b_array).as_matrix()
-#         alignment_magnitudes = np.empty((len(reference_matrices), len(my_quaternions)))
-#         for i, rm in enumerate(reference_matrices):
-#             alignment_magnitudes[i] = Rotation.from_matrix(rm@my_quaternions.transpose(0, 2, 1)).magnitude()
-#         result = np.argmin(alignment_magnitudes, axis=0).flatten()
-#         t2= time()
-#         print("Q assignments time", t2-t1)
-#         print(pd.DataFrame(result).describe())
-#         return np.array(result)
-#
-#     def _get_t_assignments(self) -> NDArray:
-#         """
-#         Given a trajectoryand an array of available radial (t-grid) points, assign each frame of the trajectory
-#         to the closest radial point.
-#
-#         Returns:
-#             an integer array as long as the trajectory, each element an index of the closest point of the radial grid
-#             like [0, 0, 0, 1, 1, 1, 2 ...] (for a PT with 3 orientations)
-#         """
-#         t1=time()
-#         t_selection = AnalysisFromFunction(
-#             lambda ag: 0 if np.linalg.norm(ag.center_of_mass()) > self.t_array[-1] else 1,
-#             self.trajectory_universe.trajectory,
-#             self.trajectory_universe.select_atoms(self.second_molecule_selection))
-#         t_selection.run(start=self.start, stop=self.stop) #frames=self.within_R
-#         t_indices = t_selection.results['timeseries'].flatten()
-#         t2= time()
-#         print("T assignments time", t2-t1)
-#         print(pd.DataFrame(t_indices).describe())
-#         return t_indices
-#     #
-#     # def com_within_R(self):
-#     #     t_selection = AnalysisFromFunction(
-#     #         lambda ag: np.linalg.norm(ag.center_of_mass()) < self.t_array[-1],
-#     #         self.trajectory_universe.trajectory,
-#     #         self.trajectory_universe.select_atoms(self.second_molecule_selection))
-#     #     t_selection.run(start=self.start, stop=self.stop)
-#     #     t_indices = t_selection.results['timeseries'].flatten()
-#     #     return np.nonzero(t_indices)[0]
-#
-#
-#     # def _get_o_assignments(self) -> NDArray:
-#     #     t1=time()
-#     #     """
-#     #     Assign every frame of the trajectory (or PT) to the best fitting point of position grid
-#     #
-#     #     Returns:
-#     #         an array of position grid indices
-#     #     """
-#     #     # now using a normalized com and a metric on a sphere, determine which of o_grid_points is closest
-#     #     o_selection = AnalysisFromFunction(lambda ag: np.argmin(cdist(self.o_array, normalise_vectors(
-#     #         np.minimum(np.mod(ag.center_of_mass(), self.trajectory_universe.dimensions[:3]),
-#     #                    np.mod(-ag.center_of_mass(), self.trajectory_universe.dimensions[:3])))[np.newaxis, :],
-#     #         metric="cos"), axis=0),
-#     #                                        self.trajectory_universe.trajectory,
-#     #                                        self.trajectory_universe.select_atoms(self.second_molecule_selection))
-#     #     o_selection.run(start=self.start, stop=self.stop) #frames=self.within_R
-#     #     o_indices = o_selection.results['timeseries'].flatten()
-#     #     t2= time()
-#     #     print("o assignments time", t2-t1)
-#     #     print(pd.DataFrame(o_indices).describe())
-#     #     return o_indices
-#
-#     def _complex_mdanalysis_func2(self, frame_index, ag):
-#         # index the trajectory to set it to the frame_index frame
-#         ag.universe.trajectory[frame_index]
-#         if np.linalg.norm(ag.center_of_mass()) > self.t_array[-1]:
-#             t_assignment = np.NaN
-#         else:
-#             t_assignment = np.argmin(np.abs(self.t_array - np.linalg.norm(np.minimum(np.mod(ag.center_of_mass(),
-#                                                                                      self.trajectory_universe.dimensions[:3]),
-#                                             np.mod(-ag.center_of_mass(), self.trajectory_universe.dimensions[:3])))))
-#         o_assignment = np.argmin(cdist(self.o_array, normalise_vectors(
-#             np.minimum(np.mod(ag.center_of_mass(), self.trajectory_universe.dimensions[:3]),
-#                        np.mod(-ag.center_of_mass(), self.trajectory_universe.dimensions[:3])))[np.newaxis, :],
-#             metric="cos"), axis=0)
-#         position_assignment = len(self.o_array) * t_assignment + o_assignment
-#         return position_assignment
-#
-#     def _get_position_assignments(self):
-#         """
-#         Combine assigning to t_grid and o_grid.
-#         """
-#         t1=time()
-#         run_per_frame = partial(self._complex_mdanalysis_func2,
-#                                 ag=self.trajectory_universe.select_atoms(self.second_molecule_selection))
-#         frame_values = np.arange(start=self.start, stop=self.stop) #self.within_R #
-#         with Pool(self.n_jobs) as worker_pool:
-#             position_frames = worker_pool.map(run_per_frame, frame_values)
-#         t2= time()
-#         print("position assignments time", t2-t1)
-#         print(pd.DataFrame(position_frames).describe(), np.count_nonzero(np.isnan(position_frames)))
-#         return np.array(position_frames).flatten()
-#
-#     # def _get_position_assignments(self):
-#     #     t1=time()
-#     #     o_selection = AnalysisFromFunction(lambda ag: self._complex_mdanalysis_func2,
-#     #                                        self.trajectory_universe.trajectory,
-#     #                                        self.trajectory_universe.select_atoms(self.second_molecule_selection))
-#     #     o_selection.run(start=self.start, stop=self.stop) #frames=self.within_R
-#     #     o_indices = o_selection.results['timeseries'].flatten()
-#     #     t2= time()
-#     #     print("position assignments time", t2-t1)
-#     #     print(pd.DataFrame(o_indices).describe())
-#     #     return o_indices
-#
-#     def get_full_assignments(self) -> NDArray:
-#         all_assignments = self._get_position_assignments() * len(self.b_array) + self._get_quaternion_assignments()
-#         return all_assignments
 
 
 def window(seq: Sequence, len_window: int, step: int = 1) -> Tuple[Any, Any]:
@@ -637,93 +389,3 @@ class DecompositionTool:
         eigenval = eigenval[idx]
         eigenvec = eigenvec[:, idx]
         return eigenval, eigenvec
-
-
-
-if __name__ == "__main__":
-    import MDAnalysis as mda
-    from MDAnalysis.analysis import rms
-    import numpy as np
-    import seaborn as sns
-    import matplotlib.pyplot as plt
-    import pandas as pd
-    from scipy.optimize import curve_fit
-    from scipy.spatial.transform import Rotation
-
-
-    def read_from_mdrun(path_to_file, param_to_find):
-        with open(path_to_file, "r") as f:
-            lines = f.readlines()
-        for i, line in enumerate(lines):
-            if line.startswith(param_to_find):
-                my_line = line
-                if ";" in line:
-                    my_line = line.split(";")[0]
-                return my_line.split("=")[1].strip()
-
-
-    from scipy import sparse
-
-    input_paths = ["experiments/MSM4_electrostatic_1_cc_0001/", "experiments/MSM4_electrostatic_1_cc_001/",
-                   "experiments/MSM4_electrostatic_1_cc_01/", "experiments/MSM4_electrostatic_1_cc_1/"]
-    my_grid = np.load("output/data/autosave/80_80_very_short_full_array.npy")
-
-    for ip in input_paths:
-        for i in range(20):
-            try:
-                at = AssignmentTool(my_grid, f"{ip}structure.gro", f"{ip}trajectory_slice_{i}.xtc", f"{ip}m2.gro",
-                                    n_jobs=1)
-
-                # saving output
-                np.save(f"{ip}/80_80_very_short/assi_{i}.npy", at.get_full_assignments())
-                print("SUCCESS", ip, i)
-            except:
-                print(f"Failed file {ip} with {i}")
-                pass
-
-    # universe = mda.Universe("experiments/one_sqra/small_ideal/structure.gro",
-    #                         "experiments/one_sqra/small_ideal/trajectory.trr")
-    #
-    # adjacency = sparse.load_npz("output/data/autosave/small_ideal_adjacency_array.npz").tocoo()
-    # distances = sparse.load_npz("output/data/autosave/small_ideal_distances_array.npz").tocoo()
-    # position_distances =  sparse.load_npz("output/data/autosave/small_ideal_position_dist_array.npz").toarray()
-    # ori_distances = sparse.load_npz("output/data/autosave/small_ideal_position_ori_array.npz").toarray()
-    #
-    #
-    # all_distances_direct = []
-    # all_distances_pos = []
-    # all_distances_ori = []
-    #
-    # for i, j, k in zip(adjacency.row, adjacency.col, range(len(adjacency.data))):
-    #     universe.trajectory[i]
-    #     start_atoms = universe.select_atoms("bynum 4:6").positions
-    #     universe.trajectory[j]
-    #     stop_atoms = universe.select_atoms("bynum 4:6").positions
-    #     all_distances_direct.append(np.sqrt(np.sum((start_atoms - stop_atoms)**2)))
-    #     all_distances_pos.append(position_distances[i, j])
-    #     all_distances_ori.append(ori_distances[i, j])
-    #
-    #
-    # def f(x, a):
-    #     return a*(x[0]+x[1])
-    #
-    # xdata = np.stack((all_distances_pos, all_distances_ori))
-    # rest_output = curve_fit(f, xdata, ydata=all_distances_direct, full_output=True)
-    # print(rest_output)
-    # params = rest_output[0]
-    #
-    # fitted_func = f(xdata, *params)
-    #
-    # fig, ax = plt.subplots(1, 2)
-    # sns.scatterplot(all_distances_direct, ax=ax[0])
-    #
-    # sns.scatterplot(fitted_func, s=1, ax=ax[0])
-    #
-    # print("PARAMS", params)
-    # rel_errors = np.abs(np.array(all_distances_direct)-fitted_func)/np.abs(np.array(all_distances_direct))
-    # print(pd.DataFrame(rel_errors).describe())
-    # print(", ".join([str(x+1) for x in np.where(rel_errors > 5)[0]]))
-    #
-    # print(", ".join([str(x + 1) for x in np.where(np.array(all_distances_pos) < 3)[0]]))
-    #
-    # plt.show()

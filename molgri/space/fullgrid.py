@@ -66,7 +66,7 @@ class FullGrid:
         t_grid_name: translation grid (a linear grid used to determine distances to origin)
     """
 
-    def __init__(self, b_grid_name: str, o_grid_name: str, t_grid_name: str, use_saved: bool = True, factor=2,
+    def __init__(self, b_grid_name: str, o_grid_name: str, t_grid_name: str, factor=2,
                  position_grid_cartesian=False):
 
         """
@@ -74,7 +74,6 @@ class FullGrid:
             b_grid_name: of the form 'ico_17'
             o_grid_name: of the form 'cube4D_12'
             t_grid_name: of the form '[1, 3, 4.5]'
-            use_saved: try to obtain saved data if possible
         """
         # this is supposed to be a scaling factor to make metric of SO(3) comparable to R3
         # will be applied as self.factor**3 to volumes, self.factor**2 to areas and self.factor to distances
@@ -83,11 +82,9 @@ class FullGrid:
         self.o_grid_name = o_grid_name
         self.t_grid_name = t_grid_name
         b_grid_name = GridNameParser(b_grid_name, "b")
-        self.b_rotations = SphereGrid4DFactory.create(alg_name=b_grid_name.get_alg(), N=b_grid_name.get_N(),
-                                                      use_saved=use_saved)
+        self.b_rotations = SphereGrid4DFactory.create(alg_name=b_grid_name.get_alg(), N=b_grid_name.get_N())
         self.position_grid = PositionGrid(o_grid_name=o_grid_name, t_grid_name=t_grid_name,
-                                          use_saved=use_saved, position_grid_cartesian=position_grid_cartesian)
-        self.use_saved = use_saved
+                                          position_grid_cartesian=position_grid_cartesian)
 
     def __getattr__(self, name):
         """ Enable forwarding methods to self.position_grid, so that from FullGrid you can access all properties and
@@ -289,13 +286,12 @@ class FullGrid:
 
 class PositionGrid:
 
-    def __init__(self, o_grid_name: str, t_grid_name: str, use_saved: bool = True, position_grid_cartesian=False):
+    def __init__(self, o_grid_name: str, t_grid_name: str, position_grid_cartesian=False):
         """
         This is derived from FullGrid and contains methods that are connected to position grid.
         """
         o_grid_name = GridNameParser(o_grid_name, "o")
-        self.o_rotations = SphereGrid3DFactory.create(alg_name=o_grid_name.get_alg(), N=o_grid_name.get_N(),
-                                                      use_saved=use_saved)
+        self.o_rotations = SphereGrid3DFactory.create(alg_name=o_grid_name.get_alg(), N=o_grid_name.get_N())
         self.o_positions = self.o_rotations.get_grid_as_array()
         self.t_grid = TranslationParser(t_grid_name)
         self.position_grid_cartesian=position_grid_cartesian
@@ -309,7 +305,6 @@ class PositionGrid:
                 only_upper=False), t_property=t_additional)
             # create regular voronoi
             self.voronoi_cells = Voronoi(extended_position_grid)
-        self.use_saved = use_saved
 
     def __len__(self):
         """The length of the full grid is a product of lengths of all sub-grids"""

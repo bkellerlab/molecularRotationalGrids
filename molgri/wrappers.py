@@ -7,45 +7,15 @@ Specifically, functionality for:
  - marking deprecated functions
 """
 
-import os
-import warnings
 from functools import wraps
 from time import time
 from datetime import timedelta
-import numpy as np
-import pandas as pd
-import pickle
-import inspect
 from typing import Optional
 
 from matplotlib.animation import FuncAnimation
 from matplotlib.axes import Axes
 from matplotlib.figure import Figure
-from molgri.paths import PATH_OUTPUT_AUTOSAVE
 from mpl_toolkits.mplot3d import Axes3D
-
-from molgri.logfiles import GeneralLogger
-
-
-def _inspect_method_print(my_method, *args, **kwargs):
-    """
-    Inspect the arguments of a method and nicely print them out
-
-    Args:
-        my_method (): a method of some class
-
-    Returns:
-
-    """
-    names = list(inspect.getfullargspec(my_method).args[1:])
-    names.extend(kwargs.keys())
-    values = list(args[1:])
-    values.extend(inspect.getfullargspec(my_method).defaults)
-    values.extend(kwargs.values())
-    my_text = ""
-    for n, v in zip(names, values):
-        my_text += f"{n}={v}, "
-    print(my_text[:-2], end="")
 
 
 def time_method(my_method):
@@ -72,75 +42,6 @@ def time_method(my_method):
         #_inspect_method_print(my_method, *args, **kwargs)
         print(f": {timedelta(seconds=t2-t1)} hours:minutes:seconds")
         return func_value
-    return decorated
-
-
-def save_or_use_saved(my_method):
-    """
-    This can be used on any method that provides data for plotting (important if data production takes a long time).
-    Able to save any python objects: if numpy array will save as .npy, if pandas DataFrame as .csv, everything else
-    as pickle.
-
-    If you are saving, you automatically also log if the class has a self.logger attribute.
-
-    Requirements:
-        the class must have an attribute self.use_saved (bool)
-        the class must have a method get_name() which provides a name that is suitable for saving (no whitespace etc)
-        the method should not have any parameters that are commonly changed or their values should be part of the name
-        (otherwise you risk reading and using data with old parameters)
-
-    Args:
-        my_method: around which method the wrapper is applied
-
-    Returns:
-        whatever the original method would return, either freshly created or read from a file
-    """
-    @wraps(my_method)
-    def decorated(self, *args, **kwargs):
-        method_name = my_method.__name__
-        name_without_ext = f"{PATH_OUTPUT_AUTOSAVE}{method_name}_{self.get_name()}"
-
-
-        # try to find a suitable saved file
-        if self.use_saved:
-            if os.path.isfile(f"{name_without_ext}.npy"):
-                return np.load(f"{name_without_ext}.npy")
-            elif os.path.isfile(f"{name_without_ext}.csv"):
-                return pd.read_csv(f"{name_without_ext}.csv", index_col=0)
-            elif os.path.isfile(name_without_ext):
-                with open(name_without_ext, 'rb') as f:
-                    loaded_data = pickle.load(f)
-                return loaded_data
-            # else will simply continue
-        # don't use else - the rest should be run if 1) not self.use_saved OR 2) file doesn't exist
-        t1 = time()
-        method_output = my_method(self, *args, **kwargs)
-        t2 = time()
-        # logging
-        if "logger" in self.__dict__.keys():
-            self.logger.log_ran_method(my_method, t2-t1, *args, **kwargs)
-        if isinstance(method_output, pd.DataFrame):
-            method_output.to_csv(f"{name_without_ext}.csv", index=True)
-        elif isinstance(method_output, np.ndarray):
-            np.save(f"{name_without_ext}.npy", method_output)
-        else:
-            with open(name_without_ext, 'wb') as f:
-                pickle.dump(method_output, f)
-        return method_output
-    return decorated
-
-
-def deprecated(my_method):
-    """
-    Mark functions or methods that may be removed in the future. Raises a warning.
-    """
-    warnings.warn(f"The method {my_method.__name__} is deprecated and may be removed in the future.",
-                  DeprecationWarning, stacklevel=2)
-
-    @wraps(my_method)
-    def decorated(*args, **kwargs):
-        return my_method(*args, **kwargs)
-
     return decorated
 
 

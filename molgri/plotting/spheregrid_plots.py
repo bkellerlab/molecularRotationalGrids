@@ -384,37 +384,6 @@ class PolytopePlot(RepresentationCollection):
                     self.ax.text(*midpoint, s=f"{s:.3f}")
 
 
-
-class ConvergenceSphereGridPlot(RepresentationCollection):
-
-    def __init__(self, convergence_sph_grid: ConvergenceSphereGridFactory):
-        self.convergence_sph_grid = convergence_sph_grid
-        super().__init__(self.convergence_sph_grid.get_name())
-
-    def get_possible_title(self):
-        full_name = self.convergence_sph_grid.get_name()
-        split_name = full_name.split("_")
-        return NAME2SHORT_NAME[split_name[1]]
-
-    @plot_method
-    def plot_voronoi_convergence(self):
-        try:
-            voronoi_df = self.convergence_sph_grid.get_spherical_voronoi_areas()
-            sns.lineplot(data=voronoi_df, x="N", y="sph. Voronoi cell area", errorbar="sd", ax=self.ax)
-            sns.scatterplot(data=voronoi_df, x="N", y="sph. Voronoi cell area", alpha=0.8, color="black", ax=self.ax,
-                            s=1)
-            sns.scatterplot(data=voronoi_df, x="N", y="ideal area", color="black", marker="x", ax=self.ax)
-        except AttributeError:
-            pass
-
-        self.ax.set_xscale("log")
-
-    @plot_method
-    def plot_spheregrid_time(self):
-        time_df = self.convergence_sph_grid.get_generation_times()
-        sns.lineplot(time_df, x="N", y="Time [s]", ax=self.ax)
-
-
 class EightCellsPlot(MultiRepresentationCollection):
 
     def __init__(self, cube4D: Cube4DPolytope, only_half_of_cube=True):

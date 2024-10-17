@@ -2,7 +2,7 @@ import os
 import numpy as np
 
 from molgri.space.utils import *
-from molgri.logfiles import find_first_free_index
+from molgri.plotting.abstract import find_first_free_index
 from scipy.constants import pi
 from scipy.spatial import SphericalVoronoi
 

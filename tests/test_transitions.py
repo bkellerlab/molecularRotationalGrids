@@ -9,8 +9,6 @@ from molgri.io import OneMoleculeReader
 from molgri.space.fullgrid import FullGrid
 from molgri.molecules.transitions import AssignmentTool
 from molgri.molecules.pts import Pseudotrajectory
-from molgri.paths import PATH_INPUT_BASEGRO, PATH_OUTPUT_PT, PATH_OUTPUT_AUTOSAVE
-from molgri.plotting.create_vmdlog import show_assignments
 
 def _create_grid(o="15", b="9", t="[0.2, 0.3, 0.4]"):
     my_array = FullGrid(b_grid_name=b, o_grid_name=o, t_grid_name=t)
@@ -105,8 +103,8 @@ def test_full_grid_assignments():
 
 
 if __name__ == "__main__":
-    #test_position_grid_assignments()
+    test_position_grid_assignments()
     #view_quaternion_assignments()
-    test_quaternion_grid_assignments()
+    #test_quaternion_grid_assignments()
     test_full_grid_assignments()
 
