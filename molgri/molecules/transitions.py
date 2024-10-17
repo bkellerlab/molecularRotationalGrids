@@ -10,18 +10,16 @@ from functools import partial
 import warnings
 warnings.filterwarnings("ignore")
 from time import time
-import pandas as pd
 
 import numpy as np
-import MDAnalysis as mda
 from MDAnalysis.analysis.base import AnalysisFromFunction
 from numpy.typing import NDArray
 from scipy.sparse import coo_array, csr_array, diags, dok_array
-from scipy.sparse.linalg import eigs, eigsh
+from scipy.sparse.linalg import eigs
 from scipy.spatial.distance import cdist
-from scipy.spatial.transform import Rotation
 from scipy.constants import k as kB, N_A
 import MDAnalysis.transformations as trans
+
 
 from molgri.molecules.rate_merger import delete_rate_cells, determine_rate_cells_to_join, \
     determine_rate_cells_with_too_high_energy, \
@@ -29,7 +27,7 @@ from molgri.molecules.rate_merger import delete_rate_cells, determine_rate_cells
 from molgri.space.fullgrid import from_full_array_to_o_b_t
 
 
-from molgri.space.utils import distance_between_quaternions, normalise_vectors
+from molgri.space.utils import normalise_vectors
 
 
 class AssignmentTool:

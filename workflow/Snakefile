@@ -134,21 +134,21 @@ ALL_MSM_HELIUM_EXPERIMENTS = {"grid": ("80_80_very_short", "cartesian_80_80_very
 
 rule all:
     input:
-        config_files_grid = expand(f"{PATH_EXPERIMENTS}{{experiment_type}}/{{grid_id}}/total_benchmark.txt",
-            experiment_type="grids",
-            grid_id=ALL_GRID_EXPERIMENTS.keys()),
+        # config_files_grid = expand(f"{PATH_EXPERIMENTS}{{experiment_type}}/{{grid_id}}/total_benchmark.txt",
+        #     experiment_type="grids",
+        #     grid_id=ALL_GRID_EXPERIMENTS.keys()),
         config_files_sqra_vacuum= expand(f"{PATH_EXPERIMENTS}{{experiment_type}}/{{experiment_id}}/{{grid_id}}/total_benchmark.txt",
             experiment_id=ALL_SQRA_EXPERIMENTS["setup"].keys(),
             grid_id=ALL_SQRA_EXPERIMENTS["grid"],
             experiment_type="sqra_water_in_vacuum"),
-        config_files_msm_vacuum = expand(f"{PATH_EXPERIMENTS}{{experiment_type}}/{{experiment_id}}/{{grid_id}}/total_benchmark.txt",
-            experiment_id=ALL_MSM_VACUUM_EXPERIMENTS["setup"].keys(),
-            grid_id=ALL_MSM_VACUUM_EXPERIMENTS["grid"],
-            experiment_type="msm_water_in_vacuum"),
-        config_files_msm_helium = expand(f"{PATH_EXPERIMENTS}{{experiment_type}}/{{experiment_id}}/{{grid_id}}/total_benchmark.txt",
-            experiment_id=ALL_MSM_HELIUM_EXPERIMENTS["setup"].keys(),
-            grid_id=ALL_MSM_HELIUM_EXPERIMENTS["grid"],
-            experiment_type="msm_water_in_helium"),
+        # config_files_msm_vacuum = expand(f"{PATH_EXPERIMENTS}{{experiment_type}}/{{experiment_id}}/{{grid_id}}/total_benchmark.txt",
+        #     experiment_id=ALL_MSM_VACUUM_EXPERIMENTS["setup"].keys(),
+        #     grid_id=ALL_MSM_VACUUM_EXPERIMENTS["grid"],
+        #     experiment_type="msm_water_in_vacuum"),
+        # config_files_msm_helium = expand(f"{PATH_EXPERIMENTS}{{experiment_type}}/{{experiment_id}}/{{grid_id}}/total_benchmark.txt",
+        #     experiment_id=ALL_MSM_HELIUM_EXPERIMENTS["setup"].keys(),
+        #     grid_id=ALL_MSM_HELIUM_EXPERIMENTS["grid"],
+        #     experiment_type="msm_water_in_helium"),
 
 rule create_config_only_grid:
     """

@@ -7,6 +7,34 @@ from scipy import sparse
 from MDAnalysis import Merge
 
 from molgri.molecules.pts import Pseudotrajectory
+import MDAnalysis.transformations as trans
+
+
+class GridWriter:
+    """
+    Takes in strings and writes out a grid.
+    """
+
+    def __init__(self, *args, **kwargs):
+        from molgri.space.fullgrid import FullGrid
+        self.fg = FullGrid(*args, **kwargs)
+
+    def save_full_grid(self, path_grid_file: str):
+        np.save(path_grid_file, self.fg.get_full_grid_as_array())
+
+    def save_volumes(self, path_volumes: str):
+        np.save(path_volumes, self.fg.get_total_volumes())
+
+    def save_borders_array(self, path_borders_array: str):
+        sparse.save_npz(path_borders_array, self.fg.get_full_borders())
+
+    def save_distances_array(self, path_distances_array: str):
+        sparse.save_npz(path_distances_array, self.fg.get_full_distances())
+
+    def save_adjacency_array(self, path_adjacency_array: str):
+        sparse.save_npz(path_adjacency_array, self.fg.get_full_adjacency())
+
+
 
 class GridReader:
     """
@@ -31,22 +59,46 @@ class GridReader:
     def load_adjacency_array(self, path_adjacency_array: str) -> sparse.coo_array:
         return sparse.load_npz(path_adjacency_array)
 
+
 class OneMoleculeReader:
     """
     Read a .gro or similar file that ony contains one molecule
     """
 
-    def load_molecule(self, path_molecule: str) -> mda.Universe:
-        return mda.Universe(path_molecule)
+    def __init__(self, path_molecule: str, center_com=True):
+        self.universe = mda.Universe(path_molecule)
+        if center_com:
+            self.universe.trajectory.add_transformations(trans.translate(-self.universe.atoms.center_of_mass()))
+
+    def get_molecule(self) -> mda.Universe:
+        return self.universe
 
 
-class TwoMoleculeReader(OneMoleculeReader):
+
+
+class TwoMoleculeReader:
     """
-    Read a .gro or similar file that ony contains one molecule
+    Read a .gro or similar file that contains exactly two molecules
     """
 
-    def load_full_pt(self, path_structure: str, path_trajectory: str):
-        return mda.Universe(path_structure, path_trajectory)
+    def __init__(self, path_structure: str, path_trajectory: str):
+        self.universe = mda.Universe(path_structure, path_trajectory)
+
+    def get_full_pt(self) -> mda.Universe:
+        return self.universe
+
+    def get_only_second_molecule_pt(self, path_m2: str) -> mda.Universe:
+        return self.universe.select_atoms(self._determine_second_molecule(path_m2))
+
+    def _determine_second_molecule(self, path_m2: str) -> str:
+        num_atoms_total = len(self.universe.atoms)
+        m2 = OneMoleculeReader(path_m2).get_molecule()
+        num_atoms_m2 = len(m2.atoms)
+        # indexing in MDAnalysis is 1-based
+        # we look for indices of the second molecule
+        num_atoms_m1 = num_atoms_total - num_atoms_m2
+        # indices are inclusive
+        return f"bynum  {num_atoms_m1+1}:{num_atoms_total+1}"
 
 
 class TwoMoleculeWriter:
@@ -66,8 +118,8 @@ class TwoMoleculeWriter:
             parsed_central_molecule: a ParsedMolecule object describing the central molecule, will only be translated
                                      so that COM lies at (0, 0, 0) but not manipulated in any other way.
         """
-        self.central_molecule = OneMoleculeReader().load_molecule(path_molecule1)
-        self.moving_molecule = OneMoleculeReader().load_molecule(path_molecule2)
+        self.central_molecule = OneMoleculeReader(path_molecule1).get_molecule()
+        self.moving_molecule = OneMoleculeReader(path_molecule2).get_molecule()
         self._center_both_molecules()
         self.dimensions = (cell_size_A, cell_size_A, cell_size_A, 90, 90, 90)
 
@@ -100,27 +152,11 @@ class PtWriter(TwoMoleculeWriter):
         and the mobile molecule as a generator when the method write_full_pt is called. Writing is done with
         MDAnalysis module, so all formats implemented there are supported.
 
-        Args:
-            name_to_save: base name of the PT file without paths or extensions
-            parsed_central_molecule: a ParsedMolecule object describing the central molecule, will only be translated
-                                     so that COM lies at (0, 0, 0) but not manipulated in any other way.
         """
         super().__init__(path_molecule1, path_molecule2, cell_size_A)
         self.grid_array = GridReader().load_full_grid(path_grid)
-        self.pt = Pseudotrajectory(self.moving_molecule, self.grid_array)
+        self.pt = Pseudotrajectory(self.central_molecule, self.moving_molecule, self.grid_array)
         self.n_atoms = len(self.central_molecule.atoms) + len(self.moving_molecule.atoms)
-
-    def _merge_and_write(self, writer: mda.Writer):
-        """
-        Helper function to merge Atoms from central molecule with atoms of the moving molecule (at current positions)
-
-        Args:
-            writer: an already initiated object writing to file (eg a .gro or .xtc file)
-            pt: a Pseudotrajectory object with method .get_molecule() that returns current ParsedMolecule
-        """
-        merged_universe = Merge(self.central_molecule.atoms, self.pt.get_molecule().atoms)
-        merged_universe.dimensions = self.dimensions
-        writer.write(merged_universe)
 
     def write_full_pt(self, path_output_pt: str, path_output_structure: str):
         """
@@ -131,16 +167,18 @@ class PtWriter(TwoMoleculeWriter):
             path_trajectory: where trajectory should be saved
             path_structure: where topology should be saved
         """
+        print(self.central_molecule, self.moving_molecule, path_output_pt)
         trajectory_writer = mda.Writer(path_output_pt, n_atoms=self.n_atoms, multiframe=True)
         last_i = 0
-        for i, _ in self.pt.generate_pseudotrajectory():
+        for i, merged_frame in self.pt.generate_pseudotrajectory():
             # for the first frame write out topology
             if i == 0:
                 distance = np.linalg.norm(self.grid_array[i][:3])
                 self.write_structure(start_distance_A=distance, path_output_structure=path_output_structure)
-            self._merge_and_write(trajectory_writer)
+            merged_frame.dimensions = self.dimensions
+            trajectory_writer.write(merged_frame)
             last_i = i
-        product_of_grids = len(self.pt.get_full_grid())
+        product_of_grids = len(self.grid_array)
         assert last_i + 1 == product_of_grids, f"Length of PT not correct, {last_i}=/={product_of_grids}"
         trajectory_writer.close()
 
@@ -156,13 +194,14 @@ class PtWriter(TwoMoleculeWriter):
         """
         directory_name, extension_trajectory = os.path.splitext(path_output_pt)
         _create_dir_or_empty_it(directory_name)
-        for i, _ in self.pt.generate_pseudotrajectory():
+        for i, merged_frame in self.pt.generate_pseudotrajectory():
             if i == 0:
                 distance = np.linalg.norm(self.grid_array[i][:3])
                 self.write_structure(start_distance_A=distance, path_output_structure=path_output_structure)
             f = f"{directory_name}/{i}{extension_trajectory}"
+            merged_frame.dimensions = self.dimensions
             with mda.Writer(f) as structure_writer:
-                self._merge_and_write(structure_writer)
+                structure_writer.write(merged_frame)
 
 
 class EnergyReader:
@@ -170,15 +209,18 @@ class EnergyReader:
     Reads the .xvg file that gromacs outputs for energy.
     """
 
-    def load_energy(self, path_energy: str) -> pd.DataFrame:
-        column_names = self._get_column_names(path_energy)
+    def __init__(self, path_energy: str):
+        self.path_energy = path_energy
+
+    def load_energy(self) -> pd.DataFrame:
+        column_names = self._get_column_names()
         # skip 13 rows commented with # and then also a variable amount of rows commented with @
-        table = pd.read_csv(path_energy, sep=r'\s+', comment='@', skiprows=13, header=None, names=column_names)
+        table = pd.read_csv(self.path_energy, sep=r'\s+', comment='@', skiprows=13, header=None, names=column_names)
         return table
 
-    def _get_column_names(self, path_energy: str) -> list:
+    def _get_column_names(self) -> list:
         result = ["Time [ps]"]
-        with open(path_energy, "r") as f:
+        with open(self.path_energy, "r") as f:
             for line in f:
                 # parse column number
                 for i in range(0, 10):
@@ -189,8 +231,8 @@ class EnergyReader:
                     break
         return result
 
-    def load_single_energy_column(self, path_energy: str, energy_type: str) -> NDArray:
-        return self.load_energy(path_energy)[energy_type].to_numpy()
+    def load_single_energy_column(self, energy_type: str) -> NDArray:
+        return self.load_energy()[energy_type].to_numpy()
 
 
 def _create_dir_or_empty_it(directory_name):

@@ -5,8 +5,9 @@ User script for generating pseudo-trajectories.
 import argparse
 
 from molgri.constants import EXTENSION_TOPOLOGY, EXTENSION_TRAJECTORY
-from molgri.molecules.writers import PtIOManager
 from molgri.scripts.set_up_io import freshly_create_all_folders
+from molgri.io import PtWriter, GridWriter
+from molgri.paths import PATH_OUTPUT_AUTOSAVE
 
 import warnings
 warnings.filterwarnings("ignore")
@@ -57,11 +58,20 @@ def run_generate_pt():
         print(f"Warning! You are using -b {my_args.bodygrid} to create the grid of rotations around the COM. "
               f"We do not recommend the use of Icosahedron or 3D cube grids for this purpose; they are optimised "
               f"for generation of origin rotations (-o). We suggest using a 4D cube grid (cube4D) instead.")
-    manager = PtIOManager(name_central_molecule=my_args.m1, name_rotating_molecule=my_args.m2,
-                          output_name=my_args.save_as, b_grid_name=my_args.bodygrid, o_grid_name=my_args.origingrid,
-                          t_grid_name=my_args.transgrid)
-    manager.construct_pt_and_time(as_dir=my_args.as_dir, extension_trajectory=my_args.extension_trajectory,
-                                  extension_structure=my_args.extension_structure, print_messages=True)
+
+    gw = GridWriter(my_args.bodygrid, my_args.origingrid, my_args.transgrid)
+    path_grid = f"{PATH_OUTPUT_AUTOSAVE}ptgrid.npy"
+    gw.save_full_grid(path_grid)
+    writer = PtWriter(my_args.m1, my_args.m2, 30, path_grid)
+
+    if my_args.as_dir:
+        writer.write_full_pt_in_directory(f"pseudotrajectory.{my_args.extension_trajectory}",
+                                          f"structure.{my_args.extension_structure}")
+    else:
+        writer.write_full_pt(f"pseudotrajectory.{my_args.extension_trajectory}",
+                             f"structure.{my_args.extension_structure}")
+        print(f"Wrote to files: pseudotrajectory.{my_args.extension_trajectory} and structure.{my_args.extension_structure}")
+
 if __name__ == '__main__':
     run_generate_pt()
 

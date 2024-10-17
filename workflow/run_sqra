@@ -4,7 +4,6 @@ All of the workflows relating to pseudotrajectories, subsequent SQRAs and their 
 
 import sys
 import numpy as np
-import yaml
 
 # add molgri directory
 sys.path.append(".")
@@ -28,9 +27,8 @@ print(EXPERIMENT_TYPE)
 
 rule all_sqra:
     input:
-        f"{PATH_EXPERIMENTS}{EXPERIMENT_TYPE}/{EXPERIMENT_ID}/{GRID_ID}/structure.xyz"
-        # expand(f"{PATH_EXPERIMENTS}{EXPERIMENT_TYPE}/{EXPERIMENT_ID}/{GRID_ID}/{{what}}",
-        #     what=["its.png", "eigenvectors_vmdlog", "eigenvalues.png", "its.csv"]),
+        expand(f"{PATH_EXPERIMENTS}{EXPERIMENT_TYPE}/{EXPERIMENT_ID}/{GRID_ID}/{{what}}",
+            what=["its.png", "eigenvectors_vmdlog", "eigenvalues.png", "its.csv"]),
 
 rule set_up_sqra_in_vacuum:
     """
@@ -87,7 +85,6 @@ rule set_up_guanidinium_xyz:
     run:
         # first copy all inputs to outputs
         import shutil
-        print(input.structure, output.molecule1)
         shutil.copy(input.structure,output.molecule1)
         shutil.copy(input.structure,output.molecule2)
 
@@ -121,7 +118,7 @@ rule run_pt:
         grid = rules.run_grid.output.full_array
     output:
         structure = f"{PATH_EXPERIMENTS}{{experiment_type}}/{{experiment_id}}/{{grid_identifier}}/structure.gro",
-        trajectory = f"{PATH_EXPERIMENTS}{{experiment_type}}/{{experiment_id}}/{{grid_identifier}}/trajectory.gro"
+        trajectory = f"{PATH_EXPERIMENTS}{{experiment_type}}/{{experiment_id}}/{{grid_identifier}}/trajectory.trr"
     params:
         cell_size_A = config["params_sqra"]["cell_size_A"]  # cubic box will be the output, this is size of the box in one dimension
     run:
@@ -171,7 +168,7 @@ rule lowest_e_structures:
     run:
         from molgri.space.utils import k_argmin_in_array
         from molgri.io import EnergyReader
-        er = EnergyReader().load_energy(input.energy)
+        er = EnergyReader(input.energy).load_energy()
         energies2 = er["Coulomb (SR)"]
         energies5 = er["LJ (SR)"]
         energies6 = er["Potential"]
@@ -236,7 +233,7 @@ rule run_sqra:
         else:
             upper_limit = float(params.upper_lim)
 
-        energies = EnergyReader().load_single_energy_column(input.energy, params.energy_type)
+        energies = EnergyReader(input.energy).load_single_energy_column(params.energy_type)
 
         sqra = SQRA(energies=energies,volumes=all_volumes,distances=all_distances,surfaces=all_surfaces)
         rate_matrix = sqra.get_rate_matrix(D,params.T)

@@ -1,94 +1,56 @@
 import numpy as np
 
-from molgri.molecules.writers import PtIOManager
+from MDAnalysis import AtomGroup
+
+from molgri.molecules.pts import Pseudotrajectory
 from molgri.scripts.set_up_io import copy_examples, freshly_create_all_folders
-from molgri.molecules.parsers import PtParser, ParsedMolecule
-from molgri.space.utils import angle_between_vectors, normalise_vectors
-from molgri.paths import PATH_INPUT_BASEGRO
+from molgri.space.fullgrid import FullGrid
+from molgri.space.utils import normalise_vectors
+from molgri.io import OneMoleculeReader
 
 
-def same_distance(mol1: ParsedMolecule, mol2: ParsedMolecule):
+def same_distance(mol1: AtomGroup, mol2: AtomGroup):
     """Check that two molecules have the same distance from COM to origin."""
-    dist1 = np.linalg.norm(mol1.get_center_of_mass())
-    dist2 = np.linalg.norm(mol2.get_center_of_mass())
-    assert np.isclose(dist1, dist2, atol=1e-3)
+    dist1 = np.linalg.norm(mol1.center_of_mass())
+    dist2 = np.linalg.norm(mol2.center_of_mass())
+    assert np.isclose(dist1, dist2, atol=1e-5)
 
 
-def same_body_orientation(mol1: ParsedMolecule, mol2: ParsedMolecule):
-    """Check that two molecules (that should have the same atoms) have the same internal body orientation."""
-    assert np.shape(mol1.atoms) == np.shape(mol2.atoms)
-    assert np.all(mol1.atom_types == mol2.atom_types)
-    for atom1, atom2 in zip(mol1.atoms, mol2.atoms):
-        vec_com1 = mol1.get_center_of_mass()
-        vec_atom1 = atom1.position - vec_com1
-        angle1 = angle_between_vectors(vec_com1, vec_atom1)
-        vec_com2 = mol2.get_center_of_mass()
-        vec_atom2 = atom2.position - vec_com2
-        angle2 = angle_between_vectors(vec_com2, vec_atom2)
-        assert np.isclose(angle1, angle2, atol=0.05)
+def same_body_orientation(mol1: AtomGroup, mol2: AtomGroup):
+    """If you subtract COM, molecules should look the same"""
+    com1 = mol1.center_of_mass()
+    com2 = mol2.center_of_mass()
+    centered_pos1 = mol1.positions - np.tile(com1, (mol1.positions.shape[0],1))
+    centered_pos2 = mol2.positions - np.tile(com2, (mol1.positions.shape[0], 1))
+    assert np.allclose(centered_pos2-centered_pos1, 0, atol=1e-5)
 
-
-def same_origin_orientation(mol1: ParsedMolecule, mol2: ParsedMolecule):
+def same_origin_orientation(mol1: AtomGroup, mol2: AtomGroup):
     """Check that two molecules have COM on the same vector from the origin (have the same orientation with respect
     to origin)"""
-    unit_pos1 = normalise_vectors(mol1.get_center_of_mass())
-    unit_pos2 = normalise_vectors(mol2.get_center_of_mass())
-    assert np.allclose(unit_pos1, unit_pos2, atol=1e-3)
+    unit_pos1 = normalise_vectors(mol1.center_of_mass())
+    unit_pos2 = normalise_vectors(mol2.center_of_mass())
+    assert np.allclose(unit_pos1, unit_pos2, atol=1e-5)
 
 
 def test_pt_len():
     """
-    Test that PTs are of correct length in various cases, including zero rotational grids. Check this in three
-    ways, so that the product of n_o*n_b*n_t is equal to:
-     - index returned by pt.generate_pseudotrajectory()
-     - last t=value comment in the PT file minus one
-     - length of the PT file when you consider how many lines each frame takes
+    Test that PTs are of correct length.
     """
-    # origin rot grid = body rot grid
-    num_rotations = 55
-    m_path = f"H2O.gro"
-    manager = PtIOManager(m_path, m_path, f"{num_rotations}", f"{num_rotations}", "linspace(1, 5, 10)")
-    manager.construct_pt()
-    end_index = manager.pt.current_frame
-    num_translations = manager.full_grid.t_grid.get_N_trans()
-    assert end_index == num_translations * num_rotations * num_rotations
-    parser = PtParser(f"{PATH_INPUT_BASEGRO}{m_path}", f"{PATH_INPUT_BASEGRO}{m_path}", manager.output_paths[1],
-                      manager.output_paths[0])
-    assert len(parser.universe.trajectory) == end_index
-    assert parser.c_num == parser.r_num == 3
-    # 2nd example
-    num_body = 5
-    num_origin = 18
-    m1_path = f"H2O.gro"
-    m2_path = f"NH3.gro"
-    manager = PtIOManager(m1_path, m2_path, f"{num_origin}", f"{num_body}", "range(1, 5, 0.5)")
-    manager.construct_pt()
-    end_index = manager.pt.current_frame
-    num_translations = manager.full_grid.t_grid.get_N_trans()
-    assert end_index == num_translations * num_body * num_origin
-    parser = PtParser(f"{PATH_INPUT_BASEGRO}{m1_path}", f"{PATH_INPUT_BASEGRO}{m2_path}",
-                      manager.output_paths[1],
-                      manager.output_paths[0])
-    assert len(parser.universe.trajectory) == end_index
-    assert parser.r_num == 4
-    assert parser.c_num == 3
-    # 3rd example
-    num_origin = 9
-    num_body = 1
-    m1_path = f"H2O.gro"
-    m2_path = f"NH3.gro"
-    manager = PtIOManager(m1_path, m2_path, f"{num_origin}", f"{num_body}", "range(1, 5, 0.5)")
-    manager.construct_pt()
-    end_index = manager.pt.current_frame
-    num_translations = manager.full_grid.t_grid.get_N_trans()
-    assert end_index == num_translations * num_body * num_origin
-    parser = PtParser(f"{PATH_INPUT_BASEGRO}{m1_path}",
-                      f"{PATH_INPUT_BASEGRO}{m2_path}",
-                      manager.output_paths[1],
-                      manager.output_paths[0])
-    assert len(parser.universe.trajectory) == end_index
-    assert parser.r_num == 4
-    assert parser.c_num == 3
+    TEST_M1 = ["input/H2O.gro", "input/H2O.gro", "input/H2O.gro"]
+    TEST_M2 = ["input/H2O.gro", "input/NH3.gro", "input/NH3.gro"]
+    NUM_ORIENTATIONS = [17, 5, 1]
+    NUM_DIRECTIONS = [17, 18, 9]
+    TGRID = ["linspace(1, 5, 10)", "[1,2,3,4,5,6,7,8,9,10]", "range(0.1,0.2,0.01)"]
+
+    for m1, m2, no,nd, tgrid in zip(TEST_M1, TEST_M2, NUM_ORIENTATIONS, NUM_DIRECTIONS, TGRID):
+        grid = FullGrid(f"{no}", f"{nd}", tgrid).get_full_grid_as_array()
+        pt = Pseudotrajectory(OneMoleculeReader(m1).get_molecule(), OneMoleculeReader(m2).get_molecule(), grid)
+        max_i=0
+        for i, _ in pt.generate_pseudotrajectory():
+            max_i=i
+        max_i += 1
+        # +1 because indices are from 0 to N-1 and we are looking for N
+        assert max_i==no*nd*10, f"Last index is {max_i} and not {no*nd*10}"
 
 
 def test_pt_translations():
@@ -96,26 +58,19 @@ def test_pt_translations():
     Test that if there are no rotations of any kind, translation occurs at correct distances in the z-direction.
     """
     # on a zero rotation grids
-    m_path = f"H2O.gro"
-    manager = PtIOManager(m_path, m_path, "1", "1", "range(1, 5, 0.5)")
-    manager.construct_pt()
-    distances = manager.full_grid.t_grid.get_trans_grid()
-    file_name = manager.determine_pt_name()
-    # center of mass of the second molecule moves in z direction
-
-    traj_parser = PtParser(f"{PATH_INPUT_BASEGRO}{m_path}",
-                           f"{PATH_INPUT_BASEGRO}{m_path}",
-                           manager.output_paths[1],
-                           manager.output_paths[0])
-    for frame_i, frame_molecules in enumerate(traj_parser.generate_frame_as_double_molecule()):
-        # distance of COM of second molecule to origin
-        molecule1, molecule2 = frame_molecules
-        # molecule 2 should be translated along the z coordinate
-        assert np.allclose(molecule2.get_center_of_mass()[2], distances[frame_i], atol=1e-3)
-        # x and y coordinates should not change
-        assert np.allclose(molecule2.get_center_of_mass()[0], molecule1.get_center_of_mass()[0], atol=1e-3)
-        assert np.allclose(molecule2.get_center_of_mass()[1], molecule1.get_center_of_mass()[1], atol=1e-3)
-
+    grid = FullGrid(f"1", f"1", "range(1, 5, 0.5)")
+    grid_array = grid.get_full_grid_as_array()
+    distances = grid.get_position_grid().get_radii()
+    pt = Pseudotrajectory(OneMoleculeReader("input/H2O.gro").get_molecule(), OneMoleculeReader(
+        "input/H2O.gro").get_molecule(), grid_array)
+    for i, frame in pt.generate_pseudotrajectory():
+        # first three atoms should be basically at zero
+        assert np.allclose(frame.select_atoms("bynum 1:3").center_of_mass(), 0)
+        # other three atoms (0, 0, distance)
+        com2 = frame.select_atoms("bynum 4:6").center_of_mass()
+        assert np.isclose(com2[0], 0)
+        assert np.isclose(com2[1], 0)
+        assert np.isclose(com2[2], distances[i])
 
 def test_pt_rotations_origin():
     """
@@ -125,40 +80,34 @@ def test_pt_rotations_origin():
     """
     num_rot = 12
     num_trans = 2
-    m_path = f"H2O.gro"
-    manager = PtIOManager(m_path, m_path, f"{num_rot}", "1", "[1, 2]")
-    distances = manager.full_grid.t_grid.get_trans_grid()
-    manager.construct_pt()
-    len_traj = manager.pt.current_frame
-    assert len_traj == num_trans*num_rot
-    # assert every uneven structure has distance 1 and every even one distance 2
-    traj_parser = PtParser(f"{PATH_INPUT_BASEGRO}{m_path}",
-                           f"{PATH_INPUT_BASEGRO}{m_path}",
-                           manager.output_paths[1],
-                           manager.output_paths[0])
+    m1 = OneMoleculeReader("input/H2O.gro").get_molecule()
+
+    grid = FullGrid(f"1", f"{num_rot}", "[0.5,0.7]")
+    grid_array = grid.get_full_grid_as_array()
+    distances = grid.get_position_grid().get_radii()
+    pt = Pseudotrajectory(m1, m1, grid_array)
+
     # initial angles
-    initial_m1, initial_m2 = next(traj_parser.generate_frame_as_double_molecule())
-    vec_com_0 = initial_m2.get_center_of_mass()
-    vec_atom1_0 = initial_m2.atoms[0].position - vec_com_0
-    vec_atom2_0 = initial_m2.atoms[1].position - vec_com_0
-    vec_atom3_0 = initial_m2.atoms[2].position - vec_com_0
-    angle_start_1 = angle_between_vectors(vec_com_0, vec_atom1_0)
-    angle_start_2 = angle_between_vectors(vec_com_0, vec_atom2_0)
-    angle_start_3 = angle_between_vectors(vec_com_0, vec_atom3_0)
-    # should stay the same during a trajectory
+    vec_com_0 = m1.atoms.center_of_mass()
+    vec_atom1_0 = m1.atoms[0].position - vec_com_0
+    vec_atom2_0 = m1.atoms[1].position - vec_com_0
+    vec_atom3_0 = m1.atoms[2].position - vec_com_0
 
-    for frame_i, frame_molecules in enumerate(traj_parser.generate_frame_as_double_molecule()):
-        # distance of COM of second molecule to origin
-        m1, m2 = frame_molecules
-        dist = np.linalg.norm(m2.get_center_of_mass())
-        if frame_i < num_rot:  # first n_o elements will be at same radius
-            assert np.isclose(dist, distances[0], atol=1e-3)
-        else:   # even indices, lower orbit
-            assert np.isclose(dist, distances[1], atol=1e-3)
+    for i, frame in pt.generate_pseudotrajectory():
+        # first three atoms should be basically at zero
+        assert np.allclose(frame.select_atoms("bynum 1:3").center_of_mass(), 0)
+        # other three atoms (0, 0, distance)
+        com2 = frame.select_atoms("bynum 4:6").center_of_mass()
+        m2 = frame.select_atoms("bynum 4:6")
+        dist = np.linalg.norm(com2)
+        if i < num_rot:  # first n_o elements will be at same radius
+            assert np.isclose(dist, distances[0], atol=1e-5)
+        else:  # even indices, lower orbit
+            assert np.isclose(dist, distances[1], atol=1e-5)
         # all should have same body orientation
-        same_body_orientation(initial_m2, m2)
+        same_body_orientation(m1.atoms, m2)
 
-        vec_com = m2.get_center_of_mass()
+        vec_com = m2.center_of_mass()
         vec_atom1 = m2.atoms[0].position - vec_com
         vec_atom2 = m2.atoms[1].position - vec_com
         vec_atom3 = m2.atoms[2].position - vec_com
@@ -168,93 +117,87 @@ def test_pt_rotations_origin():
         assert np.allclose(vec_atom3_0, vec_atom3)
 
 
+
 def test_pt_rotations_body():
     """
-    test that if there is no orientational grid,
+    test that if there is no direction grid,
         1) distances to COM are equal to those prescribed by translational grid
         2) COM only moves in the z-direction, x and y coordinates of COM stay at 0
     """
     num_rot = 4
     num_trans = 3
     # assert every uneven structure has distance 1 and every even one distance 2
-    m1_path = f"H2O.gro"
-    m2_path = f"NH3.gro"
-    manager = PtIOManager(m1_path, m2_path, f"1", f"{num_rot}", "[1, 2, 3]")
-    distances = manager.full_grid.t_grid.get_trans_grid()
-    manager.construct_pt_and_time()
-    file_name = manager.determine_pt_name()
-    len_traj = manager.pt.current_frame
-    assert len_traj == num_trans*num_rot
-    # assert every uneven structure has distance 1 and every even one distance 2
-    traj_parser = PtParser(f"{PATH_INPUT_BASEGRO}{m1_path}",
-                           f"{PATH_INPUT_BASEGRO}{m2_path}",
-                           manager.output_paths[1],
-                           manager.output_paths[0])
 
-    # can visualize
-    # from molgri.plotting.molecule_plots import TrajectoryPlot
-    # import matplotlib.pyplot as plt
-    #
-    # tp = TrajectoryPlot(traj_parser.get_parsed_trajectory())
-    # tp.plot_atoms(save=False)
-    # plt.show()
+    m1 = OneMoleculeReader("input/H2O.gro").get_molecule()
+    m2 = OneMoleculeReader("input/NH3.gro").get_molecule()
 
-    for frame_i, frame_molecules in enumerate(traj_parser.generate_frame_as_double_molecule()):
-        m1, m2 = frame_molecules
-        dist = np.linalg.norm(m2.get_center_of_mass())
-        if frame_i < num_rot:  # the first n_o*n_b points at same (smallest) radius
-            assert np.isclose(dist, distances[0], atol=1e-3), f"{dist}!={distances[0]}"
-        elif frame_i < 2*num_rot:
-            assert np.isclose(dist, distances[1], atol=1e-3), f"{dist}!={distances[1]}"
+    grid = FullGrid(f"{num_rot}", f"1", "[1, 2, 3]")
+    grid_array = grid.get_full_grid_as_array()
+    distances = grid.get_position_grid().get_radii()
+    pt = Pseudotrajectory(m1, m2, grid_array)
+
+    for i, frame in pt.generate_pseudotrajectory():
+        amoniak = frame.select_atoms("bynum 4:7")
+
+        dist = np.linalg.norm(amoniak.center_of_mass())
+        if i < num_rot:  # the first n_o*n_b points at same (smallest) radius
+            assert np.isclose(dist, distances[0], atol=1e-5), f"{dist}!={distances[0]}"
+        elif i < 2*num_rot:
+            assert np.isclose(dist, distances[1], atol=1e-5), f"{dist}!={distances[1]}"
         else:
-            assert np.isclose(dist, distances[2], atol=1e-3), f"Frame {frame_i}: {dist}!={distances[2]}"
+            assert np.isclose(dist, distances[2], atol=1e-5), f"Frame {i}: {dist}!={distances[2]}"
         # x and y coordinates of COM of molecule 2 stay 0, z coordinate is same as distance
-        com_2 = m2.get_center_of_mass()
-        assert np.isclose(com_2[0], 0, atol=1e-3)
-        assert np.isclose(com_2[1], 0, atol=1e-3)
-        assert np.isclose(com_2[2], dist, atol=1e-3)
+        com_2 = amoniak.center_of_mass()
+        assert np.isclose(com_2[0], 0, atol=1e-5)
+        assert np.isclose(com_2[1], 0, atol=1e-5)
+        assert np.isclose(com_2[2], dist, atol=1e-5)
 
 
 def test_order_of_operations():
     """
     If you have n_o rotational orientations, n_b body rotations and n_t translations, the first n_b elements
-    should have the same COM, the first n_t also (?) and this pattern
+    should have the same position/COM, the first n_t also (?) and this pattern
     continuous to repeat.
+
+    - 0, 1, ... n_b-1 have the exact same position, n_b, n_b+1 ... 2*n_b-1 have the exact same position...
+    - 0, n_b, 2*n_b, 3*n_b ... have the same orientation, 1, n_b+1, 2*n_b+1, 3*n_b+1 ... have the same orientation
     """
     n_b = 4
     n_o = 8
     n_t = 3
-    m1_path = f"H2O.gro"
-    m2_path = f"NH3.gro"
 
-    manager = PtIOManager(m1_path, m2_path, f"{n_o}", f"{n_b}", "[1, 2, 3]")
-    manager.construct_pt()
-    file_name = manager.determine_pt_name()
-    len_traj = manager.pt.current_frame
-    assert len_traj == n_b * n_o * n_t
-    # assert every uneven structure has distance 1 and every even one distance 2
-    traj_parser = PtParser(f"{PATH_INPUT_BASEGRO}{m1_path}",
-                           f"{PATH_INPUT_BASEGRO}{m2_path}",
-                           manager.output_paths[1],
-                           manager.output_paths[0])
-    m2s = []
-    for frame_i, frame_molecules in enumerate(traj_parser.generate_frame_as_double_molecule()):
-        m1, m2 = frame_molecules
-        m2s.append(m2)
+    m1 = OneMoleculeReader("input/H2O.gro").get_molecule()
+    m2 = OneMoleculeReader("input/NH3.gro").get_molecule()
 
-    # result[k*N_b:(k+1)*N_b] for integer k: same vector from origin
+    grid = FullGrid(f"{n_b}", f"{n_o}", "[1, 2, 3]")
+    grid_array = grid.get_full_grid_as_array()
+    distances = grid.get_position_grid().get_radii()
+    pt = Pseudotrajectory(m1, m2, grid_array)
+
+    second_molecule_frames = []
+
+    max_i = 0
+    for i, frame in pt.generate_pseudotrajectory():
+        max_i = i
+        second_molecule_frames.append(frame.select_atoms("bynum 4:7"))
+
+
+    assert max_i+1 == n_b * n_o * n_t
+
+    # result[k*N_b:(k+1)*N_b] for integer k: same vector from origin (same position
     for k in range(n_t*n_o):
-        first_one = m2s[k*n_b]
+        first_one = second_molecule_frames[k*n_b]
         for o in range(k*n_b, (k+1)*n_b):
-            second_one = m2s[o]
+            second_one = second_molecule_frames[o]
             same_distance(first_one, second_one)
             same_origin_orientation(first_one, second_one)
 
-    # result[k::N_t*N_o] for integer k is the same body orientation
+
+    # result[k::N_b] for integer k is the same body orientation
     for k in range(n_b):
-        first_one = m2s[k]
-        for o in range(k, len_traj, n_t*n_o):
-            second_one = m2s[o]
+        first_one = second_molecule_frames[k]
+        for o in range(k, n_b * n_o * n_t, n_b):
+            second_one = second_molecule_frames[o]
             same_body_orientation(first_one, second_one)
 
 
