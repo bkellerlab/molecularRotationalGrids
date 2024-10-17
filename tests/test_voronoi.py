@@ -9,7 +9,6 @@ from molgri.constants import DEFAULT_ALGORITHM_B, DEFAULT_ALGORITHM_O, GRID_ALGO
 from molgri.space.rotobj import SphereGrid3DFactory, SphereGrid4DFactory, SphereGridFactory, SphereGridNDim
 from molgri.space.utils import k_is_a_row
 from molgri.space.voronoi import RotobjVoronoi, HalfRotobjVoronoi
-from tests.test_rotobj import USE_SAVED
 
 
 SPHERE_SURFACE = 4*pi
@@ -25,9 +24,9 @@ def example_rotobj(dim: int, sizes=None, half=False, detailed=True) -> Tuple[Sph
         sizes = [16, 55, 80]
     for size in sizes:
         if dim == 3:
-            my_rotobj = SphereGrid3DFactory().create(alg_name=DEFAULT_ALGORITHM_O, N=size, use_saved=False)
+            my_rotobj = SphereGrid3DFactory().create(alg_name=DEFAULT_ALGORITHM_O, N=size)
         else:
-            my_rotobj = SphereGrid4DFactory().create(alg_name=DEFAULT_ALGORITHM_B, N=size, use_saved=False)
+            my_rotobj = SphereGrid4DFactory().create(alg_name=DEFAULT_ALGORITHM_B, N=size)
 
         # create a full Voronoi grid, then optionally get a derived half grid
         my_voronoi = RotobjVoronoi(my_rotobj.get_grid_as_array(only_upper=False), using_detailed_grid=detailed)
@@ -77,7 +76,7 @@ def test_rotobj_voronoi_3D_exact():
     3) TODO: give the right border lengths and distances between centers
     """
     for N in [12, 42, 162]: # 162
-        my_grid = SphereGridFactory.create(N=N, alg_name=DEFAULT_ALGORITHM_O, dimensions=3, use_saved=False)
+        my_grid = SphereGridFactory.create(N=N, alg_name=DEFAULT_ALGORITHM_O, dimensions=3)
         my_voronoi = RotobjVoronoi(my_grid.get_grid_as_array(only_upper=False), using_detailed_grid=True)
         # plotting
         # from molgri.plotting.voronoi_plots import VoronoiPlot
@@ -160,7 +159,7 @@ def test_rotobj_voronoi_3D_non_exact():
     This doesn't test different ways of calculating areas, or compare with polytope distances; see
     test_voronoi_exact_divisions
     """
-    sphere = SphereGrid3DFactory.create("ico", 20, use_saved=False)
+    sphere = SphereGrid3DFactory.create("ico", 20)
     my_voronoi = RotobjVoronoi(sphere.get_grid_as_array(only_upper=False), using_detailed_grid=True)
     # if you wanna visualize it, uncomment
     # from molgri.plotting.voronoi_plots import VoronoiPlot
@@ -256,7 +255,7 @@ def test_rotobj_voronoi_4D():
     """
     # 8, 40, 250
     for N in [40, 272]:
-        hypersphere = SphereGrid4DFactory.create(DEFAULT_ALGORITHM_B, N, use_saved=False)
+        hypersphere = SphereGrid4DFactory.create(DEFAULT_ALGORITHM_B, N)
         # uncomment for plotting
         from molgri.plotting.spheregrid_plots import EightCellsPlot, SphereGridPlot
         my_voronoi = RotobjVoronoi(hypersphere.get_grid_as_array(only_upper=False), using_detailed_grid=True)

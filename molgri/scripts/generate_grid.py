@@ -26,8 +26,6 @@ requiredNamed.add_argument('-d', metavar='d', type=int, nargs='?', required=True
                            help='the number of dimensions (3, 4) in which you are creating a grid')
 parser.add_argument('--algorithm', type=str, default=None,
                     help='define an algorithm that you want to use if different from default')
-parser.add_argument('--recalculate', action='store_true',
-                    help='recalculate the grid even if a saved version already exists')
 parser.add_argument('--statistics', action='store_true',
                     help='write out statistics and draw uniformity and convergence plots')
 parser.add_argument('--draw', action='store_true',
@@ -44,9 +42,6 @@ def run_generate_grid():
     freshly_create_all_folders()
     my_args = parser.parse_args()
 
-    # if already exists and no --recalculate flag, just display a message
-    use_saved = not my_args.recalculate
-
     # check dimensions and create accordingly; also create the belonging voronoi object
     if my_args.d == 3:
         if my_args.algorithm is None:
@@ -59,7 +54,7 @@ def run_generate_grid():
     else:
         raise ValueError(f"Cannot create a grid with {my_args.d} dimensions, try d=3 or d=4.")
 
-    my_rotations = my_factory.create(N=my_args.N, alg_name=my_args.algorithm, use_saved=use_saved, time_generation=True)
+    my_rotations = my_factory.create(N=my_args.N, alg_name=my_args.algorithm, time_generation=True)
     grid_name = my_rotations.get_name(with_dim=True)
 
     # any plotting is done with this object
@@ -87,10 +82,6 @@ def run_generate_grid():
     if my_args.statistics:
         my_rotations.save_uniformity_statistics()
         print(f"A statistics file describing the grid {grid_name} was saved to {PATH_OUTPUT_AUTOSAVE}.")
-        sgp.plot_uniformity()
-        print(f"A violin plot showing the uniformity of {grid_name} saved to {sgp.fig_path}.")
-        sgp.plot_convergence()
-        print(f"A convergence plot with number of points between 3 and {my_args.N} saved to {sgp.fig_path}.")
 
 
 if __name__ == '__main__':

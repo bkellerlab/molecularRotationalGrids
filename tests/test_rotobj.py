@@ -6,7 +6,6 @@ from molgri.space.rotobj import SphereGrid4DFactory, SphereGridFactory
 from molgri.constants import GRID_ALGORITHMS_3D, GRID_ALGORITHMS_4D
 from molgri.space.utils import all_row_norms_equal_k, two_sets_of_quaternions_equal
 
-USE_SAVED = False
 
 # don't test fulldiv
 GRID_ALGORITHMS_4D = [x for x in GRID_ALGORITHMS_4D if x != "fulldiv"]
@@ -22,7 +21,7 @@ def test_general_grid_properties():
     for algos, d in zip((GRID_ALGORITHMS_3D, GRID_ALGORITHMS_4D), (3, 4)):
         for number in (3, 15, 26):
             for alg in algos:
-                grid_obj = SphereGridFactory.create(N=number, alg_name=alg, dimensions=d, use_saved=USE_SAVED)
+                grid_obj = SphereGridFactory.create(N=number, alg_name=alg, dimensions=d)
                 grid = grid_obj.get_grid_as_array()
                 assert isinstance(grid, np.ndarray), "Grid must be a numpy array."
                 assert grid.shape == (number, d), f"Wrong grid shape {grid.shape} for alg={alg}, N={number}, d={d}."
@@ -40,17 +39,16 @@ def test_ordering():
     for name in ["ico", "cube3D"]:
         for N in range(14, 111, 7):
             for addition in (1, 20, 3):
-                grid_1 = SphereGridFactory.create(N=N+addition, alg_name=name, dimensions=3, use_saved=USE_SAVED)
+                grid_1 = SphereGridFactory.create(N=N+addition, alg_name=name, dimensions=3)
                 grid_1 = grid_1.get_grid_as_array()
-                grid_2 = SphereGridFactory.create(N=N, alg_name=name, dimensions=3, use_saved=USE_SAVED)
+                grid_2 = SphereGridFactory.create(N=N, alg_name=name, dimensions=3)
                 grid_2 = grid_2.get_grid_as_array()
                 assert np.allclose(grid_1[:N], grid_2)
     for N in range(7, 111, 25):
         for addition in (1, 25, 4):
-            grid_1 = SphereGridFactory.create(N=N + addition, alg_name="cube4D", dimensions=4,
-                                              use_saved=USE_SAVED)
+            grid_1 = SphereGridFactory.create(N=N + addition, alg_name="cube4D", dimensions=4)
             grid_1 = grid_1.get_grid_as_array()
-            grid_2 = SphereGridFactory.create(N=N, alg_name="cube4D", dimensions=4, use_saved=USE_SAVED)
+            grid_2 = SphereGridFactory.create(N=N, alg_name="cube4D", dimensions=4)
             grid_2 = grid_2.get_grid_as_array()
             assert np.allclose(grid_1[:N], grid_2)
 
@@ -62,7 +60,7 @@ def test_full_and_half_hypersphere():
     """
     for alg in ["cube4D", "randomQ"]:
         for N in [8, 15, 73]:
-            hypersphere = SphereGrid4DFactory.create(alg, N, use_saved=False)
+            hypersphere = SphereGrid4DFactory.create(alg, N)
             half_grid = hypersphere.get_grid_as_array(only_upper=True)
             full_grid = hypersphere.get_grid_as_array(only_upper=False)
             assert np.allclose(full_grid[:N], half_grid), f"{alg}, {full_grid[:N]}, {half_grid}"
