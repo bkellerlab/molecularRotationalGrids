@@ -257,7 +257,6 @@ def test_rotobj_voronoi_4D():
     for N in [40, 272]:
         hypersphere = SphereGrid4DFactory.create(DEFAULT_ALGORITHM_B, N)
         # uncomment for plotting
-        from molgri.plotting.spheregrid_plots import EightCellsPlot, SphereGridPlot
         my_voronoi = RotobjVoronoi(hypersphere.get_grid_as_array(only_upper=False), using_detailed_grid=True)
         half_voronoi = my_voronoi.get_related_half_voronoi()
 
