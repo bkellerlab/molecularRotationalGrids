@@ -455,14 +455,14 @@ rule compile_vmd_log:
         num_extremes=config["params_msm"]["num_extremes_to_plot"],
         num_eigenvec=config["params_msm"]["num_eigenvec_to_plot"]
     run:
-        from molgri.plotting.create_vmdlog import show_eigenvectors_MSM
+        from molgri.plotting.create_vmdlog import VMDCreator
         eigenvectors = np.load(input.eigenvectors)
+        assignments = np.load(input.assignments)
 
-        show_eigenvectors_MSM(input.script, output.vmdlog, input.assignments, eigenvector_array=eigenvectors,num_eigenvec=params.num_eigenvec,
-            num_extremes=params.num_extremes, figure_paths=output.fig_tga)
-        print("created otput.vmd")
+        vmdcreator = VMDCreator(EXPERIMENT_TYPE, "bynum 1:3", "bynum 4:6", assignments)
+        vmdcreator.prepare_eigenvector_script(eigenvectors, output.fig_tga, index_list=None,
+            n_eigenvectors=params.num_eigenvec, num_extremes=params.num_extremes, num_of_examples=1)
         shell("vmd -dispdev text {input.structure} {input.trajectory} < {output.vmdlog}")
-        print("created tga")
         for el_tga, el_png in zip(output.fig_tga, output.fig_png):
             shell("convert {el_tga} {el_png}")
 

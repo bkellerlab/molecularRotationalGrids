@@ -49,16 +49,31 @@ def find_indices_of_largest_eigenvectors(eigenvector_array: NDArray, which: str,
     return original_index_populated
 
 
+def find_assigned_trajectory_indices(assignments, indices_to_find, num_of_examples: int = 1,
+                                     add_one: bool = True) -> NDArray:
+    output = []
+    for assigned_index in indices_to_find:
+        try:
+            output.extend(np.random.choice(np.where(assignments == assigned_index)[0], num_of_examples))
+        except ValueError:
+            # no occurences are that cell (might happen if you assigned whole trajectory but use a part for plotting)
+            pass
+    if add_one:
+        output = [x+1 for x in output]
+    return np.array(output)
+
 class VMDCreator:
     """
     From pieces of strings build a long vmdlog file that displays particular frames in particular colors,
     has nice plotting (white background etc) and renders the figures to files.
     """
 
-    def __init__(self, experiment_type: str, index_first_molecule: str, index_second_molecule: str):
+    def __init__(self, experiment_type: str, index_first_molecule: str, index_second_molecule: str,
+                 assignments: NDArray = None):
         self.experiment_type = experiment_type
         self.index_first_molecule = index_first_molecule
         self.index_second_molecule = index_second_molecule
+        self.assignments = assignments
         np.set_string_function(lambda x: repr(x).replace('(', '{').replace(')', '}').replace('array', '').replace("       ", ', ').replace("[", "").replace("]", ""),
             repr=False)
 
@@ -132,7 +147,7 @@ mol drawframes 0 1 {frames_abs}
         return string_zeroth_eigenvector
 
     def prepare_eigenvector_script(self, eigenvector_array: NDArray, plot_names: list, index_list: list = None,
-                                   n_eigenvectors: int = 5, num_extremes: int = 10):
+                                   n_eigenvectors: int = 5, num_extremes: int = 10, num_of_examples: int = 1):
         """
         Everything you need to plot eigenvectors:
         - make plotting pretty
@@ -151,15 +166,33 @@ mol drawframes 0 1 {frames_abs}
         total_string = ""
         total_string += self._add_pretty_plot_settings()
         total_string += self._add_first_molecule()
-        zeroth_eigenvector = find_indices_of_largest_eigenvectors(eigenvector_array[0], which="abs",
-                                                                  index_list=index_list, num_extremes=num_extremes)
+
+        if "msm" in self.experiment_type:
+            zeroth_eigenvector = find_indices_of_largest_eigenvectors(eigenvector_array[0], which="abs",
+                                                                      index_list=index_list, num_extremes=num_extremes,
+                                                                      add_one=False)
+            zeroth_eigenvector = find_assigned_trajectory_indices(self.assignments, zeroth_eigenvector, num_of_examples,
+                                                                  add_one=True)
+        else:
+            zeroth_eigenvector = find_indices_of_largest_eigenvectors(eigenvector_array[0], which="abs",
+                                                                      index_list=index_list, num_extremes=num_extremes)
         total_string += self._add_zeroth_eigenvector(zeroth_eigenvector)
 
         for i in range(1, n_eigenvectors):
-            pos_eigenvector = find_indices_of_largest_eigenvectors(eigenvector_array[i], which="pos",
+            if "msm" in self.experiment_type:
+                pos_eigenvector = find_indices_of_largest_eigenvectors(eigenvector_array[i], which="pos", add_one=False,
                                                                   index_list=index_list, num_extremes=num_extremes)
-            neg_eigenvector = find_indices_of_largest_eigenvectors(eigenvector_array[i], which="neg",
+                pos_eigenvector = find_assigned_trajectory_indices(self.assignments, pos_eigenvector, num_of_examples,
+                                                                   add_one=True)
+                neg_eigenvector = find_indices_of_largest_eigenvectors(eigenvector_array[i], which="neg", add_one=False,
                                                                   index_list=index_list, num_extremes=num_extremes)
+                neg_eigenvector = find_assigned_trajectory_indices(self.assignments, neg_eigenvector, num_of_examples,
+                                                                   add_one=True)
+            else:
+                pos_eigenvector = find_indices_of_largest_eigenvectors(eigenvector_array[i], which="pos",
+                                                                       index_list=index_list, num_extremes=num_extremes)
+                neg_eigenvector = find_indices_of_largest_eigenvectors(eigenvector_array[i], which="neg",
+                                                                       index_list=index_list, num_extremes=num_extremes)
             total_string += self._add_pos_neg_eigenvector(2*i-1, pos_eigenvector, neg_eigenvector)
         total_string += self._add_rotations_translations()
         total_string += self._add_hide_all_representations(n_eigenvectors)
@@ -194,89 +227,13 @@ mol showrep 0 {j} 0
             file = "molgri/scripts/vmd_position_sqra_water"
         elif self.experiment_type == "test":
             return ""
+        elif self.experiment_type == "msm_water_in_vacuum":
+            file = "molgri/scripts/vmd_position_msm_water_vacuum"
+        elif self.experiment_type == "msm_water_in_helium":
+            file = "molgri/scripts/vmd_position_msm_water_he"
         else:
             raise ValueError(f"Experiment type {self.experiment_type} unknown, cannot create VMD file")
 
         with open(file, "r") as f:
             contents = f.read()
         return contents
-
-
-
-
-
-def show_eigenvectors_MSM(path_vmd_script_template: str, path_output_script: str, path_assignments: str,
-                          eigenvector_array: NDArray, num_eigenvec: int, num_extremes: int, figure_paths: list =
-                          None, only_indices = None):
-    """
-In msm, after finding most populated eigenvectors, you must look at frames that have been assigned to this state.
-    """
-    my_assignments = np.load(path_assignments)
-    # print("len bef", len(my_assignments))
-    # if only_indices is not None:
-    #     print("len ind", np.where(only_indices[:len(my_assignments)])[0])
-    #     my_assignments = my_assignments[np.where(only_indices[:len(my_assignments)])[0]]
-    # print("len aft", len(my_assignments))
-    # find the most populated states
-    all_lists_to_insert = []
-    for i, eigenvec in enumerate(eigenvector_array.T[:num_eigenvec]):
-        magnitudes = eigenvec
-        # zeroth eigenvector only interested in max absolute values
-        if i == 0:
-            # most populated 0th eigenvector
-            most_populated = k_argmax_in_array(np.abs(eigenvec), num_extremes)
-            original_index_populated = []
-            for mp in most_populated:
-                try:
-                    original_index_populated.extend(np.random.choice(np.where(my_assignments==mp)[0], 1))
-                except ValueError:
-                    # no occurences are that cell
-                    pass
-            # sort so that more extreme values in the beginning
-            #my_argsort = np.argsort(magnitudes[original_index_populated])[::-1]
-            all_lists_to_insert.append(original_index_populated)
-        else:
-            most_positive = k_argmax_in_array(magnitudes, num_extremes)
-            original_index_positive = []
-            for mp in most_positive:
-                try:
-                    original_index_positive.extend(np.random.choice(np.where(my_assignments==mp)[0], 1))
-                except ValueError:
-                    # no occurences are that cell
-                    pass
-            #my_argsort_pos = np.argsort(magnitudes[original_index_positive])[::-1]
-            most_negative = k_argmax_in_array(-magnitudes, num_extremes)
-            original_index_negative = []
-            for mn in most_negative:
-                try:
-                    original_index_negative.extend(np.random.choice(np.where(my_assignments==mn)[0], 1))
-                except ValueError:
-                    # no occurences are that cell
-                    pass
-            #my_argsort_neg = np.argsort(magnitudes[original_index_negative])
-            all_lists_to_insert.append(original_index_positive)
-            all_lists_to_insert.append(original_index_negative)
-    # adding 1 to all because VMD uses enumeration starting with 1
-    all_lists_to_insert = [list(map(lambda x: x + 1, sublist)) for sublist in all_lists_to_insert]
-    all_str_to_replace = [f"REPLACE{i:02d}" for i in range(num_eigenvec * 2 - 1)]
-    all_str_to_insert = [', '.join(map(str, list(el))) for el in all_lists_to_insert]
-    # also replace the path
-    all_str_to_replace.extend([f"REPLACE_PATH{i}" for i in range(5)])
-    all_str_to_insert.extend(figure_paths)
-    case_insensitive_search_and_replace(path_vmd_script_template, path_output_script, all_str_to_replace, all_str_to_insert)
-
-
-def show_assignments(path_vmd_script_template: str, path_output_script: str, assignment_array: NDArray):
-    """
-    Create a vmdlog that shows separately the frames that are assigned to particular values in the given assignment
-    array.
-    """
-    # find the most populated states
-    all_lists_to_insert = []
-    unique_groups = np.unique(assignment_array)
-    for el in unique_groups:
-        all_lists_to_insert.append(np.where(assignment_array==el)[0])
-    all_lists_to_insert = [list(map(lambda x: x + 1, sublist)) for sublist in all_lists_to_insert]
-    all_str_to_replace = [f"REPLACE{i:02d}" for i in range(len(unique_groups))]
-    all_str_to_insert = [', '.join(map(str, list(el))) for el in all_lists_to_insert]
-    case_insensitive_search_and_replace(path_vmd_script_template, path_output_script, all_str_to_replace, all_str_to_insert)
