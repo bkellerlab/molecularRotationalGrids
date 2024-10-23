@@ -411,8 +411,6 @@ rule compile_vmd_log:
         trajectory = rules.run_pt.output.trajectory,
         eigenvectors = rules.run_decomposition.output.eigenvectors,
         index_list = rules.run_sqra.output.index_list,
-        # in the script only the numbers for frames need to be changed.
-        script="molgri/scripts/vmd_show_eigenvectors_sqra"
     output:
         vmdlog = f"{PATH_EXPERIMENTS}{{experiment_type}}/{{experiment_id}}/{{grid_identifier}}/eigenvectors_vmdlog",
         fig_tga = expand(f"{PATH_EXPERIMENTS}{{experiment_type}}/{{experiment_id}}/{{grid_identifier}}/eigenvector{{i}}.tga", i=[0, 1, 2, 3, 4], allow_missing=True),
@@ -422,17 +420,26 @@ rule compile_vmd_log:
         num_extremes=config["params_sqra"]["num_extremes_to_plot"],
         num_eigenvec=config["params_sqra"]["num_eigenvec_to_plot"]
     run:
-        from molgri.plotting.create_vmdlog import show_eigenvectors
+        from molgri.plotting.create_vmdlog import VMDCreator
 
         # load eigenvectors
         eigenvectors = np.load(input.eigenvectors)
+
+        vmd_creator = VMDCreator(EXPERIMENT_TYPE,"index < 3", "index >= 3") # TODO: make general!
+
+
         index_list = np.load(input.index_list,allow_pickle=True)
         if not np.any(index_list):
             index_list = None
         else:
             index_list = list(index_list)
-        show_eigenvectors(input.script,output.vmdlog,eigenvector_array=eigenvectors,num_eigenvec=params.num_eigenvec,
-            num_extremes=params.num_extremes,index_list=index_list, figure_paths=output.fig_tga)
+
+        vmdlog = vmd_creator.prepare_eigenvector_script(eigenvectors.T, plot_names=output.fig_tga, index_list=index_list,
+            n_eigenvectors=params.num_eigenvec, num_extremes=params.num_extremes)
+
+        with open(output.vmdlog, "w") as f:
+            f.write(vmdlog)
+
         shell("vmd  -dispdev text {input.structure} {input.trajectory} < {output.vmdlog}")
         for el_tga, el_png in zip(output.fig_tga, output.fig_png):
             shell("convert {el_tga} {el_png}")

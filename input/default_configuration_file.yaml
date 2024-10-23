@@ -1,0 +1,50 @@
+experiment_type: sqra_in_vacuum
+experiment_id: example
+grid_identifier: cartesian_80_80_very_short
+
+params_grid:
+ num_orientations: 80
+ num_directions: 80
+ radial_distances_nm: 'linspace(0.2, 0.4, 10)'
+ factor_orientation_to_position: 1
+ position_grid_is_cartesian: True
+ include_outliers: True
+ 
+params_setup:
+ tau_t: 0.01
+ up1_nm: 0.5
+ up2_nm: 0.7
+ force_constant_restraint: 500
+ nsteps: 2000
+ integrator: sd
+ dt_ps: 0.001
+ energy_writeout_frequency: 0
+ compressed_writeout_frequency: 5
+ epsilon: 1
+ 
+params_sqra:
+ cell_size_A: 30
+ number_lowest_E_structures: 10
+ temperature_K: 273
+ energy_type: "Potential"
+ mass_kg: 3e-26
+ lower_lim_rate_matrix: None
+ upper_lim_rate_matrix: None
+ sigma: 0
+ which: "SR"
+ tol: 1e-5
+ maxiter: 100000
+ num_eigenvec_to_plot: 6
+ num_extremes_to_plot: 30
+
+params_msm:
+ start_dist_A: 3
+ cell_size_A: 30
+ taus_msm_all: [1, 5, 10, 20, 50, 100, 200]
+ taus_msm_to_plot: [10]
+ sigma: None
+ which: "LR"
+ tol: 1e-5
+ maxiter: 100000
+ num_eigenvec_to_plot: 6
+ num_extremes_to_plot: 30

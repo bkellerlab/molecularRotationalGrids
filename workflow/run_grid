@@ -6,7 +6,6 @@ import numpy as np
 
 # add molgri directory
 import sys
-import yaml
 from scipy import sparse
 
 
@@ -20,7 +19,8 @@ GRID_ID = config["grid_identifier"]
 
 rule all_grids:
     input:
-        expand(f"{PATH_GRIDS}{GRID_ID}/{{what}}", what=["full_array.npy"]),
+        f"{PATH_GRIDS}{GRID_ID}/voronoi.png"
+        #expand(f"{PATH_GRIDS}{GRID_ID}/{{what}}", what=["full_array.npy"]),
 
 rule run_grid:
     """
@@ -75,13 +75,15 @@ rule plot_grid:
         adjacency_heatmap= f"{PATH_GRIDS}{{grid_identifier}}/adjacency_heatmap.png",
         adjacency_heatmap_pos_ori = f"{PATH_GRIDS}{{grid_identifier}}/adjacency_heatmap_position_orientation.png",
         distances_violin= f"{PATH_GRIDS}{{grid_identifier}}/distances_violinplot.png",
-        borders_violin= f"{PATH_GRIDS}{{grid_identifier}}/borders_violinplot.png"
+        borders_violin= f"{PATH_GRIDS}{{grid_identifier}}/borders_violinplot.png",
+        voronoi_cells = f"{PATH_GRIDS}{{grid_identifier}}/voronoi.png"
     run:
         from scipy import sparse
         from molgri.plotting.fullgrid_plots import (plot_array_heatmap, plot_violin_position_orientation,
-                                                    plot_adjacency_array)
+                                                    plot_adjacency_array, plot_cartesian_voronoi, plot_spherical_voronoi)
 
         # load
+        full_array = np.load(input.full_array)
         distances = sparse.load_npz(input.distances_array).tocoo()
         borders = sparse.load_npz(input.borders_array).tocoo()
         adjacency = sparse.load_npz(input.adjacency_array).tocoo()
@@ -101,4 +103,10 @@ rule plot_grid:
         #plot_violin_position_orientation(volumes, output.volumes_violin)
         plot_violin_position_orientation(distances, adjacency_only_position, output.distances_violin)
         plot_violin_position_orientation(borders, adjacency_only_position, output.borders_violin)
+
+
+        if params.position_grid_cartesian:
+            plot_cartesian_voronoi(full_array, output.voronoi_cells)
+        else:
+            plot_spherical_voronoi(full_array, output.voronoi_cells)
 

@@ -218,6 +218,11 @@ arXiv preprint available at: [https://arxiv.org/abs/2211.00566](https://arxiv.or
 
 # Using pipelines
 
+The pre-requirements for fully functional pipelines are:
+- python with correct packages (pip install -r requirements)
+- GROMACS (the command *gmx22* should be functional in the terminal where the pipeline is run)
+- VMD (the command *vmd* should be functional in the terminal where the pipeline is run)
+
 snakemake --snakefile workflow/run_sqra --cores 4 --configfile input/default_configuration_file.yaml
 
 ## Creating grids

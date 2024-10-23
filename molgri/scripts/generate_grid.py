@@ -12,7 +12,7 @@ from molgri.paths import PATH_OUTPUT_AUTOSAVE
 
 from molgri.space.rotobj import SphereGrid3DFactory, SphereGrid4DFactory
 from molgri.plotting.spheregrid_plots import SphereGridPlot
-from molgri.plotting.voronoi_plots import VoronoiPlot
+from molgri.plotting.fullgrid_plots import VoronoiPlot
 from molgri.scripts.set_up_io import freshly_create_all_folders
 
 import warnings

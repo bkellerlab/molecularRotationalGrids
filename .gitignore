@@ -176,6 +176,7 @@ experiments/
 !input/ffbonded.itp
 !input/topol_fake_ar.top
 !input/H2O_H2Op.top
+!input/default_configuration_file.yaml
 
 
 
@@ -185,3 +186,4 @@ workflow/playground
 pseudotrajectory/
 pseudotrajectory.*
 structure.*
+notebooks

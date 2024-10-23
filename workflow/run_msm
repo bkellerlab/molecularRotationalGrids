@@ -272,7 +272,6 @@ rule run_msm_gromacs_in_helium:
         """
         initial_dir=$(pwd)
         cd $(dirname {input.structure})
-        export PATH="/home/janjoswig/local/gromacs-2022/bin:$PATH"
         gmx22 trjconv -f $(basename {input.structure}) -s $(basename {input.structure}) -o $(basename {output.only_water_structure}) < $(basename {input.select_two})
         gmx22 grompp -f $(basename {input.runfile}) -o result.tpr -c $(basename {input.structure}) -p $(basename {input.topology})
         gmx22 trjconv -f $(basename {input.structure}) -s result.tpr -o $(basename {output.temp})  < $(basename {input.select_group})
@@ -281,6 +280,8 @@ rule run_msm_gromacs_in_helium:
         gmx22 trjconv -fit rot+trans -f $(basename {output.temp2}) -o $(basename {output.trajectory}) -s $(basename {input.structure}) -n $(basename {input.index_m1}) < $(basename {input.select_centers})
         cd "$initial_dir" || exit
         """
+
+#        export PATH="/home/janjoswig/local/gromacs-2022/bin:$PATH"
 
 ################## end specific set-ups #################
 

@@ -23,8 +23,7 @@ from molgri.constants import DEFAULT_ALPHAS_3D, TEXT_ALPHAS_3D, \
     DEFAULT_ALPHAS_4D, TEXT_ALPHAS_4D, NAME2SHORT_NAME
 from molgri.plotting.abstract import (ArrayPlot, MultiRepresentationCollection, RepresentationCollection)
 from molgri.space.polytopes import Polytope, find_opposing_q, second_neighbours, third_neighbours, Cube4DPolytope
-from molgri.space.rotobj import SphereGridNDim, SphereGrid4DFactory, \
-    ConvergenceSphereGridFactory
+from molgri.space.rotobj import SphereGridNDim, SphereGrid4DFactory
 from molgri.wrappers import plot3D_method, plot_method
 
 

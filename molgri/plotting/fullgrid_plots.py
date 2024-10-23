@@ -11,10 +11,14 @@ import plotly.io as pio
 import numpy as np
 from mpl_toolkits.mplot3d.art3d import Poly3DCollection
 import matplotlib.pyplot as plt
-from scipy.spatial import Voronoi
+from scipy.spatial import Voronoi, geometric_slerp
 
-from molgri.plotting.voronoi_plots import VoronoiPlot
-from molgri.space.voronoi import PositionVoronoi
+from molgri.plotting.abstract import RepresentationCollection
+from molgri.space.utils import normalise_vectors
+
+from molgri.space.voronoi import AbstractVoronoi, PositionVoronoi
+from molgri.space.fullgrid import from_full_array_to_o_b_t, _t_and_o_2_positions
+from molgri.wrappers import plot3D_method
 
 pio.templates.default = "simple_white"
 rng = np.random.default_rng(11)
@@ -80,44 +84,53 @@ def plot_array_heatmap(my_array, path_to_save):
                      title="Grid point index", side="top", ticksuffix="  ")
     fig.write_image(path_to_save, width=WIDTH, height=HEIGHT, scale=2)
 
-def plot_cartesian_voronoi(position_grid):
-        normal_voronoi = Voronoi(position_grid)
-        normal_voronoi_vertices = normal_voronoi.vertices
-        polygons = []
-        for ri, region in enumerate(normal_voronoi.regions):
-            # only plot those polygons for which all vertices are defined
-            if np.all(np.asarray(region) >= 0) and len(region) > 0:
-                poly = []
-                for rv in normal_voronoi.ridge_vertices:
-                    if np.isin(rv, region).all():
-                        poly.append(normal_voronoi.vertices[rv])
-                polygons.append(poly)
+def plot_cartesian_voronoi(full_grid, path_to_save):
+    o_grid, b_grid, t_grid = from_full_array_to_o_b_t(full_grid)
+    position_grid = _t_and_o_2_positions(o_grid, t_grid)
+    normal_voronoi = Voronoi(position_grid)
+    normal_voronoi_vertices = normal_voronoi.vertices
+    polygons = []
+    for ri, region in enumerate(normal_voronoi.regions):
+        # only plot those polygons for which all vertices are defined
+        if np.all(np.asarray(region) >= 0) and len(region) > 0:
+            poly = []
+            for rv in normal_voronoi.ridge_vertices:
+                if np.isin(rv, region).all():
+                    poly.append(normal_voronoi.vertices[rv])
+            polygons.append(poly)
 
-        fig = plt.figure(figsize=(10,10))
-        ax = fig.add_subplot(111, projection='3d')
+    fig = plt.figure(figsize=(10,10))
+    ax = fig.add_subplot(111, projection='3d')
 
-        # only plot two
-        polygons = [polygons[0],polygons[-1], ]
+    # only plot two
+    polygons = [polygons[0],polygons[-1], ]
 
-        # now cycle thorugh all available polygons
-        for poly in polygons:
-            polygon = Poly3DCollection(poly, alpha=0.5,
-                                       facecolors=rng.uniform(0, 1, 3),
-                                       linewidths=0.5, edgecolors='black')
-            ax.add_collection3d(polygon)
-
-
-        ax.scatter(*position_grid.T, color="black", s=20)
-        ax.scatter(*normal_voronoi_vertices.T, color="blue", s=20)
+    # now cycle thorugh all available polygons
+    for poly in polygons:
+        polygon = Poly3DCollection(poly, alpha=0.5,
+                                   facecolors=rng.uniform(0, 1, 3),
+                                   linewidths=0.5, edgecolors='black')
+        ax.add_collection3d(polygon)
 
 
-def plot_spherical_voronoi(o_grid, t_grid):
-        pv = PositionVoronoi(o_grid, point_radii=t_grid)
-        vp= VoronoiPlot(pv)
-        vp.plot_one_region(10,color="red", save=False, fig=vp.fig,ax=vp.ax)
-        vp.plot_one_region(45,color="blue", save=False, fig=vp.fig,ax=vp.ax)
-        vp.ax.set_axis_off()
-        plt.show()
+    ax.scatter(*position_grid.T, color="black", s=20)
+    ax.scatter(*normal_voronoi_vertices.T, color="blue", s=20)
+    fig.tight_layout()
+    fig.savefig(path_to_save)
+
+
+def plot_spherical_voronoi(full_grid, path_to_save):
+    o_grid, b_grid, t_grid = from_full_array_to_o_b_t(full_grid)
+    pv = PositionVoronoi(o_grid, point_radii=t_grid)
+    vp= VoronoiPlot(pv)
+    vp.plot_one_region(0, color="red", save=False, fig=vp.fig, ax=vp.ax)
+    last_index = len(o_grid)*len(t_grid)-1
+    vp.plot_one_region(last_index, color="blue", save=False, fig=vp.fig, ax=vp.ax)
+    vp.plot_centers(color="black", labels=False)
+    vp.plot_vertices(color="blue", labels=False)
+    vp.ax.set_axis_off()
+    vp.fig.tight_layout()
+    vp.fig.savefig(path_to_save)
 
 
 def plot_violin_position_orientation(my_array, adjacency_position, path_to_save):
@@ -268,3 +281,111 @@ def plot_violin_position_orientation(my_array, adjacency_position, path_to_save)
 #     def plot_position_adjacency(self):
 #         my_array = self.get_adjacency_of_position_grid().toarray()
 #         self._plot_position_N_N(my_array, cbar=False)
+class VoronoiPlot(RepresentationCollection):
+
+    def __init__(self, voronoi: AbstractVoronoi, **kwargs):
+        self.voronoi = voronoi
+        N_points = len(self.voronoi.get_all_voronoi_centers())
+        super().__init__(data_name=f"voronoi_{N_points}", **kwargs)
+
+    def __getattr__(self, name):
+        """ Enable forwarding methods to self.position_grid, so that from FullGrid you can access all properties and
+         methods of PositionGrid too."""
+        return getattr(self.voronoi, name)
+
+    @plot3D_method
+    def plot_centers(self, color="black", labels=True, **kwargs):
+        points = self.get_all_voronoi_centers()
+        self.ax.scatter(points[:, 0], points[:, 1], points[:, 2], c=color, **kwargs)
+
+        if labels:
+            for i, point in enumerate(points):
+                self.ax.text(*point[:3], s=f"{i}", c=color)
+
+        self._set_axis_limits()
+        self._equalize_axes()
+
+    @plot3D_method
+    def plot_vertices(self, color="green", labels=True, reduced=False, **kwargs):
+        vertices = self.get_all_voronoi_vertices(reduced=reduced)
+
+        self.ax.scatter(vertices[:, 0], vertices[:, 1], vertices[:, 2], c=color, **kwargs)
+
+        if labels:
+            for i, line in enumerate(vertices):
+                self.ax.text(*line[:3], i, c=color)
+
+        self._set_axis_limits()
+        self._equalize_axes()
+
+    @plot3D_method
+    def plot_borders(self, color="black", reduced=True):
+        t_vals = np.linspace(0, 1, 2000)
+        vertices = self.get_all_voronoi_vertices(reduced=reduced)
+        regions = self.get_all_voronoi_regions(reduced=reduced)
+        for i, region in enumerate(regions):
+            n = len(region)
+            for j in range(n):
+                start = vertices[region][j]
+                end = vertices[region][(j + 1) % n]
+                norm = np.linalg.norm(start)
+                # plot a spherical border
+                if np.isclose(np.linalg.norm(start), np.linalg.norm(end)) and not np.isclose(np.linalg.norm(start), 0):
+                    #print(np.linalg.norm(start), np.linalg.norm(end))
+                    result = geometric_slerp(normalise_vectors(start), normalise_vectors(end), t_vals)
+                    self.ax.plot(norm * result[..., 0], norm * result[..., 1], norm * result[..., 2], c=color)
+                # plot a straight border
+                else:
+                    line = np.array([start, end])
+                    self.ax.plot(*line.T, c=color)
+
+        self._set_axis_limits()
+        self._equalize_axes()
+
+    @plot3D_method
+    def plot_regions(self, colors=None, reduced=True, alphas=None):
+        regions = self.get_all_voronoi_regions(reduced=reduced)
+        if alphas is None:
+            alphas = [0.5]*len(regions)
+        if colors is None:
+            colors = ["white"]*len(regions)
+
+        for i, region in enumerate(regions):
+            self.plot_one_region(index_center=i, color=colors[i], alpha=alphas[i], ax=self.ax, fig=self.fig,
+                                 save=False)
+        self.plot_borders(ax=self.ax, fig=self.fig, save=False)
+
+    @plot3D_method
+    def plot_one_region(self, index_center: int = 0, color=None, alpha=0.5):
+        relevant_points = self.get_convex_hulls()[index_center].points
+        #self.ax.scatter(*relevant_points.T, s=2)
+        triangles = self.get_convex_hulls()[index_center].simplices
+
+        # don't move this to one line since it may have 4 components (hyperspheres)
+        X = relevant_points.T[0]
+        Y = relevant_points.T[1]
+        Z = relevant_points.T[2]
+        self.ax.plot_trisurf(X, Y, triangles=triangles, alpha=alpha, color=color, linewidth=0, Z=Z, linewidths=0.5, edgecolors='black')
+
+    @plot3D_method
+    def plot_vertices_of_i(self, index_center: int = 0, color="blue", labels=True, reduced=False, region=False,
+                           alpha=0.5):
+        all_vertices = self.get_all_voronoi_vertices(reduced=reduced)
+        all_regions = self.get_all_voronoi_regions(reduced=reduced)
+
+        try:
+            indices_of_i = all_regions[index_center]
+        except IndexError:
+            print(f"The grid does not contain index index_center={index_center}")
+            return
+        vertices_of_i = all_vertices[indices_of_i]
+
+        self.ax.scatter(vertices_of_i[:, 0], vertices_of_i[:, 1], vertices_of_i[:, 2], c=color)
+
+        if labels:
+            for ic, point in enumerate(vertices_of_i):
+                self.ax.text(*point[:3], s=f"{indices_of_i[ic]}", c=color)
+        if region:
+            self.plot_one_region(index_center=index_center, color=color, alpha=alpha)
+        self._set_axis_limits()
+        self._equalize_axes()
