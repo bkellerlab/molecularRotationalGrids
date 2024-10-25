@@ -32,6 +32,9 @@ jobs:
           key: venv-${{ hashFiles('poetry.lock') }}
       - name: Install the project dependencies
         run: poetry install
+      - name: Get example files
+        run: |
+          poetry run python -m molgri.scripts.set_up_io --examples
       - name: Test with pytest
         run: |
           poetry run pytest --cov=molgri tests/ --durations=10
