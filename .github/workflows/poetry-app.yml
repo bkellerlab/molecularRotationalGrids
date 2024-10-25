@@ -32,5 +32,12 @@ jobs:
           key: venv-${{ hashFiles('poetry.lock') }}
       - name: Install the project dependencies
         run: poetry install
-      - name: Run the automated tests (for example)
-        run: poetry run pytest -v
+      - name: Test with pytest
+        run: |
+          poetry run pytest --cov=molgri tests/ --durations=10
+          coverage lcov
+      - name: Coveralls GitHub Action
+        uses: coverallsapp/github-action@1.1.3
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          path-to-lcov: coverage.lcov

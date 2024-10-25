@@ -33,6 +33,7 @@ tqdm = "^4.66.5"
 
 [tool.poetry.group.test.dependencies]
 pytest = "^8.3.3"
+pytest-cov = "^5.0.0"
 
 
 [tool.poetry.group.notebooks.dependencies]

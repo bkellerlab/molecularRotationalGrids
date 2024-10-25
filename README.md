@@ -42,9 +42,36 @@ This is a python library that can be easily installed using:
 pip install molgri
 ```
 
+## Reproducing papers
+
+To use the functionality of our 2022 paper
+
+Zupan, Hana, Frederick Heinz, and Bettina G. Keller. "Grid-based state space exploration for molecular binding." Canadian Journal of Chemistry (2022)
+
+please install an old version of molgri: pip install molgri==1.3.4
+
+To use the functionality of our current work
+
+[to be published]
+
+please install the last available version of molgri. After installation and assuming you have GROMACS 2022 available on your system as command "gmx22" as well as VMD as command "vmd", you can replicate our computational experiments with:
+
+snakemake --cores 10
+
+(note that this process requires significant memory and time and may need to be run on a computer cluster)
+
+If you want to modify the experiments or only run parts of the programs we have some suggestions below.
+
+# Using molgri
+
+We offer three ways of using molgri, from easiest to use to most adaptable:
+ - running scripts
+ - running snakemake pipelines
+ - importing the package
 
 
-## Running examples
+
+## Running scrips
 
 To explore the capabilities of the package, the user is encouraged to run
 the following example commands (the commands should all be executed in the
@@ -52,9 +79,8 @@ same directory, we recommend an initially empty directory).
 
 ```
 molgri-io --examples
-molgri-grid -N 250 -algo ico --draw --animate --animate_ordering --statistics
+molgri-grid -N 250 -algo ico
 molgri-pt -m1 H2O -m2 NH3 -o 15 -b 10 -t "range(1, 5, 2)"
-molgri-energy -xvg H2O_H2O_o_ico_500_b_ico_5_t_3830884671 --p1d --p2d --p3d --animate --convergence --Ns_o "(50, 100, 500)"
 ```
 
 The first-line command ```molgri-io``` creates the 📂 input/ and
@@ -105,8 +131,6 @@ in 0.5nm increments
 All flags starting with ```--``` are optional and can be omitted for faster
 calculations. Remember that you can always add the flag ```--help``` to get
 further instructions.
-
-The last command ```molgri-energy``` is discussed further in section "Visualising energy distribution and convergence".
 
 ## Using outputs
 
@@ -166,40 +190,24 @@ gmx22 mdrun -s result.tpr -rerun <trajectory_file>
 gmx22 energy -f ener.edr -o full_energy.xvg
 ```
 
-## Visualising energy distribution and convergence
+## Using snakemake pipelines
 
-After calculating energy for each point along the pseudotrajectory (see a GROMACS example above), the
-.xvg file can be copied to the ```input/``` folder and used to visualise the distribution of energies.
-Visualisation can be performed with the command ```molgri-energy``` and flags
- - ```--p1d``` in 1D (violin plot), 
- - ```--p2d``` in 2D (color-coded Hammer projection) and/or 
- - ```--p3d``` in 3D (color-coded 3D plot).
-In the last case we also recommend using the ```--animate``` flag so that the plot can be observed from all sides.
+The pre-requirements for fully functional pipelines are:
+- python with correct packages (pip install -r requirements)
+- GROMACS (the command *gmx22* should be functional in the terminal where the pipeline is run)
+- VMD (the command *vmd* should be functional in the terminal where the pipeline is run)
 
-A XVG file is required for the visualisation and must be supplied after the ```-xvg``` flag.
-It is recommended that the .xvg file has the same name as the pseudotrajectory for the full functionality.
-An example provided with the package can be run like:
-```
-molgri-energy -xvg H2O_H2O_o_ico_500_b_ico_5_t_3830884671 --p1d --p2d --p3d --animate
-``` 
+For reproducing the entire set of computational experiments om our publications see the section Reproducing papers.
 
-Additionaly, energy visualisation can be used to check for convergence / determine how many rotational 
-points are truly necessary. For this purpose, it is useful to visualise energy distributions using only a fraction 
-of points and visually inspecting for sufficient convergence of energy surface (see example pictured).
+To run your own computational experiment, prepare a configuration file and then run the appropriate one of pipeline files "run_sqra", "run_msm" or "run_grid", for example:
+snakemake --snakefile workflow/run_sqra --cores 4 --configfile input/default_configuration_file.yaml
 
-<p float="left">
-<img src="/readme_images/hammer_energies_hammer.png">
-</p>
+### Creating records
+Records are useful to have an overview of experiments that have been set-up so far and their parameters. To obtain (or update) summary files run
+snakemake --snakefile workflow/run_records --cores 4
+This creates an overview .csv file in each subfolder of experiments/
 
-To perform convergence tests, add the flag ```--convergence```. You can also select specific number of
-points tested with a flag ```--Ns_o```, for example
-
-```
-molgri-energy -xvg H2O_H2O_o_ico_500_b_ico_5_t_3830884671 --p1d --p2d --p3d --animate --convergence --Ns_o "(50, 100, 500)"
-``` 
-
-
-## Complex applications: using python package
+## importing the package
 
 Users who would like to build custom grids, pseudotrajectories or sets of rotations and enjoy more
 flexibility with visualisation tools can import ```molgri```
@@ -207,7 +215,7 @@ as a python package (following installation described above) and work with all p
 of all modules is available online
 [via ReadTheDocs](https://molgri.readthedocs.io/en/main/).
 
-## Citation
+# Citation
 
 If this repository has helped you, please cite the following publication:
 
@@ -216,30 +224,42 @@ Zupan, Hana, Frederick Heinz, and Bettina G. Keller. "Grid-based state space exp
 arXiv preprint available at: [https://arxiv.org/abs/2211.00566](https://arxiv.org/abs/2211.00566)
 
 
-# Using pipelines
 
-The pre-requirements for fully functional pipelines are:
-- python with correct packages (pip install -r requirements)
-- GROMACS (the command *gmx22* should be functional in the terminal where the pipeline is run)
-- VMD (the command *vmd* should be functional in the terminal where the pipeline is run)
 
-snakemake --snakefile workflow/run_sqra --cores 4 --configfile input/default_configuration_file.yaml
 
-## Creating grids
-1) The pipeline for grid creation is found in workflow/run_grid.
-2) In this file, grid name along with properties like the number of points and the radii can be specified.
-3) Run: snakemake --snakefile workflow/run_grid --cores 4
-4) This creates files for grid points, adjacencies, volumes, distances and areas associated with this grid set-up.
-5) To create an overview of parameters for all already created grids, run Additionally, the parameters of the set-up will be recorded in the file grid_summary.csv
-6) To create different grids, repeat this process while changing the name and parameters in workflow/run_grid.
+# Dependencies
 
-## Creating experiment set-ups
-7) The pipeline for experiment set-up is found in workflow/run_grid.
-8) In this file you can change the parametrs to vary the set-up
-9) Run: snakemake --snakefile workflow/run_system_setup --cores 4
-10) This will modify the files as described by the parameters and copy the needed input files into a directory <experiment_id>. Now you are ready to run msm or sqra experiments.
-11) You can also add new set-up rules at the bottom by defining files that should be copied (structure, topology, possibly modifies force fields, mdrun file, index files ...)
+This section is probably only useful for developers. 
 
-## Creating records
-Records are useful to have an overview of experiments that have been set-up so far and their parameters. To obtain (or update) summary files run
-snakemake --snakefile workflow/run_records --cores 4
+Dependencies of molgri are managed with poetry. Usage:
+
+1) install pipx:
+
+   python3 -m pip install --user pipx
+   python3 -m pipx ensurepath
+
+And then open a new terminal. If there are problems, pipx reinstall-all is also useful.
+
+3) install poetry in a separate environment with pipx: 
+
+   pipx install poetry
+
+4) now you add/remove dependencies via poetry:
+
+    poetry add &lt;dependency&gt;
+
+    poetry remove &lt;dependency&gt;
+
+Or if dependency is only needed for a specific part of the process you can add --group &lt;group_name&gt; to both commands. Currently, there are groups ’notebooks’, ’test’ and ’workflows’.
+3) To make sure no other dependencies are present in the environment, occasionally run
+
+   poetry install --sync --with notebooks,workflows,test
+
+and to update to latest compatible versions occasionally run
+
+   poetry update package
+
+4) Now you can:
+   - run a specific module, e.g. poetry run python -m molgri.plotting.other_plots
+   - run tests, e.g. poetry run pytest
+   - run workflows, e.g. poetry run snakemake --snakefile workflow/run_grid --configfile input/default_configuration_file.yaml --cores 4
