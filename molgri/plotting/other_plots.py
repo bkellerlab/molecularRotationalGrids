@@ -151,6 +151,7 @@ class ExamplePotential(RepresentationCollection):
 
 
 if __name__ == "__main__":
+    import matplotlib.pyplot as plt
     sns.set_context("talk")
     cp = ExamplePotential("myplot")
     # simply the plot
@@ -182,4 +183,5 @@ if __name__ == "__main__":
     # cp.plot_probability_dist_ideal()
     # cp.plot_probability_dist_sim(T=200)
 
-    cp.plot_point(-1, 0.7, color="blue", marker="o", s=5)
+    cp.plot_point(-1, 0.7, color="blue", marker="o", s=5, save=False)
+    plt.show()
