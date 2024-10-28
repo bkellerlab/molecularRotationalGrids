@@ -22,13 +22,14 @@ documentation = "https://molgri.readthedocs.io/en/main/"
 python = ">=3.11,<3.13"
 matplotlib = "^3.9.2"
 numpy = ">=1.22.3,<2.0"
-plotly = "^5.24.1"
 networkx = "^3.4.2"
 mdanalysis = "^2.7.0"
 scipy = "^1.14.1"
 pandas = "^2.2.3"
 seaborn = "^0.13.2"
 tqdm = "^4.66.5"
+plotly = "5.3.1"
+kaleido = "0.2.1"
 
 
 [tool.poetry.group.test.dependencies]

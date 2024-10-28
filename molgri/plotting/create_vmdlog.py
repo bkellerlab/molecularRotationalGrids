@@ -76,6 +76,7 @@ class VMDCreator:
         self.assignments = assignments
         np.set_string_function(lambda x: repr(x).replace('(', '{').replace(')', '}').replace('array', '').replace("       ", ', ').replace("[", "").replace("]", ""),
             repr=False)
+        np.set_printoptions(linewidth=np.inf)
 
     def _search_and_replace(self, input_file: str, output_file: str, to_replace: list, new_strings: list):
         """
@@ -99,6 +100,7 @@ class VMDCreator:
         i2 = i1 +1
 
         string_pos_neg = f"""
+
 mol addrep 0
 mol modselect {i1} 0 {self.index_second_molecule}
 mol modcolor {i1} 0 ColorID 0
@@ -107,20 +109,24 @@ mol addrep 0
 mol modselect {i2} 0 {self.index_second_molecule}
 mol modcolor {i2} 0 ColorID 1
 mol drawframes 0 {i2} {frames_neg}
+
 """
         return string_pos_neg
 
     def _add_first_molecule(self):
 
         string_first_molecule = f"""
+
 mol addrep 0
 mol modselect 0 0 {self.index_first_molecule}
+mol modcolor 0 0 Type
 """
         return string_first_molecule
 
     def _add_pretty_plot_settings(self):
 
         string_pretty = """
+
 mol modstyle 0 0 CPK
 color Display Background white
 axes location Off
@@ -134,14 +140,18 @@ display shadows on
 display ambientocclusion on
 material add copy AOChalky
 material change shininess Material22 0.000000
+
 """
         return string_pretty
 
     def _add_zeroth_eigenvector(self, frames_abs):
 
         string_zeroth_eigenvector = f"""
+
+mol addrep 0
 mol modselect 1 0 {self.index_second_molecule}
 mol drawframes 0 1 {frames_abs}
+mol modcolor 1 0 Type
 """
 
         return string_zeroth_eigenvector
@@ -178,7 +188,7 @@ mol drawframes 0 1 {frames_abs}
                                                                       index_list=index_list, num_extremes=num_extremes)
         total_string += self._add_zeroth_eigenvector(zeroth_eigenvector)
 
-        for i in range(1, n_eigenvectors):
+        for i in range(1, n_eigenvectors+1):
             if "msm" in self.experiment_type:
                 pos_eigenvector = find_indices_of_largest_eigenvectors(eigenvector_array[i], which="pos", add_one=False,
                                                                   index_list=index_list, num_extremes=num_extremes)
@@ -193,32 +203,34 @@ mol drawframes 0 1 {frames_abs}
                                                                        index_list=index_list, num_extremes=num_extremes)
                 neg_eigenvector = find_indices_of_largest_eigenvectors(eigenvector_array[i], which="neg",
                                                                        index_list=index_list, num_extremes=num_extremes)
-            total_string += self._add_pos_neg_eigenvector(2*i-1, pos_eigenvector, neg_eigenvector)
+            total_string += self._add_pos_neg_eigenvector(2*i, pos_eigenvector, neg_eigenvector)
         total_string += self._add_rotations_translations()
         total_string += self._add_hide_all_representations(n_eigenvectors)
 
-        total_string += self._add_render_a_plot(0, 0, plot_names[0])
+        total_string += self._add_render_a_plot(0, 1, plot_names[0])
         for i in range(1, n_eigenvectors):
-            total_string += self._add_render_a_plot(2*i-1, 2*i, plot_names[i])
+            total_string += self._add_render_a_plot(2*i, 2*i+1, plot_names[i])
         total_string += "quit"
         return total_string
 
     def _add_hide_all_representations(self, n_eigenvectors: int):
         total_substring = ""
 
-        for i in range(1, 2*n_eigenvectors+1):
-            total_substring += f"mol showrep 0 {i} 0\n"
+        for i in range(1, 2*n_eigenvectors+3):
+            total_substring += f"\nmol showrep 0 {i} 0\n"
         return total_substring
 
     def _add_render_a_plot(self, i, j, plot_path):
 
         string_rendering = f"""
-mol showrep 0  0  1
+
+mol showrep 0 0 1
 mol showrep 0 {i} 1
 mol showrep 0 {j} 1
 render TachyonInternal {plot_path}
 mol showrep 0 {i} 0
 mol showrep 0 {j} 0
+
 """
         return string_rendering
 

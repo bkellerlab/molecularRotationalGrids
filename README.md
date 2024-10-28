@@ -64,14 +64,16 @@ If you want to modify the experiments or only run parts of the programs we have 
 
 # Using molgri
 
-We offer three ways of using molgri, from easiest to use to most adaptable:
+We offer three ways of using molgri, sorted here from easiest to use to most adaptable:
  - running scripts
  - running snakemake pipelines
  - importing the package
 
-
+Read on for details on each of the three user interfaces.
 
 ## Running scrips
+
+For quick and easy generation of spherical grids and/on pseudo-trajectories with systematically positioned pairs of molecules use the provided scripts ```molgri-grid``` and ```molgri-pt```. The scripts are installed alongside the package (see Installation above).
 
 To explore the capabilities of the package, the user is encouraged to run
 the following example commands (the commands should all be executed in the

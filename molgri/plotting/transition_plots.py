@@ -101,9 +101,7 @@ class PlotlyTransitions:
 
         """
         eigenvecs = np.load(self.path_eigenvectors)
-        print(np.min([NUM_EIGENV, eigenvecs.shape[1]]))
         real_num_eigenv = int(np.min([NUM_EIGENV, eigenvecs.shape[1]]))
-        print("NUM EIGENV", NUM_EIGENV, "len veigenvecs", len(eigenvecs.T), "real", real_num_eigenv)
         if real_num_eigenv == 0:
             return
 
@@ -179,7 +177,6 @@ class PlotlyTransitions:
             max_its = 0
             for i, eigenvals in enumerate(all_eigenvals.T):
                 its = np.array(-self.tau_array * writeout * time_step_ps / np.log(np.abs(eigenvals)))
-                print("MSM ITS", self.path_eigenvalues, "\n", its)
                 if np.any(its) > max_its:
                     max_its = np.max(its)
                 if col==2:

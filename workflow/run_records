@@ -2,7 +2,8 @@ import pandas as pd
 import yaml
 import os
 
-PATH_EXPERIMENTS = "ex_exp/"
+from molgri.paths import PATH_EXPERIMENTS
+
 ALL_EXPERIMENT_TYPES = [file for file in os.listdir(PATH_EXPERIMENTS) if os.path.isdir(f"{PATH_EXPERIMENTS}{file}/")]
 
 rule all:

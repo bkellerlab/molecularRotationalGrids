@@ -5,6 +5,9 @@ All of the workflows relating to pseudotrajectories, subsequent SQRAs and their 
 import sys
 import numpy as np
 
+import matplotlib.pyplot as plt
+plt.switch_backend('agg')
+
 # add molgri directory
 sys.path.append(".")
 from workflow.snakemake_utils import modify_mdrun, modify_topology
@@ -12,18 +15,12 @@ from molgri.paths import PATH_INPUT_BASEGRO, PATH_EXPERIMENTS
 
 include: "run_grid"
 
-PATH_EXPERIMENTS = "ex_exp/"
-
 if config["experiment_type"] not in ["sqra_water_in_vacuum", "guanidinium_xyz"]:
-    raise AttributeError(f"This pipeline should be used for SQRA experiments in vacuum. Your experiment type is {config['experiment_type']} instead of 'sqra_in_vacuum'")
+    raise AttributeError(f"This pipeline should be used for SQRA experiments in vacuum. Your experiment type is {config['experiment_type']} instead of 'sqra_water_in_vacuum'")
 
 EXPERIMENT_TYPE = config["experiment_type"]
 EXPERIMENT_ID = config["experiment_id"]
 GRID_ID = config["grid_identifier"]
-
-print(EXPERIMENT_TYPE)
-
-# TODO: enable different set-ups
 
 rule all_sqra:
     input:
@@ -51,6 +48,8 @@ rule set_up_sqra_in_vacuum:
         tau_t = config["params_setup"]["tau_t"],
         up1_nm = config["params_setup"]["up1_nm"],
         up2_nm = config["params_setup"]["up2_nm"],
+        integrator = config["params_setup"]["integrator"],
+        energy_writeout_frequency= config["params_setup"]["energy_writeout_frequency"],
         force_constant_restraint = config["params_setup"]["force_constant_restraint"],
     run:
         # first copy all inputs to outputs
@@ -63,6 +62,11 @@ rule set_up_sqra_in_vacuum:
 
         # modifying files
         modify_mdrun(output.runfile, "tau_t", params.tau_t)
+        print("INTEGRATOR",config["params_setup"])
+        modify_mdrun(output.runfile,"integrator",params.integrator)
+        modify_mdrun(output.runfile,"nstenergy",params.energy_writeout_frequency)
+        modify_mdrun(output.runfile, "nstlog", 1)
+        modify_mdrun(output.runfile, "pcoupl", "no")
         modify_topology(output.topology,i="1",j="4",funct=10,low=0.0,
             up1=params.up1_nm,up2=params.up2_nm,force_constant=params.force_constant_restraint)
 
@@ -118,7 +122,7 @@ rule run_pt:
         grid = rules.run_grid.output.full_array
     output:
         structure = f"{PATH_EXPERIMENTS}{{experiment_type}}/{{experiment_id}}/{{grid_identifier}}/structure.gro",
-        trajectory = f"{PATH_EXPERIMENTS}{{experiment_type}}/{{experiment_id}}/{{grid_identifier}}/trajectory.trr"
+        trajectory = f"{PATH_EXPERIMENTS}{{experiment_type}}/{{experiment_id}}/{{grid_identifier}}/trajectory.xtc"
     params:
         cell_size_A = config["params_sqra"]["cell_size_A"]  # cubic box will be the output, this is size of the box in one dimension
     run:
@@ -413,8 +417,8 @@ rule compile_vmd_log:
         index_list = rules.run_sqra.output.index_list,
     output:
         vmdlog = f"{PATH_EXPERIMENTS}{{experiment_type}}/{{experiment_id}}/{{grid_identifier}}/eigenvectors_vmdlog",
-        fig_tga = expand(f"{PATH_EXPERIMENTS}{{experiment_type}}/{{experiment_id}}/{{grid_identifier}}/eigenvector{{i}}.tga", i=[0, 1, 2, 3, 4], allow_missing=True),
-        fig_png= report(expand(f"{PATH_EXPERIMENTS}{{experiment_type}}/{{experiment_id}}/{{grid_identifier}}/eigenvector{{i}}.png",i=[0, 1, 2, 3, 4],allow_missing=True),
+        fig_tga = expand(f"{PATH_EXPERIMENTS}{{experiment_type}}/{{experiment_id}}/{{grid_identifier}}/eigenvector{{i}}.tga", i=[0, 1, 2, 3, 4, 5], allow_missing=True),
+        fig_png= report(expand(f"{PATH_EXPERIMENTS}{{experiment_type}}/{{experiment_id}}/{{grid_identifier}}/eigenvector{{i}}.png",i=[0, 1, 2, 3, 4, 5],allow_missing=True),
         category="{experiment_type}")
     params:
         num_extremes=config["params_sqra"]["num_extremes_to_plot"],

@@ -350,8 +350,6 @@ class PositionGrid:
         for row, col in zip(new_h_matrix.row, new_h_matrix.col):
             new_data.append(np.linalg.norm(points[row] - points[col]))
         new_h_matrix.data = np.array(new_data)
-        print("cartesian_distances", new_data[5], np.linalg.norm(points[new_h_matrix.row[5]]),
-              np.linalg.norm(points[new_h_matrix.col[5]]))
         return new_h_matrix
 
     def _get_coordinates_of_border_polygons(self):
@@ -440,7 +438,6 @@ class PositionGrid:
             increments = list(increments)
             increments.append(increments[-1])
             increments = np.array(increments)
-            print(increments)
             my_diags = _t_and_o_2_positions(np.ones(len(self.o_rotations)), increments) # todo: test
             my_dtype = float
             # within a layer -> this is the arch at the level of points

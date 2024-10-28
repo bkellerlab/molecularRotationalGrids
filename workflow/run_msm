@@ -6,13 +6,14 @@ import sys
 sys.path.append(".")
 import numpy as np
 
+import matplotlib.pyplot as plt
+plt.switch_backend('agg')
+
 
 from molgri.paths import PATH_INPUT_BASEGRO, PATH_EXPERIMENTS
 from workflow.snakemake_utils import modify_mdrun, modify_topology, read_from_mdrun
 
 include: "run_grid"
-
-PATH_EXPERIMENTS = "ex_exp/"
 
 
 # here add other experiment types that should be performed with this pipeline
@@ -56,7 +57,7 @@ rule prepare_water_in_vacuum:
         select_centers = f"{PATH_EXPERIMENTS}{{experiment_type}}/{{unique_id}}/select_centers",
         index_m1 = f"{PATH_EXPERIMENTS}{{experiment_type}}/{{unique_id}}/index_m1.ndx",
     params:
-        nsteps = config["params_setup"]["nsteps"],
+        nsteps = int(config["params_setup"]["nsteps"]),
         integrator = config["params_setup"]["integrator"],
         dt_ps = config["params_setup"]["dt_ps"],
         energy_writeout_frequency = config["params_setup"]["energy_writeout_frequency"],
@@ -203,7 +204,7 @@ rule prepare_water_in_helium:
         select_two = f"{PATH_EXPERIMENTS}{{experiment_type}}/{{unique_id}}/select_two",
         index_m1 = f"{PATH_EXPERIMENTS}{{experiment_type}}/{{unique_id}}/index_m1.ndx",
     params:
-        nsteps = config["params_setup"]["nsteps"],
+        nsteps = int(config["params_setup"]["nsteps"]),
         integrator = config["params_setup"]["integrator"],
         dt_ps = config["params_setup"]["dt_ps"],
         energy_writeout_frequency = config["params_setup"]["energy_writeout_frequency"],
@@ -272,6 +273,7 @@ rule run_msm_gromacs_in_helium:
         """
         initial_dir=$(pwd)
         cd $(dirname {input.structure})
+        export PATH="/home/janjoswig/local/gromacs-2022/bin:$PATH"
         gmx22 trjconv -f $(basename {input.structure}) -s $(basename {input.structure}) -o $(basename {output.only_water_structure}) < $(basename {input.select_two})
         gmx22 grompp -f $(basename {input.runfile}) -o result.tpr -c $(basename {input.structure}) -p $(basename {input.topology})
         gmx22 trjconv -f $(basename {input.structure}) -s result.tpr -o $(basename {output.temp})  < $(basename {input.select_group})
@@ -321,7 +323,6 @@ rule run_trajectory_assignment:
         at = AssignmentTool(my_grid, trajectory_universe, molecule2_universe, cartesian_grid=params.cartesian_grid,
             include_outliers=params.include_outliers)
         assignments = at.get_full_assignments()
-        print("NUM NANS1", np.count_nonzero(np.isnan(assignments)))
 
         # saving output
         np.save(output.assignments,assignments)
@@ -345,7 +346,6 @@ rule run_msm_matrix:
 
         # load data
         my_assignments = np.load(input.assignments)
-        print("LOADED NUM NANS3",np.count_nonzero(np.isnan(my_assignments)))
         num_cells = int(np.nanmax(my_assignments))+1
 
         my_msm = MSM(assigned_trajectory=my_assignments, total_num_cells=num_cells)
@@ -444,12 +444,10 @@ rule compile_vmd_log:
         trajectory = f"{PATH_EXPERIMENTS}{{experiment_type}}/{{unique_id}}/trajectory.xtc",
         eigenvectors=rules.run_decomposition_msm.output.eigenvectors,
         assignments=rules.run_trajectory_assignment.output.assignments,
-        # in the script only the numbers for frames need to be changed.
-        script="molgri/scripts/vmd_show_eigenvectors_ar"
     output:
         vmdlog=f"{PATH_EXPERIMENTS}{{experiment_type}}/{{unique_id}}/{{grid_identifier}}/{{tau}}/eigenvectors_vmdlog",
-        fig_tga = expand(f"{PATH_EXPERIMENTS}{{experiment_type}}/{{unique_id}}/{{grid_identifier}}/{{tau}}/eigenvector{{i}}.tga", i=[0, 1, 2, 3, 4], allow_missing=True),
-        fig_png= report(expand(f"{PATH_EXPERIMENTS}{{experiment_type}}/{{unique_id}}/{{grid_identifier}}/{{tau}}/eigenvector{{i}}.png",i=[0, 1, 2, 3, 4], allow_missing=True),
+        fig_tga = expand(f"{PATH_EXPERIMENTS}{{experiment_type}}/{{unique_id}}/{{grid_identifier}}/{{tau}}/eigenvector{{i}}.tga", i=[0, 1, 2, 3, 4, 5], allow_missing=True),
+        fig_png= report(expand(f"{PATH_EXPERIMENTS}{{experiment_type}}/{{unique_id}}/{{grid_identifier}}/{{tau}}/eigenvector{{i}}.png",i=[0, 1, 2, 3, 4, 5], allow_missing=True),
         category="{unique_id}")
     params:
         num_extremes=config["params_msm"]["num_extremes_to_plot"],
@@ -459,9 +457,13 @@ rule compile_vmd_log:
         eigenvectors = np.load(input.eigenvectors)
         assignments = np.load(input.assignments)
 
-        vmdcreator = VMDCreator(EXPERIMENT_TYPE, "bynum 1:3", "bynum 4:6", assignments)
-        vmdcreator.prepare_eigenvector_script(eigenvectors, output.fig_tga, index_list=None,
+        vmdcreator = VMDCreator(EXPERIMENT_TYPE, "index < 3", "index >= 3", assignments)
+        my_script_text = vmdcreator.prepare_eigenvector_script(eigenvectors.T, output.fig_tga, index_list=None,
             n_eigenvectors=params.num_eigenvec, num_extremes=params.num_extremes, num_of_examples=1)
+
+        with open(output.vmdlog, "w") as f:
+            f.write(my_script_text)
+
         shell("vmd -dispdev text {input.structure} {input.trajectory} < {output.vmdlog}")
         for el_tga, el_png in zip(output.fig_tga, output.fig_png):
             shell("convert {el_tga} {el_png}")

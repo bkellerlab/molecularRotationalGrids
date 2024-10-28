@@ -151,6 +151,7 @@ class AssignmentTool:
     def _t_assignment_function(self, ag):
         min_dist_to_gridpoint = np.argmin(np.abs(self.t_array - np.linalg.norm(ag.center_of_mass())))
         if self.include_outliers:
+            print("including outliers", min_dist_to_gridpoint)
             return min_dist_to_gridpoint
         else:
             outer_bound = self.t_array[-1] + 0.5 * (self.t_array[-1] - self.t_array[-2])
@@ -276,9 +277,8 @@ class MSM:
             window_cell = window(self.assigned_trajectory, int(tau))
 
         for cell_slice in window_cell:
-            #try:
             if len(cell_slice)<2:
-                print(cell_slice)
+                pass
             else:
                 el1, el2 = cell_slice
                 sparse_count_matrix[el1, el2] += 1

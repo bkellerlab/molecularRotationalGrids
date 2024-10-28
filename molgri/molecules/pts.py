@@ -60,6 +60,7 @@ class Pseudotrajectory:
             self.current_frame += 1
 
     def get_pt_as_universe(self) -> Universe:
+        print("getting")
         # only use the generator once
         if self.pt is None:
             # Step 1: Collect the single frames from each universe
@@ -70,7 +71,8 @@ class Pseudotrajectory:
 
             combined_universe = Universe(universes[0]._topology, frames, format=MemoryReader)
             self.pt = combined_universe
-            self.pt.dimensions = self.static_molecule.dimensions
+            for ts in self.pt.trajectory:
+                self.pt.dimensions = self.static_molecule.dimensions
         return self.pt
 
     def _determine_which_molecule(self, return_mol2=True) -> str:

@@ -188,6 +188,7 @@ pseudotrajectory.*
 structure.*
 notebooks
 experiments.zip
+.tests
 
 workflow/*.csv
 !workflow/all_paper_2024_experiments.csv

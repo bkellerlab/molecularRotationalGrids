@@ -8,19 +8,20 @@ import numpy as np
 import sys
 from scipy import sparse
 
+import matplotlib.pyplot as plt
+plt.switch_backend('agg')
 
 sys.path.append(".")
 from molgri.space.fullgrid import FullGrid
+from molgri.paths import PATH_EXPERIMENTS
 
-
-PATH_EXPERIMENTS = "ex_exp/"
 PATH_GRIDS = f"{PATH_EXPERIMENTS}grids/"
 GRID_ID = config["grid_identifier"]
 
 rule all_grids:
     input:
-        f"{PATH_GRIDS}{GRID_ID}/voronoi.png"
-        #expand(f"{PATH_GRIDS}{GRID_ID}/{{what}}", what=["full_array.npy"]),
+        #f"{PATH_GRIDS}{GRID_ID}/voronoi.png"
+        expand(f"{PATH_GRIDS}{GRID_ID}/{{what}}", what=["full_array.npy"]),
 
 rule run_grid:
     """
@@ -35,8 +36,8 @@ rule run_grid:
         borders_array= f"{PATH_GRIDS}{{grid_identifier}}/borders_array.npz",
         volumes = f"{PATH_GRIDS}{{grid_identifier}}/volumes.npy",
     params:
-        n_points_orientations = str(config["params_grid"]["num_orientations"]),
-        n_points_directions = str(config["params_grid"]["num_directions"]),
+        n_points_orientations = str(int(config["params_grid"]["num_orientations"])),
+        n_points_directions = str(int(config["params_grid"]["num_directions"])),
         radial_distances_nm = config["params_grid"]["radial_distances_nm"],
         factor_orientation_to_position=float(config["params_grid"]["factor_orientation_to_position"]),
         position_grid_cartesian = bool(config["params_grid"]["position_grid_is_cartesian"])
@@ -99,8 +100,6 @@ rule plot_grid:
         plot_array_heatmap(borders,output.borders_heatmap)
 
         # all violin plots
-        #print("Position", adjacency_only_position.col, adjacency_only_position.row, adjacency_only_position.data)
-        #plot_violin_position_orientation(volumes, output.volumes_violin)
         plot_violin_position_orientation(distances, adjacency_only_position, output.distances_violin)
         plot_violin_position_orientation(borders, adjacency_only_position, output.borders_violin)
 
