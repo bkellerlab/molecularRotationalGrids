@@ -21,7 +21,7 @@ params_setup:
  energy_writeout_frequency: 0
  compressed_writeout_frequency: 5
  epsilon: 1
- cutoff-scheme: Cut-off
+ coulombtype: Cut-off
  
 params_sqra:
  cell_size_A: 30

@@ -1,5 +1,5 @@
 ; Include forcefield parameters
-#include "./argon_forcefield.itp"
+#include "./he_forcefield.itp"
 
 ; Include topology for water
 #include "amber99sb-ildn.ff/tip3p.itp"

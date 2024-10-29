@@ -7,7 +7,15 @@
 
 # molecularRotationalGrids
 
-The python package ```molgri``` has three main purposes: 1) generation of rotation grids, 2) analysis of
+The python package ```molgri``` can be used to discretize the translational and rotational space of a rigid body - the SE(3) space.
+We use this discretization to systematically generate sets of two-molecule structures and thus investigate the
+space and pathways of molecular association. Furthermore, Markov state models can be built based on the 
+tesselation that translational and rotational grids induce and used to analyse most populated states and
+slowest transitions between them.
+All of this functionality is incorporated in ```molgri```.
+
+
+By incorporarting a  has three main purposes: 1) generation of rotation grids, 2) analysis of
 said grids and 3) generation of pseudotrajectories (PTs). PTs are files in .xtc or similar format 
 consisting of several timesteps in
 which the interaction space of two molecules is systematically explored. We provide user-friendly,
@@ -27,9 +35,9 @@ using VMD.
 </p>
 
 <p float="left">
-    <img src="/readme_images/systemE_1000_uniformity.png" width="30%">
+    <img src="/readme_images/molgri_demonstration.png" width="30%">
     <img src="/readme_images/set_up_30_full_color.png" width="30%">
-    <img src="/readme_images/systemE_1000_convergence.png" width="30%">
+    <img src="/readme_images/clustering_only.png" width="30%">
 </p>
 
 
@@ -42,25 +50,6 @@ This is a python library that can be easily installed using:
 pip install molgri
 ```
 
-## Reproducing papers
-
-To use the functionality of our 2022 paper
-
-Zupan, Hana, Frederick Heinz, and Bettina G. Keller. "Grid-based state space exploration for molecular binding." Canadian Journal of Chemistry (2022)
-
-please install an old version of molgri: pip install molgri==1.3.4
-
-To use the functionality of our current work
-
-[to be published]
-
-please install the last available version of molgri. After installation and assuming you have GROMACS 2022 available on your system as command "gmx22" as well as VMD as command "vmd", you can replicate our computational experiments with:
-
-snakemake --cores 10
-
-(note that this process requires significant memory and time and may need to be run on a computer cluster)
-
-If you want to modify the experiments or only run parts of the programs we have some suggestions below.
 
 # Using molgri
 
@@ -195,39 +184,69 @@ gmx22 energy -f ener.edr -o full_energy.xvg
 ## Using snakemake pipelines
 
 The pre-requirements for fully functional pipelines are:
-- python with correct packages (pip install -r requirements)
+- python with correct packages (obtained through pip install molgri)
 - GROMACS (the command *gmx22* should be functional in the terminal where the pipeline is run)
 - VMD (the command *vmd* should be functional in the terminal where the pipeline is run)
 
-For reproducing the entire set of computational experiments om our publications see the section Reproducing papers.
+For reproducing the entire set of computational experiments om our publications see the section Citations and reproducing papers.
 
-To run your own computational experiment, prepare a configuration file and then run the appropriate one of pipeline files "run_sqra", "run_msm" or "run_grid", for example:
+To run your own computational experiment, prepare a configuration file by copying and modifying the template you can find in
+```molgri/examples/default_configuration_file.yaml```. 
+
+Three computational pipelines are then prepared for you:
+* *run_grid* to create a particular discretization 
+and then run the appropriate one of pipeline files "run_sqra", "run_msm" or "run_grid", for example:
 snakemake --snakefile workflow/run_sqra --cores 4 --configfile input/default_configuration_file.yaml
 
 ### Creating records
-Records are useful to have an overview of experiments that have been set-up so far and their parameters. To obtain (or update) summary files run
+Records are useful to have an overview of experiments that have been set-up so far and their parameters. To obtain (or update) summary files run:
+
+```
 snakemake --snakefile workflow/run_records --cores 4
-This creates an overview .csv file in each subfolder of experiments/
+```
 
-## importing the package
+This creates an overview .csv file in each sub-folder of experiments/
 
-Users who would like to build custom grids, pseudotrajectories or sets of rotations and enjoy more
-flexibility with visualisation tools can import ```molgri```
+## Importing the package
+
+Users who would like to build custom grids, pseudotrajectories, Markov state models and enjoy more
+flexibility with available tools can import ```molgri```
 as a python package (following installation described above) and work with all provided modules. Documentation
 of all modules is available online
 [via ReadTheDocs](https://molgri.readthedocs.io/en/main/).
 
-# Citation
+To get a feeling for the use of the modules we recommend first reading through our workflows ```run_grid```, ```run_sqra``` and ```run_msm```.
 
-If this repository has helped you, please cite the following publication:
+# Citations and reproducing papers
 
-Zupan, Hana, Frederick Heinz, and Bettina G. Keller. "Grid-based state space exploration for molecular binding." Canadian Journal of Chemistry (2022)
-
-arXiv preprint available at: [https://arxiv.org/abs/2211.00566](https://arxiv.org/abs/2211.00566)
-
+To get additional background on the use of grids for systematic generation of bi-molecular structures and 
+construction of trajectory-free Markov state models we recommend reading through our open-access paper
 
 
+> Zupan, Hana, Frederick Heinz, and Bettina G. Keller. "Grid-based state space exploration for molecular binding." Canadian Journal of Chemistry (2022)
 
+and
+
+> [to be published (2024/2025)]
+
+To reproduce the functionality demonstrated in the 2022 paper, please install an old version of molgri: ```pip install molgri==1.3.4```. 
+While most of the old code remains, some has been updated or removed.
+
+To use the full functionality of our current work, please install the last available version of molgri, versions
+```> 2.0.0 ```. 
+
+We believe computational experiments should be easily reproducible! To reproduce the computational experiments
+featured in our latest publication (TODO: as publication is not complete yet, note that this is still somewhat in development), please install the latest version of ```molgri``` and run:
+
+ > snakemake --cores 10
+
+> **Notes:**
+ > * in additional to internal python dependencies, two external programs must be installed and available at the command line to run this replication study: GROMACS 2022 must be available on your system as command *gmx22* and VMD as command *vmd*
+ > * this process starts running 48 computational experiments - some only take seconds, but some take over a day of computational time and/or use over 10GB of memory and/or write out over 3GB of data ... so you probably want to use a computer cluster if you are running a full replication (TODO: we plan to include more accurate estimate of resources needed)
+ > * if you want to only replicate a part of our work or run modified versions of experiments, use different molecules etc. the section *Using molgri* will be more useful for you
+  > * feel free to contact us if you need support running the replication
+  
+If this repository has helped you, please cite our publications!
 
 # Dependencies
 
@@ -237,31 +256,39 @@ Dependencies of molgri are managed with poetry. Usage:
 
 1) install pipx:
 
-   python3 -m pip install --user pipx
-   python3 -m pipx ensurepath
+```
+python3 -m pip install --user pipx
+python3 -m pipx ensurepath
+```
 
 And then open a new terminal. If there are problems, pipx reinstall-all is also useful.
 
-3) install poetry in a separate environment with pipx: 
+2) install poetry in a separate environment with pipx: 
 
-   pipx install poetry
+```
+pipx install poetry
+```
 
 4) now you add/remove dependencies via poetry:
 
-    poetry add &lt;dependency&gt;
+```
+poetry add <dependency>
+poetry remove <dependency>
+```
 
-    poetry remove &lt;dependency&gt;
-
-Or if dependency is only needed for a specific part of the process you can add --group &lt;group_name&gt; to both commands. Currently, there are groups ’notebooks’, ’test’ and ’workflows’.
+If a dependency is only needed for a specific part of the process you please add ```--group <group_name>``` to the 
+commands. Currently, there are groups *notebooks*, *test* and *workflows*.
 3) To make sure no other dependencies are present in the environment, occasionally run
 
-   poetry install --sync --with notebooks,workflows,test
+```
+poetry install --sync
+```
 
 and to update to latest compatible versions occasionally run
-
-   poetry update package
-
-4) Now you can:
-   - run a specific module, e.g. poetry run python -m molgri.plotting.other_plots
-   - run tests, e.g. poetry run pytest
-   - run workflows, e.g. poetry run snakemake --snakefile workflow/run_grid --configfile input/default_configuration_file.yaml --cores 4
+```
+poetry update package
+```
+4) Now the set-up is complete you can:
+   - run a specific module, e.g. ```poetry run python -m molgri.plotting.other_plots```
+   - run tests, e.g. ```poetry run pytest```
+   - run workflows, e.g. ```poetry run snakemake --snakefile workflow/run_grid --configfile molgri/examples/default_configuration_file.yaml --cores 4```

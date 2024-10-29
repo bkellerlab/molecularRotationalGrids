@@ -11,7 +11,7 @@ plt.switch_backend('agg')
 # add molgri directory
 sys.path.append(".")
 from workflow.snakemake_utils import modify_mdrun, modify_topology
-from molgri.paths import PATH_INPUT_BASEGRO, PATH_EXPERIMENTS
+from molgri.paths import PATH_INPUT_BASEGRO, PATH_EXPERIMENTS, PATH_EXAMPLES
 
 include: "run_grid"
 
@@ -34,10 +34,10 @@ rule set_up_sqra_in_vacuum:
     wildcard_constraints:
         experiment_type=".*water.*"
     input:
-        water_gro = f"{PATH_INPUT_BASEGRO}H2O.gro",
-        water_top = f"{PATH_INPUT_BASEGRO}H2O_H2O.top",
-        select_energy=f"{PATH_INPUT_BASEGRO}select_energy_five",
-        runfile= f"{PATH_INPUT_BASEGRO}mdrun.mdp",
+        water_gro = f"{PATH_EXAMPLES}H2O.gro",
+        water_top = f"{PATH_EXAMPLES}H2O_H2O.top",
+        select_energy=f"{PATH_EXAMPLES}select_energy_five",
+        runfile= f"{PATH_EXAMPLES}mdrun.mdp",
     output:
         molecule1 = f"{PATH_EXPERIMENTS}{{experiment_type}}/{{experiment_id}}/{{grid_identifier}}/m1.gro",
         molecule2 = f"{PATH_EXPERIMENTS}{{experiment_type}}/{{experiment_id}}/{{grid_identifier}}/m2.gro",
@@ -62,7 +62,6 @@ rule set_up_sqra_in_vacuum:
 
         # modifying files
         modify_mdrun(output.runfile, "tau_t", params.tau_t)
-        print("INTEGRATOR",config["params_setup"])
         modify_mdrun(output.runfile,"integrator",params.integrator)
         modify_mdrun(output.runfile,"nstenergy",params.energy_writeout_frequency)
         modify_mdrun(output.runfile, "nstlog", 1)

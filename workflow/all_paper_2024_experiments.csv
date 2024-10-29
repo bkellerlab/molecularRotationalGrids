@@ -1,49 +1,49 @@
-experiment_type,experiment_id,grid_identifier,num_orientations,num_directions,radial_distances_nm,include_outliers,position_grid_is_cartesian,tau_t,integrator,nsteps
-grids,grid1,small_spherical_outliers,8,12,"'linspace(0.2, 0.4, 10)'",True,False,None,None,None
-grids,grid2,small_spherical_no_outliers,8,12,"'linspace(0.2, 0.4, 10)'",False,False,None,None,None
-grids,grid3,small_cartesian_outliers,8,12,"'linspace(0.2, 0.4, 10)'",True,True,None,None,None
-grids,grid4,small_cartesian_no_outliers,8,12,"'linspace(0.2, 0.4, 10)'",False,True,None,None,None
-grids,grid5,spherical_outliers,80,80,"'linspace(0.2, 0.4, 10)'",True,False,None,None,None
-grids,grid6,spherical_no_outliers,80,80,"'linspace(0.2, 0.4, 10)'",False,False,None,None,None
-grids,grid7,cartesian_outliers,80,80,"'linspace(0.2, 0.4, 10)'",True,True,None,None,None
-grids,grid8,cartesian_no_outliers,80,80,"'linspace(0.2, 0.4, 10)'",False,True,None,None,None
-sqra_water_in_vacuum,tau_1_spherical,small_spherical_outliers,None,None,None,None,None,1.0,sd,None
-sqra_water_in_vacuum,tau_2_spherical,small_spherical_outliers,None,None,None,None,None,0.1,sd,None
-sqra_water_in_vacuum,tau_3_spherical,small_spherical_outliers,None,None,None,None,None,0.01,sd,None
-sqra_water_in_vacuum,tau_4_spherical,small_spherical_outliers,None,None,None,None,None,0.001,sd,None
-sqra_water_in_vacuum,tau_1_cartesian,small_cartesian_outliers,None,None,None,None,None,1.0,sd,None
-sqra_water_in_vacuum,tau_2_cartesian,small_cartesian_outliers,None,None,None,None,None,0.1,sd,None
-sqra_water_in_vacuum,tau_3_cartesian,small_cartesian_outliers,None,None,None,None,None,0.01,sd,None
-sqra_water_in_vacuum,tau_4_cartesian,small_cartesian_outliers,None,None,None,None,None,0.001,sd,None
-msm_water_in_vacuum,tau_1_spherical,small_spherical_outliers,None,None,None,None,None,1.0,sd,40000
-msm_water_in_vacuum,tau_2_spherical,small_spherical_outliers,None,None,None,None,None,0.1,sd,40000
-msm_water_in_vacuum,tau_3_spherical,small_spherical_outliers,None,None,None,None,None,0.01,sd,40000
-msm_water_in_vacuum,tau_4_spherical,small_spherical_outliers,None,None,None,None,None,0.001,sd,40000
-msm_water_in_vacuum,tau_1_cartesian,small_cartesian_outliers,None,None,None,None,None,1.0,sd,40000
-msm_water_in_vacuum,tau_2_cartesian,small_cartesian_outliers,None,None,None,None,None,0.1,sd,40000
-msm_water_in_vacuum,tau_3_cartesian,small_cartesian_outliers,None,None,None,None,None,0.01,sd,40000
-msm_water_in_vacuum,tau_4_cartesian,small_cartesian_outliers,None,None,None,None,None,0.001,sd,40000
-msm_water_in_vacuum,tau_1_spherical,small_spherical_no_outliers,None,None,None,None,None,1.0,sd,40000
-msm_water_in_vacuum,tau_2_spherical,small_spherical_no_outliers,None,None,None,None,None,0.1,sd,40000
-msm_water_in_vacuum,tau_3_spherical,small_spherical_no_outliers,None,None,None,None,None,0.01,sd,40000
-msm_water_in_vacuum,tau_4_spherical,small_spherical_no_outliers,None,None,None,None,None,0.001,sd,40000
-msm_water_in_vacuum,tau_1_cartesian,small_cartesian_no_outliers,None,None,None,None,None,1.0,sd,40000
-msm_water_in_vacuum,tau_2_cartesian,small_cartesian_no_outliers,None,None,None,None,None,0.1,sd,40000
-msm_water_in_vacuum,tau_3_cartesian,small_cartesian_no_outliers,None,None,None,None,None,0.01,sd,40000
-msm_water_in_vacuum,tau_4_cartesian,small_cartesian_no_outliers,None,None,None,None,None,0.001,sd,40000
-msm_water_in_helium,tau_1_spherical,small_spherical_outliers,None,None,None,None,None,1.0,sd,40000
-msm_water_in_helium,tau_2_spherical,small_spherical_outliers,None,None,None,None,None,0.1,sd,40000
-msm_water_in_helium,tau_3_spherical,small_spherical_outliers,None,None,None,None,None,0.01,sd,40000
-msm_water_in_helium,tau_4_spherical,small_spherical_outliers,None,None,None,None,None,0.001,sd,40000
-msm_water_in_helium,tau_1_cartesian,small_cartesian_outliers,None,None,None,None,None,1.0,sd,40000
-msm_water_in_helium,tau_2_cartesian,small_cartesian_outliers,None,None,None,None,None,0.1,sd,40000
-msm_water_in_helium,tau_3_cartesian,small_cartesian_outliers,None,None,None,None,None,0.01,sd,40000
-msm_water_in_helium,tau_4_cartesian,small_cartesian_outliers,None,None,None,None,None,0.001,sd,40000
-msm_water_in_helium,tau_1_spherical,small_spherical_no_outliers,None,None,None,None,None,1.0,sd,40000
-msm_water_in_helium,tau_2_spherical,small_spherical_no_outliers,None,None,None,None,None,0.1,sd,40000
-msm_water_in_helium,tau_3_spherical,small_spherical_no_outliers,None,None,None,None,None,0.01,sd,40000
-msm_water_in_helium,tau_4_spherical,small_spherical_no_outliers,None,None,None,None,None,0.001,sd,40000
-msm_water_in_helium,tau_1_cartesian,small_cartesian_no_outliers,None,None,None,None,None,1.0,sd,40000
-msm_water_in_helium,tau_2_cartesian,small_cartesian_no_outliers,None,None,None,None,None,0.1,sd,40000
-msm_water_in_helium,tau_3_cartesian,small_cartesian_no_outliers,None,None,None,None,None,0.01,sd,40000
-msm_water_in_helium,tau_4_cartesian,small_cartesian_no_outliers,None,None,None,None,None,0.001,sd,40000
+experiment_type,experiment_id,grid_identifier,num_orientations,num_directions,radial_distances_nm,include_outliers,position_grid_is_cartesian,tau_t,integrator,nsteps,coulombtype
+grids,grid1,small_spherical_outliers,8,12,"'linspace(0.2, 0.4, 10)'",True,False,None,None,None,None
+grids,grid2,small_spherical_no_outliers,8,12,"'linspace(0.2, 0.4, 10)'",False,False,None,None,None,None
+grids,grid3,small_cartesian_outliers,8,12,"'linspace(0.2, 0.4, 10)'",True,True,None,None,None,None
+grids,grid4,small_cartesian_no_outliers,8,12,"'linspace(0.2, 0.4, 10)'",False,True,None,None,None,None
+grids,grid5,spherical_outliers,80,80,"'linspace(0.2, 0.4, 10)'",True,False,None,None,None,None
+grids,grid6,spherical_no_outliers,80,80,"'linspace(0.2, 0.4, 10)'",False,False,None,None,None,None
+grids,grid7,cartesian_outliers,80,80,"'linspace(0.2, 0.4, 10)'",True,True,None,None,None,None
+grids,grid8,cartesian_no_outliers,80,80,"'linspace(0.2, 0.4, 10)'",False,True,None,None,None,None
+sqra_water_in_vacuum,tau_1_spherical,spherical_outliers,None,None,None,None,None,1.0,sd,None,None
+sqra_water_in_vacuum,tau_2_spherical,spherical_outliers,None,None,None,None,None,0.1,sd,None,None
+sqra_water_in_vacuum,tau_3_spherical,spherical_outliers,None,None,None,None,None,0.01,sd,None,None
+sqra_water_in_vacuum,tau_4_spherical,spherical_outliers,None,None,None,None,None,0.001,sd,None,None
+sqra_water_in_vacuum,tau_1_cartesian,cartesian_outliers,None,None,None,None,None,1.0,sd,None,None
+sqra_water_in_vacuum,tau_2_cartesian,cartesian_outliers,None,None,None,None,None,0.1,sd,None,None
+sqra_water_in_vacuum,tau_3_cartesian,cartesian_outliers,None,None,None,None,None,0.01,sd,None,None
+sqra_water_in_vacuum,tau_4_cartesian,cartesian_outliers,None,None,None,None,None,0.001,sd,None,None
+msm_water_in_vacuum,tau_1_spherical,spherical_outliers,None,None,None,None,None,1.0,sd,40000000,Cut-off
+msm_water_in_vacuum,tau_2_spherical,spherical_outliers,None,None,None,None,None,0.1,sd,40000000,Cut-off
+msm_water_in_vacuum,tau_3_spherical,spherical_outliers,None,None,None,None,None,0.01,sd,40000000,Cut-off
+msm_water_in_vacuum,tau_4_spherical,spherical_outliers,None,None,None,None,None,0.001,sd,40000000,Cut-off
+msm_water_in_vacuum,tau_1_cartesian,cartesian_outliers,None,None,None,None,None,1.0,sd,40000000,Cut-off
+msm_water_in_vacuum,tau_2_cartesian,cartesian_outliers,None,None,None,None,None,0.1,sd,40000000,Cut-off
+msm_water_in_vacuum,tau_3_cartesian,cartesian_outliers,None,None,None,None,None,0.01,sd,40000000,Cut-off
+msm_water_in_vacuum,tau_4_cartesian,cartesian_outliers,None,None,None,None,None,0.001,sd,40000000,Cut-off
+msm_water_in_vacuum,tau_1_spherical,spherical_no_outliers,None,None,None,None,None,1.0,sd,40000000,Cut-off
+msm_water_in_vacuum,tau_2_spherical,spherical_no_outliers,None,None,None,None,None,0.1,sd,40000000,Cut-off
+msm_water_in_vacuum,tau_3_spherical,spherical_no_outliers,None,None,None,None,None,0.01,sd,40000000,Cut-off
+msm_water_in_vacuum,tau_4_spherical,spherical_no_outliers,None,None,None,None,None,0.001,sd,40000000,Cut-off
+msm_water_in_vacuum,tau_1_cartesian,cartesian_no_outliers,None,None,None,None,None,1.0,sd,40000000,Cut-off
+msm_water_in_vacuum,tau_2_cartesian,cartesian_no_outliers,None,None,None,None,None,0.1,sd,40000000,Cut-off
+msm_water_in_vacuum,tau_3_cartesian,cartesian_no_outliers,None,None,None,None,None,0.01,sd,40000000,Cut-off
+msm_water_in_vacuum,tau_4_cartesian,cartesian_no_outliers,None,None,None,None,None,0.001,sd,40000000,Cut-off
+msm_water_in_helium,tau_1_spherical,spherical_outliers,None,None,None,None,None,1.0,sd,40000000,PME
+msm_water_in_helium,tau_2_spherical,spherical_outliers,None,None,None,None,None,0.1,sd,40000000,PME
+msm_water_in_helium,tau_3_spherical,spherical_outliers,None,None,None,None,None,0.01,sd,40000000,PME
+msm_water_in_helium,tau_4_spherical,spherical_outliers,None,None,None,None,None,0.001,sd,40000000,PME
+msm_water_in_helium,tau_1_cartesian,cartesian_outliers,None,None,None,None,None,1.0,sd,40000000,PME
+msm_water_in_helium,tau_2_cartesian,cartesian_outliers,None,None,None,None,None,0.1,sd,40000000,PME
+msm_water_in_helium,tau_3_cartesian,cartesian_outliers,None,None,None,None,None,0.01,sd,40000000,PME
+msm_water_in_helium,tau_4_cartesian,cartesian_outliers,None,None,None,None,None,0.001,sd,40000000,PME
+msm_water_in_helium,tau_1_spherical,spherical_no_outliers,None,None,None,None,None,1.0,sd,40000000,PME
+msm_water_in_helium,tau_2_spherical,spherical_no_outliers,None,None,None,None,None,0.1,sd,40000000,PME
+msm_water_in_helium,tau_3_spherical,spherical_no_outliers,None,None,None,None,None,0.01,sd,40000000,PME
+msm_water_in_helium,tau_4_spherical,spherical_no_outliers,None,None,None,None,None,0.001,sd,40000000,PME
+msm_water_in_helium,tau_1_cartesian,cartesian_no_outliers,None,None,None,None,None,1.0,sd,40000000,PME
+msm_water_in_helium,tau_2_cartesian,cartesian_no_outliers,None,None,None,None,None,0.1,sd,40000000,PME
+msm_water_in_helium,tau_3_cartesian,cartesian_no_outliers,None,None,None,None,None,0.01,sd,40000000,PME
+msm_water_in_helium,tau_4_cartesian,cartesian_no_outliers,None,None,None,None,None,0.001,sd,40000000,PME

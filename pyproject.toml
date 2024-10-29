@@ -1,7 +1,7 @@
 [tool.poetry]
 name = "molgri"
-version = "1.3.8"
-description = "Generate molecular pseudotrajectories based on rotational grids."
+version = "2.0.0"
+description = "Systematically generate structures of two molecules based on discretisation of translational and rotational space."
 authors = ["Hana Zupan <hana.zupan@fu-berlin.de>"]
 license = "LICENSE"
 readme = "README.md"
@@ -64,5 +64,4 @@ molgri-io = "molgri.scripts.set_up_io:parse_and_create"
 #dependencies = {file = "requirements.txt"}
 
 [tool.setuptools.package-data]
-mypkg = ["molgri/examples/*.gro", "molgri/examples/*.pdb", "molgri/examples/*.xtc", "molgri/examples/*.xvg",
-"molgri/examples/*.xyz"]
+mypkg = ["molgri/examples/*"]

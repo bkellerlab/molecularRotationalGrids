@@ -144,14 +144,11 @@ class AssignmentTool:
             alignment_magnitudes[i] = Rotation.from_matrix(rm@my_quaternions.transpose(0, 2, 1)).magnitude()
         result = np.argmin(alignment_magnitudes, axis=0).flatten()
         t2= time()
-        print("Q assignments time", t2-t1)
-        print(pd.DataFrame(result).describe())
         return np.array(result)
 
     def _t_assignment_function(self, ag):
         min_dist_to_gridpoint = np.argmin(np.abs(self.t_array - np.linalg.norm(ag.center_of_mass())))
         if self.include_outliers:
-            print("including outliers", min_dist_to_gridpoint)
             return min_dist_to_gridpoint
         else:
             outer_bound = self.t_array[-1] + 0.5 * (self.t_array[-1] - self.t_array[-2])
@@ -174,7 +171,6 @@ class AssignmentTool:
             self.trajectory_universe.select_atoms(self.second_molecule_selection))
         t_selection.run(stop=self.stop)
         t_indices = t_selection.results['timeseries'].flatten()
-        print("t statistics", pd.DataFrame(t_indices).describe())
         return t_indices
 
     def _o_assignment_function(self, ag):
@@ -200,7 +196,6 @@ class AssignmentTool:
                                            self.trajectory_universe.select_atoms(self.second_molecule_selection))
         o_selection.run(stop=self.stop)
         o_indices = o_selection.results['timeseries'].flatten()
-        print("o statistics", pd.DataFrame(o_indices).describe())
         return o_indices
 
     def _get_position_assignments(self):

@@ -10,7 +10,7 @@ import matplotlib.pyplot as plt
 plt.switch_backend('agg')
 
 
-from molgri.paths import PATH_INPUT_BASEGRO, PATH_EXPERIMENTS
+from molgri.paths import PATH_EXPERIMENTS, PATH_EXAMPLES
 from workflow.snakemake_utils import modify_mdrun, modify_topology, read_from_mdrun
 
 include: "run_grid"
@@ -42,12 +42,12 @@ rule prepare_water_in_vacuum:
     wildcard_constraints:
         experiment_type=".*msm_water_in_vacuum.*"
     input:
-        water_gro = f"{PATH_INPUT_BASEGRO}H2O.gro",
-        water_top = f"{PATH_INPUT_BASEGRO}H2O_H2O.top",
-        base_mdp_file = f"{PATH_INPUT_BASEGRO}mdrun.mdp",
-        select_group=f"{PATH_INPUT_BASEGRO}select_group_zero",
-        select_centers=f"{PATH_INPUT_BASEGRO}select_3_and_0",
-        index_m1=f"{PATH_INPUT_BASEGRO}index_first_mol.ndx",
+        water_gro = f"{PATH_EXAMPLES}H2O.gro",
+        water_top = f"{PATH_EXAMPLES}H2O_H2O.top",
+        base_mdp_file = f"{PATH_EXAMPLES}mdrun.mdp",
+        select_group=f"{PATH_EXAMPLES}select_group_zero",
+        select_centers=f"{PATH_EXAMPLES}select_3_and_0",
+        index_m1=f"{PATH_EXAMPLES}index_first_mol.ndx",
     output:
         molecule1 = f"{PATH_EXPERIMENTS}{{experiment_type}}/{{unique_id}}/m1.gro",
         molecule2 = f"{PATH_EXPERIMENTS}{{experiment_type}}/{{unique_id}}/m2.gro",
@@ -66,6 +66,7 @@ rule prepare_water_in_vacuum:
         tau_t= config["params_setup"]["tau_t"],
         up1_nm= config["params_setup"]["up1_nm"],
         up2_nm= config["params_setup"]["up2_nm"],
+        coulombtype= config["params_setup"]["coulombtype"],
         force_constant_restraint= config["params_setup"]["force_constant_restraint"],
     run:
         import shutil
@@ -89,6 +90,7 @@ rule prepare_water_in_vacuum:
         modify_mdrun(output.runfile,"nstenergy", params.energy_writeout_frequency)
         modify_mdrun(output.runfile,"nstxout-compressed",params.compressed_writeout_frequency)
         modify_mdrun(output.runfile,"epsilon-r",params.epsilon)
+        modify_mdrun(output.runfile,"coulombtype",params.coulombtype)
         # modify topology with given parameters
         modify_topology(output.topology,i="1",j="4",funct=10,low=0.0,up1=params.up1_nm,up2=params.up2_nm,
             force_constant=params.force_constant_restraint)
@@ -178,21 +180,20 @@ rule prepare_water_in_helium:
     wildcard_constraints:
         experiment_type=".*msm_water_in_helium.*"
     input:
-        full_structure = f"{PATH_INPUT_BASEGRO}nvt_fake_ar.gro",
-        forcefield1 = f"{PATH_INPUT_BASEGRO}argon_forcefield.itp",
-        forcefield2 = f"{PATH_INPUT_BASEGRO}ffnonbonded.itp",
-        forcefield3 = f"{PATH_INPUT_BASEGRO}ffbonded.itp",
-        water_in_arg_top = f"{PATH_INPUT_BASEGRO}topol_fake_ar.top",
-        water_gro = f"{PATH_INPUT_BASEGRO}H2O.gro",
-        #water_top = f"{PATH_INPUT_BASEGRO}H2O_H2Op.top",
-        base_mdp_file = f"{PATH_INPUT_BASEGRO}mdrun.mdp",
-        select_group=f"{PATH_INPUT_BASEGRO}select_group_zero",
-        select_centers=f"{PATH_INPUT_BASEGRO}select_3_and_0",
-        select_two=f"{PATH_INPUT_BASEGRO}select_2",
-        index_m1=f"{PATH_INPUT_BASEGRO}index_first_mol.ndx",
+        full_structure = f"{PATH_EXAMPLES}nvt_he.gro",
+        forcefield1 = f"{PATH_EXAMPLES}he_forcefield.itp",
+        forcefield2 = f"{PATH_EXAMPLES}ffnonbonded.itp",
+        forcefield3 = f"{PATH_EXAMPLES}ffbonded.itp",
+        water_in_arg_top = f"{PATH_EXAMPLES}topol_he.top",
+        water_gro = f"{PATH_EXAMPLES}H2O.gro",
+        base_mdp_file = f"{PATH_EXAMPLES}mdrun.mdp",
+        select_group=f"{PATH_EXAMPLES}select_group_zero",
+        select_centers=f"{PATH_EXAMPLES}select_3_and_0",
+        select_two=f"{PATH_EXAMPLES}select_2",
+        index_m1=f"{PATH_EXAMPLES}index_first_mol.ndx",
     output:
         full_structure= f"{PATH_EXPERIMENTS}{{experiment_type}}/{{unique_id}}/full_structure.gro",
-        forcefield1 = f"{PATH_EXPERIMENTS}{{experiment_type}}/{{unique_id}}/argon_forcefield.itp",
+        forcefield1 = f"{PATH_EXPERIMENTS}{{experiment_type}}/{{unique_id}}/he_forcefield.itp",
         forcefield2 = f"{PATH_EXPERIMENTS}{{experiment_type}}/{{unique_id}}/ffnonbonded.itp",
         forcefield3 = f"{PATH_EXPERIMENTS}{{experiment_type}}/{{unique_id}}/ffbonded.itp",
         molecule1 = f"{PATH_EXPERIMENTS}{{experiment_type}}/{{unique_id}}/m1.gro",
@@ -211,8 +212,9 @@ rule prepare_water_in_helium:
         compressed_writeout_frequency = config["params_setup"]["compressed_writeout_frequency"],
         epsilon = config["params_setup"]["epsilon"],
         tau_t= config["params_setup"]["tau_t"],
-        up1_nm= config["params_setup"]["up1_nm"],
-        up2_nm= config["params_setup"]["up2_nm"],
+        up1_nm = config["params_setup"]["up1_nm"],
+        up2_nm = config["params_setup"]["up2_nm"],
+        coulombtype = config["params_setup"]["coulombtype"],
         force_constant_restraint= config["params_setup"]["force_constant_restraint"],
     run:
         import shutil
@@ -237,6 +239,7 @@ rule prepare_water_in_helium:
         modify_mdrun(output.runfile,"nsteps",params.nsteps)
         modify_mdrun(output.runfile,"tau_t",params.tau_t)
         modify_mdrun(output.runfile,"dt",params.dt_ps)
+        modify_mdrun(output.runfile,"coulombtype",params.coulombtype)
         modify_mdrun(output.runfile,"nstenergy", params.energy_writeout_frequency)
         modify_mdrun(output.runfile,"nstxout-compressed",params.compressed_writeout_frequency)
         modify_mdrun(output.runfile,"epsilon-r",params.epsilon)
@@ -277,7 +280,7 @@ rule run_msm_gromacs_in_helium:
         gmx22 trjconv -f $(basename {input.structure}) -s $(basename {input.structure}) -o $(basename {output.only_water_structure}) < $(basename {input.select_two})
         gmx22 grompp -f $(basename {input.runfile}) -o result.tpr -c $(basename {input.structure}) -p $(basename {input.topology})
         gmx22 trjconv -f $(basename {input.structure}) -s result.tpr -o $(basename {output.temp})  < $(basename {input.select_group})
-        gmx22 mdrun -s result.tpr -x $(basename {output.temp}) -e ener.edr -g $(basename {log.log})
+        gmx22 mdrun -s result.tpr -x $(basename {output.temp}) -e ener.edr -g $(basename {log.log}) -nt 1
         gmx22 trjconv -f $(basename {output.temp}) -s result.tpr -pbc mol -center -o $(basename {output.temp2}) -n $(basename {input.index_m1}) < $(basename {input.select_centers})
         gmx22 trjconv -fit rot+trans -f $(basename {output.temp2}) -o $(basename {output.trajectory}) -s $(basename {input.structure}) -n $(basename {input.index_m1}) < $(basename {input.select_centers})
         cd "$initial_dir" || exit

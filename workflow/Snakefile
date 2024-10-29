@@ -4,7 +4,7 @@ import pandas as pd
 
 sys.path.append(".")
 
-from molgri.paths import PATH_INPUT_BASEGRO, PATH_EXPERIMENTS
+from molgri.paths import PATH_EXPERIMENTS, PATH_EXAMPLES
 
 
 # read from database and prepare all experiments
@@ -17,12 +17,12 @@ msm_helium_experiments = all_experiments[all_experiments["experiment_type"]=="ms
 
 rule all:
     input:
-        # config_files_grid = expand(f"{PATH_EXPERIMENTS}{{experiment_type}}/{{grid_id}}/total_benchmark.txt",
-        #     experiment_type="grids",
-        #     grid_id=grid_experiments["grid_identifier"].to_list()),
-        # config_files_sqra_vacuum= expand(f"{PATH_EXPERIMENTS}sqra_water_in_vacuum/{{experiment_id}}/{{grid_id}}/total_benchmark.txt", zip,
-        #     experiment_id=sqra_experiments["experiment_id"].to_list(),
-        #     grid_id=sqra_experiments["grid_identifier"].to_list()),
+        config_files_grid = expand(f"{PATH_EXPERIMENTS}{{experiment_type}}/{{grid_id}}/total_benchmark.txt",
+            experiment_type="grids",
+            grid_id=grid_experiments["grid_identifier"].to_list()),
+        config_files_sqra_vacuum= expand(f"{PATH_EXPERIMENTS}sqra_water_in_vacuum/{{experiment_id}}/{{grid_id}}/total_benchmark.txt", zip,
+            experiment_id=sqra_experiments["experiment_id"].to_list(),
+            grid_id=sqra_experiments["grid_identifier"].to_list()),
         config_files_msm_vacuum = expand(f"{PATH_EXPERIMENTS}msm_water_in_vacuum/{{experiment_id}}/{{grid_id}}/total_benchmark.txt", zip,
             experiment_id=msm_vacuum_experiments["experiment_id"].to_list(),
             grid_id=msm_vacuum_experiments["grid_identifier"].to_list()),
@@ -40,7 +40,7 @@ rule create_config_only_grid:
     wildcard_constraints:
         experiment_type=".*grid.*"
     input:
-        default_config = f"{PATH_INPUT_BASEGRO}default_configuration_file.yaml"
+        default_config = f"{PATH_EXAMPLES}default_configuration_file.yaml"
     output:
         config = f"{PATH_EXPERIMENTS}{{experiment_type}}/{{grid_id}}/config_file.yaml"
     run:
@@ -72,7 +72,7 @@ rule create_config_all:
     - tau_t = 1, 0.1, 0.01 and 0.001 ps
     """
     input:
-        default_config = f"{PATH_INPUT_BASEGRO}default_configuration_file.yaml"
+        default_config = f"{PATH_EXAMPLES}default_configuration_file.yaml"
     output:
         config = f"{PATH_EXPERIMENTS}{{experiment_type}}/{{experiment_id}}/{{grid_id}}/config_file.yaml"
     run:

@@ -188,7 +188,7 @@ mol modcolor 1 0 Type
                                                                       index_list=index_list, num_extremes=num_extremes)
         total_string += self._add_zeroth_eigenvector(zeroth_eigenvector)
 
-        for i in range(1, n_eigenvectors+1):
+        for i in range(1, n_eigenvectors):
             if "msm" in self.experiment_type:
                 pos_eigenvector = find_indices_of_largest_eigenvectors(eigenvector_array[i], which="pos", add_one=False,
                                                                   index_list=index_list, num_extremes=num_extremes)
@@ -208,7 +208,9 @@ mol modcolor 1 0 Type
         total_string += self._add_hide_all_representations(n_eigenvectors)
 
         total_string += self._add_render_a_plot(0, 1, plot_names[0])
+
         for i in range(1, n_eigenvectors):
+
             total_string += self._add_render_a_plot(2*i, 2*i+1, plot_names[i])
         total_string += "quit"
         return total_string
