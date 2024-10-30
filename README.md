@@ -30,7 +30,7 @@ All of this functionality is incorporated in ```molgri```.
 
 ## Installation
 
-This is a python library that can be easily installed using:
+```molgri``` is a python package and can be easily installed using:
 
 ```
 pip install molgri
@@ -105,29 +105,26 @@ between 1nm and 3nm
 ```-t "range(1, 3, 0.5)"``` -> use distances between 1nm and 3nm
 in 0.5nm increments
 
-All flags starting with ```--``` are optional and can be omitted for faster
-calculations. Remember that you can always add the flag ```--help``` to get
-further instructions.
-
-## Using outputs
+Remember that you can always add the flag ```--help``` to get
+further instructions and full range of options.
 
 The pseudotrajectory .xtc and .gro files can be used as regularly generated trajectory files. We show how they can be
 displayed with VMD or used for GROMACS calculations, but the user is free to use them as inputs to any other
 tool.
 
-#### Displaying pseudotrajectory
+### Displaying pseudotrajectory
 
 To display the example pseudotrajectory we created in the previous section with VMD, change to
 directory ```output/pt_files``` and run
 
 ```
-vmd H2O_NH3_o_cube3D_15_b_ico_10_t_3203903466.gro H2O_NH3_o_cube3D_15_b_ico_10_t_3203903466.xtc
+vmd structure.gro pseudotrajectory.xtc
 ```
 
 or on a windows computer
 
 ```
-start vmd H2O_NH3_o_cube3D_15_b_ico_10_t_3203903466.gro H2O_NH3_o_cube3D_15_b_ico_10_t_3203903466.xtc
+start vmd vmd structure.gro pseudotrajectory.xtc
 ```
 
 Then, to fully display a pseudotrajectory, it is often helpful to change the display style and to display
@@ -145,7 +142,7 @@ without considering internal rotations. This number is also written in the name 
 If you want to display all frames, you can use any large number
 for &lt;num_frames>, it does not need to correspond exactly to the number of frames.
 
-#### Calculating energy along a pseudotrajectory
+### Calculating energy along a pseudotrajectory
 Often, a pseudotrajectory is used to explore where regions of high and low energies lie when molecules
 approach each other. Since a range of timesteps sampling important rotations and translations
 is already provided in a PT, there is no need to run a real
@@ -158,8 +155,8 @@ We will assume that this file is named topol.top. Lastly, we need a GROMACS run 
 mdrun.mdp. This file records GROMACS parameters and can be used as in normal simulations, but note that
 some parameters (e.g. integrator, dt) are meaningless for a pseudotrajectory without actual dynamics.
 Then, the energy along a pseudotrajectory can be calculated as follows, using the molgri-generated
-<structure_file> (eg. H2O_NH3_o_cube3D_15_b_ico_10_t_3203903466.gro) and 
-<trajectory_file> (eg. H2O_NH3_o_cube3D_15_b_ico_10_t_3203903466.xtc):
+<structure_file> (eg. structure.gro) and 
+<trajectory_file> (eg. pseudotrajectory.xtc):
 
 ```
 gmx22 grompp -f mdrun.mdp -c <structure_file> -p topol.top -o result.tpr   
@@ -174,15 +171,21 @@ The pre-requirements for fully functional pipelines are:
 - GROMACS (the command *gmx22* should be functional in the terminal where the pipeline is run)
 - VMD (the command *vmd* should be functional in the terminal where the pipeline is run)
 
-For reproducing the entire set of computational experiments om our publications see the section Citations and reproducing papers.
+For reproducing the entire set of computational experiments of our publications see the section Citations and reproducing papers.
 
 To run your own computational experiment, prepare a configuration file by copying and modifying the template you can find in
 ```molgri/examples/default_configuration_file.yaml```. 
 
-Three computational pipelines are then prepared for you:
-* *run_grid* to create a particular discretization 
-and then run the appropriate one of pipeline files "run_sqra", "run_msm" or "run_grid", for example:
-snakemake --snakefile workflow/run_sqra --cores 4 --configfile input/default_configuration_file.yaml
+Three snakefiles are then prepared for you:
+* *workflow/run_grid* to create a particular discretization of SE(3) space including adjacency matrices, volumes of cells etc.
+* *workflow/run_sqra* to generate a grid-based pseudo-trajectory, calculate the energies along it in GROMACS, build a rate matrix and visualize its eigenvectors
+* *workflow/run_msm* to generate a trajectory in GROMACS, assign the structures to closest grid cells, build a transition matrix and visualize its eigenvectors
+
+Note: to include different molecules, the first few rules that deal with copying input files need to be adopted.
+
+```
+snakemake --snakefile workflow/run_sqra --cores 4 --configfile <configuration file>
+```
 
 ### Creating records
 Records are useful to have an overview of experiments that have been set-up so far and their parameters. To obtain (or update) summary files run:
