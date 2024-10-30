@@ -49,6 +49,13 @@ nglview = "^3.1.2"
 [tool.poetry.group.workflows.dependencies]
 snakemake = "^8.24.1"
 
+
+[tool.poetry.group.docs.dependencies]
+sphinx = {version = "^8.1.3", optional = true}
+sphinx-autobuild = {version = "^2024.10.3", optional = true}
+sphinx-rtd-theme = {version = "^3.0.1", optional = true}
+myst-parser = {version = "^4.0.0", optional = true}
+
 [build-system]
 requires = ["poetry-core>=1.0.0"]
 #requires = {file = "requirements.txt"}#["poetry-core"]
@@ -60,8 +67,6 @@ molgri-grid = "molgri.scripts.generate_grid:run_generate_grid"
 molgri-pt = "molgri.scripts.generate_pt:run_generate_pt"
 molgri-io = "molgri.scripts.set_up_io:parse_and_create"
 
-#[tool.setuptools.dynamic]
-#dependencies = {file = "requirements.txt"}
 
 [tool.setuptools.package-data]
 mypkg = ["molgri/examples/*"]
