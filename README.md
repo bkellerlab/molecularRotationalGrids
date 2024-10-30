@@ -15,20 +15,6 @@ slowest transitions between them.
 All of this functionality is incorporated in ```molgri```.
 
 
-By incorporarting a  has three main purposes: 1) generation of rotation grids, 2) analysis of
-said grids and 3) generation of pseudotrajectories (PTs). PTs are files in .xtc or similar format 
-consisting of several timesteps in
-which the interaction space of two molecules is systematically explored. We provide user-friendly,
-one-line scripts for rotation grid generation and analysis as well as pseudotrajectory generation and 
-intutive visual inspection.
-In this short tutorial, we also give instructions how to use PTS with external tools like 
-VMD and GROMACS for further analysis.
-
-In the figures below, we show examples of rotation grids and pseudotrajectories as well as some analysis plots. All plots and animations are created
-directly with the ```molgri``` package, except the PT plot in the middle where the output of ```molgri``` is drawn
-using VMD.
-
-
 <p float="left">
     <img src="/readme_images/ico_630_grid.gif" width="48%">
     <img src="/readme_images/H2O_H2O_o_ico_500_b_ico_5_t_3830884671_trajectory_energies.gif" width="48%">

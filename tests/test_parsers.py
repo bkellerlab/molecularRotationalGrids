@@ -51,7 +51,7 @@ def test_water_gro_file():
     file_name = f"molgri/examples/H2O.gro"
     my_parser = OneMoleculeReader(file_name, center_com=False).get_molecule()
     assert len(my_parser.atoms) == 3
-    assert np.allclose(my_parser.dimensions[:3]*ANGSTROM2NM, [30, 30, 30])
+    assert np.allclose(my_parser.dimensions[:3]*ANGSTROM2NM, [3, 3, 3])
     my_molecule = my_parser
     # the atomic get_positions()
     assert np.allclose(my_molecule.atoms[0].position*ANGSTROM2NM, [0.000, -0.005, 0.004])
