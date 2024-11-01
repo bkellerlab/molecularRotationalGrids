@@ -192,3 +192,7 @@ experiments.zip
 
 workflow/*.csv
 !workflow/all_paper_2024_experiments.csv
+*magick*
+*.vmd
+*.tga
+*.mpg
