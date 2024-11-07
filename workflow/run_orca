@@ -37,6 +37,7 @@ filtered_product = filter_combinator(product)
 
 rule all:
     input:
+        f"{PATH_ORCA_EXAMPLE}PBE0_def2SVP_water_D4/dimer_SP/H2O_H2O.out",
         f"{PATH_ORCA_EXAMPLE}H2O_m1_opt_collected.png"
         # expand(f"{PATH_ORCA_EXAMPLE}{{functional}}_{{basis_set}}_{{solvent}}_{{dispersion}}/m1_opt/optimized_H2O.xyz",
         #     functional='PBE0',
@@ -62,10 +63,14 @@ rule make_inp:
     """
     input:
         xyz_file = f"{PATH_ORCA_EXAMPLE}{{functional}}_{{basis_set}}_{{solvent}}_{{dispersion}}/{{folder_desc}}_{{opt_or_sp}}/start_{{m1}}.xyz"
+    params:
+        #TODO: be able to change charge and multiplicity
+        charge = 0,
+        multiplicity=1
     output:
         inp_file = f"{PATH_ORCA_EXAMPLE}{{functional}}_{{basis_set}}_{{solvent}}_{{dispersion}}/{{folder_desc}}_{{opt_or_sp}}/{{m1}}.inp"
     run:
-        m1 = QuantumMolecule(charge=0, multiplicity=1, path_xyz=input.xyz_file)
+        m1 = QuantumMolecule(charge=params.charge, multiplicity=params.multiplicity, path_xyz=input.xyz_file)
         m1_setup = QuantumSetup(functional=FUNCTIONALS[wildcards.functional], basis_set=BASIS_SETS[wildcards.basis_set],
             solvent=SOLVENTS[wildcards.solvent], dispersion_correction=DISPERSIONS[wildcards.dispersion])
 
@@ -114,7 +119,6 @@ rule extract_coordinates_from_out:
         name, extension = os.path.splitext(filename)
         # name from trj file is almost the name of out file
         path_traj = os.path.join(directory, f"start_{wildcards.m1}_trj.xyz")
-        print(path_traj)
         extract_last_coordinates_from_opt(path_traj, output.optimized_xyz)
 
 rule record_data:
@@ -200,8 +204,15 @@ rule create_dimer:
     Start with optimized single molecule and create a non-optimized dimer.
     """
     input:
-        optimized_monomer = rules.extract_coordinates_from_out.output.optimized_xyz
+        optimized_monomer1 = f"{PATH_ORCA_EXAMPLE}{{functional}}_{{basis_set}}_{{solvent}}_{{dispersion}}/m1_opt/optimized_{{m1}}.xyz",
+        optimized_monomer2 = f"{PATH_ORCA_EXAMPLE}{{functional}}_{{basis_set}}_{{solvent}}_{{dispersion}}/m1_opt/optimized_{{m2}}.xyz"
     params:
-        z_dist_A = 3
+        z_dist_A = 3,
+        cell_size_A = 0.0
     output:
-        non_optimized_dimer = f"{PATH_ORCA_EXAMPLE}{{functional}}_{{basis_set}}_{{solvent}}_{{dispersion}}/dimer_single_point/non_optimized_dimer_{{m1}}.xyz",
+        non_optimized_dimer = f"{PATH_ORCA_EXAMPLE}{{functional}}_{{basis_set}}_{{solvent}}_{{dispersion}}/dimer_SP/start_{{m1}}_{{m2}}.xyz",
+    run:
+        from molgri.io import TwoMoleculeWriter
+
+        my_writer = TwoMoleculeWriter(input.optimized_monomer1, input.optimized_monomer2, cell_size_A=params.cell_size_A)
+        my_writer.write_structure(start_distance_A=params.z_dist_A, path_output_structure=output.non_optimized_dimer)
