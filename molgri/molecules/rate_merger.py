@@ -189,7 +189,11 @@ def determine_rate_cells_to_join(distances, potentials, bottom_treshold=0.001, T
 
 
 def determine_rate_cells_with_too_high_energy(my_energies, energy_limit: float = 10, T: float = 273):
-    return np.where(my_energies*1000/(kB*N_A*T) > energy_limit)[0]
+    too_high = np.where(my_energies*1000/(kB*N_A*T) > energy_limit)[0]
+    print("MIN TOO HIGH", np.min(my_energies[too_high]))
+    print("ENERGY LIM", energy_limit)
+    print("removed ", len(too_high))
+    return too_high
 
 
 def delete_rate_cells(my_matrix: NDArray | csr_array, to_remove: list,

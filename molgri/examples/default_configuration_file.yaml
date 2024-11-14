@@ -37,6 +37,7 @@ params_sqra:
  maxiter: 100000
  num_eigenvec_to_plot: 6
  num_extremes_to_plot: 30
+ maxwarn: 0
 
 params_msm:
  start_dist_A: 3

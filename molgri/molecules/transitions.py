@@ -319,10 +319,22 @@ class SQRA:
         transition_matrix.data /= self.volumes[transition_matrix.row]
         # multiply with sqrt(pi_j/pi_i) = e**((V_i-V_j)*1000/(2*k_B*N_A*T))
         # gromacs uses kJ/mol as energy unit, boltzmann constant is J/K
-        transition_matrix.data *= np.exp(np.round((self.energies[
-                                                            transition_matrix.row] - self.energies[
-                                                            transition_matrix.col]),14) * 1000 / (
-                                                          2 * kB * N_A * T))
+        diff_energies = self.energies[transition_matrix.row] - self.energies[transition_matrix.col]
+        # cannot allow more than 3 orders of magnitude difference
+        print(f"Warning! {len(np.where(diff_energies > 5e2)[0])} pairs of cells have a very large difference in "
+              f"energy, more than factor 500. This would lead to overflow, so these differences are capped to a "
+              f"factor 500. This might be a sign of poor discretisation or just the case of L-J overlap.")
+        diff_energies = np.where(diff_energies < 5e2, diff_energies, 5e2)
+
+        import pandas as pd
+        print("DIFF ENERGIES", pd.DataFrame(self.energies[transition_matrix.row] - self.energies[transition_matrix.col]).describe())
+
+
+        pi_exponent = np.round(diff_energies,14) * 1000 / (2 * kB * N_A * T)
+
+        print("EXPONENT", pd.DataFrame(np.exp(pi_exponent)).describe())
+
+        transition_matrix.data *= np.exp(pi_exponent)
         # normalise rows
         sums = transition_matrix.sum(axis=1)
         sums = np.array(sums).squeeze()

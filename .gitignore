@@ -196,3 +196,5 @@ workflow/*.csv
 *.vmd
 *.tga
 *.mpg
+monomer.gro
+workflow/run_playground
