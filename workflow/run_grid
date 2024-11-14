@@ -18,6 +18,11 @@ from molgri.paths import PATH_EXPERIMENTS
 PATH_GRIDS = f"{PATH_EXPERIMENTS}grids/"
 GRID_ID = config["grid_identifier"]
 
+try:
+    NUM_REPEATS = config["num_repeats"]
+except KeyError:
+    NUM_REPEATS = 1
+
 rule all_grids:
     input:
         #f"{PATH_GRIDS}{GRID_ID}/voronoi.png"
@@ -42,7 +47,7 @@ rule run_grid:
         factor_orientation_to_position=float(config["params_grid"]["factor_orientation_to_position"]),
         position_grid_cartesian = bool(config["params_grid"]["position_grid_is_cartesian"])
     benchmark:
-        f"{PATH_GRIDS}{{grid_identifier}}/grid_benchmark.txt"
+        repeat(f"{PATH_GRIDS}{{grid_identifier}}/grid_benchmark.txt", NUM_REPEATS)
     run:
         # create a grid
         fg = FullGrid(params.n_points_orientations, params.n_points_directions,

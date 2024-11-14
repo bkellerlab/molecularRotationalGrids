@@ -4,7 +4,10 @@ import pandas as pd
 
 sys.path.append(".")
 
-from molgri.paths import PATH_EXPERIMENTS, PATH_EXAMPLES
+import matplotlib.pyplot as plt
+plt.switch_backend('agg')
+
+from molgri.paths import PATH_EXPERIMENTS, PATH_EXAMPLES, PATH_INPUT_BASEGRO
 
 
 # read from database and prepare all experiments
@@ -178,3 +181,143 @@ rule run_all_msm_water_in_vacuum:
         cores = 10
     shell:
         "snakemake --snakefile {input.pipeline} --cores {resources.cores} --configfile {input.config_file} --rerun-incomplete --keep-going --nolock"
+
+######################## ALL ABOUT SQRA BENCHMARKING #############################
+# run one after the other:
+# poetry run snakemake --snakefile workflow/Snakefile run_all_benchmarking_sqra_5repetitions -F --rerun-incomplete
+# poetry run snakemake --snakefile workflow/Snakefile plot_all_benchmarking --allowed-rules plot_all_benchmarking combine_benchmarking
+
+
+rule run_all_benchmarking_sqra_5repetitions:
+    """
+    Need to run this separately!
+    """
+    input:
+        expand(f"{PATH_EXPERIMENTS}total_benchmarks/{{experiment_type}}_{{which}}_benchmark{{repeats}}.txt",
+            experiment_type=["sqra_bpti_trypsine"], which=["large"],
+        repeats = ["_5repeats"]) #"sqra_water_in_vacuum", "sqra_fullerene",
+
+rule run_partial_benchmarking_sqra:
+    """
+    Run a full experiment once but repeat parts of it multiple times so that you can report the time needed for individual rules.
+    """
+    input:
+        config_file=f"{PATH_INPUT_BASEGRO}{{experiment_type}}/all_config_files/default_{{which}}_configuration_file.yaml"
+    benchmark:
+        f"{PATH_EXPERIMENTS}total_benchmarks/{{experiment_type}}_{{which}}_benchmark_5repeats.txt"
+    resources:
+        cores = 10
+    shell:
+        "snakemake --snakefile workflow/run_sqra --cores {resources.cores} --configfile {input.config_file}  --keep-going --rerun-incomplete -F --config num_repeats=5"
+
+
+rule plot_all_benchmarking:
+    input:
+        total_statistics = expand(f"{PATH_EXPERIMENTS}{{experiment_type}}/example/{{grid_identifier}}/large_total_statistics.csv", zip,
+            experiment_type=["sqra_water_in_vacuum","sqra_fullerene", "sqra_bpti_trypsine"],
+        grid_identifier=["large_example_water", "large_example_fullerene", "large_example_bpti"])
+    output:
+        plot = f"{PATH_EXPERIMENTS}total_benchmarks/large_benchmark_plot.png"
+    run:
+        import pandas as pd
+        import seaborn as sns
+        import matplotlib.gridspec as gridspec
+        from matplotlib.ticker import ScalarFormatter
+        sns.set_context("paper", font_scale=1.5)
+        #sns.set_theme("ticks")
+
+        # Create a figure and a GridSpec layout
+        fig = plt.figure(figsize=(7, 6))  # Adjust figure size to your needs
+        gs = gridspec.GridSpec(3,2,width_ratios=[2, 1], wspace=0.4, hspace=0.5)
+        ax1 = fig.add_subplot(gs[1:, 0])  # span all columns in the first row
+
+
+        plt.tight_layout()  # Adjust layout to prevent overlap
+        plt.show()
+
+
+
+        all_inputs = []
+        for input_file in input:
+            all_inputs.append(pd.read_csv(input_file, index_col=0))
+        total_df = pd.concat(all_inputs, ignore_index=True)
+        total_df["Total time [min]"] = total_df["Total [s]"]/60 /5 # because 5 repetitions
+        total_df["Generation of grid+pt [min]"] = total_df["Generation of structures [s]"] / 60 +total_df["Generation of grid [s]"] / 60
+        total_df["Force field evaluation [min]"] = total_df["Force field evaluation [s]"] / 60
+        total_df["Matrix decomposition [min]"] = total_df["Matrix decomposition [s]"] / 60
+        total_df["Cat2"] = total_df["Generation of grid+pt [min]"] +total_df["Force field evaluation [min]"]
+        total_df["Cat3"] = total_df["Cat2"] + total_df["Matrix decomposition [min]"]
+
+        # total time stacked bars
+        bar1 = sns.barplot(x="Num atoms",y="Total time [min]",data=total_df,color='gray',ax=ax1, width=0.8)
+        bar4 = sns.barplot(x="Num atoms",y="Cat3",data=total_df,color='blue',ax=ax1,errorbar=None, width=0.8)
+        bar3 = sns.barplot(x="Num atoms",y="Cat2" ,data=total_df,color='green',ax=ax1,errorbar=None, width=0.8)
+        bar2 = sns.barplot(x="Num atoms",y="Generation of grid+pt [min]",data=total_df,color='red',ax=ax1,errorbar=None, width=0.8)
+
+
+        #bar1 = sns.barplot(x="Num atoms",y="Generation of grid + structures [min]",data=grid_average,color='red', ax=ax1)
+        # ff_average = total_df.groupby("Num atoms")["Force field evaluation [min]"].mean().reset_index()
+        # bar2 = sns.barplot(x="Num atoms",y="Force field evaluation [min]" ,data=ff_average,color='green',ax=ax1)
+        # matrix_average = total_df.groupby("Num atoms")["Matrix decomposition [min]"].mean().reset_index()
+        # bar3 = sns.barplot(x="Num atoms",y="Matrix decomposition [min]" ,data=matrix_average,color='blue',ax=ax1)
+
+
+        # rest: scatterplots
+        ax2 = fig.add_subplot(gs[0, 1])
+        sns.scatterplot(total_df,x="Num atoms",y="Generation of grid+pt [min]",ax=ax2, color="red")
+        ax4 = fig.add_subplot(gs[1, 1])
+        sns.scatterplot(total_df,x="Num atoms",y="Force field evaluation [min]",ax=ax4, color="green")
+        ax5 = fig.add_subplot(gs[2, 1])
+        sns.scatterplot(total_df,x="Num atoms",y="Matrix decomposition [min]",ax=ax5, color="blue")
+
+        for myax in [ax2, ax4, ax5]:
+            my_label = myax.get_ylabel()
+            myax.set(ylabel="", title=my_label, xlabel="")
+            myax.set(xscale="log")
+            unique_x = sorted(total_df['Num atoms'].unique())  # Get unique x-values and sort them
+            myax.xaxis.set_major_formatter(ScalarFormatter())
+            myax.xaxis.get_major_formatter().set_scientific(False)
+            myax.xaxis.get_major_formatter().set_useOffset(False)
+            myax.set_xticks(unique_x)
+        for myax in [ax1, ax2, ax4]:
+            myax.set(xlabel="")
+
+
+        fig.tight_layout()
+        plt.subplots_adjust(left=0.11,right=0.89,top=0.9,bottom=0.1)
+        fig.savefig(output.plot, dpi=600)
+
+rule combine_benchmarking:
+    input:
+        total_benchmark = f"{PATH_EXPERIMENTS}total_benchmarks/{{experiment_type}}_{{which}}_benchmark_5repeats.txt",
+        decomposition_benchmark = f"{PATH_EXPERIMENTS}{{experiment_type}}/{{experiment_id}}/{{grid_identifier}}/decomposition_benchmark.txt",
+        gromacs_benchmark = f"{PATH_EXPERIMENTS}{{experiment_type}}/{{experiment_id}}/{{grid_identifier}}/gromacs_benchmark.txt",
+        pt_benchmark = f"{PATH_EXPERIMENTS}{{experiment_type}}/{{experiment_id}}/{{grid_identifier}}/pt_benchmark.txt",
+        grid_benchmark = f"{PATH_EXPERIMENTS}grids/{{grid_identifier}}/grid_benchmark.txt",
+        num_atoms= f"{PATH_EXPERIMENTS}{{experiment_type}}/{{experiment_id}}/{{grid_identifier}}/num_atoms.txt"
+    output:
+        total_statistics = f"{PATH_EXPERIMENTS}{{experiment_type}}/{{experiment_id}}/{{grid_identifier}}/{{which}}_total_statistics.csv"
+    run:
+        import pandas as pd
+        file_to_label = {input.total_benchmark: "Total", input.decomposition_benchmark: "Matrix decomposition",
+                         input.gromacs_benchmark: "Force field evaluation", input.pt_benchmark: "Generation of structures",
+                         input.grid_benchmark: "Generation of grid"}
+
+
+        all_input = []
+        for input_file in input:
+            if "benchmark" in input_file:
+                raw_df = pd.read_csv(input_file, delimiter="\t")
+                label_s = f"{file_to_label[input_file]} [s]"
+                label_hms = f"{file_to_label[input_file]} [h:m:s]"
+                raw_df[label_s] = raw_df["s"]
+                raw_df[label_hms] = raw_df["h:m:s"]
+                clean_df = raw_df[[label_s, label_hms]]
+                all_input.append(clean_df)
+        total_df = pd.concat(all_input, axis=1)
+        with open(input.num_atoms,"r") as f:
+            num_first_mol = int(f.readline().strip())
+            num_second_mol = int(f.readline().strip())
+        total_df["Num atoms"] = num_first_mol + num_second_mol
+        total_df.to_csv(output.total_statistics)
+
