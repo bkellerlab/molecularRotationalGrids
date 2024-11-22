@@ -144,6 +144,7 @@ class AssignmentTool:
             alignment_magnitudes[i] = Rotation.from_matrix(rm@my_quaternions.transpose(0, 2, 1)).magnitude()
         result = np.argmin(alignment_magnitudes, axis=0).flatten()
         t2= time()
+        print("QUAT STATISTICS", pd.DataFrame(result).describe())
         return np.array(result)
 
     def _t_assignment_function(self, ag):
@@ -171,6 +172,7 @@ class AssignmentTool:
             self.trajectory_universe.select_atoms(self.second_molecule_selection))
         t_selection.run(stop=self.stop)
         t_indices = t_selection.results['timeseries'].flatten()
+        print("T STATISTICS", pd.DataFrame(t_indices).describe())
         return t_indices
 
     def _o_assignment_function(self, ag):
@@ -181,7 +183,8 @@ class AssignmentTool:
 
         all_possible_distances = cdist(self.o_array, normalise_vectors(
             ag.center_of_mass()[np.newaxis, :]), metric=metric)
-        return np.argmin(all_possible_distances, axis=0)
+        result = np.argmin(all_possible_distances, axis=0)
+        return result
 
 
     def _get_o_assignments(self) -> NDArray:
@@ -196,6 +199,7 @@ class AssignmentTool:
                                            self.trajectory_universe.select_atoms(self.second_molecule_selection))
         o_selection.run(stop=self.stop)
         o_indices = o_selection.results['timeseries'].flatten()
+        print("O STATISTICS", pd.DataFrame(o_indices).describe())
         return o_indices
 
     def _get_position_assignments(self):
@@ -326,13 +330,8 @@ class SQRA:
               f"factor 500. This might be a sign of poor discretisation or just the case of L-J overlap.")
         diff_energies = np.where(diff_energies < 5e2, diff_energies, 5e2)
 
-        import pandas as pd
-        print("DIFF ENERGIES", pd.DataFrame(self.energies[transition_matrix.row] - self.energies[transition_matrix.col]).describe())
-
-
         pi_exponent = np.round(diff_energies,14) * 1000 / (2 * kB * N_A * T)
 
-        print("EXPONENT", pd.DataFrame(np.exp(pi_exponent)).describe())
 
         transition_matrix.data *= np.exp(pi_exponent)
         # normalise rows

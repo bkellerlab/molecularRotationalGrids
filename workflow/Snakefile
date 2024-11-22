@@ -194,8 +194,8 @@ rule run_all_benchmarking_sqra_5repetitions:
     """
     input:
         expand(f"{PATH_EXPERIMENTS}total_benchmarks/{{experiment_type}}_{{which}}_benchmark{{repeats}}.txt",
-            experiment_type=["sqra_bpti_trypsine"], which=["large"],
-        repeats = ["_5repeats"]) #"sqra_water_in_vacuum", "sqra_fullerene",
+            experiment_type=["sqra_water_in_vacuum", "sqra_fullerene"], which=["large"],
+        repeats = ["_5repeats"]) #"sqra_water_in_vacuum", "sqra_fullerene", "sqra_bpti_trypsine"
 
 rule run_partial_benchmarking_sqra:
     """

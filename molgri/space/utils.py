@@ -15,13 +15,17 @@ from scipy.spatial.transform import Rotation
 from molgri.constants import UNIQUE_TOL
 
 
-def order_points(polygon_points_3d: NDArray):
+def order_points(polygon_points_3d: NDArray) -> NDArray:
     """
     Order vertices of the polygon, may be clockwise or anticlockwise.
 
     Args:
         polygon_points_3d: array shape (N, 3), each row should be a point (at least three points needed).
     """
+    # if just one point nothing to sort
+    assert len(polygon_points_3d.shape) == 2 and polygon_points_3d.shape[1] == 3, f"Wrong shape {polygon_points_3d.shape} of array to order points!"
+    if polygon_points_3d.shape[0] == 1:
+        return polygon_points_3d
     first_point = polygon_points_3d[0]
     different_point = polygon_points_3d[1]
     # calculate the central point of the polygon as you are interested in angles or vectors from center to vertices

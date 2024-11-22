@@ -371,13 +371,15 @@ class PositionGrid:
             ind += 1
         return all_polygons_3d
 
-
     def get_cartesian_surfaces(self):
         new_S_matrix = self.get_adjacency_of_position_grid()
         all_polygons = self._get_coordinates_of_border_polygons()
         all_areas_data = []
         for polygon in all_polygons:
-            all_areas_data.append(get_polygon_area(order_points(polygon)))
+            if len(polygon) > 1:
+                all_areas_data.append(get_polygon_area(order_points(polygon)))
+            else:
+                all_areas_data.append(0)
         new_S_matrix.data = np.array(all_areas_data)
         return new_S_matrix
 

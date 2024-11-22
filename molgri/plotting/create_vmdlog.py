@@ -62,14 +62,16 @@ def find_indices_of_largest_eigenvectors(eigenvector_array: NDArray, which: str,
     """
 
     # determine the max values based on which parameter you sort by
+    if num_extremes is None:
+        if which == "abs" or which == "pos":
+            num_extremes = find_num_extremes(np.abs(eigenvector_array), only_positive=True)
+        else:
+            num_extremes = find_num_extremes(eigenvector_array, only_positive=False)
     if which == "abs":
-        num_extremes = find_num_extremes(np.abs(eigenvector_array), only_positive=True)
         most_populated = k_argmax_in_array(np.abs(eigenvector_array), num_extremes)
     elif which == "pos":
-        num_extremes = find_num_extremes(eigenvector_array, only_positive=True)
         most_populated = k_argmax_in_array(eigenvector_array, num_extremes)
     elif which == "neg":
-        num_extremes = find_num_extremes(eigenvector_array, only_positive=False)
         most_populated = k_argmax_in_array(-eigenvector_array, num_extremes)
     else:
         raise ValueError(f"The only available options for 'which' are 'abs', 'pos' and 'neg', not {which}.")

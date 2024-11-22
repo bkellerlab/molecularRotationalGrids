@@ -170,7 +170,8 @@ class PtWriter(TwoMoleculeWriter):
         self.pt_universe.atoms.write(path_output_pt, frames='all')
         self.pt_universe.atoms.write(path_output_structure, frames=self.pt_universe.trajectory[[0]])
 
-    def write_full_pt_in_directory(self, path_output_pt: str, path_output_structure: str):
+    def write_full_pt_in_directory(self, directory_name: str, path_output_structure: str, extension_trajectory:
+    str = "xyz"):
         """
         As an alternative to saving a full PT in a single trajectory file, you can create a directory with the same
         name and within it single-frame trajectories named with their frame index. Also save the structure file at
@@ -180,11 +181,10 @@ class PtWriter(TwoMoleculeWriter):
             path_trajectory: where trajectory should be saved
             path_structure: where topology should be saved
         """
-        directory_name, extension_trajectory = os.path.splitext(path_output_pt)
         _create_dir_or_empty_it(directory_name)
 
         for i, ts in enumerate(self.pt_universe.trajectory):
-            self.pt_universe.atoms.write(f"{directory_name}/{str(i).zfill(10)}{extension_trajectory}")
+            self.pt_universe.atoms.write(f"{directory_name}/{str(i).zfill(10)}.{extension_trajectory}")
 
         self.pt_universe.atoms.write(path_output_structure, frames=self.pt_universe.trajectory[[0]])
 
@@ -198,9 +198,14 @@ class EnergyReader:
         self.path_energy = path_energy
 
     def load_energy(self) -> pd.DataFrame:
-        column_names = self._get_column_names()
-        # skip 13 rows commented with # and then also a variable amount of rows commented with @
-        table = pd.read_csv(self.path_energy, sep=r'\s+', comment='@', skiprows=13, header=None, names=column_names)
+        if self.path_energy.endswith("xvg"):
+            column_names = self._get_column_names()
+            # skip 13 rows commented with # and then also a variable amount of rows commented with @
+            table = pd.read_csv(self.path_energy, sep=r'\s+', comment='@', skiprows=13, header=None, names=column_names)
+        elif self.path_energy.endswith("csv"):
+            table = pd.read_csv(self.path_energy, index_col=0)
+        else:
+            raise ValueError(f"Don't know how to read the energy file type: {self.path_energy}")
         return table
 
     def _get_column_names(self) -> list:
