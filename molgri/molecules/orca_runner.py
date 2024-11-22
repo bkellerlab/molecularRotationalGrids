@@ -1,12 +1,19 @@
 import subprocess
 import os
 from scipy.constants import physical_constants
+import numpy as np
+import re
 
 HARTREE_TO_J = physical_constants["Hartree energy"][0]
 AVOGADRO_CONSTANT = physical_constants["Avogadro constant"][0]
 
 import pandas as pd
-import numpy as np
+
+
+def nice_str_of(string: str):
+    if not string:
+        return "no"
+    return re.sub(r'[^a-zA-Z0-9]', '', string)
 
 
 class QuantumMolecule:
@@ -34,6 +41,10 @@ class QuantumSetup:
         self.dispersion_correction = dispersion_correction
 
 
+    def get_dir_name(self):
+        return f"{nice_str_of(self.functional)}_{nice_str_of(self.basis_set)}_{nice_str_of(self.solvent)}_{nice_str_of(self.dispersion_correction)}/"
+
+
 def make_inp_file(molecule: QuantumMolecule, setup: QuantumSetup, geo_optimization: str = "Opt") -> str:
 
     orca_input = f"! {setup.functional} {setup.dispersion_correction} {setup.basis_set} {geo_optimization}\n"
@@ -47,6 +58,39 @@ def make_inp_file(molecule: QuantumMolecule, setup: QuantumSetup, geo_optimizati
     orca_input += f"*xyzfile {molecule.charge} {molecule.multiplicity} {molecule.path_xyz}\n"
     return orca_input
 
+
+def read_important_stuff_into_csv(out_files_to_read: list, csv_file_to_write: str, setup: QuantumSetup):
+    """
+    Read different orca .out files that were created with the same set-up (functional, basis set ...). Save the
+    energies and generation times
+
+    Args:
+        out_files_to_read ():
+        csv_file_to_write ():
+        setup ():
+
+    Returns:
+
+    """
+
+    columns = ["File", "Functional", "Basis set", "Dispersion correction", "Solvent",
+               "Time [h:m:s]", "Energy [hartree]"]
+
+    all_df = []
+    for out_file_to_read in out_files_to_read:
+        energy_hartree, time_s = extract_energy_time_orca_output(out_file_to_read)
+        all_data = np.array([[out_file_to_read, setup.functional, setup.basis_set, setup.dispersion_correction,
+                              setup.solvent, time_s, energy_hartree]])
+        df = pd.DataFrame(all_data, columns=columns)
+        all_df.append(df)
+
+    combined_df = pd.concat(all_df) #, ignore_index=True
+
+    combined_df["Energy [kJ/mol]"] = HARTREE_TO_J * AVOGADRO_CONSTANT * combined_df["Energy [hartree]"] / 1000  # 1000 because kJ
+    combined_df["Time [s]"] = combined_df["Time [h:m:s]"].dt.total_seconds()
+
+    combined_df.to_csv(csv_file_to_write, index=False)
+
 def assert_normal_finish(orca_output_file:str):
     returncode = subprocess.run(f'grep "****ORCA TERMINATED NORMALLY****" {orca_output_file}', shell=True,
                                 text=False).returncode
@@ -57,7 +101,6 @@ def assert_normal_finish(orca_output_file:str):
 def extract_last_coordinates_from_opt(orca_traj_xyz_file: str, new_file: str):
     line_number_last_coo =subprocess.run(f"""grep -n "Coordinates from" {orca_traj_xyz_file} | tail -n 1 | cut -d: -f1""",
                                          shell=True, capture_output=True).stdout
-    print("traj file", orca_traj_xyz_file)
     line_with_num_of_atoms = int(line_number_last_coo)-1
     subprocess.run(f"""tail -n +"{line_with_num_of_atoms}" {orca_traj_xyz_file} > {new_file}""",
                                shell=True)

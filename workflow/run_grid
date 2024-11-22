@@ -15,8 +15,9 @@ sys.path.append(".")
 from molgri.space.fullgrid import FullGrid
 from molgri.paths import PATH_EXPERIMENTS
 
-PATH_GRIDS = f"{PATH_EXPERIMENTS}grids/"
 GRID_ID = config["grid_identifier"]
+PATH_THIS_GRID = f"{PATH_EXPERIMENTS}grids/{GRID_ID}/"
+
 
 try:
     NUM_REPEATS = config["num_repeats"]
@@ -26,20 +27,20 @@ except KeyError:
 rule all_grids:
     input:
         #f"{PATH_GRIDS}{GRID_ID}/voronoi.png"
-        expand(f"{PATH_GRIDS}{GRID_ID}/{{what}}", what=["full_array.npy"]),
+        expand(f"{PATH_THIS_GRID}/{{what}}", what=["full_array.npy"]),
 
 rule run_grid:
     """
     This rule should provide a full grid and its geometric parameters.
     """
     output:
-        full_array = f"{PATH_GRIDS}{{grid_identifier}}/full_array.npy",
-        adjacency_array = f"{PATH_GRIDS}{{grid_identifier}}/adjacency_array.npz",
-        adjacency_only_position = f"{PATH_GRIDS}{{grid_identifier}}/adjacency_array_position.npz",
-        adjacency_only_orientation = f"{PATH_GRIDS}{{grid_identifier}}/adjacency_array_orientation.npz",
-        distances_array = f"{PATH_GRIDS}{{grid_identifier}}/distances_array.npz",
-        borders_array= f"{PATH_GRIDS}{{grid_identifier}}/borders_array.npz",
-        volumes = f"{PATH_GRIDS}{{grid_identifier}}/volumes.npy",
+        full_array = f"{PATH_THIS_GRID}full_array.npy",
+        adjacency_array = f"{PATH_THIS_GRID}adjacency_array.npz",
+        adjacency_only_position = f"{PATH_THIS_GRID}adjacency_array_position.npz",
+        adjacency_only_orientation = f"{PATH_THIS_GRID}adjacency_array_orientation.npz",
+        distances_array = f"{PATH_THIS_GRID}distances_array.npz",
+        borders_array= f"{PATH_THIS_GRID}borders_array.npz",
+        volumes = f"{PATH_THIS_GRID}volumes.npy",
     params:
         n_points_orientations = str(int(config["params_grid"]["num_orientations"])),
         n_points_directions = str(int(config["params_grid"]["num_directions"])),
@@ -47,7 +48,7 @@ rule run_grid:
         factor_orientation_to_position=float(config["params_grid"]["factor_orientation_to_position"]),
         position_grid_cartesian = bool(config["params_grid"]["position_grid_is_cartesian"])
     benchmark:
-        repeat(f"{PATH_GRIDS}{{grid_identifier}}/grid_benchmark.txt", NUM_REPEATS)
+        repeat(f"{PATH_THIS_GRID}grid_benchmark.txt", NUM_REPEATS)
     run:
         # create a grid
         fg = FullGrid(params.n_points_orientations, params.n_points_directions,
@@ -76,13 +77,13 @@ rule plot_grid:
     params:
         position_grid_cartesian = bool(config["params_grid"]["position_grid_is_cartesian"])
     output:
-        distances_heatmap = f"{PATH_GRIDS}{{grid_identifier}}/distances_heatmap.png",
-        borders_heatmap= f"{PATH_GRIDS}{{grid_identifier}}/borders_heatmap.png",
-        adjacency_heatmap= f"{PATH_GRIDS}{{grid_identifier}}/adjacency_heatmap.png",
-        adjacency_heatmap_pos_ori = f"{PATH_GRIDS}{{grid_identifier}}/adjacency_heatmap_position_orientation.png",
-        distances_violin= f"{PATH_GRIDS}{{grid_identifier}}/distances_violinplot.png",
-        borders_violin= f"{PATH_GRIDS}{{grid_identifier}}/borders_violinplot.png",
-        voronoi_cells = f"{PATH_GRIDS}{{grid_identifier}}/voronoi.png"
+        distances_heatmap = f"{PATH_THIS_GRID}distances_heatmap.png",
+        borders_heatmap= f"{PATH_THIS_GRID}borders_heatmap.png",
+        adjacency_heatmap= f"{PATH_THIS_GRID}adjacency_heatmap.png",
+        adjacency_heatmap_pos_ori = f"{PATH_THIS_GRID}adjacency_heatmap_position_orientation.png",
+        distances_violin= f"{PATH_THIS_GRID}distances_violinplot.png",
+        borders_violin= f"{PATH_THIS_GRID}borders_violinplot.png",
+        voronoi_cells = f"{PATH_THIS_GRID}voronoi.png"
     run:
         from scipy import sparse
         from molgri.plotting.fullgrid_plots import (plot_array_heatmap, plot_violin_position_orientation,

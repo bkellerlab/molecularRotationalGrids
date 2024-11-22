@@ -1,7 +1,7 @@
 """
 All of the workflows relating to pseudotrajectories, subsequent SQRAs and their related outputs (figures ...)
 """
-
+import os
 import sys
 import numpy as np
 
@@ -12,16 +12,36 @@ plt.switch_backend('agg')
 sys.path.append(".")
 from workflow.snakemake_utils import modify_mdrun, modify_topology
 from molgri.paths import PATH_INPUT_BASEGRO, PATH_EXPERIMENTS, PATH_EXAMPLES
+from molgri.molecules.orca_runner import read_important_stuff_into_csv, QuantumMolecule, QuantumSetup, make_inp_file, assert_normal_finish
+from molgri.space.fullgrid import FullGrid
 
 include: "run_grid"
+#include: "run_orca"
 
-if config["experiment_type"] not in ["sqra_water_in_vacuum", "guanidinium_xyz", "sqra_fullerene", "sqra_bpti_trypsine"]:
+if config["experiment_type"] not in ["sqra_water_in_vacuum", "guanidinium_xyz", "sqra_fullerene", "sqra_bpti_trypsine", "water_xyz"]:
     raise AttributeError(f"This pipeline should be used for SQRA experiments in vacuum. Your experiment type is {config['experiment_type']} instead of 'sqra_water_in_vacuum'")
 
 EXPERIMENT_TYPE = config["experiment_type"]
 EXPERIMENT_ID = config["experiment_id"]
 GRID_ID = config["grid_identifier"]
 STRUCTURE_EXTENSION = config["structure_extension"]
+ENERGY_PROGRAM = config["energy_program"]
+NUM_GRID_POINTS = len(FullGrid(
+    b_grid_name=str(config["params_grid"]["num_orientations"]),
+    o_grid_name=str(config["params_grid"]["num_directions"]),
+    t_grid_name=config["params_grid"]["radial_distances_nm"]))
+
+
+PROVIDED_DATA_PATH =  f"{PATH_INPUT_BASEGRO}{EXPERIMENT_TYPE}/"
+EXPERIMENT_FULL_PATH = f"{PATH_EXPERIMENTS}{EXPERIMENT_TYPE}/{EXPERIMENT_ID}/{GRID_ID}/"
+
+if ENERGY_PROGRAM == "ORCA":
+    QUANTUM_SETUP = QuantumSetup(
+        functional=config["params_dft"]["functional"],
+        basis_set=config["params_dft"]["basis_set"],
+        solvent=config["params_dft"]["solvent"],
+        dispersion_correction=config["params_dft"]["dispersion"])
+    ORCA_DIR = QUANTUM_SETUP.get_dir_name()
 
 try:
     NUM_REPEATS = config["num_repeats"]
@@ -31,11 +51,11 @@ except KeyError:
 
 rule all_sqra:
     input:
-        expand(f"{PATH_EXPERIMENTS}{EXPERIMENT_TYPE}/{EXPERIMENT_ID}/{GRID_ID}/{{what}}",
-            what=["its.png", "eigenvectors_vmdlog", "eigenvalues.png", "its.csv"]),
+        #f"{EXPERIMENT_FULL_PATH}energy.csv"
+        expand(f"{EXPERIMENT_FULL_PATH}{{what}}", what=["its.png", "eigenvectors_vmdlog", "eigenvalues.png", "its.csv"]),
     #what=["its.png", "eigenvectors_vmdlog", "eigenvalues.png", "its.csv"]
     log:
-        log = f"{PATH_EXPERIMENTS}{EXPERIMENT_TYPE}/{EXPERIMENT_ID}/{GRID_ID}/total_log.yaml"
+        log = f"{EXPERIMENT_FULL_PATH}total_log.yaml"
     run:
         import yaml
         with open(log.log, "w")  as f:
@@ -43,14 +63,14 @@ rule all_sqra:
 
 rule copy_structures:
     """
-    Copying m1 and m2 must be a separate rule because they may have extensions .xyz, .gro, .pdb ...
+    Copying m1 and m2 is a separate rule because they may have extensions .xyz, .gro, .pdb ...
     """
     input:
-        m1 = f"{PATH_INPUT_BASEGRO}{EXPERIMENT_TYPE}/m1.{STRUCTURE_EXTENSION}",
-        m2 = f"{PATH_INPUT_BASEGRO}{EXPERIMENT_TYPE}/m2.{STRUCTURE_EXTENSION}",
+        m1 = f"{PROVIDED_DATA_PATH}m1.{STRUCTURE_EXTENSION}",
+        m2 = f"{PROVIDED_DATA_PATH}m2.{STRUCTURE_EXTENSION}",
     output:
-        m1 = f"{PATH_EXPERIMENTS}{EXPERIMENT_TYPE}/{EXPERIMENT_ID}/{GRID_ID}/m1.{STRUCTURE_EXTENSION}",
-        m2 = f"{PATH_EXPERIMENTS}{EXPERIMENT_TYPE}/{EXPERIMENT_ID}/{GRID_ID}/m2.{STRUCTURE_EXTENSION}",
+        m1 = f"{EXPERIMENT_FULL_PATH}m1.{STRUCTURE_EXTENSION}",
+        m2 = f"{EXPERIMENT_FULL_PATH}m2.{STRUCTURE_EXTENSION}",
     run:
         import shutil
         shutil.copy(input.m1, output.m1)
@@ -58,13 +78,14 @@ rule copy_structures:
 
 rule find_num_atoms:
     """
-    Copying m1 and m2 must be a separate rule because they may have extensions .xyz, .gro, .pdb ...
+    Create a simple file where the first line is the number of atoms in molecule 1 and the second line the number of 
+    atoms in molecule 2.
     """
     input:
-        m1 = f"{PATH_INPUT_BASEGRO}{EXPERIMENT_TYPE}/m1.{STRUCTURE_EXTENSION}",
-        m2 = f"{PATH_INPUT_BASEGRO}{EXPERIMENT_TYPE}/m2.{STRUCTURE_EXTENSION}",
+        m1 = rules.copy_structures.output.m1,
+        m2 = rules.copy_structures.output.m2,
     output:
-        num_atoms = f"{PATH_EXPERIMENTS}{EXPERIMENT_TYPE}/{EXPERIMENT_ID}/{GRID_ID}/num_atoms.txt"
+        num_atoms = f"{EXPERIMENT_FULL_PATH}num_atoms.txt"
     run:
         from molgri.io import OneMoleculeReader
         N_m1 = len(OneMoleculeReader(input.m1).get_molecule().atoms)
@@ -74,20 +95,22 @@ rule find_num_atoms:
             f.write(f"{N_m1}\n")
             f.write(f"{N_m2}\n")
 
-rule copy_input:
+rule copy_gromacs_input:
     """
-    Copy the rest of necessary files to start a sqra run and potentially adapt default mdrun params.
+    Copy the rest of necessary files to start a sqra run with a GROMACS calculation and potentially adapt default mdrun params.
     """
+    wildcard_constraints:
+        EXPERIMENT_ID = "GROMACS"
     input:
-        dimer_topology = f"{PATH_INPUT_BASEGRO}{EXPERIMENT_TYPE}/topol.top",
-        select_energy = f"{PATH_INPUT_BASEGRO}{EXPERIMENT_TYPE}/select_energy_five",
-        runfile= f"{PATH_INPUT_BASEGRO}{EXPERIMENT_TYPE}/mdrun.mdp",
-        force_field_stuff = f"{PATH_INPUT_BASEGRO}{EXPERIMENT_TYPE}/force_field_stuff/"
+        dimer_topology = f"{PROVIDED_DATA_PATH}topol.top",
+        select_energy = f"{PROVIDED_DATA_PATH}select_energy_five",
+        runfile= f"{PROVIDED_DATA_PATH}mdrun.mdp",
+        force_field_stuff = f"{PROVIDED_DATA_PATH}force_field_stuff/"
     output:
-        dimer_topology = f"{PATH_EXPERIMENTS}{EXPERIMENT_TYPE}/{EXPERIMENT_ID}/{GRID_ID}/topol.top",
-        select_energy = f"{PATH_EXPERIMENTS}{EXPERIMENT_TYPE}/{EXPERIMENT_ID}/{GRID_ID}/select_energy",
-        runfile = f"{PATH_EXPERIMENTS}{EXPERIMENT_TYPE}/{EXPERIMENT_ID}/{GRID_ID}/mdrun.mdp",
-        force_field_stuff = directory(f"{PATH_EXPERIMENTS}{EXPERIMENT_TYPE}/{EXPERIMENT_ID}/{GRID_ID}/force_field_stuff/")
+        dimer_topology = f"{EXPERIMENT_FULL_PATH}topol.top",
+        select_energy = f"{EXPERIMENT_FULL_PATH}select_energy",
+        runfile = f"{EXPERIMENT_FULL_PATH}mdrun.mdp",
+        force_field_stuff = directory(f"{EXPERIMENT_FULL_PATH}force_field_stuff/")
     params:
         tau_t = config["params_setup"]["tau_t"],
         integrator = config["params_setup"]["integrator"],
@@ -109,90 +132,51 @@ rule copy_input:
         modify_mdrun(output.runfile,"coulombtype",params.cutoff_scheme)
         modify_mdrun(output.runfile, "epsilon-r", params.epsilon)
 
-# rule set_up_guanidinium_xyz:
-#     """
-#     Copy and prepare all the files to be able to run simulations or grid calculations for water in vacuum.
-#     """
-#     wildcard_constraints:
-#         experiment_type=".*guanidinium.*"
-#     input:
-#         structure = f"{PATH_INPUT_BASEGRO}Guanidinium/guanidinium.xyz",
-#     output:
-#         molecule1 = f"{PATH_EXPERIMENTS}{{experiment_type}}/{{experiment_id}}/{{grid_identifier}}/m1.xyz",
-#         molecule2 = f"{PATH_EXPERIMENTS}{{experiment_type}}/{{experiment_id}}/{{grid_identifier}}/m2.xyz",
-#     params:
-#         tau_t = config["params_setup"]["tau_t"],
-#         up1_nm = config["params_setup"]["up1_nm"],
-#         up2_nm = config["params_setup"]["up2_nm"],
-#         force_constant_restraint = config["params_setup"]["force_constant_restraint"],
-#     run:
-#         # first copy all inputs to outputs
-#         import shutil
-#         shutil.copy(input.structure,output.molecule1)
-#         shutil.copy(input.structure,output.molecule2)
-
-
-# rule run_pt_guanidinium:
-#     """
-#     This rule should produce the .gro and .xtc files of the pseudotrajectory.
-#     """
-#     wildcard_constraints:
-#         experiment_type=".*guanidinium.*"
-#     input:
-#         molecule1 = rules.set_up_guanidinium_xyz.output.molecule1,
-#         molecule2 = rules.set_up_guanidinium_xyz.output.molecule2,
-#         grid = rules.run_grid.output.full_array
-#     output:
-#         structure = f"{PATH_EXPERIMENTS}{{experiment_type}}/{{experiment_id}}/{{grid_identifier}}/structure.xyz",
-#         trajectory = f"{PATH_EXPERIMENTS}{{experiment_type}}/{{experiment_id}}/{{grid_identifier}}/trajectory.xyz"
-#     params:
-#         cell_size_A = config["params_sqra"]["cell_size_A"]  # cubic box will be the output, this is size of the box in one dimension
-#     run:
-#         from molgri.io import PtWriter
-#         my_writer = PtWriter(input.molecule1, input.molecule2, cell_size_A=params.cell_size_A, path_grid=input.grid)
-#         my_writer.write_full_pt(path_output_pt=output.trajectory, path_output_structure=output.structure)
-
 rule run_pt:
     """
-    This rule should produce the .gro and .xtc files of the pseudotrajectory.
+    This rule should produce the structure and pseudeo-trajectory (can be file or directory of files)
     """
     input:
         molecule1 = rules.copy_structures.output.m1,
         molecule2 = rules.copy_structures.output.m2,
         grid = rules.run_grid.output.full_array
     output:
-        structure = f"{PATH_EXPERIMENTS}{{experiment_type}}/{{experiment_id}}/{{grid_identifier}}/structure.gro",
-        trajectory = f"{PATH_EXPERIMENTS}{{experiment_type}}/{{experiment_id}}/{{grid_identifier}}/trajectory.xtc"
+        structure = f"{EXPERIMENT_FULL_PATH}structure.{STRUCTURE_EXTENSION}",
+        trajectory = directory(f"{EXPERIMENT_FULL_PATH}trajectory") if config["params_sqra"]["traj_as_dir"] else f"{EXPERIMENT_FULL_PATH}trajectory.xtc"
     params:
         cell_size_A = config["params_sqra"]["cell_size_A"]  # cubic box will be the output, this is size of the box in one dimension
-    benchmark:
-        repeat(f"{PATH_EXPERIMENTS}{{experiment_type}}/{{experiment_id}}/{{grid_identifier}}/pt_benchmark.txt", NUM_REPEATS)
+    # benchmark:
+    #     repeat(f"{EXPERIMENT_FULL_PATH}pt_benchmark.txt", NUM_REPEATS)
     run:
         from molgri.io import PtWriter
         my_writer = PtWriter(input.molecule1, input.molecule2, cell_size_A=params.cell_size_A, path_grid=input.grid)
-        my_writer.write_full_pt(path_output_pt=output.trajectory, path_output_structure=output.structure)
+        if config["params_sqra"]["traj_as_dir"]:
+            my_writer.write_full_pt_in_directory(directory_name=output.trajectory, path_output_structure=output.structure, extension_trajectory=STRUCTURE_EXTENSION)
+        else:
+            my_writer.write_full_pt(path_output_pt=output.trajectory, path_output_structure=output.structure)
 
-
+#
 rule gromacs_rerun:
     """
     This rule gets structure, trajectory, topology and gromacs run file as input, as output we are only interested in
     energies.
     """
-
+    wildcard_constraints:
+        ENERGY_PROGRAM  = "GROMACS"
     input:
         structure = rules.run_pt.output.structure,
         trajectory = rules.run_pt.output.trajectory,
-        runfile = rules.copy_input.output.runfile,
-        topology = rules.copy_input.output.dimer_topology,
-        select_energy = rules.copy_input.output.select_energy,
-        force_field_stuff = rules.copy_input.output.force_field_stuff
+        runfile = rules.copy_gromacs_input.output.runfile,
+        topology = rules.copy_gromacs_input.output.dimer_topology,
+        select_energy = rules.copy_gromacs_input.output.select_energy,
+        force_field_stuff = rules.copy_gromacs_input.output.force_field_stuff
     shadow: "minimal"
     log:
-        log = f"{PATH_EXPERIMENTS}{{experiment_type}}/{{experiment_id}}/{{grid_identifier}}/logging_gromacs.log"
+        log = f"{EXPERIMENT_FULL_PATH}logging_gromacs.log"
     benchmark:
-        repeat(f"{PATH_EXPERIMENTS}{{experiment_type}}/{{experiment_id}}/{{grid_identifier}}/gromacs_benchmark.txt", NUM_REPEATS)
+        repeat(f"{EXPERIMENT_FULL_PATH}gromacs_benchmark.txt", NUM_REPEATS)
     output:
-        energy = f"{PATH_EXPERIMENTS}{{experiment_type}}/{{experiment_id}}/{{grid_identifier}}/energy.xvg",
+        energy = f"{EXPERIMENT_FULL_PATH}energy.xvg",
     # use with arguments like path_structure path_trajectory path_topology path_default_files path_output_energy
     params:
         maxwarn = config["params_sqra"]["maxwarn"]
@@ -207,6 +191,51 @@ rule gromacs_rerun:
         cd "$initial_dir" || exit
         """
 
+
+rule orca_SP_run:
+    "Here we need to perform energy run and collection along the whole PT"
+    wildcard_constraints:
+        ENERGY_PROGRAM = "ORCA"
+    input:
+        xyz_file = f"{EXPERIMENT_FULL_PATH}trajectory/{{frame_num}}.{STRUCTURE_EXTENSION}"
+    #shadow: "minimal"
+    log:
+        out_file = f"{EXPERIMENT_FULL_PATH}{ORCA_DIR}{{frame_num}}/orca.out"
+    benchmark:
+        repeat(f"{EXPERIMENT_FULL_PATH}{ORCA_DIR}{{frame_num}}/orca_benchmark.txt",NUM_REPEATS)
+    output:
+        inp_file = f"{EXPERIMENT_FULL_PATH}{ORCA_DIR}{{frame_num}}/orca.inp"
+    params:
+        charge = config["params_dft"]["charge"],
+        multiplicity = config["params_dft"]["multiplicity"]
+    run:
+        import subprocess
+
+        dimer = QuantumMolecule(charge=params.charge, multiplicity=params.multiplicity, path_xyz=input.xyz_file)
+
+
+        with open(output.inp_file, "w") as f:
+            f.write(make_inp_file(dimer,QUANTUM_SETUP,geo_optimization="SP"))
+
+        # run inp > out
+        subprocess.run(f"orca {output.inp_file} > {log.out_file}",shell=True)
+
+        # make sure no problem occurred
+        assert_normal_finish(log.out_file)
+
+rule orca_collect_energies:
+    """
+    After energies for each point in trajectory have been calculated, combine them for
+    """
+    input:
+        out_files = expand(f"{EXPERIMENT_FULL_PATH}{ORCA_DIR}{{frame_num}}/orca.out",
+            frame_num = [str(i).zfill(10) for i in range(NUM_GRID_POINTS)])
+    output:
+        energy = f"{EXPERIMENT_FULL_PATH}energy.csv"
+    run:
+        # TODO: run monomer as well, create ZPE-corrected energy
+        # TODO: make sure the order remains the trajectory ord
+        read_important_stuff_into_csv(out_files_to_read=input.out_files, csv_file_to_write=output.energy, setup=QUANTUM_SETUP)
 
 rule lowest_e_structures:
     input:
@@ -240,7 +269,12 @@ rule run_sqra:
     As output we want to have the rate matrix.
     """
     input:
-        energy = rules.gromacs_rerun.output.energy,
+        energy = branch(
+            lookup(dpath="energy_program", within=config),
+            cases={
+                "GROMACS": rules.gromacs_rerun.output.energy,
+                "ORCA": rules.orca_collect_energies.output.energy
+            }),
         distances_array = rules.run_grid.output.distances_array,
         borders_array = rules.run_grid.output.borders_array,
         volumes = rules.run_grid.output.volumes,
@@ -261,9 +295,6 @@ rule run_sqra:
         from molgri.molecules.transitions import SQRA
         from scipy import sparse
         from scipy.constants import k as k_B
-        import pandas as pd
-
-
 
         tau = float(params.tau) * 1e-12 # now in s
 
@@ -288,6 +319,7 @@ rule run_sqra:
 
 
         energies = EnergyReader(input.energy).load_single_energy_column(params.energy_type)
+        print(energies.shape, all_volumes.shape, all_distances.shape, all_surfaces.shape)
 
         sqra = SQRA(energies=energies,volumes=all_volumes,distances=all_distances,surfaces=all_surfaces)
 
@@ -501,7 +533,8 @@ rule compile_vmd_log:
             index_list = None
         else:
             index_list = list(index_list)
-
+        if params.num_extremes == "None":
+            params.num_extremes = None
         vmdlog = vmd_creator.prepare_eigenvector_script(eigenvectors.T, plot_names=output.fig_tga, index_list=index_list,
             n_eigenvectors=params.num_eigenvec, num_extremes=params.num_extremes)
 

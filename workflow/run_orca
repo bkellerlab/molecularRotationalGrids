@@ -1,3 +1,6 @@
+"""
+Here we deal with trying out different approaches to DFT calculations - basis sets, functionals, solvents, corrections.
+"""
 import shutil
 import os
 import subprocess
@@ -9,7 +12,7 @@ matplotlib.use('agg')
 from molgri.molecules.orca_runner import (make_inp_file, QuantumMolecule, QuantumSetup, assert_normal_finish,
                                           extract_last_coordinates_from_opt, extract_energy_time_orca_output)
 
-PATH_ORCA_EXAMPLE = "output/orca/example/"
+PATH_ORCA_EXAMPLE = "experiments/orca_testing/"
 
 
 # some of these names are weird and cause problems as directory names, therefore the dictionaries
@@ -37,38 +40,50 @@ filtered_product = filter_combinator(product)
 
 rule all:
     input:
-        f"{PATH_ORCA_EXAMPLE}PBE0_def2SVP_water_D4/dimer_SP/H2O_H2O.out",
-        f"{PATH_ORCA_EXAMPLE}H2O_m1_opt_collected.png"
-        # expand(f"{PATH_ORCA_EXAMPLE}{{functional}}_{{basis_set}}_{{solvent}}_{{dispersion}}/m1_opt/optimized_H2O.xyz",
-        #     functional='PBE0',
-        #     basis_set='def2SVP',solvent='water',dispersion="D4")
-# expand(f"{PATH_ORCA_EXAMPLE}{{functional}}_{{basis_set}}_{{solvent}}_{{dispersion}}/m1_optimization/optimize_H2O.out",
-        #     filtered_product, functional=FUNCTIONALS.keys(),
-        # basis_set=BASIS_SETS.keys(), solvent=SOLVENTS.keys(), dispersion=DISPERSIONS.keys())
+        pic_monomer_opt = expand(f"{PATH_ORCA_EXAMPLE}{{m1}}_{{folder_desc}}_{{opt_or_sp}}_dispersion.png", opt_or_sp="opt", folder_desc="m1", m1="H2O"),
+        pic_dimer_sp = expand(f"{PATH_ORCA_EXAMPLE}{{m1}}-{{m2}}_{{folder_desc}}_{{opt_or_sp}}_dispersion.png",opt_or_sp="SP",folder_desc="ZPE",m1="H2O", m2="H2O"),
+        # single_example = expand(f"{PATH_ORCA_EXAMPLE}{{functional}}_{{basis_set}}_{{solvent}}_{{dispersion}}/m1_opt/optimized_{{m1}}.xyz",
+        #     functional='B3LYP', m1="H2O",
+        #     basis_set='def2TZVP',solvent='toluene',dispersion="no"),
+        # all_examples = expand(f"{PATH_ORCA_EXAMPLE}{{functional}}_{{basis_set}}_{{solvent}}_{{dispersion}}/ZPE_SP/{{m1}}-{{m2}}.csv",
+        #     filtered_product, functional=FUNCTIONALS.keys(), basis_set=BASIS_SETS.keys(), solvent=SOLVENTS.keys(),
+        #     dispersion=DISPERSIONS.keys(), m1="H2O", m2="H2O")
 
 rule copy_start_file:
     """
     Need to get a start (non-optimized) .xyz file to get started.
     """
     input:
-        non_optimized_xyz_m1 = "molgri/examples/{m1}.xyz"
+        non_optimized_xyz_m1 = "molgri/examples/{molecule}.xyz"
     output:
-        non_optimized_xyz_m1 = f"{PATH_ORCA_EXAMPLE}{{functional}}_{{basis_set}}_{{solvent}}_{{dispersion}}/m1_opt/start_{{m1}}.xyz",
+        non_optimized_xyz_m1 = f"{PATH_ORCA_EXAMPLE}{{functional}}_{{basis_set}}_{{solvent}}_{{dispersion}}/m1_opt/start_{{molecule}}.xyz",
     run:
         shutil.copy(input.non_optimized_xyz_m1, output.non_optimized_xyz_m1)
+
+rule m1_is_m2:
+    """
+    Don't redo the calculations if m1==m2
+    """
+    input:
+        out_file = f"{PATH_ORCA_EXAMPLE}{{functional}}_{{basis_set}}_{{solvent}}_{{dispersion}}/m1_{{opt_or_sp}}/{{molecule}}.out"
+    wildcard_constraints:
+        m2="{m1}"
+    log:
+        out_file=f"{PATH_ORCA_EXAMPLE}{{functional}}_{{basis_set}}_{{solvent}}_{{dispersion}}/m2_{{opt_or_sp}}/{{molecule}}.out"
+
 
 rule make_inp:
     """
     Use in any instance where you have the .xyz file and need the .inp file.
     """
     input:
-        xyz_file = f"{PATH_ORCA_EXAMPLE}{{functional}}_{{basis_set}}_{{solvent}}_{{dispersion}}/{{folder_desc}}_{{opt_or_sp}}/start_{{m1}}.xyz"
+        xyz_file = f"{PATH_ORCA_EXAMPLE}{{functional}}_{{basis_set}}_{{solvent}}_{{dispersion}}/{{folder_desc}}_{{opt_or_sp}}/start_{{molecule}}.xyz"
     params:
         #TODO: be able to change charge and multiplicity
         charge = 0,
         multiplicity=1
     output:
-        inp_file = f"{PATH_ORCA_EXAMPLE}{{functional}}_{{basis_set}}_{{solvent}}_{{dispersion}}/{{folder_desc}}_{{opt_or_sp}}/{{m1}}.inp"
+        inp_file = f"{PATH_ORCA_EXAMPLE}{{functional}}_{{basis_set}}_{{solvent}}_{{dispersion}}/{{folder_desc}}_{{opt_or_sp}}/{{molecule}}.inp"
     run:
         m1 = QuantumMolecule(charge=params.charge, multiplicity=params.multiplicity, path_xyz=input.xyz_file)
         m1_setup = QuantumSetup(functional=FUNCTIONALS[wildcards.functional], basis_set=BASIS_SETS[wildcards.basis_set],
@@ -90,11 +105,11 @@ rule run_orca:
     Use in any instance where you have the .inp file and need the .out file.
     """
     input:
-        inp_file = f"{PATH_ORCA_EXAMPLE}{{functional}}_{{basis_set}}_{{solvent}}_{{dispersion}}/{{folder_desc}}_{{opt_or_sp}}/{{m1}}.inp"
+        inp_file = f"{PATH_ORCA_EXAMPLE}{{functional}}_{{basis_set}}_{{solvent}}_{{dispersion}}/{{folder_desc}}_{{opt_or_sp}}/{{molecule}}.inp"
     benchmark:
-        f"{PATH_ORCA_EXAMPLE}{{functional}}_{{basis_set}}_{{solvent}}_{{dispersion}}/{{folder_desc}}_{{opt_or_sp}}/benchmark_{{m1}}.csv"
+        f"{PATH_ORCA_EXAMPLE}{{functional}}_{{basis_set}}_{{solvent}}_{{dispersion}}/{{folder_desc}}_{{opt_or_sp}}/benchmark_{{molecule}}.csv"
     log:
-        out_file = f"{PATH_ORCA_EXAMPLE}{{functional}}_{{basis_set}}_{{solvent}}_{{dispersion}}/{{folder_desc}}_{{opt_or_sp}}/{{m1}}.out"
+        out_file = f"{PATH_ORCA_EXAMPLE}{{functional}}_{{basis_set}}_{{solvent}}_{{dispersion}}/{{folder_desc}}_{{opt_or_sp}}/{{molecule}}.out"
     run:
 
         # run inp > out
@@ -112,13 +127,13 @@ rule extract_coordinates_from_out:
     input:
         orca_out = rules.run_orca.log.out_file
     output:
-        optimized_xyz = f"{PATH_ORCA_EXAMPLE}{{functional}}_{{basis_set}}_{{solvent}}_{{dispersion}}/{{folder_desc}}_{{opt_or_sp}}/optimized_{{m1}}.xyz",
+        optimized_xyz = f"{PATH_ORCA_EXAMPLE}{{functional}}_{{basis_set}}_{{solvent}}_{{dispersion}}/{{folder_desc}}_{{opt_or_sp}}/optimized_{{molecule}}.xyz",
     run:
         # extract last coordinated from trajectory
         directory, filename = os.path.split(output.optimized_xyz)
         name, extension = os.path.splitext(filename)
         # name from trj file is almost the name of out file
-        path_traj = os.path.join(directory, f"start_{wildcards.m1}_trj.xyz")
+        path_traj = os.path.join(directory, f"{wildcards.molecule}_trj.xyz")
         extract_last_coordinates_from_opt(path_traj, output.optimized_xyz)
 
 rule record_data:
@@ -126,13 +141,12 @@ rule record_data:
     Read time and energy from out and record it.
     """
     input:
-        out_file = f"{PATH_ORCA_EXAMPLE}{{functional}}_{{basis_set}}_{{solvent}}_{{dispersion}}/{{folder_desc}}_{{opt_or_sp}}/{{m1}}.out"
+        out_file = f"{PATH_ORCA_EXAMPLE}{{functional}}_{{basis_set}}_{{solvent}}_{{dispersion}}/{{folder_desc}}_{{opt_or_sp}}/{{molecule}}.out"
     output:
-        csv_file=f"{PATH_ORCA_EXAMPLE}{{functional}}_{{basis_set}}_{{solvent}}_{{dispersion}}/{{folder_desc}}_{{opt_or_sp}}/{{m1}}.csv"
+        csv_file=f"{PATH_ORCA_EXAMPLE}{{functional}}_{{basis_set}}_{{solvent}}_{{dispersion}}/{{folder_desc}}_{{opt_or_sp}}/{{molecule}}.csv"
     run:
         import pandas as pd
         from scipy.constants import physical_constants
-
         HARTREE_TO_J = physical_constants["Hartree energy"][0]
         AVOGADRO_CONSTANT = physical_constants["Avogadro constant"][0]
 
@@ -150,19 +164,47 @@ rule record_data:
 
         df.to_csv(output.csv_file)
 
+rule correction_ZPE:
+    """
+    We correct for zero-point energy by considering dimer-monomer1-monomer2 energy.
+    
+    CURRENTLY ASSUMING m1 = m2!
+    """
+    input:
+        csv_file_m1 = f"{PATH_ORCA_EXAMPLE}{{functional}}_{{basis_set}}_{{solvent}}_{{dispersion}}/m1_opt/{{m1}}.csv",
+        #csv_file_m2 = f"{PATH_ORCA_EXAMPLE}{{functional}}_{{basis_set}}_{{solvent}}_{{dispersion}}/m1_opt/{{m2}}.csv",
+        csv_file_dimer = f"{PATH_ORCA_EXAMPLE}{{functional}}_{{basis_set}}_{{solvent}}_{{dispersion}}/dimer_SP/{{m1}}-{{m2}}.csv"
+    output:
+        csv_file=f"{PATH_ORCA_EXAMPLE}{{functional}}_{{basis_set}}_{{solvent}}_{{dispersion}}/ZPE_SP/{{m1}}-{{m2}}.csv"
+    run:
+        import pandas as pd
+        m1_df = pd.read_csv(input.csv_file_m1, index_col=0)
+        dimer_df = pd.read_csv(input.csv_file_dimer, index_col=0)
+
+        zpe_df = dimer_df.copy()
+        # energy is the difference of energies
+        zpe_df["Energy [hartree]"] -= 2*m1_df["Energy [hartree]"]
+        zpe_df["Energy [kJ/mol]"] -= 2*m1_df["Energy [kJ/mol]"]
+        # but time is the sum of times
+        zpe_df["Time [s]"] += 2 * m1_df["Time [s]"]
+        zpe_df["Time [h:m:s]"] += 2 * m1_df["Time [h:m:s]"]
+
+        zpe_df.to_csv(output.csv_file)
+
+
 rule collect_data:
     """
     Go through folders and collect csv data
     """
     input:
-        out_file = expand(f"{PATH_ORCA_EXAMPLE}{{functional}}_{{basis_set}}_{{solvent}}_{{dispersion}}/{{folder_desc}}_{{opt_or_sp}}/{{m1}}.csv", filtered_product,
+        out_file = expand(f"{PATH_ORCA_EXAMPLE}{{functional}}_{{basis_set}}_{{solvent}}_{{dispersion}}/{{folder_desc}}_{{opt_or_sp}}/{{molecule}}.csv", filtered_product,
             functional=FUNCTIONALS.keys(), basis_set=BASIS_SETS.keys(), solvent=SOLVENTS.keys(), dispersion=DISPERSIONS.keys(), allow_missing=True)
     output:
-        csv_file = f"{PATH_ORCA_EXAMPLE}{{m1}}_{{folder_desc}}_{{opt_or_sp}}_collected.csv"
+        csv_file = f"{PATH_ORCA_EXAMPLE}{{molecule}}_{{folder_desc}}_{{opt_or_sp}}_collected.csv"
     run:
         import pandas as pd
 
-        dataframes = [pd.read_csv(file) for file in input.out_file]
+        dataframes = [pd.read_csv(file, index_col=0) for file in input.out_file]
 
         # Concatenate all DataFrames into one
         combined_df = pd.concat(dataframes,ignore_index=True)
@@ -176,9 +218,10 @@ rule visualize_time_energy:
     From collected data create plot(s) of time and energy
     """
     input:
-        csv_file = f"{PATH_ORCA_EXAMPLE}{{m1}}_{{folder_desc}}_{{opt_or_sp}}_collected.csv"
+        csv_file = f"{PATH_ORCA_EXAMPLE}{{molecule}}_{{folder_desc}}_{{opt_or_sp}}_collected.csv"
     output:
-        png_file = f"{PATH_ORCA_EXAMPLE}{{m1}}_{{folder_desc}}_{{opt_or_sp}}_collected.png"
+        png_file_dis = f"{PATH_ORCA_EXAMPLE}{{molecule}}_{{folder_desc}}_{{opt_or_sp}}_dispersion.png",
+        png_file_no = f"{PATH_ORCA_EXAMPLE}{{molecule}}_{{folder_desc}}_{{opt_or_sp}}.png"
     run:
         import seaborn as sns
         import matplotlib.pyplot as plt
@@ -186,16 +229,37 @@ rule visualize_time_energy:
 
         sns.set_style("white")
 
-        df = pd.read_csv(input.csv_file)
+        df = pd.read_csv(input.csv_file,index_col=0, na_filter=True).fillna('')
 
-        fig, ax = plt.subplots(2,1,sharex=True)
+        for dispersion, file in zip(["D4", ""], [output.png_file_dis, output.png_file_no]):
+            fig, ax = plt.subplots(2,3,sharex=True)
+            filtered_df = df[df["Dispersion correction"] == dispersion]
+            for column, solvent in zip(range(3), ["water", "ethanol", "toluene"]):
+                filtered2_df = filtered_df[filtered_df["Solvent"]==solvent]
+                print(filtered2_df)
+                add_legend = column==2
+                sns.scatterplot(filtered2_df,x="Functional",y="Time [s]",ax=ax[0][column],hue="Basis set", legend=add_legend)
+                sns.barplot(filtered2_df,x="Functional",y="Energy [kJ/mol]",ax=ax[1][column],color="white",edgecolor='black')
+                sns.scatterplot(filtered2_df,x="Functional",y="Energy [kJ/mol]",ax=ax[1][column],hue="Basis set",legend=False)
+                ax[0][column].set_title(solvent)
+                ax[1][column].tick_params(axis='x',rotation=45)
 
-        sns.scatterplot(df,x="Functional",y="Time [s]",ax=ax[0],hue="Basis set")
-        sns.barplot(df,x="Functional",y="Energy [kJ/mol]",ax=ax[1],color="white",edgecolor='black')
+            ax[0][2].legend(loc='upper left',bbox_to_anchor=(1, 1))
 
-        ax[0].legend(loc='upper left',bbox_to_anchor=(1, 1))
-        fig.tight_layout()
-        fig.savefig(output.png_file)
+            # Automatically compute y-limits for top-row plots
+            top_min = min(myax.get_ylim()[0] for myax in ax[0, :])
+            top_max = max(myax.get_ylim()[1] for myax in ax[0, :])
+            for myax in ax[0, :]:
+                myax.set_ylim(top_min,top_max)
+
+            # Automatically compute y-limits for bottom-row plots
+            bottom_min = min(myax.get_ylim()[0] for myax in ax[1, :])
+            bottom_max = max(myax.get_ylim()[1] for myax in ax[1, :])
+            for myax in ax[1, :]:
+                myax.set_ylim(bottom_min,bottom_max)
+
+            fig.tight_layout()
+            fig.savefig(file)
 
 
 
@@ -210,7 +274,7 @@ rule create_dimer:
         z_dist_A = 3,
         cell_size_A = 0.0
     output:
-        non_optimized_dimer = f"{PATH_ORCA_EXAMPLE}{{functional}}_{{basis_set}}_{{solvent}}_{{dispersion}}/dimer_SP/start_{{m1}}_{{m2}}.xyz",
+        non_optimized_dimer = f"{PATH_ORCA_EXAMPLE}{{functional}}_{{basis_set}}_{{solvent}}_{{dispersion}}/dimer_SP/start_{{m1}}-{{m2}}.xyz",
     run:
         from molgri.io import TwoMoleculeWriter
 
