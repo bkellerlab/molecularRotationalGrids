@@ -141,24 +141,24 @@ def test_how_many_eigenvectors_to_take():
 
     # only positive
     my_array = np.array([0.2, 0.77, 0.3, 0.9, 0.251, 3.7, 1.4, 0.29, 0.16, 0.97])
-    how_many = find_num_extremes(my_array, only_positive=True)
+    how_many = find_num_extremes(my_array, only_positive=True, explains_x_percent=80)
     assert how_many == 5
 
     # only negative
     my_array = np.array([-0.2, -0.77, -0.3, -0.9, -0.251, -3.7, -1.4, -0.29, -0.16, -0.97])
-    how_many = find_num_extremes(my_array, only_positive=False)
+    how_many = find_num_extremes(my_array, only_positive=False, explains_x_percent=80)
     assert how_many == 5
 
     # if it's all zero ...
-    how_many = find_num_extremes(my_array, only_positive=True)
+    how_many = find_num_extremes(my_array, only_positive=True, explains_x_percent=80)
     assert how_many == 0
 
     # positive and negative
     my_array = np.array([0.2, -0.77, 0.3, -0.9, 0.251, -3.7, -1.4, 0.29, 0.16, 0.97])
-    how_many = find_num_extremes(my_array, only_positive=True)
+    how_many = find_num_extremes(my_array, only_positive=True, explains_x_percent=80)
     assert how_many == 4
 
-    how_many = find_num_extremes(my_array, only_positive=False)
+    how_many = find_num_extremes(my_array, only_positive=False, explains_x_percent=80)
     assert how_many == 3
 
 
