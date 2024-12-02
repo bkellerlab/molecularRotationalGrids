@@ -2,12 +2,15 @@ import os
 import MDAnalysis as mda
 import pandas as pd
 import numpy as np
+import yaml
 from numpy.typing import NDArray
 from scipy import sparse
 from MDAnalysis import Merge
 
 from molgri.molecules.pts import Pseudotrajectory
 import MDAnalysis.transformations as trans
+
+from molgri.space.translations import TranslationParser
 
 
 class GridWriter:
@@ -170,7 +173,7 @@ class PtWriter(TwoMoleculeWriter):
         self.pt_universe.atoms.write(path_output_pt, frames='all')
         self.pt_universe.atoms.write(path_output_structure, frames=self.pt_universe.trajectory[[0]])
 
-    def write_full_pt_in_directory(self, directory_name: str, path_output_structure: str, extension_trajectory:
+    def write_full_pt_in_directory(self, paths_trajectory: list, path_output_structure: str, extension_trajectory:
     str = "xyz"):
         """
         As an alternative to saving a full PT in a single trajectory file, you can create a directory with the same
@@ -181,10 +184,10 @@ class PtWriter(TwoMoleculeWriter):
             path_trajectory: where trajectory should be saved
             path_structure: where topology should be saved
         """
-        _create_dir_or_empty_it(directory_name)
+        #_create_dir_or_empty_it(directory_name)
 
         for i, ts in enumerate(self.pt_universe.trajectory):
-            self.pt_universe.atoms.write(f"{directory_name}/{str(i).zfill(10)}.{extension_trajectory}")
+            self.pt_universe.atoms.write(paths_trajectory[i])
 
         self.pt_universe.atoms.write(path_output_structure, frames=self.pt_universe.trajectory[[0]])
 
@@ -240,3 +243,62 @@ def _create_dir_or_empty_it(directory_name):
         filelist = [f for f in os.listdir(directory_name)]
         for f in filelist:
             os.remove(os.path.join(directory_name, f))
+
+
+class BenchmarkReader:
+    """
+    Reads snakemake benchmark and gives the most importnat thing (time in s)
+    """
+
+    def __init__(self, path_benchmark_file: str):
+        self.benchmark = pd.read_csv(path_benchmark_file, delimiter="\t")
+
+    def get_time_in_s(self) -> pd.Series:
+        return self.benchmark["s"]
+
+    def get_mean_time_in_s(self) -> float:
+        """
+        Useful both to get the mean and also to get the only time as a float if there is just one line in the file.
+
+        Returns: Time in the seconds
+        """
+        return self.get_time_in_s().mean()
+
+
+class ParameterReader:
+    """
+    Reads the .yaml files we use to set-up calculations with snakemake.
+    """
+
+    def __init__(self, path_parameter_file: str):
+        with open(path_parameter_file, 'r') as f:
+            self.parameters = yaml.safe_load(f)
+
+    def get_all_params_as_dict(self) -> dict:
+        return self.parameters
+
+    def get_grid_params_als_dict(self) -> dict:
+        return self.parameters["params_grid"]
+
+    def get_grid_size_params_als_dict(self) -> tuple:
+        grid_params = self.get_grid_params_als_dict()
+        # keep only the three sizes of grids, the rest we don#t care about
+
+        num_directions = grid_params["num_directions"]
+        num_orientations = grid_params["num_orientations"]
+        num_radii = TranslationParser(grid_params["radial_distances_nm"]).get_N_trans()
+
+        return (num_directions, num_orientations, num_radii)
+
+
+class ItsReader:
+    """
+    Read the .csv files of implied timescales, be able to recognise some might be illogical etc.
+    """
+
+    def __init__(self, path_its_file: str):
+        self.its = pd.read_csv(path_its_file)
+
+    def get_first_N_its(self, N: int = 5) -> tuple:
+        return tuple(self.its.iloc[0][:N])
+
