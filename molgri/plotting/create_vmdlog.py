@@ -288,10 +288,8 @@ mol showrep 0 {j} 0
         return string_rendering
 
     def _add_rotations_translations(self):
-        if self.experiment_type == "sqra_water_in_vacuum":
+        if self.experiment_type == "sqra_water_in_vacuum" or "water_xyz":
             file = "molgri/scripts/vmd_position_sqra_water"
-        elif self.experiment_type == "test":
-            return ""
         elif self.experiment_type == "msm_water_in_vacuum":
             file = "molgri/scripts/vmd_position_msm_water_vacuum"
         elif self.experiment_type == "msm_water_in_helium":
@@ -301,7 +299,7 @@ mol showrep 0 {j} 0
         elif self.experiment_type == "sqra_bpti_trypsine":
             file = "molgri/scripts/vmd_position_sqra_bpti"
         else:
-            raise ValueError(f"Experiment type {self.experiment_type} unknown, cannot create VMD file")
+            return "\n"
 
         with open(file, "r") as f:
             contents = f.read()

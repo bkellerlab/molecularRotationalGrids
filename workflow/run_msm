@@ -48,7 +48,7 @@ rule copy_structures:
         shutil.copy(input.m1, output.m1)
         shutil.copy(input.m2, output.m2)
 
-rule copy_input:
+rule copy_gromacs_input:
     """
     Copy the rest of necessary files to start a sqra run and potentially adapt default mdrun params.
     """

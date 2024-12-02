@@ -317,10 +317,12 @@ class SQRA:
         assert len(self.energies) == len(self.volumes), f"{len(self.energies)} != {len(self.volumes)}"
         # you cannot multiply or divide directly in a coo format
         transition_matrix = D * self.surfaces  #/ all_distances
+        print("data shape", self.surfaces.data.shape, self.distances.data.shape)
         transition_matrix = transition_matrix.tocoo()
         transition_matrix.data /= self.distances.tocoo().data
         # Divide every row of transition_matrix with the corresponding volume
         transition_matrix.data /= self.volumes[transition_matrix.row]
+        print("done volumes")
         # multiply with sqrt(pi_j/pi_i) = e**((V_i-V_j)*1000/(2*k_B*N_A*T))
         # gromacs uses kJ/mol as energy unit, boltzmann constant is J/K
         diff_energies = self.energies[transition_matrix.row] - self.energies[transition_matrix.col]
@@ -329,6 +331,7 @@ class SQRA:
               f"energy, more than factor 500. This would lead to overflow, so these differences are capped to a "
               f"factor 500. This might be a sign of poor discretisation or just the case of L-J overlap.")
         diff_energies = np.where(diff_energies < 5e2, diff_energies, 5e2)
+        print("DIFF", diff_energies.shape, self.volumes.shape, self.distances.shape, self.surfaces.shape)
 
         pi_exponent = np.round(diff_energies,14) * 1000 / (2 * kB * N_A * T)
 

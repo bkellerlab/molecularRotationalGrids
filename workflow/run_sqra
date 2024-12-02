@@ -42,6 +42,9 @@ if ENERGY_PROGRAM == "ORCA":
         solvent=config["params_dft"]["solvent"],
         dispersion_correction=config["params_dft"]["dispersion"])
     ORCA_DIR = QUANTUM_SETUP.get_dir_name()
+else:
+    QUANTUM_SETUP = None
+    ORCA_DIR = None
 
 try:
     NUM_REPEATS = config["num_repeats"]
@@ -56,6 +59,8 @@ rule all_sqra:
     #what=["its.png", "eigenvectors_vmdlog", "eigenvalues.png", "its.csv"]
     log:
         log = f"{EXPERIMENT_FULL_PATH}total_log.yaml"
+    benchmark:
+        repeat(f"{EXPERIMENT_FULL_PATH}total_benchmark.txt", NUM_REPEATS)
     run:
         import yaml
         with open(log.log, "w")  as f:
@@ -142,7 +147,7 @@ rule run_pt:
         grid = rules.run_grid.output.full_array
     output:
         structure = f"{EXPERIMENT_FULL_PATH}structure.{STRUCTURE_EXTENSION}",
-        trajectory = directory(f"{EXPERIMENT_FULL_PATH}trajectory") if config["params_sqra"]["traj_as_dir"] else f"{EXPERIMENT_FULL_PATH}trajectory.xtc"
+        trajectory = [f"{EXPERIMENT_FULL_PATH}trajectory/{str(i).zfill(10)}.xyz" for i in range(NUM_GRID_POINTS)] if config["params_sqra"]["traj_as_dir"] else f"{EXPERIMENT_FULL_PATH}trajectory.xtc"
     params:
         cell_size_A = config["params_sqra"]["cell_size_A"]  # cubic box will be the output, this is size of the box in one dimension
     # benchmark:
@@ -151,7 +156,7 @@ rule run_pt:
         from molgri.io import PtWriter
         my_writer = PtWriter(input.molecule1, input.molecule2, cell_size_A=params.cell_size_A, path_grid=input.grid)
         if config["params_sqra"]["traj_as_dir"]:
-            my_writer.write_full_pt_in_directory(directory_name=output.trajectory, path_output_structure=output.structure, extension_trajectory=STRUCTURE_EXTENSION)
+            my_writer.write_full_pt_in_directory(paths_trajectory=output.trajectory, path_output_structure=output.structure)
         else:
             my_writer.write_full_pt(path_output_pt=output.trajectory, path_output_structure=output.structure)
 
@@ -192,6 +197,10 @@ rule gromacs_rerun:
         """
 
 
+#rule touch_all_trajectory:
+#    output:
+#        touch([f"{EXPERIMENT_FULL_PATH}trajectory/{str(i).zfill(10)}.xyz" for i in range(NUM_GRID_POINTS)])
+
 rule orca_SP_run:
     "Here we need to perform energy run and collection along the whole PT"
     wildcard_constraints:
@@ -223,6 +232,7 @@ rule orca_SP_run:
         # make sure no problem occurred
         assert_normal_finish(log.out_file)
 
+
 rule orca_collect_energies:
     """
     After energies for each point in trajectory have been calculated, combine them for
@@ -233,8 +243,9 @@ rule orca_collect_energies:
     output:
         energy = f"{EXPERIMENT_FULL_PATH}energy.csv"
     run:
-        # TODO: run monomer as well, create ZPE-corrected energy
-        # TODO: make sure the order remains the trajectory ord
+        # note: since differences in energy are used, there is no need for ZPE-corrected energy
+        # TODO: make sure the order remains the trajectory order
+        # TODO: make sure to allow for control of the number of cycles and deal with failing structures
         read_important_stuff_into_csv(out_files_to_read=input.out_files, csv_file_to_write=output.energy, setup=QUANTUM_SETUP)
 
 rule lowest_e_structures:
@@ -307,6 +318,8 @@ rule run_sqra:
         all_surfaces = sparse.load_npz(input.borders_array)
         all_distances = sparse.load_npz(input.distances_array)
 
+
+
         # determine limits
         if params.lower_lim == "None":
             lower_limit = None
@@ -319,11 +332,11 @@ rule run_sqra:
 
 
         energies = EnergyReader(input.energy).load_single_energy_column(params.energy_type)
-        print(energies.shape, all_volumes.shape, all_distances.shape, all_surfaces.shape)
 
         sqra = SQRA(energies=energies,volumes=all_volumes,distances=all_distances,surfaces=all_surfaces)
 
-
+        print("created sqra")
+        print("shape of ", D, params.T)
 
         rate_matrix = sqra.get_rate_matrix(D,params.T)
         print(np.max(rate_matrix.data), np.min(rate_matrix.data), np.max(-rate_matrix.data), np.min(-rate_matrix.data))
@@ -332,6 +345,8 @@ rule run_sqra:
         # saving to file
         sparse.save_npz(output.rate_matrix,rate_matrix)
         np.save(output.index_list,np.array(index_list,dtype=object))
+
+
 
 
 rule run_clustering:
@@ -541,6 +556,7 @@ rule compile_vmd_log:
         with open(output.vmdlog, "w") as f:
             f.write(vmdlog)
 
+        # TODO: if trajectory in a directory, you can load structure trajectory/*
         shell("vmd  -dispdev text {input.structure} {input.trajectory} < {output.vmdlog}")
         for el_tga, el_png in zip(output.fig_tga, output.fig_png):
             shell("convert {el_tga} {el_png}")

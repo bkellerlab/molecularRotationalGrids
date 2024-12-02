@@ -227,9 +227,9 @@ rule plot_all_benchmarking:
         #sns.set_theme("ticks")
 
         # Create a figure and a GridSpec layout
-        fig = plt.figure(figsize=(7, 6))  # Adjust figure size to your needs
-        gs = gridspec.GridSpec(3,2,width_ratios=[2, 1], wspace=0.4, hspace=0.5)
-        ax1 = fig.add_subplot(gs[1:, 0])  # span all columns in the first row
+        fig = plt.figure(figsize=(8, 6))  # Adjust figure size to your needs
+        gs = gridspec.GridSpec(3,2,width_ratios=[2, 1], wspace=0.35, hspace=0.5)
+        ax1 = fig.add_subplot(gs[:2, 0])  # span all columns in the first row
 
 
         plt.tight_layout()  # Adjust layout to prevent overlap
@@ -249,10 +249,10 @@ rule plot_all_benchmarking:
         total_df["Cat3"] = total_df["Cat2"] + total_df["Matrix decomposition [min]"]
 
         # total time stacked bars
-        bar1 = sns.barplot(x="Num atoms",y="Total time [min]",data=total_df,color='gray',ax=ax1, width=0.8)
-        bar4 = sns.barplot(x="Num atoms",y="Cat3",data=total_df,color='blue',ax=ax1,errorbar=None, width=0.8)
-        bar3 = sns.barplot(x="Num atoms",y="Cat2" ,data=total_df,color='green',ax=ax1,errorbar=None, width=0.8)
-        bar2 = sns.barplot(x="Num atoms",y="Generation of grid+pt [min]",data=total_df,color='red',ax=ax1,errorbar=None, width=0.8)
+        bar1 = sns.barplot(x="Num atoms",y="Total time [min]",data=total_df,color='gray',ax=ax1, width=0.6)
+        bar4 = sns.barplot(x="Num atoms",y="Cat3",data=total_df,color='#3576b6',ax=ax1,errorbar=None, width=0.6)
+        bar3 = sns.barplot(x="Num atoms",y="Cat2" ,data=total_df,color='#306f1d',ax=ax1,errorbar=None, width=0.6)
+        bar2 = sns.barplot(x="Num atoms",y="Generation of grid+pt [min]",data=total_df,color='#a62c18',ax=ax1,errorbar=None, width=0.6)
 
 
         #bar1 = sns.barplot(x="Num atoms",y="Generation of grid + structures [min]",data=grid_average,color='red', ax=ax1)
@@ -264,15 +264,15 @@ rule plot_all_benchmarking:
 
         # rest: scatterplots
         ax2 = fig.add_subplot(gs[0, 1])
-        sns.scatterplot(total_df,x="Num atoms",y="Generation of grid+pt [min]",ax=ax2, color="red")
+        sns.scatterplot(total_df,x="Num atoms",y="Generation of grid+pt [min]",ax=ax2, color="#a62c18", s=45, legend=False)
         ax4 = fig.add_subplot(gs[1, 1])
-        sns.scatterplot(total_df,x="Num atoms",y="Force field evaluation [min]",ax=ax4, color="green")
+        sns.scatterplot(total_df,x="Num atoms",y="Force field evaluation [min]",ax=ax4, color="#306f1d", s=45, legend=False)
         ax5 = fig.add_subplot(gs[2, 1])
-        sns.scatterplot(total_df,x="Num atoms",y="Matrix decomposition [min]",ax=ax5, color="blue")
+        sns.scatterplot(total_df,x="Num atoms",y="Matrix decomposition [min]",ax=ax5, color="#3576b6", s=45, legend=False)
 
         for myax in [ax2, ax4, ax5]:
             my_label = myax.get_ylabel()
-            myax.set(ylabel="", title=my_label, xlabel="")
+            myax.set(ylabel="Time [min]", title=my_label[:-6], xlabel="")
             myax.set(xscale="log")
             unique_x = sorted(total_df['Num atoms'].unique())  # Get unique x-values and sort them
             myax.xaxis.set_major_formatter(ScalarFormatter())
@@ -282,7 +282,11 @@ rule plot_all_benchmarking:
         for myax in [ax1, ax2, ax4]:
             myax.set(xlabel="")
 
-
+        ax1.invert_yaxis()
+        my_label = ax1.get_ylabel()
+        ax1.set(xlabel="Total number of atoms", ylabel="Time [min]", title="Total workflow")
+        ax5.set(xlabel="Total number of atoms")
+        #ax1.set(ylabel="",title=my_label,xlabel="")
         fig.tight_layout()
         plt.subplots_adjust(left=0.11,right=0.89,top=0.9,bottom=0.1)
         fig.savefig(output.plot, dpi=600)
