@@ -60,7 +60,7 @@ def add_fake_legend(fig, color_dict):
     fig.update_layout(annotations=annotations)
 
 
-def plot_adjacency_array(my_adjacency_array, path_to_save):
+def plot_adjacency_array(my_adjacency_array, path_to_save=None):
     color_continuous_scale = [(0, "white"), (0.5, "red"), (1, "black")]
     fig = go.Figure(go.Heatmap(x=my_adjacency_array.row, y=my_adjacency_array.col, z=my_adjacency_array.data,
                     colorscale=color_continuous_scale, showscale=False, zmin=0, zmax=1))
@@ -73,7 +73,15 @@ def plot_adjacency_array(my_adjacency_array, path_to_save):
     if np.any(np.isclose(my_adjacency_array.data, 0.5)):
         add_fake_legend(fig,{"position neighbours\n(same orientation)": "red", "orientation neighbours\n(same position)": "black"})
         #fig.update_layout(title="Red: position neighbours, black: orientation neighbours")
-    fig.write_image(path_to_save, width=WIDTH, height=HEIGHT, scale=2)
+    if path_to_save is not None:
+        fig.write_image(path_to_save, width=WIDTH, height=HEIGHT, scale=2)
+    else:
+        fig.update_layout(
+            autosize=False,
+            width=WIDTH,
+            height=HEIGHT,
+        )
+        fig.show()
 
 
 def plot_array_heatmap(my_array, path_to_save):

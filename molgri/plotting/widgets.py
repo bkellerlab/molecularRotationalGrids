@@ -45,6 +45,12 @@ class ViewManager:
         new_u = mda.Merge(self.u.atoms)
         return new_u
 
+    def add_vector(self, vector: NDArray, label = None, rgb=(0,0,0)):
+        self.view.shape.add_arrow([0, 0, 0], vector, rgb, 0.1)
+
+        if label:
+            self.view.shape.add_label(vector/2, rgb, 1.5, label)
+
     def add_principal_axes(self, pa_center, pa_array):
         """
         Helper method. Add the x, y and z axes at origin to a NGLView.
