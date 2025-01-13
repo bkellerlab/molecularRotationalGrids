@@ -198,3 +198,6 @@ workflow/*.csv
 *.mpg
 monomer.gro
 workflow/run_playground
+
+molgri/examples/
+trajectory/
