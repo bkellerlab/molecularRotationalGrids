@@ -146,6 +146,15 @@ class VMDCreator:
         with open(output_file, 'w') as file:
             file.write(file_contents)
 
+    def _add_colored_representation(self, representation_index, color_id, frames):
+        string_to_add = f"""
+mol addrep 0
+mol modselect {representation_index} 0 {self.index_second_molecule}
+mol modcolor {representation_index} 0 ColorID {color_id}
+mol drawframes 0 {representation_index} {{ {', '.join(map(str, frames.flatten().astype(int)))} }}
+"""
+        return string_to_add
+
     def _add_pos_neg_eigenvector(self, i1, frames_pos, frames_neg) -> str:
         i2 = i1 + 1
 
@@ -229,16 +238,23 @@ mol modcolor 1 0 {self.coloring}
 
         total_string += self._add_first_molecule()
 
+        if num_extremes is not None:
+            double_extremes = 2*num_extremes
+        else:
+            double_extremes = None
         if "msm" in self.experiment_type:
             zeroth_eigenvector = find_indices_of_largest_eigenvectors(eigenvector_array[0], which="abs",
-                                                                      index_list=index_list, num_extremes=num_extremes,
+                                                                      index_list=index_list,
+                                                                      num_extremes=double_extremes,
                                                                       add_one=False)
             zeroth_eigenvector = find_assigned_trajectory_indices(self.assignments, zeroth_eigenvector, num_of_examples,
                                                                   add_one=True)
         else:
             zeroth_eigenvector = find_indices_of_largest_eigenvectors(eigenvector_array[0], which="abs",
-                                                                      index_list=index_list, num_extremes=num_extremes)
+                                                                      index_list=index_list,
+                                                                      num_extremes=double_extremes)
         total_string += self._add_zeroth_eigenvector(zeroth_eigenvector)
+        print(zeroth_eigenvector)
 
         for i in range(1, n_eigenvectors):
             if "msm" in self.experiment_type:
@@ -255,6 +271,8 @@ mol modcolor 1 0 {self.coloring}
                                                                        index_list=index_list, num_extremes=num_extremes)
                 neg_eigenvector = find_indices_of_largest_eigenvectors(eigenvector_array[i], which="neg",
                                                                        index_list=index_list, num_extremes=num_extremes)
+            print(pos_eigenvector)
+            print(neg_eigenvector)
             total_string += self._add_pos_neg_eigenvector(2 * i, pos_eigenvector, neg_eigenvector)
         total_string += self._add_rotations_translations()
         total_string += self._add_hide_all_representations(n_eigenvectors)
@@ -265,6 +283,53 @@ mol modcolor 1 0 {self.coloring}
             total_string += self._add_render_a_plot(2 * i, 2 * i + 1, plot_names[i])
         total_string += "quit"
         return total_string
+
+    def prepare_clustering_script(self, labels: NDArray, colors: list, plot_name: str, max_num_per_cluster: int = 20):
+        # translate named colors into VMD color ID
+        color_dict = {"black": 16, "yellow": 4, "orange": 3, "green": 7, "blue": 0, "cyan": 10, "purple": 11,
+                      "gray": 2, "pink": 9, "red": 1, "magenta": 27}
+
+        total_string = ""
+        total_string += self._add_pretty_plot_settings()
+
+        total_string += self._add_first_molecule()
+
+        # for each unique label add a colored set of structures
+
+        repr_index = 1
+        for i, unique_label in enumerate(np.unique(labels)[:len(colors)]):
+            cluster = np.where(labels == unique_label)[0]
+            population = len(cluster)
+            cluster_indices = np.array([x + 1 for x in cluster])
+            if population > 5 and population < 1000:
+                if population > max_num_per_cluster:
+                    cluster_indices = np.random.choice(cluster_indices, max_num_per_cluster)
+                total_string += self._add_colored_representation(repr_index, color_dict[colors[i]], cluster_indices)
+                repr_index += 1
+
+        total_string += self._add_rotations_translations()
+        total_string+="\n"
+
+        total_string += f"render TachyonInternal {plot_name}\n"
+
+        n_colors = len(np.unique(labels)[:len(colors)])
+        total_string += self._add_hide_all_representations(n_colors)
+        for i in range(n_colors):
+            total_string += self._show_representation_i(i+1)
+            changed_plot_name = f"{plot_name[:-4]}_{i+1}{plot_name[-4:]}"
+            total_string += f"render TachyonInternal {changed_plot_name}\n"
+            total_string += self._hide_representation_i(i + 1)
+
+
+        total_string += "quit"
+        return total_string
+    
+    def _hide_representation_i(self, i):
+        return f"\nmol showrep 0 {i} 0\n"
+
+    def _show_representation_i(self, i):
+        return f"\nmol showrep 0 {i} 1\n"
+
 
     def _add_hide_all_representations(self, n_eigenvectors: int):
         total_substring = ""
@@ -288,7 +353,7 @@ mol showrep 0 {j} 0
         return string_rendering
 
     def _add_rotations_translations(self):
-        if self.experiment_type == "sqra_water_in_vacuum" or "water_xyz":
+        if self.experiment_type == "sqra_water_in_vacuum" or self.experiment_type == "water_xyz":
             file = "molgri/scripts/vmd_position_sqra_water"
         elif self.experiment_type == "msm_water_in_vacuum":
             file = "molgri/scripts/vmd_position_msm_water_vacuum"
@@ -298,6 +363,8 @@ mol showrep 0 {j} 0
             file = "molgri/scripts/vmd_position_sqra_fullerene"
         elif self.experiment_type == "sqra_bpti_trypsine":
             file = "molgri/scripts/vmd_position_sqra_bpti"
+        elif self.experiment_type == "guanidinium_xyz":
+            file = "molgri/scripts/vmd_position_guanidinium_xyz"
         else:
             return "\n"
 
