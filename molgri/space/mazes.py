@@ -3,6 +3,7 @@ from typing import Generator, Callable, Optional
 from numpy.typing import ArrayLike, NDArray
 import numpy as np
 import networkx as nx
+from scipy.sparse import coo_array
 import matplotlib.pyplot as plt
 from matplotlib.figure import Figure
 from matplotlib.axes import Axes
@@ -42,6 +43,7 @@ class Maze:
             that these two cells are connected (neighbours)
         """
         self.maze = nx.Graph(adjacency_matrix)
+        self.adjacency_matrix = coo_array(adjacency_matrix)
         self.energy_name: Optional[str] = None
         self.energy_array: Optional[NDArray] = None
 
@@ -57,7 +59,18 @@ class Maze:
         self.energy_name = energy_name
         self.energy_array = np.array(energy_values)
 
+        assert len(energy_values) == self.maze.number_of_nodes()
+
         nx.set_node_attributes(self.maze, dict(enumerate(energy_values)), name=energy_name)
+        # edge attributes - differences in energy
+        diff_energies = self.energy_array[self.adjacency_matrix.row] - self.energy_array[self.adjacency_matrix.col]
+        diff_energies_coo = self.adjacency_matrix.copy()
+        diff_energies_coo.data = diff_energies
+
+        edge_delta_E = {(i, j): max([float(d), 0.0]) for i, j, d in zip(diff_energies_coo.row,
+                                                     diff_energies_coo.col,
+                                                     diff_energies_coo.data)}
+        nx.set_edge_attributes(self.maze, edge_delta_E, name="ΔE")
 
     def get_energies(self, indices: list) -> NDArray:
         """
@@ -71,7 +84,7 @@ class Maze:
         """
         return np.take(self.energy_array, indices)
 
-    def all_paths_ij(self, i: int, j: int) -> Generator:
+    def all_paths_ij(self, i: int, j: int, cutoff=None) -> Generator:
         """
         Find a collection of all paths (with no node repeated) between cells with indices i and j.
 
@@ -83,7 +96,7 @@ class Maze:
             a generator, each generated element is of form [(i, k1), (k1, k2), (k2, k3), ... (km, j)] for a
             connecting path i, k1, k2, k3, ... km, j
         """
-        return nx.all_simple_edge_paths(self.maze, i, j, cutoff=None)
+        return nx.all_simple_edge_paths(self.maze, i, j, cutoff=cutoff)
 
     def _largest_barrier_metric(self, simple_path: ArrayLike) -> float:
         """
@@ -100,7 +113,10 @@ class Maze:
         energy_start = energies_along_path[0]
         return np.max(energies_along_path) - energy_start
 
-    def _weighted_paths_ij(self, i: int, j: int, weight_function: Callable = None) -> pd.DataFrame:
+    def _opt_weighted_path_ij(self, i: int, j: int, weight_function: Callable = None):
+        pass
+
+    def _weighted_paths_ij(self, i: int, j: int, weight_function: Callable = None, cutoff=None) -> pd.DataFrame:
         """
         Among all possible paths between i and j find the value of the weight function that depends only on a list of
         nodes encountered along the path (in correct order).
@@ -115,14 +131,17 @@ class Maze:
             dataframe, each row contains the information (simple_path, weight_of_this_path)
         """
         data = []
-        for path in self.all_paths_ij(i, j):
+        for path in self.all_paths_ij(i, j, cutoff=cutoff):
             simple_path = from_edges_path_to_simple_path(path)
             path_weight = weight_function(simple_path)
             data.append([tuple(simple_path), path_weight])
         df = pd.DataFrame(data, columns=["Path", "Path weight"])
         return df
 
-    def max_barrier_paths_ij(self, i: int, j: int) -> pd.DataFrame:
+    def max_barrier_paths_i_lenk(self, i: int, len_k: int) -> pd.DataFrame:
+        print(nx.single_source_shortest_path(self.maze, i, cutoff=len_k))
+
+    def max_barrier_paths_ij(self, i: int, j: int, cutoff=None) -> pd.DataFrame:
         """
         For each path between i and j find the maximal energy barrier on this path.
 
@@ -136,7 +155,7 @@ class Maze:
         """
         if self.energy_name is None:
             raise ValueError("Cannot find a path based on energy if no energy information provided.")
-        return self._weighted_paths_ij(i, j, weight_function=self._largest_barrier_metric)
+        return self._weighted_paths_ij(i, j, weight_function=self._largest_barrier_metric, cutoff=cutoff)
 
     def plot_profile_along_path_df(self, path_df: pd.DataFrame, max_plot_rows: int = 6) -> (Figure, Axes):
         """
@@ -153,7 +172,6 @@ class Maze:
 
         num_rows = np.min([max_plot_rows, len(path_df)])
         fig, ax = plt.subplots(num_rows, 1, sharey=True, sharex=True, figsize=(DIM_SQUARE[0], num_rows*DIM_SQUARE[1]))
-
 
         for i in range(num_rows):
             row = path_df.iloc[i]

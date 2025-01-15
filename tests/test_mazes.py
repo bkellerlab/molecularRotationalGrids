@@ -43,7 +43,7 @@ def test_weighted_maze():
     my_maze = Maze(my_adj)
     my_maze.add_energy_attribute("energy", my_energies)
 
-    #my_maze.plot_maze_index_energy()
+    my_maze.plot_maze_index_energy()
 
     one_simple_path = [2, 1, 6, 5, 4]
 
@@ -74,6 +74,7 @@ def test_paths():
 
     # among these paths the one with lowest barrier
     df_2_0 = my_maze.max_barrier_paths_ij(2, 0)
+    my_maze.max_barrier_paths_i_lenk(2, 4)
     # TODO: plot all these barriers above each other
     fig, ax = my_maze.plot_profile_along_path_df(df_2_0)
     plt.show()
