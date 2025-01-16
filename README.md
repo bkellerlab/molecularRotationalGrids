@@ -216,7 +216,7 @@ construction of trajectory-free Markov state models we recommend reading through
 
 and
 
-> [to be published (2024/2025)]
+> Zupan, Hana and Bettina G. Keller. "Toward Grid-Based Models for Molecular Association." Journal of Chemical Theory and Computation Article ASAP (2025)
 
 To reproduce the functionality demonstrated in the 2022 paper, please install an old version of molgri: ```pip install molgri==1.3.4```. 
 While most of the old code remains, some has been updated or removed.
