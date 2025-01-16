@@ -182,6 +182,16 @@ mol modcolor 0 0 {self.coloring}
 """
         return string_first_molecule
 
+    def _add_second_molecule(self, i1, frame_index):
+        string_first_molecule = f"""
+
+mol addrep 0
+mol modselect {i1} 0 {self.index_second_molecule}
+mol drawframes 0 {i1} {frame_index}
+mol modcolor {i1} 0 {self.coloring}
+"""
+        return string_first_molecule
+
     def _add_pretty_plot_settings(self):
 
         string_pretty = f"""
@@ -317,6 +327,36 @@ mol modcolor 1 0 {self.coloring}
         for i in range(n_colors):
             total_string += self._show_representation_i(i+1)
             changed_plot_name = f"{plot_name[:-4]}_{i+1}{plot_name[-4:]}"
+            total_string += f"render TachyonInternal {changed_plot_name}\n"
+            total_string += self._hide_representation_i(i + 1)
+
+
+        total_string += "quit"
+        return total_string
+
+    def prepare_path_script(self, my_path):
+        total_string = ""
+        total_string += self._add_pretty_plot_settings()
+
+        total_string += self._add_first_molecule()
+
+
+        # increase each path index by one
+        repr_index=1
+        for path_index in my_path:
+            total_string += self._add_second_molecule(repr_index, path_index)
+            repr_index += 1
+
+        total_string += self._add_rotations_translations()
+        total_string+="\n"
+
+
+
+
+        total_string += self._add_hide_all_representations(len(my_path)+1)
+        for i in range(len(my_path)):
+            total_string += self._show_representation_i(i+1)
+            changed_plot_name = f"path_{i+1}.png"
             total_string += f"render TachyonInternal {changed_plot_name}\n"
             total_string += self._hide_representation_i(i + 1)
 

@@ -28,6 +28,10 @@ def from_edges_path_to_simple_path(edges_path: list) -> list:
     simple_path.append(edges_path[-1][-1])
     return simple_path
 
+def from_simple_path_to_vmd_string(simple_path: list) -> str:
+    return ", ".join([f"{structure_index+1}" for structure_index in simple_path])
+
+
 class Maze:
 
     """
@@ -98,23 +102,40 @@ class Maze:
         """
         return nx.all_simple_edge_paths(self.maze, i, j, cutoff=cutoff)
 
-    def _largest_barrier_metric(self, simple_path: ArrayLike) -> float:
+
+    def _largest_barrier_measure(self, u, v, data):
         """
-        Get the maximal barrier that is found along a path from energies of individual cells. This equals the 
-        difference between the highest energy encountered and the start energy.
-        
+        What this metric returns, for the path from cell u with energy E(u) to cell v with energy E(v) if the
+        previous largest energy difference on this path is E_max:
+            0 if (E(v) - E(u)) < E_max
+            E(v) - E(u) - E_max otherwise
+
+        Because during the path the measures get summed you do not return the full measure but only the parh that is
+        larger than the previous largest measure.
+
         Args:
-           simple_path (ArrayLike): a sequence of integers indicating the nodes visited during the path
+            u (int): index of a start cell
+            v (int): index of an end cell
+            data (dict): dictionary of edge properties (needed because this function signature is required by networkX)
 
         Returns:
-            A value of max energy difference >= 0. The smaller the energy difference, the more favourable this path is.
-        """""
-        energies_along_path = self.get_energies(simple_path)
-        energy_start = energies_along_path[0]
-        return np.max(energies_along_path) - energy_start
+
+        """
+        # TODO: also try a different measure of max difference to start point
+
+        delta_E = self.get_energies(v) - self.get_energies(u)
+        if delta_E > self.current_max_delta_E:
+            difference_to_previous_largest = delta_E - self.current_max_delta_E
+            print(delta_E, " added ",  difference_to_previous_largest)
+            self.current_max_delta_E = delta_E
+            return difference_to_previous_largest
+        return 0
 
     def _opt_weighted_path_ij(self, i: int, j: int, weight_function: Callable = None):
-        pass
+        self.start_cell = i
+        self.end_cell = j
+        self.current_max_delta_E = 0
+        return nx.dijkstra_path(self.maze, self.start_cell, self.end_cell, weight=self. _largest_barrier_measure)
 
     def _weighted_paths_ij(self, i: int, j: int, weight_function: Callable = None, cutoff=None) -> pd.DataFrame:
         """
@@ -139,7 +160,7 @@ class Maze:
         return df
 
     def max_barrier_paths_i_lenk(self, i: int, len_k: int) -> pd.DataFrame:
-        print(nx.single_source_shortest_path(self.maze, i, cutoff=len_k))
+        return nx.single_source_shortest_path(self.maze, i, cutoff=len_k)
 
     def max_barrier_paths_ij(self, i: int, j: int, cutoff=None) -> pd.DataFrame:
         """
