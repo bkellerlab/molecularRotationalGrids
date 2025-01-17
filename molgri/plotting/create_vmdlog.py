@@ -3,9 +3,12 @@ Vmdlogs are instruction files provided to VMD. Here we create vmdlogs that help 
 (pseudo)trajectories, often the ones corresponding to eigenvector extremes.
 """
 import numpy as np
-from numpy.typing import NDArray
+from numpy.typing import NDArray, ArrayLike
 
 from molgri.space.utils import k_argmax_in_array
+
+VMD_COLOR_DICT = {"black": 16, "yellow": 4, "orange": 3, "green": 7, "blue": 0, "cyan": 10, "purple": 11,
+              "gray": 2, "pink": 9, "red": 1, "magenta": 27}
 
 
 def find_num_extremes(eigenvector_array: NDArray, explains_x_percent: float = 40, only_positive: bool = True) -> int:
@@ -109,42 +112,161 @@ def find_assigned_trajectory_indices(assignments, indices_to_find, num_of_exampl
 
 class VMDCreator:
     """
-    From pieces of strings build a long vmdlog file that displays particular frames in particular colors,
-    has nice plotting (white background etc) and renders the figures to files.
+    From pieces of strings build a long vmdlog file that can be used inside vmd to automatically execute commands
+    like: create a CPK representation, rotate the molecule, render a picture, change the color, render again etc.
     """
 
-    def __init__(self, experiment_type: str, index_first_molecule: str, index_second_molecule: str,
-                 assignments: NDArray = None, is_protein=False):
-        self.experiment_type = experiment_type
+    def __init__(self, index_first_molecule: str, index_second_molecule: str, is_protein: bool = False):
+        """
+        Because we specialize in two-molecule systems we need to know how to find the first and the second molecule,
+        because we will typically represent each of them individually.
+
+        Args:
+            index_first_molecule (str): command that selects the first molecule, like 'index < 3'
+            index_second_molecule (str): command that selects the second molecule, like 'index >= 3'
+            is_protein (bool): use True to automatically select more protein-like representations (secondary
+            structure rather than ball and stick)
+        """
         self.index_first_molecule = index_first_molecule
         self.index_second_molecule = index_second_molecule
-        self.assignments = assignments
+        self.assignments = None
+        self.translations_rotations_script = None
         self.is_protein = is_protein
 
         if is_protein:
-            self.coloring = "Structure"
-            self.representation = "NewCartoon 0.300000 10.000000 4.100000 0"
+            self.default_coloring_method = "Structure"
+            self.default_drawing_method = "NewCartoon"
         else:
-            self.coloring = "Type"
-            self.representation = "CPK 1.000000 0.300000 12.000000 10.000000"
+            self.default_coloring_method = "Type"
+            self.default_drawing_method = "CPK 1.000000 0.300000 12.000000 10.000000"
 
-    def _search_and_replace(self, input_file: str, output_file: str, to_replace: list, new_strings: list):
+        self.num_representations = 0
+        self.total_file_text = ""
+        self._add_pretty_plot_settings()
+
+    def write_text_to_file(self, output_file_path: str) -> None:
         """
-        Find a list of keywords in a file, replace them with other words and write out the result.
+        Because basically every method here writes to internal self.total_file_text property, in the end we just
+        need to transfer it to a file.
+        """
+        with open(output_file_path, "w") as f:
+            f.write(self.total_file_text)
+
+    def _add_pretty_plot_settings(self):
+        """
+        Delete the initial default representation.
+        Additionally, some nice settings so that pictures look good.
+        """
+
+        self.total_file_text += f"""
+mol delrep 0 0
+color Display Background white
+axes location Off
+mol material Opaque
+display projection Orthographic
+display shadows on
+display ambientocclusion on
+material add copy AOChalky
+material change shininess Material22 0.000000
+display resize 1800 1200
+"""
+
+    def _add_representation(self, first_molecule: bool = False, second_molecule: bool = True, coloring: str = None,
+                           color: str = None, representation: str = None, trajectory_frames: ArrayLike = None):
+        """
+        Use this to add a new representation of molecule 1, molecule 2 or both.
 
         Args:
-            input_file: path to the start file
-            output_file: path to the end file
-            to_replace: list of words to find
-            new_strings: list of words that should replace the found words (must have the same length as previous list)
+            first_molecule (bool): True to show molecule 1 in this representation
+            second_molecule (bool): True to show molecule 2 in this representation
+            coloring (str): keyword understood by VMD how to group for coloring like 'Name', 'Type',
+                'SecondaryStructure' or 'ColorId'
+            color (str): only used if coloring='ColorId' is selected, color is translated to VMD's internal color ID
+            representation (str): keyword understood by VMD how to show structure like 'CPK', 'VDW',
+                'NewCartoon' ...
+            trajectory_frames (ArrayLike): which frames to use, can be 'now', can be a single frame number (int) or a
+                list-like object of multiple frame numbers
         """
-        assert len(to_replace) == len(new_strings), "Not equal number of words to find and to replace"
-        with open(input_file, 'r') as file:
-            file_contents = file.read()
-            for search_word, replace_word in zip(to_replace, new_strings):
-                file_contents = file_contents.replace(search_word, replace_word)
-        with open(output_file, 'w') as file:
-            file.write(file_contents)
+        if coloring is None:
+            coloring = self.default_coloring_method
+        if coloring == "ColorID":
+            if color is None:
+                color = "black"
+            # if the coloring type is ColorID, we need an additional parameter that specifies the color
+            coloring = f"{coloring} {VMD_COLOR_DICT[color]}"
+        if representation is None:
+            representation = self.default_drawing_method
+
+        if first_molecule and not second_molecule:
+            molecular_index = self.index_first_molecule
+        elif second_molecule and not first_molecule:
+            molecular_index = self.index_second_molecule
+        elif first_molecule and second_molecule:
+            molecular_index = "all"
+        else:
+            raise ValueError("Trying to add a molecule but first_molecule=False and second_molecule=False.")
+
+
+        # because trajectory frames may be an int, a string, or a list-like object we ned to pre-process it
+        if isinstance(trajectory_frames, np.integer) or isinstance(trajectory_frames, int):
+            trajectory_frames_as_str = str(trajectory_frames)
+        elif type(trajectory_frames) == list:
+            trajectory_frames_as_str = ', '.join(map(str, [int(x) for x in trajectory_frames]))
+        elif type(trajectory_frames) == NDArray:
+            trajectory_frames_as_str = ', '.join(map(str, trajectory_frames.flatten().astype(int)))
+        elif type(trajectory_frames) == str:
+            trajectory_frames_as_str = trajectory_frames
+        else:
+            raise ValueError(f"Trajectory frame indices of type {type(trajectory_frames)} cannot be read.")
+
+        self.total_file_text += f"""
+mol addrep 0
+mol modstyle {self.num_representations} 0 {representation}
+mol modselect {self.num_representations} 0 {molecular_index}
+mol modcolor {self.num_representations} 0 {coloring}
+mol drawframes 0 {self.num_representations} {{ {trajectory_frames_as_str} }}
+        """
+
+        self.num_representations += 1
+
+    def _render_representations(self, list_representation_indices: ArrayLike, plot_path: str):
+        """
+        Show representations that are in the list_representation_indices and hide all others. Save the rendered plot
+        to plot_path.
+
+        Args:
+            list_representation_indices (ArrayLike): provide a list-like object of integers, each pointing to an (
+            already added) representation we want to use for this plot
+            plot_path (str): path to the plot that will be created
+        """
+        # show and hide as needed
+        for repr_index in set(list_representation_indices):
+            self._show_representation(repr_index)
+        not_on_list = set(range(self.num_representations)) - set(list_representation_indices)
+        for repr_index in not_on_list:
+            self._hide_representation(repr_index)
+
+        # render
+        self.total_file_text += f"render TachyonInternal {plot_path}"
+
+    def _show_representation(self, representation_index: int):
+        self.total_file_text += f"\nmol showrep 0 {representation_index} 1\n"
+
+    def _hide_representation(self, representation_index: int):
+        self.total_file_text +=  f"\nmol showrep 0 {representation_index} 0\n"
+
+    def load_assignments_msm(self, assignments: NDArray):
+        """
+        For MSM trajectories, we must be able to assign a frame to its corresponding cell.
+
+        Args:
+            assignments (NDArray): array of integers, has the length of a trajectory and the index of a cell the frame
+            belongs to as each element
+        """
+        self.assignments = assignments
+
+    def load_translation_rotation_script(self, path_translation_rotation_script: str):
+        self.translations_rotations_script = path_translation_rotation_script
 
     def _add_colored_representation(self, representation_index, color_id, frames):
         string_to_add = f"""
@@ -178,7 +300,7 @@ mol drawframes 0 {i2} {{ {', '.join(map(str, frames_neg.flatten().astype(int)))}
 
 mol addrep 0
 mol modselect 0 0 {self.index_first_molecule}
-mol modcolor 0 0 {self.coloring}
+mol modcolor 0 0 {self.default_coloring_method}
 """
         return string_first_molecule
 
@@ -188,30 +310,11 @@ mol modcolor 0 0 {self.coloring}
 mol addrep 0
 mol modselect {i1} 0 {self.index_second_molecule}
 mol drawframes 0 {i1} {frame_index}
-mol modcolor {i1} 0 {self.coloring}
+mol modcolor {i1} 0 {self.default_coloring_method}
 """
         return string_first_molecule
 
-    def _add_pretty_plot_settings(self):
 
-        string_pretty = f"""
-
-mol modstyle 0 0 {self.representation}
-color Display Background white
-axes location Off
-mol color Name
-mol representation {self.representation}
-mol selection all
-mol material Opaque
-mol modcolor 1 0 {self.coloring}
-display projection Orthographic
-display shadows on
-display ambientocclusion on
-material add copy AOChalky
-material change shininess Material22 0.000000
-
-"""
-        return string_pretty
 
     def _add_zeroth_eigenvector(self, frames_abs):
         print(', '.join(map(str, frames_abs.flatten().astype(int))))
@@ -221,7 +324,7 @@ material change shininess Material22 0.000000
 mol addrep 0
 mol modselect 1 0 {self.index_second_molecule}
 mol drawframes 0 1 {{ {', '.join(map(str, frames_abs.flatten().astype(int)))} }}
-mol modcolor 1 0 {self.coloring}
+mol modcolor 1 0 {self.default_coloring_method}
 """
 
         return string_zeroth_eigenvector
@@ -334,80 +437,20 @@ mol modcolor 1 0 {self.coloring}
         total_string += "quit"
         return total_string
 
-    def prepare_path_script(self, my_path):
-        total_string = ""
-        total_string += self._add_pretty_plot_settings()
+    def prepare_path_script(self, my_path, plot_paths):
 
-        total_string += self._add_first_molecule()
+        self._add_representation(first_molecule=True, second_molecule=False, trajectory_frames=0)
 
-
-        # increase each path index by one
-        repr_index=1
         for path_index in my_path:
-            total_string += self._add_second_molecule(repr_index, path_index)
-            repr_index += 1
+            self._add_representation(first_molecule=False, second_molecule=True, trajectory_frames=path_index+1)
 
-        total_string += self._add_rotations_translations()
-        total_string+="\n"
+        self._add_rotations_translations()
 
-
-
-
-        total_string += self._add_hide_all_representations(len(my_path)+1)
-        for i in range(len(my_path)):
-            total_string += self._show_representation_i(i+1)
-            changed_plot_name = f"path_{i+1}.png"
-            total_string += f"render TachyonInternal {changed_plot_name}\n"
-            total_string += self._hide_representation_i(i + 1)
-
-
-        total_string += "quit"
-        return total_string
-    
-    def _hide_representation_i(self, i):
-        return f"\nmol showrep 0 {i} 0\n"
-
-    def _show_representation_i(self, i):
-        return f"\nmol showrep 0 {i} 1\n"
-
-
-    def _add_hide_all_representations(self, n_eigenvectors: int):
-        total_substring = ""
-
-        for i in range(1, 2 * n_eigenvectors + 3):
-            total_substring += f"\nmol showrep 0 {i} 0\n"
-        return total_substring
-
-    def _add_render_a_plot(self, i, j, plot_path):
-
-        string_rendering = f"""
-
-mol showrep 0 0 1
-mol showrep 0 {i} 1
-mol showrep 0 {j} 1
-render TachyonInternal {plot_path}
-mol showrep 0 {i} 0
-mol showrep 0 {j} 0
-
-"""
-        return string_rendering
+        for i, plot_path in enumerate(plot_paths):
+            self._render_representations([0, i+1], plot_path)
 
     def _add_rotations_translations(self):
-        if self.experiment_type == "sqra_water_in_vacuum" or self.experiment_type == "water_xyz":
-            file = "molgri/scripts/vmd_position_sqra_water"
-        elif self.experiment_type == "msm_water_in_vacuum":
-            file = "molgri/scripts/vmd_position_msm_water_vacuum"
-        elif self.experiment_type == "msm_water_in_helium":
-            file = "molgri/scripts/vmd_position_msm_water_he"
-        elif self.experiment_type == "sqra_fullerene":
-            file = "molgri/scripts/vmd_position_sqra_fullerene"
-        elif self.experiment_type == "sqra_bpti_trypsine":
-            file = "molgri/scripts/vmd_position_sqra_bpti"
-        elif self.experiment_type == "guanidinium_xyz":
-            file = "molgri/scripts/vmd_position_guanidinium_xyz"
-        else:
-            return "\n"
-
-        with open(file, "r") as f:
-            contents = f.read()
-        return contents
+        if self.translations_rotations_script:
+            with open(self.translations_rotations_script, "r") as f:
+                contents = f.read()
+            self.total_file_text += contents

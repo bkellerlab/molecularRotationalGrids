@@ -106,7 +106,7 @@ class ViewManager:
             return self.view
 
         self.view.add_component(ith_atoms, default_representation=False)
-        # the index is there in order to only affect the last added representation
+        # the index is there in order to only affect the last added default_drawing_method
         self.view[-1].add_representation("ball+stick", **kwargs)
         if axes:
             self._add_coordinate_axes()

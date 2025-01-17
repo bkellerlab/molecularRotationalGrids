@@ -419,7 +419,8 @@ rule compile_vmd_log:
         eigenvectors = np.load(input.eigenvectors)
         assignments = np.load(input.assignments)
 
-        vmdcreator = VMDCreator(EXPERIMENT_TYPE, "index < 3", "index >= 3", assignments)
+        vmdcreator = VMDCreator(EXPERIMENT_TYPE, "index < 3", "index >= 3")
+        vmdcreator.add_assignments_msm(assignments)
         my_script_text = vmdcreator.prepare_eigenvector_script(eigenvectors.T, output.fig_tga, index_list=None,
             n_eigenvectors=params.num_eigenvec, num_extremes=params.num_extremes, num_of_examples=1)
 

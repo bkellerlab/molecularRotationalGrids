@@ -61,7 +61,7 @@ except KeyError:
 rule all_sqra:
     input:
         #f"{EXPERIMENT_FULL_PATH}energy.csv"
-        expand(f"{EXPERIMENT_FULL_PATH}{{what}}", what=["eigenvectors_vmdlog"])
+        expand(f"{EXPERIMENT_FULL_PATH}{{what}}", what=["energy.csv"])
     #what=["its.png", "eigenvectors_vmdlog", "eigenvalues.png", "its.csv", "energy.csv", "orca_time.txt"]
     log:
         log = f"{EXPERIMENT_FULL_PATH}total_log.yaml"
@@ -153,7 +153,7 @@ rule run_pt:
         grid = rules.run_grid.output.full_array
     output:
         structure = f"{EXPERIMENT_FULL_PATH}structure.{STRUCTURE_EXTENSION}",
-        trajectory = [f"{EXPERIMENT_FULL_PATH}trajectory/{str(i).zfill(10)}.xyz" for i in range(NUM_GRID_POINTS)] if config["params_sqra"]["traj_as_dir"] else f"{EXPERIMENT_FULL_PATH}trajectory.{TRAJECTORY_EXTENSION}"
+        trajectory = f"{EXPERIMENT_FULL_PATH}trajectory.{TRAJECTORY_EXTENSION}"
     params:
         cell_size_A = config["params_sqra"]["cell_size_A"]  # cubic box will be the output, this is size of the box in one dimension
     # benchmark:
@@ -267,8 +267,8 @@ rule orca_collect_energies:
     input:
         out_files = expand(f"{EXPERIMENT_FULL_PATH}{ORCA_DIR}{{frame_num}}/orca.out",
             frame_num = [str(i).zfill(10) for i in range(NUM_GRID_POINTS)]), #NUM_GRID_POINTS
-        benchmarks = expand(f"{EXPERIMENT_FULL_PATH}{ORCA_DIR}{{frame_num}}/orca_benchmark.txt",
-           frame_num = [str(i).zfill(10) for i in range(NUM_GRID_POINTS)])
+        #benchmarks = expand(f"{EXPERIMENT_FULL_PATH}{ORCA_DIR}{{frame_num}}/orca_benchmark.txt",
+        #   frame_num = [str(i).zfill(10) for i in range(NUM_GRID_POINTS)])
     output:
         energy = f"{EXPERIMENT_FULL_PATH}energy.csv"
     run:
@@ -276,7 +276,7 @@ rule orca_collect_energies:
         # TODO: make sure the order remains the trajectory order
         # TODO: make sure to allow for control of the number of cycles and deal with failing structures
         read_important_stuff_into_csv(out_files_to_read=input.out_files, csv_file_to_write=output.energy,
-            setup=QUANTUM_SETUP, benchmark_files_to_read=input.benchmarks)
+            setup=QUANTUM_SETUP) #, benchmark_files_to_read=input.benchmarks
 
 rule orca_total_and_average_time:
     input:

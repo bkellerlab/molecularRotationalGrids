@@ -34,7 +34,7 @@ def test_finding_indices():
 
 
 def test_vmdcreator():
-    vmd_creator = VMDCreator("test", "index < 3", "index >= 3")
+    vmd_creator = VMDCreator("index < 3", "index >= 3")
 
     my_eigenvec_array = [[0, 5, -5, 0.6, 7, 3],
                          [-17, 3, 0.3, -0.4, 0.03, -16],
@@ -48,7 +48,7 @@ def test_vmdcreator():
 color Display Background white
 axes location Off
 mol color Name
-mol representation CPK 1.000000 0.300000 12.000000 10.000000
+mol default_drawing_method CPK 1.000000 0.300000 12.000000 10.000000
 mol selection all
 mol material Opaque
 mol modcolor 1 0 Type
@@ -137,6 +137,20 @@ mol showrep 0 5 0
 quit"""
     print(output.strip()==expected_output)
 
+def test_vmd_example():
+    my_creator= VMDCreator("index < 3", "index >= 3")
+    my_creator.add_representation(first_molecule=True, second_molecule=False, coloring="Type", representation=None,
+                                  trajectory_frames=0, visible=True)
+    my_creator.add_representation(first_molecule=False, second_molecule=True, coloring="ColorId 0",
+                                  representation=None,
+                                  trajectory_frames=0, visible=True)
+    my_creator.add_representation(first_molecule=False, second_molecule=True, coloring="ColorId 1",
+                                  representation=None,
+                                  trajectory_frames=[5, 7, 12], visible=True)
+    my_creator.render_representations([0,2], "second_plot.tga")
+    my_creator.render_representations([0, 1], "first_plot.tga")
+    print(my_creator.get_total_file_text())
+
 def test_how_many_eigenvectors_to_take():
 
     # only positive
@@ -164,5 +178,6 @@ def test_how_many_eigenvectors_to_take():
 
 
 if __name__ == "__main__":
-    test_finding_indices()
-    test_vmdcreator()
+    test_vmd_example()
+    #test_finding_indices()
+    #test_vmdcreator()
