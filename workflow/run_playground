@@ -1,0 +1,347 @@
+import sys
+sys.path.append(".")
+
+import numpy as np
+import yaml
+from itertools import product
+
+from molgri.paths import PATH_EXPERIMENTS
+
+rule lowest_e:
+    input:
+        energy = f"/home/hanaz63/Downloads/ATB_GROMOS/two_molecules_cal/energy.xvg"
+    output:
+        list_structures = f"/home/hanaz63/Downloads/ATB_GROMOS/two_molecules_cal/structures.txt"
+    params:
+        num = 4
+    run:
+        from molgri.space.utils import k_argmin_in_array
+        from molgri.io import EnergyReader
+        er = EnergyReader(input.energy).load_energy()
+        energies2 = er["Coulomb (SR)"]
+        energies5 = er["LJ (SR)"]
+        energies6 = er["Potential"]
+        energies7 = er["Disper. corr."]
+
+        all_lowest_ind = k_argmin_in_array(energies6, k=params.num)
+        all_lowest_E = energies6[all_lowest_ind]
+        sort_index = np.argsort(all_lowest_E)
+        sorted_indices = all_lowest_ind[sort_index]
+        print("POTENTIAL")
+        print(", ".join([str(x+1) for x in all_lowest_ind]))
+        print(all_lowest_E)
+        np.savetxt(output.list_structures, sorted_indices)
+
+rule compare_bpti_evec_with_pdb:
+    input:
+        reference = f"../../../Downloads/4Y0Y_clean.pdb",
+        m1 = f"experiments/sqra_bpti_trypsine/example/configA/m1.gro",
+        structure = f"experiments/sqra_bpti_trypsine/example/configA/structure.gro",
+        trajectory = f"experiments/sqra_bpti_trypsine/example/configA/trajectory.xtc",
+    params:
+        frames = [2098, 4518, 6603, 6392, 34402]
+    output:
+        aligned = f"../../../Downloads/aligned.xtc"
+    run:
+        import MDAnalysis as mda
+        from MDAnalysis.analysis import align
+        from MDAnalysis.analysis.rms import rmsd
+
+        m1 = mda.Universe(input.m1)
+        m1_names = [atom.name for atom in m1.atoms]
+
+
+        ref = mda.Universe(input.reference)
+        mobile = mda.Universe(input.structure, input.trajectory)
+        first_few = mobile.select_atoms("protein and name CA and index 0:1008")
+        first_few_dynamic = ref.select_atoms("protein and name CA and index 0:1008")
+
+        print(len(ref.atoms), len(mobile.atoms))
+
+        for my_atoms in zip(first_few.atoms, first_few_dynamic.atoms):
+            if len(my_atoms) == 2:
+                print(my_atoms[0].index, my_atoms[1].index)
+        # for res in zip(first_few, first_few_dynamic):
+        #     if len(res)==2 and res[0].resid != res[1].resid:
+        #         print(res[0], res[1])
+        #         break
+
+        alignment = align.AlignTraj(mobile, ref, select="protein and name CA and index 0:1008",filename=output.aligned)
+
+        alignment.run()
+
+# what you wanna adapt:
+num_orientations = np.linspace(8,80,10)
+num_directions = np.linspace(8,80,10)
+radial_distances_nm = [f'linspace(0.2, 0.4, {i})' for i in np.linspace(2, 15, 10, dtype=int)]
+grid_identifier = [f"size_{k}" for k in range(len(num_orientations)*len(num_directions)*len(radial_distances_nm))]
+
+grid_options = product(num_orientations, num_directions, radial_distances_nm)
+
+rule prepare_multiple_config_files:
+    input:
+        initial_config = "input/sqra_water_in_vacuum/all_config_files/default_small_configuration_file.yaml"
+    output:
+        new_config = expand("input/sqra_water_in_vacuum/all_config_files/{gr_i}.yaml", gr_i=grid_identifier)
+    run:
+        with open(input.initial_config,'r') as f:
+            doc = yaml.safe_load(f)
+
+        for i, out_file in enumerate(output.new_config):
+            new_doc = doc.copy()
+            current_option = next(grid_options)
+            new_doc["params_grid"]["num_orientations"] = int(current_option[0])
+            new_doc["params_grid"]["num_directions"] = int(current_option[1])
+            new_doc["params_grid"]["radial_distances_nm"] = str(current_option[2])
+            new_doc["grid_identifier"] = grid_identifier[i]
+            new_doc["experiment_id"] = "size_experiment"
+            with open(out_file,"w") as f:
+                yaml.dump(new_doc,f)
+
+rule run_one_config_file:
+    input:
+        config_file="input/sqra_water_in_vacuum/all_config_files/{gr_i}.yaml"
+    output:
+        done = "input/sqra_water_in_vacuum/all_config_files/finished_{gr_i}.checkpoint"
+    resources:
+        cores = 1
+    shell:
+        "snakemake --snakefile workflow/run_sqra --cores {resources.cores} --configfile {input.config_file}  --rerun-incomplete --keep-going > {output.done}"
+
+
+rule run_multiple_config_files:
+    input:
+        config_file=expand("input/sqra_water_in_vacuum/all_config_files/finished_{gr_i}.checkpoint",gr_i=grid_identifier)
+
+
+rule plot_time_its_diff_sizes:
+    input:
+        time_energy = expand("experiments/sqra_water_in_vacuum/size_experiment/{gr_i}/gromacs_benchmark.txt", gr_i=grid_identifier),
+        time_decomposition = expand("experiments/sqra_water_in_vacuum/size_experiment/{gr_i}/decomposition_benchmark.txt",gr_i=grid_identifier),
+        params = expand("experiments/sqra_water_in_vacuum/size_experiment/{gr_i}/total_log.yaml", gr_i=grid_identifier),
+        itses = expand("experiments/sqra_water_in_vacuum/size_experiment/{gr_i}/its.csv", gr_i=grid_identifier),
+    output:
+        csv_file = "experiments/sqra_water_in_vacuum/size_experiment/size_analysis.csv",
+        its_plot = "experiments/sqra_water_in_vacuum/size_experiment/size_its_analysis.png"
+    params:
+        num_its = 5
+    run:
+        # todo show time of calclation
+        # todo: also show some eigenvectors
+        from molgri.io import BenchmarkReader, ParameterReader, ItsReader
+        import pandas as pd
+        import matplotlib.pyplot as plt
+        import seaborn as sns
+        import matplotlib.gridspec as gridspec
+
+        data = []
+        for t_e, t_d, my_params, its in zip(input.time_energy, input.time_decomposition, input.params, input.itses):
+            time_gromacs = BenchmarkReader(t_e).get_mean_time_in_s()
+            time_decomp = BenchmarkReader(t_d).get_mean_time_in_s()
+            all_params = ParameterReader(my_params).get_grid_size_params_als_dict()
+            its_num = ItsReader(its).get_first_N_its(params.num_its)
+            size_data = [time_gromacs, time_decomp, *all_params, *its_num]
+            data.append(size_data)
+
+
+        columns = ["Time gromacs [s]", "Time decomposition [s]", "Num. directions", "Num. orientations", "Num. radii"]
+        columns.extend([f"ITS {i+1} [ps]" for i in range(params.num_its)])
+        df = pd.DataFrame(data, columns=columns)
+        df["Total time [min]"] = (df["Time gromacs [s]"]+df["Time decomposition [s]"])/60
+        df["Total num gridpoints"] = df["Num. directions"]*df["Num. orientations"]*df["Num. radii"]
+        df.to_csv(output.csv_file)
+
+        fig = plt.figure(figsize=(8, 12))  # Adjust figure size to your needs
+        gs = gridspec.GridSpec(4,3,width_ratios=[1, 1, 1])
+        ax1 = fig.add_subplot(gs[0, :])
+        ax1_bigger = fig.add_subplot(gs[1, :])
+        ax2 = fig.add_subplot(gs[2, 0])
+        ax3 = fig.add_subplot(gs[2, 1])
+        ax4 = fig.add_subplot(gs[2, 2])
+        ax5 = fig.add_subplot(gs[3, 0])
+        ax6 = fig.add_subplot(gs[3, 1])
+        ax7 = fig.add_subplot(gs[3, 2])
+
+        colors = [plt.cm.tab20(i) for i in range(20)]
+
+        ax1_twin = ax1.twinx()
+        sns.lineplot(df,x="Total num gridpoints",y="Total time [min]",ax=ax1_twin,color="black", linestyle="--")
+        for i in range(params.num_its):
+            sns.lineplot(df,x="Total num gridpoints",y=f"ITS {i + 1} [ps]",ax=ax1,color=colors[i],marker="o", markersize=5)
+            sns.lineplot(df,x="Total num gridpoints",y=f"ITS {i + 1} [ps]",ax=ax1_bigger,color=colors[i],marker="o",markersize=5)
+            sns.lineplot(df, x="Num. directions", y=f"ITS {i+1} [ps]", ax=ax2, color=colors[i], marker="o", markersize=5)
+            sns.lineplot(df,x="Num. orientations",y=f"ITS {i + 1} [ps]",ax=ax3, color=colors[i], marker="o", markersize=5)
+            sns.lineplot(df,x="Num. radii",y=f"ITS {i + 1} [ps]",ax=ax4, color=colors[i], marker="o", markersize=5)
+            sns.lineplot(df, x="Num. directions", y=f"ITS {i+1} [ps]", ax=ax5, color=colors[i], marker="o", markersize=5)
+            sns.lineplot(df,x="Num. orientations",y=f"ITS {i + 1} [ps]",ax=ax6, color=colors[i], marker="o", markersize=5)
+            sns.lineplot(df,x="Num. radii",y=f"ITS {i + 1} [ps]",ax=ax7, color=colors[i], marker="o", markersize=5)
+
+
+        ax1.set(ylabel="ITS [ps]", yscale="log") #, xscale="log" ,
+        ax1_bigger.set(ylabel="ITS [ps]",ylim=(0,100))  #, xscale="log" ,
+        ax2.set(ylabel="ITS [ps]")
+        ax3.set(ylabel="ITS [ps]")
+        ax4.set(ylabel="ITS [ps]")
+        ax5.set(ylabel="ITS [ps]", ylim=(0,100))
+        ax6.set(ylabel="ITS [ps]", ylim=(0,100))
+        ax7.set(ylabel="ITS [ps]", ylim=(0,100))
+
+
+        fig.tight_layout()
+        fig.savefig(output.its_plot)
+
+#"experiments/guanidinium_xyz/example/medium_gua_grid/"
+# "experiments/water_xyz/example/large_example_water/"
+EXPERIMENT_FULL_PATH = "experiments/guanidinium_xyz/example/large_gua_grid/"
+NUM_GRID_POINTS = 10500
+index1 = 10
+type_run = "guanidinium_xyz"
+
+rule run_clustering_labelling:
+    input:
+        eigenvectors = f"{EXPERIMENT_FULL_PATH}eigenvectors.npy",
+    params:
+        num_clusters = 12
+    output:
+        labels = f"{EXPERIMENT_FULL_PATH}labels.npy"
+    run:
+        from sklearn.cluster import KMeans
+
+        eigenvectors = np.load(input.eigenvectors)[:, :6]
+        clustering = KMeans(n_clusters=params.num_clusters).fit(eigenvectors)
+        my_labels = clustering.labels_
+        unique, counts = np.unique(my_labels, return_counts=True)
+        print(unique[np.where(counts>10)[0]], counts[np.where(counts>10)[0]])
+        np.save(output.labels, my_labels)
+
+
+rule run_clustering_plotting:
+    input:
+        structure = f"{EXPERIMENT_FULL_PATH}structure.xyz",
+        trajectory =  [f"{EXPERIMENT_FULL_PATH}trajectory/{str(i).zfill(10)}.xyz" for i in range(NUM_GRID_POINTS)],
+        labels = f"{EXPERIMENT_FULL_PATH}labels.npy",
+        eigenvectors = f"{EXPERIMENT_FULL_PATH}eigenvectors.npy",
+    output:
+        plot = f"{EXPERIMENT_FULL_PATH}clustering.png",
+        clustering_vmdlog = f"{EXPERIMENT_FULL_PATH}clustering_vmdlog",
+        vmd_plot_tga = f"{EXPERIMENT_FULL_PATH}eigenvector_clustering.tga",
+        #vmd_plot_png = f"{EXPERIMENT_FULL_PATH}eigenvector_clustering.png",
+    run:
+
+        eigenvectors = np.load(input.eigenvectors)[:,:6]
+
+        import matplotlib.pyplot as plt
+        import seaborn as sns
+        from molgri.plotting.create_vmdlog import VMDCreator
+
+        sns.set_style("white")
+        fig, ax = plt.subplots(1,1,subplot_kw={"projection": "3d"})
+        c = np.load(input.labels).astype(int)
+
+        palette_sqra = ["black", "yellow", "orange", "green", "blue", "cyan", "purple", "gray", "pink", "red", "magenta"]  #pop over 10
+        #palette = ["black", "yellow", "orange", "green", "blue", "cyan", "purple", "gray", "pink", "red"]   # pop over 20
+
+
+        first_evec = eigenvectors.T[1]
+        second_evec = eigenvectors.T[2]
+        third_evec = eigenvectors.T[3]
+        unique, counts = np.unique(c,return_counts=True)
+        #print(unique, counts)
+        for i, label in enumerate(unique[np.where(counts>1)[0]]):
+            cluster = np.where(c == label)[0]
+            population = len(cluster)
+            if population > 5:
+                try:
+                    ax.scatter(first_evec[cluster],second_evec[cluster],third_evec[cluster],c=[palette_sqra[i],]*len(cluster))
+                except:
+                    pass
+
+            if population > 50:
+                print(f"{label} with population {len(cluster)} ######## \n",", ".join([str(x + 1) for x in np.random.choice(cluster,30)]))
+            else:
+                print(f"{label} with population {len(cluster)} ######## \n",", ".join([str(x + 1) for x in cluster]))
+            print()
+
+        plt.savefig(output.plot, dpi=600)
+
+        my_vmd_builder = VMDCreator(type_run, f"index < {index1}", f"index >= {index1}")
+        vmdlog = my_vmd_builder.prepare_clustering_script(c,palette_sqra, output.vmd_plot_tga)
+        with open(output.clustering_vmdlog, "w") as f:
+            f.write(vmdlog)
+
+        # TODO: if trajectory in a directory, you can load structure trajectory/*
+        shell("vmd  -dispdev text {input.structure} {input.trajectory} < {output.clustering_vmdlog}")
+        #for el_tga, el_png in zip(output.vmd_plot_tga, output.vmd_plot_png):
+        #    shell("convert {el_tga} {el_png}")
+
+
+GRID_DIR = "experiments/grids/medium_example_water/"
+PATH_SEARCH_DIR = "experiments/water_xyz/example/large_example_water/"
+
+rule run_path_search:
+    input:
+        adjacency_matrix = f"{GRID_DIR}adjacency_array.npz",
+        energy = f"{PATH_SEARCH_DIR}energy.csv"
+    output:
+        path_plot = f"{PATH_SEARCH_DIR}best_path.png",
+        path = f"{PATH_SEARCH_DIR}path.npy"
+    params:
+        start_point = 1856,
+        end_point = 15
+    run:
+        from molgri.space.mazes import Maze, from_edges_path_to_simple_path, from_simple_path_to_vmd_string
+        from scipy.sparse import load_npz
+        import pandas as pd
+        import networkx as nx
+        import matplotlib.pyplot as plt
+
+        adj = load_npz(input.adjacency_matrix)
+        energy = pd.read_csv(input.energy, usecols=["Energy [kJ/mol]"]).to_numpy()
+
+        my_maze = Maze(adj)
+        my_maze.add_energy_attribute("Energy [kJ/mol]", energy)
+
+
+
+        #simple_path = nx.dijkstra_path(my_maze.maze, start_point, end_point)
+        simple_path =my_maze._opt_weighted_path_ij(params.start_point, params.end_point)
+        np.save(output.path, simple_path)
+
+        print(from_simple_path_to_vmd_string(simple_path))
+
+        fig, ax = plt.subplots(1,1)
+        my_maze.plot_profile_along_path(simple_path, fig, ax)
+        fig.savefig(output.path_plot)
+
+rule vmd_plot_path:
+    input:
+        path = f"{PATH_SEARCH_DIR}path.npy",
+        structure = f"{PATH_SEARCH_DIR}structure.xyz",
+        trajectory = f"{PATH_SEARCH_DIR}trajectory.xyz",
+        script_rot_tr = f"molgri/scripts/vmd_position_sqra_water"
+    output:
+        vmdlog = f"{PATH_SEARCH_DIR}path_vmdlog",
+        path_video = f"{PATH_SEARCH_DIR}path.mp4"
+    run:
+        from molgri.plotting.create_vmdlog import VMDCreator
+
+        num_first_mol = 3
+        index_first = f"index < {num_first_mol}"
+        index_second = f"index >= {num_first_mol}"
+        experiment_type="water_xyz"
+
+
+        vmdlog = VMDCreator(index_first, index_second)
+        simple_path = np.load(input.path)
+        path_names = [f"{PATH_SEARCH_DIR}path_{i}.tga" for i in range(len(simple_path))]
+
+        vmdlog.load_translation_rotation_script(input.script_rot_tr)
+        vmdlog.prepare_path_script(simple_path, path_names)
+
+        vmdlog.write_text_to_file(output.vmdlog)
+
+        shell("vmd -dispdev text {input.structure} {input.trajectory} < {output.vmdlog}")
+
+        tga_str = f"{PATH_SEARCH_DIR}path_*.tga"
+        shell("convert -delay 40 -loop 0 {tga_str} {output.path_video}")
+
