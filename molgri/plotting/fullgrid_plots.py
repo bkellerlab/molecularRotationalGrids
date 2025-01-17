@@ -90,7 +90,15 @@ def plot_array_heatmap(my_array, path_to_save):
                      title="Grid point index")
     fig.update_xaxes(showticklabels=False, ticks="", showline=True, mirror=True,
                      title="Grid point index", side="top", ticksuffix="  ")
-    fig.write_image(path_to_save, width=WIDTH, height=HEIGHT, scale=2)
+    if path_to_save is not None:
+        fig.write_image(path_to_save, width=WIDTH, height=HEIGHT, scale=2)
+    else:
+        fig.update_layout(
+            autosize=False,
+            width=WIDTH,
+            height=HEIGHT,
+        )
+        fig.show()
 
 def plot_cartesian_voronoi(full_grid, path_to_save):
     o_grid, b_grid, t_grid = from_full_array_to_o_b_t(full_grid)

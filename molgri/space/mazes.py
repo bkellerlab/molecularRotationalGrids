@@ -28,12 +28,12 @@ def from_edges_path_to_simple_path(edges_path: list) -> list:
     simple_path.append(edges_path[-1][-1])
     return simple_path
 
+
 def from_simple_path_to_vmd_string(simple_path: list) -> str:
-    return ", ".join([f"{structure_index+1}" for structure_index in simple_path])
+    return ", ".join([f"{structure_index + 1}" for structure_index in simple_path])
 
 
 class Maze:
-
     """
     Object used to search for paths in adjacency matrix weighted by cell energies and similar.
     """
@@ -72,8 +72,8 @@ class Maze:
         diff_energies_coo.data = diff_energies
 
         edge_delta_E = {(i, j): max([float(d), 0.0]) for i, j, d in zip(diff_energies_coo.row,
-                                                     diff_energies_coo.col,
-                                                     diff_energies_coo.data)}
+                                                                        diff_energies_coo.col,
+                                                                        diff_energies_coo.data)}
         nx.set_edge_attributes(self.maze, edge_delta_E, name="ΔE")
 
     def get_energies(self, indices: list) -> NDArray:
@@ -102,6 +102,28 @@ class Maze:
         """
         return nx.all_simple_edge_paths(self.maze, i, j, cutoff=cutoff)
 
+    def _largest_difference_from_start_measure(self, u, v, data):
+        """
+        See _largest_barrier_measure. This measure is very similar except we are not interested in the largest
+        difference between two neighbouring cells but in the largest difference between current cell and start of the
+        path.
+
+        Args:
+            u (int): index of a start cell
+            v (int): index of an end cell
+            data (dict): dictionary of edge properties (needed because this function signature is required by networkX)
+
+        Returns:
+            float, either zero if the energy of the current cell is smaller than the largest previously encountered one
+            or such a float that id adds to the previous max to form the new max barrier
+
+        """
+        delta_E = self.get_energies(v) - self.get_energies(self.start_cell)
+        if delta_E > self.current_max_delta_E:
+            difference_to_previous_largest = delta_E - self.current_max_delta_E
+            self.current_max_delta_E = delta_E
+            return difference_to_previous_largest
+        return 0.0
 
     def _largest_barrier_measure(self, u, v, data):
         """
@@ -119,64 +141,51 @@ class Maze:
             data (dict): dictionary of edge properties (needed because this function signature is required by networkX)
 
         Returns:
+            float, either zero if the energy of the current cell is smaller than the largest previously encountered one
+            or such a float that id adds to the previous max to form the new max barrier
 
         """
-        # TODO: also try a different measure of max difference to start point
-
         delta_E = self.get_energies(v) - self.get_energies(u)
         if delta_E > self.current_max_delta_E:
             difference_to_previous_largest = delta_E - self.current_max_delta_E
-            print(delta_E, " added ",  difference_to_previous_largest)
             self.current_max_delta_E = delta_E
             return difference_to_previous_largest
-        return 0
+        return 0.0
 
-    def _opt_weighted_path_ij(self, i: int, j: int, weight_function: Callable = None):
-        self.start_cell = i
-        self.end_cell = j
+    def _opt_weighted_path_ij(self, start_cell: int, end_cell: int, weight_function: Callable = None):
+        self.start_cell = start_cell
+        self.end_cell = end_cell
         self.current_max_delta_E = 0
-        return nx.dijkstra_path(self.maze, self.start_cell, self.end_cell, weight=self. _largest_barrier_measure)
+        return nx.dijkstra_path(self.maze, self.start_cell, self.end_cell, weight=weight_function)
 
-    def _weighted_paths_ij(self, i: int, j: int, weight_function: Callable = None, cutoff=None) -> pd.DataFrame:
+    def smallest_dE_neighbours_path(self, start_cell: int, end_cell: int) -> list:
         """
-        Among all possible paths between i and j find the value of the weight function that depends only on a list of
-        nodes encountered along the path (in correct order).
+        This is a getter for optimal path start_cell->end_cell if looking for the minimal (max dE between neighbouring
+        cells on the path).
 
         Args:
-            i (int): index of start cell
-            j (int): index of end cell
-            weight_function (Callable): a function of path indices that returns a scalar, the lower the scalar,
-            the better the path
+            start_cell (int): index of the cell where we want to start
+            end_cell (int): index of the cell where we want to stop
 
         Returns:
-            dataframe, each row contains the information (simple_path, weight_of_this_path)
+            a list of nodes (int) visited during our optimal path, starting with start_cell and ending with end_cell
         """
-        data = []
-        for path in self.all_paths_ij(i, j, cutoff=cutoff):
-            simple_path = from_edges_path_to_simple_path(path)
-            path_weight = weight_function(simple_path)
-            data.append([tuple(simple_path), path_weight])
-        df = pd.DataFrame(data, columns=["Path", "Path weight"])
-        return df
+        return self._opt_weighted_path_ij(start_cell, end_cell, weight_function=self._largest_barrier_measure)
 
-    def max_barrier_paths_i_lenk(self, i: int, len_k: int) -> pd.DataFrame:
-        return nx.single_source_shortest_path(self.maze, i, cutoff=len_k)
-
-    def max_barrier_paths_ij(self, i: int, j: int, cutoff=None) -> pd.DataFrame:
+    def smallest_dE_start_path(self, start_cell: int, end_cell: int) -> list:
         """
-        For each path between i and j find the maximal energy barrier on this path.
+        This is a getter for optimal path start_cell->end_cell if looking for the minimal (max dE between
+        cells on the path and start cell).
 
         Args:
-            i (int): index of start cell
-            j (int): index of end cell
+            start_cell (int): index of the cell where we want to start
+            end_cell (int): index of the cell where we want to stop
 
         Returns:
-            dataframe, each row contains the information (simple_path, highest_barrier_of_this_path)
-
+            a list of nodes (int) visited during our optimal path, starting with start_cell and ending with end_cell
         """
-        if self.energy_name is None:
-            raise ValueError("Cannot find a path based on energy if no energy information provided.")
-        return self._weighted_paths_ij(i, j, weight_function=self._largest_barrier_metric, cutoff=cutoff)
+        return self._opt_weighted_path_ij(start_cell, end_cell,
+                                          weight_function=self._largest_difference_from_start_measure)
 
     def plot_profile_along_path_df(self, path_df: pd.DataFrame, max_plot_rows: int = 6) -> (Figure, Axes):
         """
@@ -192,7 +201,7 @@ class Maze:
         path_df.sort_values(by="Path weight", inplace=True)
 
         num_rows = np.min([max_plot_rows, len(path_df)])
-        fig, ax = plt.subplots(num_rows, 1, sharey=True, sharex=True, figsize=(DIM_SQUARE[0], num_rows*DIM_SQUARE[1]))
+        fig, ax = plt.subplots(num_rows, 1, sharey=True, sharex=True, figsize=(DIM_SQUARE[0], num_rows * DIM_SQUARE[1]))
 
         for i in range(num_rows):
             row = path_df.iloc[i]
@@ -221,6 +230,11 @@ class Maze:
         Args:
             simple_path (list): a sequence of integers [i, k1, k2, k3, ... km, j) representing a path between i and j
             through nodes k1 ... km - order is important!
+            fig: Matplotlib's figure object
+            ax: Matplotlib's axes object
+
+        Returns:
+            (fig, ax) of the plot
         """
         energies_along_path = self.get_energies(simple_path)
 
@@ -230,24 +244,24 @@ class Maze:
 
         len_state = (x_max - x_min) / num_states
         # a small break between the horizontal lines
-        space_between = 0.3*len_state
+        space_between = 0.3 * len_state
         len_state -= space_between
 
         for i, energy in enumerate(energies_along_path):
             # plot horizontal lines
-            end_hline = i*(len_state+space_between)+len_state
-            ax.hlines(energy, i*(len_state+space_between), end_hline, color="black",
+            end_hline = i * (len_state + space_between) + len_state
+            ax.hlines(energy, i * (len_state + space_between), end_hline, color="black",
                       linewidth=1, alpha=1)
 
             # labels of states
-            mid_hline = 0.5 * ((i*(len_state+space_between)) + (i*(len_state+space_between)+len_state))
+            mid_hline = 0.5 * ((i * (len_state + space_between)) + (i * (len_state + space_between) + len_state))
 
             y_offset = 0.02
-            ax.text(mid_hline, energy+y_offset, f"{simple_path[i]}")
+            ax.text(mid_hline, energy + y_offset, f"{simple_path[i]}")
 
             # plot diagonal lines
-            if i+1 < len(energies_along_path):
-                next_energy = energies_along_path[i+1]
+            if i + 1 < len(energies_along_path):
+                next_energy = energies_along_path[i + 1]
                 start_next_hline = end_hline + space_between
                 ax.plot((end_hline, start_next_hline), (energy, next_energy), linestyle="--", color="black",
                         linewidth=0.5, alpha=1)
@@ -259,9 +273,7 @@ class Maze:
         # y axis
         ax.set_ylabel(self.energy_name)
 
-        # TODO: have attribute length in edges and adjust the plot so that it represents how far away states are
         return fig, ax
-
 
     def plot_maze_index_energy(self, only_nodes: list = None) -> None:
         """
@@ -290,7 +302,8 @@ class Maze:
             if only_nodes is not None:
                 node_colors = [node_colors[i] for i in sorted(only_nodes)]
 
-            nx.draw_networkx(self.maze, labels=full_labels, node_color=node_colors, cmap="coolwarm", nodelist=only_nodes,
+            nx.draw_networkx(self.maze, labels=full_labels, node_color=node_colors, cmap="coolwarm",
+                             nodelist=only_nodes,
                              node_size=700)
 
         plt.show()
