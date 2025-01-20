@@ -27,6 +27,8 @@ TAUS = np.array(config["params_msm"]["taus_msm_all"])
 TAUS_TO_PLOT = np.array(config["params_msm"]["taus_msm_to_plot"])
 STRUCTURE_EXTENSION = config["structure_extension"]
 
+EXPERIMENT_FULL_PATH = f"{PATH_EXPERIMENTS}{EXPERIMENT_TYPE}/{EXPERIMENT_ID}/{GRID_ID}/"
+
 rule all_msm:
     input:
         expand(f"{PATH_EXPERIMENTS}{EXPERIMENT_TYPE}/{EXPERIMENT_ID}/{GRID_ID}/{{what}}", what=["its.png"]),
@@ -402,30 +404,33 @@ rule compile_vmd_log:
     play <vmdlog file>
     """
     input:
-        structure = f"{PATH_EXPERIMENTS}{{experiment_type}}/{{experiment_id}}/structure.gro",
-        trajectory = f"{PATH_EXPERIMENTS}{{experiment_type}}/{{experiment_id}}/trajectory.xtc",
+        structure = f"{EXPERIMENT_FULL_PATH}/structure.gro",
+        trajectory = f"{EXPERIMENT_FULL_PATH}/trajectory.xtc",
         eigenvectors=rules.run_decomposition_msm.output.eigenvectors,
         assignments=rules.run_trajectory_assignment.output.assignments,
     output:
-        vmdlog=f"{PATH_EXPERIMENTS}{{experiment_type}}/{{experiment_id}}/{{grid_identifier}}/{{tau}}/eigenvectors_vmdlog",
-        fig_tga = expand(f"{PATH_EXPERIMENTS}{{experiment_type}}/{{experiment_id}}/{{grid_identifier}}/{{tau}}/eigenvector{{i}}.tga", i=[0, 1, 2, 3, 4, 5], allow_missing=True),
-        fig_png= report(expand(f"{PATH_EXPERIMENTS}{{experiment_type}}/{{experiment_id}}/{{grid_identifier}}/{{tau}}/eigenvector{{i}}.png",i=[0, 1, 2, 3, 4, 5], allow_missing=True),
-        category="{experiment_id}")
+        vmdlog=f"{EXPERIMENT_FULL_PATH}/{{tau}}/eigenvectors_vmdlog",
+        fig_tga = [f"{EXPERIMENT_FULL_PATH}/{{tau}}/eigenvector{i}.tga" for i in range(config["params_msm"]["num_eigenvec_to_plot"])],
+        fig_png = [f"{EXPERIMENT_FULL_PATH}/{{tau}}/eigenvector{i}.png" for i in range(config["params_msm"]["num_eigenvec_to_plot"])]
     params:
         num_extremes=config["params_msm"]["num_extremes_to_plot"],
         num_eigenvec=config["params_msm"]["num_eigenvec_to_plot"]
     run:
-        from molgri.plotting.create_vmdlog import VMDCreator
+        from molgri.plotting.create_vmdlog import VMDCreator, from_eigenvector_array_to_dominant_eigenvector_indices
+        from workflow.snakemake_utils import find_right_vmd_script
+
         eigenvectors = np.load(input.eigenvectors)
         assignments = np.load(input.assignments)
 
-        vmdcreator = VMDCreator(EXPERIMENT_TYPE, "index < 3", "index >= 3")
-        vmdcreator.add_assignments_msm(assignments)
-        my_script_text = vmdcreator.prepare_eigenvector_script(eigenvectors.T, output.fig_tga, index_list=None,
+        rotation_script = find_right_vmd_script(EXPERIMENT_TYPE)
+
+        abs_e, pos_e, neg_e = from_eigenvector_array_to_dominant_eigenvector_indices(eigenvectors.T, None,
             n_eigenvectors=params.num_eigenvec, num_extremes=params.num_extremes, num_of_examples=1)
 
-        with open(output.vmdlog, "w") as f:
-            f.write(my_script_text)
+        vmd_creator = VMDCreator("index < 3", "index >= 3")
+        vmd_creator.load_translation_rotation_script(find_right_vmd_script(EXPERIMENT_TYPE))
+        vmd_creator.prepare_eigenvector_script(abs_e,pos_e,neg_e,plot_names=output.fig_tga)
+        vmd_creator.write_text_to_file(output.vmdlog)
 
         shell("vmd -dispdev text {input.structure} {input.trajectory} < {output.vmdlog}")
         for el_tga, el_png in zip(output.fig_tga, output.fig_png):

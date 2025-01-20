@@ -289,10 +289,9 @@ rule run_path_search:
         start_point = 1856,
         end_point = 15
     run:
-        from molgri.space.mazes import Maze, from_edges_path_to_simple_path, from_simple_path_to_vmd_string
+        from molgri.space.mazes import Maze
         from scipy.sparse import load_npz
         import pandas as pd
-        import networkx as nx
         import matplotlib.pyplot as plt
 
         adj = load_npz(input.adjacency_matrix)
@@ -301,13 +300,8 @@ rule run_path_search:
         my_maze = Maze(adj)
         my_maze.add_energy_attribute("Energy [kJ/mol]", energy)
 
-
-
-        #simple_path = nx.dijkstra_path(my_maze.maze, start_point, end_point)
-        simple_path =my_maze._opt_weighted_path_ij(params.start_point, params.end_point)
+        simple_path =my_maze.smallest_dE_neighbours_path(params.start_point, params.end_point)
         np.save(output.path, simple_path)
-
-        print(from_simple_path_to_vmd_string(simple_path))
 
         fig, ax = plt.subplots(1,1)
         my_maze.plot_profile_along_path(simple_path, fig, ax)
@@ -337,11 +331,11 @@ rule vmd_plot_path:
 
         vmdlog.load_translation_rotation_script(input.script_rot_tr)
         vmdlog.prepare_path_script(simple_path, path_names)
-
         vmdlog.write_text_to_file(output.vmdlog)
 
         shell("vmd -dispdev text {input.structure} {input.trajectory} < {output.vmdlog}")
 
         tga_str = f"{PATH_SEARCH_DIR}path_*.tga"
         shell("convert -delay 40 -loop 0 {tga_str} {output.path_video}")
+
 

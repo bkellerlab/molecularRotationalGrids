@@ -6,6 +6,20 @@ import logging
 from time import time
 from datetime import timedelta, datetime
 
+def find_right_vmd_script(experiment_type):
+    match experiment_type:
+        case "sqra_water_in_vacuum":
+            return "molgri/scripts/vmd_position_sqra_water"
+        case "water_xyz":
+            return "molgri/scripts/vmd_position_sqra_water"
+        case "msm_water_in_vacuum":
+            return "molgri/scripts/vmd_position_msm_water_vacuum"
+        case "fullerene_xyz":
+            return "molgri/scripts/vmd_position_sqra_fullerene"
+        case "sqra_bpti_trypsine":
+            return "molgri/scripts/vmd_position_sqra_bpti"
+        case "guanidinium_xyz":
+            return "molgri/scripts/vmd_position_guanidinium_xyz"
 
 def log_the_run(name, input, output, log, params, time_used):
     logging.basicConfig(filename=log, level="INFO")

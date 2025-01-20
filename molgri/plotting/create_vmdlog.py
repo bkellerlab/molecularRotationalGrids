@@ -110,6 +110,56 @@ def find_assigned_trajectory_indices(assignments, indices_to_find, num_of_exampl
     return np.array(output)
 
 
+def from_eigenvector_array_to_dominant_eigenvector_indices(eigenvector_array: NDArray, index_list: list = None,
+                                                           n_eigenvectors: int = 5, num_extremes: int = 10,
+                                                           num_of_examples: int = 1, assignments: NDArray = None):
+    if len(eigenvector_array) < n_eigenvectors:
+        print(f"Warning! Don't have data for {n_eigenvectors}, will only plot {len(eigenvector_array)}")
+        n_eigenvectors = len(eigenvector_array)
+
+    if num_extremes is not None:
+        double_extremes = 2 * num_extremes
+    else:
+        double_extremes = None
+
+    # for msm case need to go over assignments
+    if assignments is not None:
+        zeroth_eigenvector = find_indices_of_largest_eigenvectors(eigenvector_array[0], which="abs",
+                                                                  index_list=index_list,
+                                                                  num_extremes=double_extremes,
+                                                                  add_one=False)
+        zeroth_eigenvector = find_assigned_trajectory_indices(assignments, zeroth_eigenvector, num_of_examples,
+                                                              add_one=True)
+    else:
+        zeroth_eigenvector = find_indices_of_largest_eigenvectors(eigenvector_array[0], which="abs",
+                                                                  index_list=index_list,
+                                                                  num_extremes=double_extremes)
+    all_pos_eigenvectors = []
+    all_neg_eigenvectors = []
+    for i in range(1, n_eigenvectors):
+        if assignments is not None:
+            pos_eigenvector = find_indices_of_largest_eigenvectors(eigenvector_array[i], which="pos", add_one=False,
+                                                                   index_list=index_list, num_extremes=num_extremes)
+            pos_eigenvector = find_assigned_trajectory_indices(self.assignments, pos_eigenvector, num_of_examples,
+                                                               add_one=True)
+            neg_eigenvector = find_indices_of_largest_eigenvectors(eigenvector_array[i], which="neg", add_one=False,
+                                                                   index_list=index_list, num_extremes=num_extremes)
+            neg_eigenvector = find_assigned_trajectory_indices(self.assignments, neg_eigenvector, num_of_examples,
+                                                               add_one=True)
+        else:
+            pos_eigenvector = find_indices_of_largest_eigenvectors(eigenvector_array[i], which="pos",
+                                                                   index_list=index_list, num_extremes=num_extremes)
+            neg_eigenvector = find_indices_of_largest_eigenvectors(eigenvector_array[i], which="neg",
+                                                                   index_list=index_list, num_extremes=num_extremes)
+        all_pos_eigenvectors.append(pos_eigenvector)
+        all_neg_eigenvectors.append(neg_eigenvector)
+
+    zeroth_eigenvector = np.array(zeroth_eigenvector)
+    all_pos_eigenvectors = np.array(all_pos_eigenvectors)
+    all_neg_eigenvectors = np.array(all_neg_eigenvectors)
+    return zeroth_eigenvector, all_pos_eigenvectors, all_neg_eigenvectors
+
+
 class VMDCreator:
     """
     From pieces of strings build a long vmdlog file that can be used inside vmd to automatically execute commands
@@ -129,7 +179,6 @@ class VMDCreator:
         """
         self.index_first_molecule = index_first_molecule
         self.index_second_molecule = index_second_molecule
-        self.assignments = None
         self.translations_rotations_script = None
         self.is_protein = is_protein
 
@@ -152,6 +201,9 @@ class VMDCreator:
         with open(output_file_path, "w") as f:
             f.write(self.total_file_text)
 
+        # in case we want to build another file after this one
+        self.total_file_text = ""
+
     def _add_pretty_plot_settings(self):
         """
         Delete the initial default representation.
@@ -172,7 +224,7 @@ display resize 1800 1200
 """
 
     def _add_representation(self, first_molecule: bool = False, second_molecule: bool = True, coloring: str = None,
-                           color: str = None, representation: str = None, trajectory_frames: ArrayLike = None):
+                            color: str = None, representation: str = None, trajectory_frames: ArrayLike = None):
         """
         Use this to add a new representation of molecule 1, molecule 2 or both.
 
@@ -205,7 +257,6 @@ display resize 1800 1200
             molecular_index = "all"
         else:
             raise ValueError("Trying to add a molecule but first_molecule=False and second_molecule=False.")
-
 
         # because trajectory frames may be an int, a string, or a list-like object we ned to pre-process it
         if isinstance(trajectory_frames, np.integer) or isinstance(trajectory_frames, int):
@@ -240,7 +291,7 @@ mol drawframes 0 {self.num_representations} {{ {trajectory_frames_as_str} }}
             plot_path (str): path to the plot that will be created
         """
         # show and hide as needed
-        for repr_index in set(list_representation_indices):
+        for repr_index in list_representation_indices:
             self._show_representation(repr_index)
         not_on_list = set(range(self.num_representations)) - set(list_representation_indices)
         for repr_index in not_on_list:
@@ -253,84 +304,13 @@ mol drawframes 0 {self.num_representations} {{ {trajectory_frames_as_str} }}
         self.total_file_text += f"\nmol showrep 0 {representation_index} 1\n"
 
     def _hide_representation(self, representation_index: int):
-        self.total_file_text +=  f"\nmol showrep 0 {representation_index} 0\n"
-
-    def load_assignments_msm(self, assignments: NDArray):
-        """
-        For MSM trajectories, we must be able to assign a frame to its corresponding cell.
-
-        Args:
-            assignments (NDArray): array of integers, has the length of a trajectory and the index of a cell the frame
-            belongs to as each element
-        """
-        self.assignments = assignments
+        self.total_file_text += f"\nmol showrep 0 {representation_index} 0\n"
 
     def load_translation_rotation_script(self, path_translation_rotation_script: str):
         self.translations_rotations_script = path_translation_rotation_script
 
-    def _add_colored_representation(self, representation_index, color_id, frames):
-        string_to_add = f"""
-mol addrep 0
-mol modselect {representation_index} 0 {self.index_second_molecule}
-mol modcolor {representation_index} 0 ColorID {color_id}
-mol drawframes 0 {representation_index} {{ {', '.join(map(str, frames.flatten().astype(int)))} }}
-"""
-        return string_to_add
-
-    def _add_pos_neg_eigenvector(self, i1, frames_pos, frames_neg) -> str:
-        i2 = i1 + 1
-
-        string_pos_neg = f"""
-
-mol addrep 0
-mol modselect {i1} 0 {self.index_second_molecule}
-mol modcolor {i1} 0 ColorID 0
-mol drawframes 0 {i1} {{ {', '.join(map(str, frames_pos.flatten().astype(int)))} }}
-mol addrep 0
-mol modselect {i2} 0 {self.index_second_molecule}
-mol modcolor {i2} 0 ColorID 1
-mol drawframes 0 {i2} {{ {', '.join(map(str, frames_neg.flatten().astype(int)))} }}
-
-"""
-        return string_pos_neg
-
-    def _add_first_molecule(self):
-
-        string_first_molecule = f"""
-
-mol addrep 0
-mol modselect 0 0 {self.index_first_molecule}
-mol modcolor 0 0 {self.default_coloring_method}
-"""
-        return string_first_molecule
-
-    def _add_second_molecule(self, i1, frame_index):
-        string_first_molecule = f"""
-
-mol addrep 0
-mol modselect {i1} 0 {self.index_second_molecule}
-mol drawframes 0 {i1} {frame_index}
-mol modcolor {i1} 0 {self.default_coloring_method}
-"""
-        return string_first_molecule
-
-
-
-    def _add_zeroth_eigenvector(self, frames_abs):
-        print(', '.join(map(str, frames_abs.flatten().astype(int))))
-
-        string_zeroth_eigenvector = f"""
-
-mol addrep 0
-mol modselect 1 0 {self.index_second_molecule}
-mol drawframes 0 1 {{ {', '.join(map(str, frames_abs.flatten().astype(int)))} }}
-mol modcolor 1 0 {self.default_coloring_method}
-"""
-
-        return string_zeroth_eigenvector
-
-    def prepare_eigenvector_script(self, eigenvector_array: NDArray, plot_names: list, index_list: list = None,
-                                   n_eigenvectors: int = 5, num_extremes: int = 10, num_of_examples: int = 1):
+    def prepare_eigenvector_script(self, abs_eigenvector_frames: NDArray, pos_eigenvector_frames: NDArray,
+                                   neg_eigenvector_frames: NDArray, plot_names: list):
         """
         Everything you need to plot eigenvectors:
         - make plotting pretty
@@ -340,74 +320,50 @@ mol modcolor 1 0 {self.default_coloring_method}
         - render the plots
 
         Args:
-            eigenvector_array: 2D eigenvector array, shape (num_evec, len_matrix_side)
+            abs_eigenvector_frames (NDArray): a 1D array of integers for representative cells of the 0th eigenvector
+            pos_eigenvector_frames (NDArray): a 2D array of integers, each row representing most positive cells of the
+                ith eigenvector with i=1,2,3... Must have same length as neg_eigenvector_frames.
+            neg_eigenvector_frames (NDArray): a 2D array of integers, each row representing most negative cells of the
+                ith eigenvector with i=1,2,3... Must have same length as pos_eigenvector_frames.
+            plot_names: file paths for all the renders. Must have the length of neg_eigenvector_frames + 1
         """
-        if len(eigenvector_array) < n_eigenvectors:
-            print(f"Warning! Don't have data for {n_eigenvectors}, will only plot {len(eigenvector_array)}")
-            n_eigenvectors = len(eigenvector_array)
+        assert len(pos_eigenvector_frames) == len(neg_eigenvector_frames)
+        assert len(plot_names) == len(neg_eigenvector_frames) + 1
 
-        total_string = ""
-        total_string += self._add_pretty_plot_settings()
+        # add first molecule without any special colors etc
+        self._add_representation(first_molecule=True, second_molecule=False, trajectory_frames=0)
 
-        total_string += self._add_first_molecule()
+        # add zeroth eigenvector without any special colors
+        self._add_representation(first_molecule=False, second_molecule=True, trajectory_frames=abs_eigenvector_frames[0])
 
-        if num_extremes is not None:
-            double_extremes = 2*num_extremes
-        else:
-            double_extremes = None
-        if "msm" in self.experiment_type:
-            zeroth_eigenvector = find_indices_of_largest_eigenvectors(eigenvector_array[0], which="abs",
-                                                                      index_list=index_list,
-                                                                      num_extremes=double_extremes,
-                                                                      add_one=False)
-            zeroth_eigenvector = find_assigned_trajectory_indices(self.assignments, zeroth_eigenvector, num_of_examples,
-                                                                  add_one=True)
-        else:
-            zeroth_eigenvector = find_indices_of_largest_eigenvectors(eigenvector_array[0], which="abs",
-                                                                      index_list=index_list,
-                                                                      num_extremes=double_extremes)
-        total_string += self._add_zeroth_eigenvector(zeroth_eigenvector)
-        print(zeroth_eigenvector)
+        # for the rest add one red, one blue
+        for pos_frames, neg_frames in zip(pos_eigenvector_frames, neg_eigenvector_frames):
+            self._add_representation(first_molecule=False, second_molecule=True, coloring="ColorId", color="blue",
+                                     trajectory_frames=pos_frames)
+            self._add_representation(first_molecule=False, second_molecule=True, coloring="ColorId", color="red",
+                                     trajectory_frames= neg_frames)
 
-        for i in range(1, n_eigenvectors):
-            if "msm" in self.experiment_type:
-                pos_eigenvector = find_indices_of_largest_eigenvectors(eigenvector_array[i], which="pos", add_one=False,
-                                                                       index_list=index_list, num_extremes=num_extremes)
-                pos_eigenvector = find_assigned_trajectory_indices(self.assignments, pos_eigenvector, num_of_examples,
-                                                                   add_one=True)
-                neg_eigenvector = find_indices_of_largest_eigenvectors(eigenvector_array[i], which="neg", add_one=False,
-                                                                       index_list=index_list, num_extremes=num_extremes)
-                neg_eigenvector = find_assigned_trajectory_indices(self.assignments, neg_eigenvector, num_of_examples,
-                                                                   add_one=True)
-            else:
-                pos_eigenvector = find_indices_of_largest_eigenvectors(eigenvector_array[i], which="pos",
-                                                                       index_list=index_list, num_extremes=num_extremes)
-                neg_eigenvector = find_indices_of_largest_eigenvectors(eigenvector_array[i], which="neg",
-                                                                       index_list=index_list, num_extremes=num_extremes)
-            print(pos_eigenvector)
-            print(neg_eigenvector)
-            total_string += self._add_pos_neg_eigenvector(2 * i, pos_eigenvector, neg_eigenvector)
-        total_string += self._add_rotations_translations()
-        total_string += self._add_hide_all_representations(n_eigenvectors)
+        self._add_rotations_translations()
 
-        total_string += self._add_render_a_plot(0, 1, plot_names[0])
+        # render the zeroth eigenvector
+        self._render_representations([0, 1], plot_names[0])
 
-        for i in range(1, n_eigenvectors):
-            total_string += self._add_render_a_plot(2 * i, 2 * i + 1, plot_names[i])
-        total_string += "quit"
-        return total_string
+        # render the rest of eigenvectors
+        last_used_representation = 1
+        for plot_name in enumerate(plot_names):
+            # each render contains first molecule in representation 0 and second molecule in representation 1, 2, 3 ...
+            self._render_representations([0, last_used_representation+1, last_used_representation+2], plot_name)
+            last_used_representation += 2
 
-    def prepare_clustering_script(self, labels: NDArray, colors: list, plot_name: str, max_num_per_cluster: int = 20):
-        # translate named colors into VMD color ID
-        color_dict = {"black": 16, "yellow": 4, "orange": 3, "green": 7, "blue": 0, "cyan": 10, "purple": 11,
-                      "gray": 2, "pink": 9, "red": 1, "magenta": 27}
 
-        total_string = ""
-        total_string += self._add_pretty_plot_settings()
 
-        total_string += self._add_first_molecule()
+    def prepare_clustering_script(self, clusters: NDArray, color_per_cluster: list, plot_name: str, max_num_per_cluster: int = 20):
+        # first molecule in a normal color
+        self._add_representation(first_molecule=True, second_molecule=False, trajectory_frames=0)
 
         # for each unique label add a colored set of structures
+        unique_labels = np.unique(labels)
+        assert len(unique_labels)
 
         repr_index = 1
         for i, unique_label in enumerate(np.unique(labels)[:len(colors)]):
@@ -438,6 +394,15 @@ mol modcolor 1 0 {self.default_coloring_method}
         return total_string
 
     def prepare_path_script(self, my_path, plot_paths):
+        """
+        Use this method to represent a path with VMD pictures. Renders a figure for each grid point tn my_path.
+
+        Args:
+            my_path (list): a list of indices like [15, 7, 385, 22] describing a path on a grid, integers are grid
+                indices
+            plot_paths (list): a list of file names to which renders should be saved, should have the same length as
+                my_path
+        """
 
         self._add_representation(first_molecule=True, second_molecule=False, trajectory_frames=0)
 
@@ -447,6 +412,7 @@ mol modcolor 1 0 {self.default_coloring_method}
         self._add_rotations_translations()
 
         for i, plot_path in enumerate(plot_paths):
+            # each render contains first molecule in representation 0 and second molecule in representation 1, 2, 3 ...
             self._render_representations([0, i+1], plot_path)
 
     def _add_rotations_translations(self):
