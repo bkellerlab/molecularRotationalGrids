@@ -190,6 +190,12 @@ class VMDCreator:
             self.default_drawing_method = "CPK 1.000000 0.300000 12.000000 10.000000"
 
         self.num_representations = 0
+        self._start_new_file()
+    
+    def _start_new_file(self):
+        """
+        Just a helper for starting a new string and adding default settings.
+        """
         self.total_file_text = ""
         self._add_pretty_plot_settings()
 
@@ -202,11 +208,11 @@ class VMDCreator:
             f.write(self.total_file_text)
 
         # in case we want to build another file after this one
-        self.total_file_text = ""
+        self._start_new_file()
 
-    def _add_pretty_plot_settings(self):
+    def _add_pretty_plot_settings(self) -> None:
         """
-        Delete the initial default representation.
+        Delete the initial default representation. Don't add any representations yet.
         Additionally, some nice settings so that pictures look good.
         """
 
@@ -280,7 +286,7 @@ mol drawframes 0 {self.num_representations} {{ {trajectory_frames_as_str} }}
 
         self.num_representations += 1
 
-    def _render_representations(self, list_representation_indices: ArrayLike, plot_path: str):
+    def _render_representations(self, list_representation_indices: ArrayLike, plot_path: str) -> None: 
         """
         Show representations that are in the list_representation_indices and hide all others. Save the rendered plot
         to plot_path.
@@ -300,17 +306,37 @@ mol drawframes 0 {self.num_representations} {{ {trajectory_frames_as_str} }}
         # render
         self.total_file_text += f"render TachyonInternal {plot_path}"
 
-    def _show_representation(self, representation_index: int):
+    def _show_representation(self, representation_index: int) -> None:
+        """
+        Helper function, show a particular representation among already created ones. If not hidden does nothing.
+        
+        Args:
+            representation_index (int): which representation to show.
+        """
         self.total_file_text += f"\nmol showrep 0 {representation_index} 1\n"
 
-    def _hide_representation(self, representation_index: int):
+    def _hide_representation(self, representation_index: int) -> None:
+        """
+        Helper function, hide a particular representation among already created ones. If already hidden does nothing.
+
+        Args:
+            representation_index (int): which representation to hide.
+        """
         self.total_file_text += f"\nmol showrep 0 {representation_index} 0\n"
 
-    def load_translation_rotation_script(self, path_translation_rotation_script: str):
+    def load_translation_rotation_script(self, path_translation_rotation_script: str = None) -> None:
+        """
+        Optionally, if there is a (manually created) sequence of translations/rotations/scaling in VMD format, you can 
+        load it here. Useful to create multiple plots in exactly same orientation. If not provided, the default VMD 
+        orientation is used.
+        
+        Args:
+            path_translation_rotation_script (str): the path to the VMD script
+        """
         self.translations_rotations_script = path_translation_rotation_script
 
     def prepare_eigenvector_script(self, abs_eigenvector_frames: NDArray, pos_eigenvector_frames: NDArray,
-                                   neg_eigenvector_frames: NDArray, plot_names: list):
+                                   neg_eigenvector_frames: NDArray, plot_names: list) -> None:
         """
         Everything you need to plot eigenvectors:
         - make plotting pretty
@@ -319,13 +345,15 @@ mol drawframes 0 {self.num_representations} {{ {trajectory_frames_as_str} }}
         - add indices of higher eigenvectors at most positive/most negative values
         - render the plots
 
+        INDICES OF FRAMES ALREADY MUST HAVE +1 IF NEEDED
+
         Args:
             abs_eigenvector_frames (NDArray): a 1D array of integers for representative cells of the 0th eigenvector
             pos_eigenvector_frames (NDArray): a 2D array of integers, each row representing most positive cells of the
                 ith eigenvector with i=1,2,3... Must have same length as neg_eigenvector_frames.
             neg_eigenvector_frames (NDArray): a 2D array of integers, each row representing most negative cells of the
                 ith eigenvector with i=1,2,3... Must have same length as pos_eigenvector_frames.
-            plot_names: file paths for all the renders. Must have the length of neg_eigenvector_frames + 1
+            plot_names (list): file paths for all the renders. Must have the length of neg_eigenvector_frames + 1
         """
         assert len(pos_eigenvector_frames) == len(neg_eigenvector_frames)
         assert len(plot_names) == len(neg_eigenvector_frames) + 1
@@ -355,47 +383,46 @@ mol drawframes 0 {self.num_representations} {{ {trajectory_frames_as_str} }}
             self._render_representations([0, last_used_representation+1, last_used_representation+2], plot_name)
             last_used_representation += 2
 
+    def prepare_clustering_script(self, indices_per_cluster: list, color_per_cluster: list, plot_name_all_together: str,
+                                  plot_names_individual: list) -> None:
+        """
+        Make a script that shows you each cluster in its representative color and also all clusters together.
 
+        INDICES OF FRAMES ALREADY MUST HAVE +1 IF NEEDED
 
-    def prepare_clustering_script(self, clusters: NDArray, color_per_cluster: list, plot_name: str, max_num_per_cluster: int = 20):
+        Args:
+            indices_per_cluster (list): a list of sublists (cannot be an array because different lengths), each sublist
+            containing trajectory indices belonging to 0th, 1st, 2nd .... cluster
+            color_per_cluster (list): same length as indices_per_cluster list, provides the color to be used for the
+            corresponding cluster eg. ["red", "blue", "black" ....]
+            plot_name_all_together (str): path to the plot of all clusters together
+            plot_names_individual (list): paths to the plots of 0th, 1st, 2nd ... cluster
+        """
+        assert len(color_per_cluster) == len(indices_per_cluster) == len(plot_names_individual)
+
         # first molecule in a normal color
         self._add_representation(first_molecule=True, second_molecule=False, trajectory_frames=0)
 
-        # for each unique label add a colored set of structures
-        unique_labels = np.unique(labels)
-        assert len(unique_labels)
+        # now add second molecule separately for each cluster:
+        for cluster_indices, cluster_color in zip(indices_per_cluster, color_per_cluster):
+            self._add_representation(first_molecule=False, second_molecule=True, trajectory_frames=cluster_indices,
+                                     coloring="ColorId", color=cluster_color)
 
-        repr_index = 1
-        for i, unique_label in enumerate(np.unique(labels)[:len(colors)]):
-            cluster = np.where(labels == unique_label)[0]
-            population = len(cluster)
-            cluster_indices = np.array([x + 1 for x in cluster])
-            if population > 5 and population < 1000:
-                if population > max_num_per_cluster:
-                    cluster_indices = np.random.choice(cluster_indices, max_num_per_cluster)
-                total_string += self._add_colored_representation(repr_index, color_dict[colors[i]], cluster_indices)
-                repr_index += 1
+        self._add_rotations_translations()
 
-        total_string += self._add_rotations_translations()
-        total_string+="\n"
+        # plot all together
+        all_representations = list(range(self.num_representations))
+        self._render_representations(all_representations, plot_name_all_together)
 
-        total_string += f"render TachyonInternal {plot_name}\n"
+        # plot individually
+        for cluster_i, plot_name in enumerate(plot_names_individual):
+            self._render_representations([0, cluster_i+1], plot_name)
 
-        n_colors = len(np.unique(labels)[:len(colors)])
-        total_string += self._add_hide_all_representations(n_colors)
-        for i in range(n_colors):
-            total_string += self._show_representation_i(i+1)
-            changed_plot_name = f"{plot_name[:-4]}_{i+1}{plot_name[-4:]}"
-            total_string += f"render TachyonInternal {changed_plot_name}\n"
-            total_string += self._hide_representation_i(i + 1)
-
-
-        total_string += "quit"
-        return total_string
-
-    def prepare_path_script(self, my_path, plot_paths):
+    def prepare_path_script(self, my_path: list, plot_paths: list) -> None:
         """
         Use this method to represent a path with VMD pictures. Renders a figure for each grid point tn my_path.
+
+        INDICES OF FRAMES ALREADY MUST HAVE +1 IF NEEDED
 
         Args:
             my_path (list): a list of indices like [15, 7, 385, 22] describing a path on a grid, integers are grid
@@ -403,11 +430,12 @@ mol drawframes 0 {self.num_representations} {{ {trajectory_frames_as_str} }}
             plot_paths (list): a list of file names to which renders should be saved, should have the same length as
                 my_path
         """
+        assert len(my_path) == len(plot_paths)
 
         self._add_representation(first_molecule=True, second_molecule=False, trajectory_frames=0)
 
         for path_index in my_path:
-            self._add_representation(first_molecule=False, second_molecule=True, trajectory_frames=path_index+1)
+            self._add_representation(first_molecule=False, second_molecule=True, trajectory_frames=path_index)
 
         self._add_rotations_translations()
 
@@ -416,6 +444,9 @@ mol drawframes 0 {self.num_representations} {{ {trajectory_frames_as_str} }}
             self._render_representations([0, i+1], plot_path)
 
     def _add_rotations_translations(self):
+        """
+        If the script was loaded before, it will be used, else nothing happens.
+        """
         if self.translations_rotations_script:
             with open(self.translations_rotations_script, "r") as f:
                 contents = f.read()

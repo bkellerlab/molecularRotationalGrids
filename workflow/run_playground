@@ -327,10 +327,11 @@ rule vmd_plot_path:
 
         vmdlog = VMDCreator(index_first, index_second)
         simple_path = np.load(input.path)
+        simple_path_added_one = [sp+1 for sp in simple_path]
         path_names = [f"{PATH_SEARCH_DIR}path_{i}.tga" for i in range(len(simple_path))]
 
         vmdlog.load_translation_rotation_script(input.script_rot_tr)
-        vmdlog.prepare_path_script(simple_path, path_names)
+        vmdlog.prepare_path_script(simple_path_added_one, path_names)
         vmdlog.write_text_to_file(output.vmdlog)
 
         shell("vmd -dispdev text {input.structure} {input.trajectory} < {output.vmdlog}")
