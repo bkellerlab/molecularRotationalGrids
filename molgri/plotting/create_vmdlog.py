@@ -10,6 +10,10 @@ from molgri.space.utils import k_argmax_in_array
 VMD_COLOR_DICT = {"black": 16, "yellow": 4, "orange": 3, "green": 7, "blue": 0, "cyan": 10, "purple": 11,
               "gray": 2, "pink": 9, "red": 1, "magenta": 27}
 
+class TrajectoryIndexingTool:
+    """
+    A tool that helps getting specific indices from the trajectory
+    """
 
 def find_num_extremes(eigenvector_array: NDArray, explains_x_percent: float = 40, only_positive: bool = True) -> int:
     """
