@@ -1,16 +1,23 @@
 import os
+import re
+import subprocess
+from subprocess import PIPE, run
 import MDAnalysis as mda
 import pandas as pd
 import numpy as np
 import yaml
 from numpy.typing import NDArray
 from scipy import sparse
+from scipy.constants import physical_constants
 from MDAnalysis import Merge
 
 from molgri.molecules.pts import Pseudotrajectory
 import MDAnalysis.transformations as trans
 
 from molgri.space.translations import TranslationParser
+
+HARTREE_TO_J = physical_constants["Hartree energy"][0]
+AVOGADRO_CONSTANT = physical_constants["Avogadro constant"][0]
 
 
 class GridWriter:
@@ -302,3 +309,334 @@ class ItsReader:
     def get_first_N_its(self, N: int = 5) -> tuple:
         return tuple(self.its.iloc[0][:N])
 
+
+
+class QuantumMolecule:
+
+    """
+    Just a simple class to collect variables that define a QM molecule.
+    """
+
+    def __init__(self, charge: int, multiplicity: int, path_xyz: str,
+                 fragment_1_len: int = None, fragment_2_len: int = None):
+        self.charge = charge
+        self.multiplicity = multiplicity
+        self.path_xyz = path_xyz
+        self.fragment_1_len = fragment_1_len
+        self.fragment_2_len = fragment_2_len
+
+
+class QuantumSetup:
+
+    """
+    Just a simple class to collect variables connected to QM calculation set-up (that are not molecule-specific).
+    """
+
+    def __init__(self, functional: str, basis_set: str, solvent: str = None, dispersion_correction: str = "",
+                 num_scf: int = 15, num_cores: int = None, ram_per_core: int = None):
+        self.functional = functional
+        self.basis_set = basis_set
+        self.solvent = solvent
+        self.dispersion_correction = dispersion_correction
+        self.num_scf = num_scf
+        self.num_cores = num_cores
+        self.ram_per_core = ram_per_core
+
+    def get_dir_name(self):
+        """
+        Calculations of this quantum set-up can be done in a folder that specifies the major settings.
+        """
+        return f"{nice_str_of(self.functional)}_{nice_str_of(self.basis_set)}_{nice_str_of(self.solvent)}_{nice_str_of(self.dispersion_correction)}/"
+
+
+class OrcaWriter:
+
+    """
+    This class builds orca input files specifically for our typical set-up of two molecules.
+    """
+
+    def __init__(self, molecule:  QuantumMolecule, set_up: QuantumSetup):
+        self.molecule = molecule
+        self.setup = set_up
+        self.total_text = ""
+
+    def write_to_file(self, file_path: str):
+        with open(file_path, "w") as f:
+            f.write(self.total_text)
+        self.total_text = ""
+
+    def _write_first_line(self, geo_optimization: bool = False):
+        """
+        First line looks something like this: ! PBE0 D4 def2-tzvp Opt <- depends on functional, SP/optimization and
+        basis set.
+
+
+        Args:
+            geo_optimization (bool): if True option Opt will be selected, else SP
+        """
+        if geo_optimization:
+            optimization_str = "Opt"
+        else:
+            optimization_str = ""
+
+        self.total_text += f"! {self.setup.functional} {self.setup.dispersion_correction} {self.setup.basis_set} {optimization_str}\n"
+
+    def _write_fragment_constraint(self):
+        """
+
+        Returns:
+
+        """
+        assert self.molecule.fragment_1_len is not None, "Need to know fragment lengths to constrain them!"
+        assert self.molecule.fragment_2_len is not None, "Need to know fragment lengths to constrain them!"
+
+        self.total_text += f"""
+%geom
+
+
+    ConnectFragments
+     {{1 2 C}}      # constrain the internal coordinates
+	          #  connecting fragments 1 and 2
+    end
+    
+	Fragments
+	  1 {{0:{self.molecule.fragment_1_len-1}}} end 
+	  2 {{{self.molecule.fragment_1_len}:{self.molecule.fragment_1_len+self.molecule.fragment_2_len-1}}} end  
+	end 
+	  
+end
+        """
+
+    def _write_solvent(self):
+        if self.setup.solvent is not None:
+            self.total_text += "%CPCM SMD TRUE\n"
+            self.total_text += f'SMDSOLVENT "{self.setup.solvent}"\n'
+            self.total_text += "END\n"
+
+    def _write_resources(self):
+        # limit the number of SCF cycles to make hopeless calculations fail quickly
+        if self.setup.num_scf is not None:
+            self.total_text += f"""
+        %scf
+            MaxIter {self.setup.num_scf}
+        end
+        """
+        if self.setup.num_cores is not None and self.setup.num_cores != "None":
+            self.total_text += f"%PAL NPROCS {self.setup.num_cores} END\n"
+        if self.setup.ram_per_core is not None and self.setup.ram_per_core != "None":
+            self.total_text += f"%maxcore {self.setup.ram_per_core}\n"
+
+    def _write_molecule_specification(self):
+        self.total_text += f"*xyzfile {self.molecule.charge} {self.molecule.multiplicity} {self.molecule.path_xyz}\n"
+
+    def make_optimization_inp(self, constrain_fragments: bool = False):
+        self._write_first_line(geo_optimization=True)
+        self._write_solvent()
+        self._write_resources()
+        self._write_molecule_specification()
+        if constrain_fragments:
+            self._write_fragment_constraint()
+
+    def make_sp_inp(self):
+        self._write_first_line(geo_optimization=False)
+        self._write_solvent()
+        self._write_resources()
+        self._write_molecule_specification()
+
+
+class OrcaReader:
+
+    """
+    Does not read .inp, but .out files
+    """
+
+    def __init__(self, out_file_path: str):
+        self.out_file_path = out_file_path
+        path = os.path.normpath(self.out_file_path)
+        split_path = path.split(os.sep)
+        self.calculation_directory = os.path.join(*split_path[:-1])
+
+    def assert_normal_finish(self, throw_error=True):
+        """
+        Make sure that the orca calculation finished normally.
+
+        Args:
+            throw_error (bool): if True, raise an error, if False, print a warning
+
+        Either throws an error or prints a warning.
+        """
+        returncode = subprocess.run(f'grep "****ORCA TERMINATED NORMALLY****" {self.out_file_path}', shell=True,
+                                    text=False).returncode
+        if returncode != 0 and throw_error:
+            raise ChildProcessError(f"Orca did not terminate normally; see {self.out_file_path }")
+        elif returncode != 0 and not throw_error:
+            print(f"Orca did not terminate normally; see {self.out_file_path }")
+
+    def assert_optimization_complete(self, throw_error=True):
+        """
+        Make sure that the optimization is complete (not the same as normal finish!). Only relevant for optimizations.
+
+        Args:
+            throw_error (bool): if True, raise an error, if False, print a warning
+
+        Either throws an error or prints a warning.
+        """
+        message_has_converged = """
+***********************HURRAY********************
+***        THE OPTIMIZATION HAS CONVERGED     ***
+*************************************************
+    """
+        returncode = subprocess.run(f'grep "{message_has_converged}" {self.out_file_path}', shell=True,
+                                    text=False).returncode
+        if returncode != 0 and throw_error:
+            raise ChildProcessError(f"Orca may have finished normally but did not converge; see {self.out_file_path}")
+        elif returncode != 0 and not throw_error:
+            print(f"Orca may have finished normally but did not converge; see {self.out_file_path}")
+
+    def extract_time_orca_output(self) -> pd.Timedelta:
+        """
+        Take any orca output file and give me the time needed for the calculation.
+
+        Args:
+            output_file (str): path to the .out file
+
+        Returns:
+            Time as days hours:min:sec
+        """
+        line_time = subprocess.run(f"""grep "^TOTAL RUN TIME:" {self.out_file_path} | sed 's/^TOTAL RUN TIME: //'""", shell=True,
+                                   capture_output=True, text=True)
+        try:
+            line_time = line_time.stdout.strip()
+            line_time= line_time.replace("msec", "ms")
+            time_h_m_s = pd.to_timedelta(line_time)
+        except AttributeError:
+            time_h_m_s = np.NaN
+
+        return time_h_m_s
+
+    def extract_energy_orca_output(self) -> float:
+        """
+        Take any orca output file and give me the total energy resulting from the calculation.
+
+        Returns:
+            Energy in the unit of Hartrees
+        """
+        # need the last one so use tail
+        line_energy = subprocess.run(f'grep "^FINAL SINGLE POINT ENERGY" {self.out_file_path} | tail -n 1 | sed "s/^FINAL SINGLE POINT '
+                                     f'ENERGY //"', shell=True,
+                                     capture_output=True, text=True)
+        try:
+            energy_hartree = float(line_energy.stdout.strip())
+        except ValueError:
+            energy_hartree = np.NaN
+
+        return energy_hartree
+
+    def extract_last_coordinates_from_opt(self) -> str:
+        """
+        Extract the last structure of the optimization.
+        """
+        # try to find _trj.xyz in the directory
+        for file in os.listdir(self.calculation_directory):
+            if str(file).endswith("_trj.xyz"):
+                orca_traj_xyz_file = os.path.join(self.calculation_directory, file)
+                line_number_last_coo = subprocess.run(
+                    f"""grep -n "Coordinates from" {orca_traj_xyz_file} | tail -n 1 | cut -d: -f1""",
+                    shell=True, capture_output=True).stdout
+                line_with_num_of_atoms = int(line_number_last_coo) - 1
+                command = ['tail', '-n', f"+{line_with_num_of_atoms}", f"{orca_traj_xyz_file}"]
+                result = run(command, stdout=PIPE, stderr=PIPE, universal_newlines=True)
+                return result.stdout
+        else:
+            raise FileNotFoundError(f"Cannot find any _trj.xyz file in {self.calculation_directory}")
+
+    def extract_last_coordinates_to_file(self, file_path: str):
+        """
+        Same as extract_last_coordinates_from_opt, but immediately write to a file.
+
+        Args:
+            file_path (str): a path where the new file should be
+        """
+        file_contents = self.extract_last_coordinates_from_opt()
+        with open(file_path, "w") as f:
+            f.write(file_contents)
+
+
+
+
+def read_important_stuff_into_csv(out_files_to_read: list, csv_file_to_write: str, setup: QuantumSetup,
+                                  benchmark_files_to_read: list = None):
+    """
+    Read a list of orca .out files that were created with the same set-up (functional, basis set ...). Save the
+    energies and generation times. Times can optionally be read from the benchmark files
+
+    Args:
+        out_files_to_read (list): a list of paths, usually to a number of .out files calculated along a molgri pt
+        csv_file_to_write (str): a path to a csv file where the data will be recorded.
+        setup ():
+
+    Returns:
+
+    """
+
+    columns = ["File", "Functional", "Basis set", "Dispersion correction", "Solvent",
+               "Energy [hartree]", "Time [h:m:s]"]
+
+    all_df = []
+
+    for i, out_file_to_read in enumerate(out_files_to_read):
+        my_reader = OrcaReader(out_file_to_read)
+        energy_hartree = my_reader.extract_energy_orca_output()
+
+        # read time either from benchmark or from orca .out
+        if benchmark_files_to_read is not None:
+            benchmark_file_to_read = benchmark_files_to_read[i]
+            time_s = float(pd.read_csv(benchmark_file_to_read, delimiter="\t")["s"][0])
+            time_h_m_s = pd.to_timedelta(time_s, unit='s')
+        else:
+             time_h_m_s = my_reader.extract_time_orca_output()
+
+        all_data = [[out_file_to_read, setup.functional, setup.basis_set, setup.dispersion_correction,
+                     setup.solvent, energy_hartree, time_h_m_s]]
+
+        df = pd.DataFrame(all_data, columns=columns)
+        df["Energy [kJ/mol]"] = df["Energy [hartree]"] / 1000.0 * (HARTREE_TO_J * AVOGADRO_CONSTANT)
+        df["Time [s]"] = np.where(~df["Time [h:m:s]"].isna(), df["Time [h:m:s]"].dt.total_seconds(), np.NaN)
+        all_df.append(df)
+
+    combined_df = pd.concat(all_df)
+    combined_df.to_csv(csv_file_to_write, index=False)
+
+
+def nice_str_of(string: str) -> str:
+    """
+    Make a string "nice" (ready to use in file names etc) by removing all charcaters that are not alphanumeric.
+    Special case: if input is an empty string, the output is "no" because that is easier to include in names.
+
+    Args:
+        string (str): input string to be cleaned up
+
+    Returns:
+        output string, same as input but without special characters
+    """
+    if not string:
+        return "no"
+    return re.sub(r'[^a-zA-Z0-9]', '', string)
+
+
+def extract_last_coordinates_from_opt(orca_traj_xyz_file: str, new_file: str):
+    """
+
+
+    Args:
+        orca_traj_xyz_file ():
+        new_file ():
+
+    Returns:
+
+    """
+    line_number_last_coo =subprocess.run(f"""grep -n "Coordinates from" {orca_traj_xyz_file} | tail -n 1 | cut -d: -f1""",
+                                         shell=True, capture_output=True).stdout
+    line_with_num_of_atoms = int(line_number_last_coo)-1
+    subprocess.run(f"""tail -n +"{line_with_num_of_atoms}" {orca_traj_xyz_file} > {new_file}""",
+                               shell=True)

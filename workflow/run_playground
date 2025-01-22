@@ -275,19 +275,18 @@ rule run_clustering_plotting:
         #    shell("convert {el_tga} {el_png}")
 
 
-GRID_DIR = "experiments/grids/medium_example_water/"
+GRID_DIR = "experiments/grids/large_example_water/"
 PATH_SEARCH_DIR = "experiments/water_xyz/example/large_example_water/"
+PATH_START = 22221
+PATH_END = 29480
 
 rule run_path_search:
     input:
         adjacency_matrix = f"{GRID_DIR}adjacency_array.npz",
         energy = f"{PATH_SEARCH_DIR}energy.csv"
     output:
-        path_plot = f"{PATH_SEARCH_DIR}best_path.png",
-        path = f"{PATH_SEARCH_DIR}path.npy"
-    params:
-        start_point = 1856,
-        end_point = 15
+        path_plot = f"{PATH_SEARCH_DIR}path_{PATH_START}_{PATH_END}/best_path.png",
+        path = f"{PATH_SEARCH_DIR}path_{PATH_START}_{PATH_END}/path.npy"
     run:
         from molgri.space.mazes import Maze
         from scipy.sparse import load_npz
@@ -300,7 +299,7 @@ rule run_path_search:
         my_maze = Maze(adj)
         my_maze.add_energy_attribute("Energy [kJ/mol]", energy)
 
-        simple_path =my_maze.smallest_dE_neighbours_path(params.start_point, params.end_point)
+        simple_path =my_maze.smallest_dE_start_path(PATH_START, PATH_END)
         np.save(output.path, simple_path)
 
         fig, ax = plt.subplots(1,1)
@@ -309,13 +308,13 @@ rule run_path_search:
 
 rule vmd_plot_path:
     input:
-        path = f"{PATH_SEARCH_DIR}path.npy",
+        path = f"{PATH_SEARCH_DIR}path_{PATH_START}_{PATH_END}/path.npy",
         structure = f"{PATH_SEARCH_DIR}structure.xyz",
         trajectory = f"{PATH_SEARCH_DIR}trajectory.xyz",
         script_rot_tr = f"molgri/scripts/vmd_position_sqra_water"
     output:
-        vmdlog = f"{PATH_SEARCH_DIR}path_vmdlog",
-        path_video = f"{PATH_SEARCH_DIR}path.mp4"
+        vmdlog = f"{PATH_SEARCH_DIR}path_{PATH_START}_{PATH_END}/path_vmdlog",
+        path_video = f"{PATH_SEARCH_DIR}path_{PATH_START}_{PATH_END}/path.mp4"
     run:
         from molgri.plotting.create_vmdlog import VMDCreator
 
@@ -328,7 +327,7 @@ rule vmd_plot_path:
         vmdlog = VMDCreator(index_first, index_second)
         simple_path = np.load(input.path)
         simple_path_added_one = [sp+1 for sp in simple_path]
-        path_names = [f"{PATH_SEARCH_DIR}path_{i}.tga" for i in range(len(simple_path))]
+        path_names = [f"{PATH_SEARCH_DIR}path_{PATH_START}_{PATH_END}/path_{i}.tga" for i in range(len(simple_path))]
 
         vmdlog.load_translation_rotation_script(input.script_rot_tr)
         vmdlog.prepare_path_script(simple_path_added_one, path_names)
@@ -336,7 +335,7 @@ rule vmd_plot_path:
 
         shell("vmd -dispdev text {input.structure} {input.trajectory} < {output.vmdlog}")
 
-        tga_str = f"{PATH_SEARCH_DIR}path_*.tga"
+        tga_str = f"{PATH_SEARCH_DIR}path_{PATH_START}_{PATH_END}/path_*.tga"
         shell("convert -delay 40 -loop 0 {tga_str} {output.path_video}")
 
 

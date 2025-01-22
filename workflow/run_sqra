@@ -13,14 +13,11 @@ plt.switch_backend('agg')
 sys.path.append(".")
 from workflow.snakemake_utils import modify_mdrun, modify_topology
 from molgri.paths import PATH_INPUT_BASEGRO, PATH_EXPERIMENTS, PATH_EXAMPLES
-from molgri.molecules.orca_runner import read_important_stuff_into_csv, QuantumMolecule, QuantumSetup, make_inp_file, assert_normal_finish
 from molgri.space.fullgrid import FullGrid
+from molgri.io import OrcaWriter, OrcaReader, QuantumMolecule, QuantumSetup, read_important_stuff_into_csv
 
 include: "run_grid"
-#include: "run_orca"
 
-if config["experiment_type"] not in ["sqra_water_in_vacuum", "guanidinium_xyz", "sqra_fullerene", "sqra_bpti_trypsine", "water_xyz", "fullerene_xyz"]:
-    raise AttributeError(f"This pipeline should be used for SQRA experiments in vacuum. Your experiment type is {config['experiment_type']} instead of 'sqra_water_in_vacuum'")
 
 EXPERIMENT_TYPE = config["experiment_type"]
 EXPERIMENT_ID = config["experiment_id"]
@@ -61,8 +58,8 @@ except KeyError:
 rule all_sqra:
     input:
         #f"{EXPERIMENT_FULL_PATH}energy.csv"
-        expand(f"{EXPERIMENT_FULL_PATH}{{what}}", what=["energy.csv"])
-    #what=["its.png", "eigenvectors_vmdlog", "eigenvalues.png", "its.csv", "energy.csv", "orca_time.txt"]
+        expand(f"{EXPERIMENT_FULL_PATH}{{what}}", what=["ConstOpt_energy.csv", "constrained_trajectory.xyz"])
+    #what=["its.png", "eigenvectors_vmdlog", "eigenvalues.png", "its.csv", "energy.csv", "orca_time.txt", "constrained_opt_energy.csv"]
     log:
         log = f"{EXPERIMENT_FULL_PATH}total_log.yaml"
     benchmark:
@@ -98,7 +95,8 @@ rule find_num_atoms:
     output:
         num_atoms = f"{EXPERIMENT_FULL_PATH}num_atoms.txt"
     run:
-        from molgri.io import OneMoleculeReader
+        from molgri.io import OneMoleculeReader, OrcaWriter
+
         N_m1 = len(OneMoleculeReader(input.m1).get_molecule().atoms)
         N_m2 = len(OneMoleculeReader(input.m2).get_molecule().atoms)
 
@@ -178,7 +176,9 @@ rule split_xyzfile:
         trajectory = f"{EXPERIMENT_FULL_PATH}trajectory.{TRAJECTORY_EXTENSION}",
         num_atoms = rules.find_num_atoms.output.num_atoms
     output:
-        trajectory_dict = directory(f"{EXPERIMENT_FULL_PATH}trajectory/")
+        trajectory_dict = directory(f"{EXPERIMENT_FULL_PATH}trajectory/"),
+        trajectory_files = expand(f"{EXPERIMENT_FULL_PATH}trajectory/{{frame_num}}.{STRUCTURE_EXTENSION}",
+            frame_num=[str(i).zfill(10) for i in range(NUM_GRID_POINTS)])
     run:
         import subprocess
         with open(input.num_atoms) as f:
@@ -186,7 +186,10 @@ rule split_xyzfile:
             line2 = f.readline()
             num_atoms  = int(line1) + int(line2)
         num_lines = num_atoms + 2
-        subprocess.run(f"split {input.trajectory} trajectory/ -l {num_lines} -d --suffix-length=10 --additional-suffix=.xyz",shell=True) # --'additional-suffix=.xyz'
+
+        subprocess.run(f"split {input.trajectory} {output.trajectory_dict}/ -l {num_lines} -d --suffix-length=10 --additional-suffix=.xyz",shell=True) # --'additional-suffix=.xyz'
+
+
 
 rule gromacs_rerun:
     """
@@ -223,41 +226,91 @@ rule gromacs_rerun:
         cd "$initial_dir" || exit
         """
 
-
-#rule touch_all_trajectory:
-#    output:
-#        touch([f"{EXPERIMENT_FULL_PATH}trajectory/{str(i).zfill(10)}.xyz" for i in range(NUM_GRID_POINTS)])
-
-rule orca_SP_run:
-    "Here we need to perform energy run and collection along the whole PT"
-    wildcard_constraints:
-        ENERGY_PROGRAM = "ORCA"
+rule orca_run_opt_on_pt:
+    """
+    For every PT structure run a corresponding orca calculation (SP/full optimization/constrained optimization)
+    """
     input:
-        xyz_file = f"{EXPERIMENT_FULL_PATH}trajectory/{{frame_num}}.{STRUCTURE_EXTENSION}"
-    #shadow: "minimal"
-    log:
-        out_file = f"{EXPERIMENT_FULL_PATH}{ORCA_DIR}{{frame_num}}/orca.out" #
-    benchmark:
-        repeat(f"{EXPERIMENT_FULL_PATH}{ORCA_DIR}{{frame_num}}/orca_benchmark.txt",NUM_REPEATS) #{{frame_num}}/
+        xyz_file = f"{EXPERIMENT_FULL_PATH}trajectory/{{frame_num}}.{STRUCTURE_EXTENSION}",
+        num_atoms= f"{EXPERIMENT_FULL_PATH}num_atoms.txt"
     output:
-        inp_file = f"{EXPERIMENT_FULL_PATH}{ORCA_DIR}{{frame_num}}/orca.inp" #{{frame_num}}/
+        inp_file = f"{EXPERIMENT_FULL_PATH}ConstOpt_{ORCA_DIR}{{frame_num}}/orca.inp",
+        out_file = f"{EXPERIMENT_FULL_PATH}ConstOpt_{ORCA_DIR}{{frame_num}}/orca.out"
+    benchmark:
+        repeat(f"{EXPERIMENT_FULL_PATH}ConstOpt_{ORCA_DIR}{{frame_num}}/orca_benchmark.txt",NUM_REPEATS)
     params:
         charge = config["params_dft"]["charge"],
         multiplicity = config["params_dft"]["multiplicity"],
     run:
-        import subprocess
+        with open(input.num_atoms) as f:
+            first_fragment = int(f.readline())
+            second_fragment = int(f.readline())
 
-        dimer = QuantumMolecule(charge=params.charge, multiplicity=params.multiplicity, path_xyz=input.xyz_file)
+        dimer = QuantumMolecule(charge=params.charge,multiplicity=params.multiplicity,path_xyz=input.xyz_file,
+                                fragment_1_len=first_fragment, fragment_2_len=second_fragment)
 
+        ob = OrcaWriter(dimer, QUANTUM_SETUP)
+        ob.make_optimization_inp(constrain_fragments=True)
+        ob.write_to_file(output.inp_file)
 
-        with open(output.inp_file, "w") as f:
-            f.write(make_inp_file(dimer,QUANTUM_SETUP,geo_optimization=False))
+        # TODO: deal with the fact that trj_xyz doesn't get created if optimization fails
 
         # run inp > out
-        subprocess.run(f"/home/hanaz63/Programs/orca/orca_6_0_0_shared_openmpi416/orca {output.inp_file} > {log.out_file}", shell=True)
+        subprocess.run(f"/home/hanaz63/Programs/orca/orca_6_0_0_shared_openmpi416/orca {output.inp_file} > {output.out_file}",shell=True)
 
         # sometimes an overlapping structure will fail; that's okay as long as it is truly an exception
-        assert_normal_finish(log.out_file, throw_error=False)
+        my_orca_file = OrcaReader(output.out_file)
+        my_orca_file.assert_normal_finish(throw_error=False)
+        my_orca_file.assert_optimization_complete(throw_error=False)
+
+rule orca_run_sp_on_pt:
+    """
+    For every PT structure run a corresponding orca calculation (SP/full optimization/constrained optimization)
+    """
+    input:
+        xyz_file = f"{EXPERIMENT_FULL_PATH}trajectory/{{frame_num}}.{STRUCTURE_EXTENSION}",
+        num_atoms= f"{EXPERIMENT_FULL_PATH}num_atoms.txt"
+    output:
+        inp_file = f"{EXPERIMENT_FULL_PATH}SP_{ORCA_DIR}{{frame_num}}/orca.inp",
+        out_file = f"{EXPERIMENT_FULL_PATH}SP_{ORCA_DIR}{{frame_num}}/orca.out"
+    benchmark:
+        repeat(f"{EXPERIMENT_FULL_PATH}SP_{ORCA_DIR}{{frame_num}}/orca_benchmark.txt",NUM_REPEATS)
+    params:
+        charge = config["params_dft"]["charge"],
+        multiplicity = config["params_dft"]["multiplicity"],
+    run:
+        with open(input.num_atoms) as f:
+            first_fragment = int(f.readline())
+            second_fragment = int(f.readline())
+
+        dimer = QuantumMolecule(charge=params.charge,multiplicity=params.multiplicity,path_xyz=input.xyz_file,
+                                fragment_1_len=first_fragment, fragment_2_len=second_fragment)
+
+        ob = OrcaWriter(dimer, QUANTUM_SETUP)
+        # decide on the orca input preparation to run
+        ob.make_sp_inp()
+        ob.write_to_file(output.inp_file)
+
+        # run inp > out
+        subprocess.run(f"/home/hanaz63/Programs/orca/orca_6_0_0_shared_openmpi416/orca {output.inp_file} > {output.out_file}",shell=True)
+
+        # sometimes an overlapping structure will fail; that's okay as long as it is truly an exception
+        my_orca_file = OrcaReader(output.out_file)
+        my_orca_file.assert_normal_finish(throw_error=False)
+
+
+rule orca_get_constrained_opt_trajectory:
+    input:
+        optimization_steps = expand(f"{EXPERIMENT_FULL_PATH}{{orca_calc_type}}_{ORCA_DIR}{{frame_num}}/orca.out",
+            frame_num=[str(i).zfill(10) for i in range(NUM_GRID_POINTS)], orca_calc_type="ConstOpt")
+    output:
+        constrained_trajectory = f"{EXPERIMENT_FULL_PATH}constrained_trajectory.xyz"
+    run:
+        all_coordinates = ""
+        for optimization_step in input.optimization_steps:
+            all_coordinates += OrcaReader(optimization_step).extract_last_coordinates_from_opt()
+        with open(output.constrained_trajectory, "w") as f:
+            f.write(all_coordinates)
 
 
 rule orca_collect_energies:
@@ -265,12 +318,12 @@ rule orca_collect_energies:
     After energies for each point in trajectory have been calculated, combine them for
     """
     input:
-        out_files = expand(f"{EXPERIMENT_FULL_PATH}{ORCA_DIR}{{frame_num}}/orca.out",
-            frame_num = [str(i).zfill(10) for i in range(NUM_GRID_POINTS)]), #NUM_GRID_POINTS
+        out_files = expand(f"{EXPERIMENT_FULL_PATH}{{orca_calc_type}}_{ORCA_DIR}{{frame_num}}/orca.out",
+            frame_num = [str(i).zfill(10) for i in range(NUM_GRID_POINTS)], allow_missing=True), #NUM_GRID_POINTS
         #benchmarks = expand(f"{EXPERIMENT_FULL_PATH}{ORCA_DIR}{{frame_num}}/orca_benchmark.txt",
         #   frame_num = [str(i).zfill(10) for i in range(NUM_GRID_POINTS)])
     output:
-        energy = f"{EXPERIMENT_FULL_PATH}energy.csv"
+        energy = f"{EXPERIMENT_FULL_PATH}{{orca_calc_type}}_energy.csv"
     run:
         # note: since differences in energy are used, there is no need for ZPE-corrected energy
         # TODO: make sure the order remains the trajectory order
@@ -280,7 +333,7 @@ rule orca_collect_energies:
 
 rule orca_total_and_average_time:
     input:
-        energy = f"{EXPERIMENT_FULL_PATH}energy.csv"
+        energy = f"{EXPERIMENT_FULL_PATH}SP_energy.csv"
     output:
         total_time = f"{EXPERIMENT_FULL_PATH}orca_time.txt"
     run:
