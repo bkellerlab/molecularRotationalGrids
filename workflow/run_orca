@@ -30,7 +30,7 @@ M1_EQUALS_M2 = True
 CHARGE_M1 = 1
 CHARGE_M2 = 1
 MULTIPLICITY = 1
-Z_DISTANCE_A = 4
+Z_DISTANCE_A = 5
 
 
 
@@ -252,46 +252,46 @@ rule visualize_time_energy:
     input:
         csv_file = f"{PATH_ORCA_EXAMPLE}{{molecule}}_{{opt_or_sp}}_collected.csv"
     output:
-        png_file_dis = f"{PATH_ORCA_EXAMPLE}{{molecule}}_{{opt_or_sp}}_dispersion.png",
-        png_file_no = f"{PATH_ORCA_EXAMPLE}{{molecule}}_{{opt_or_sp}}.png"
+        png_file = f"{PATH_ORCA_EXAMPLE}{{molecule}}_{{opt_or_sp}}.png"
     run:
         import seaborn as sns
         import matplotlib.pyplot as plt
         import pandas as pd
+        import numpy as np
 
-        sns.set_style("white")
+        sns.set_style("ticks")
+        sns.set_context("paper")
 
-        df = pd.read_csv(input.csv_file,index_col=0, na_filter=True).fillna('')
-        print(df["Energy [kJ/mol]"])
+        df = pd.read_csv(input.csv_file,na_filter=True).fillna('')
+        df["Time [min]"] = df["Time [s]"] / 60
+        df["Functional"] = np.where(df["Dispersion correction"] == "D4",df["Functional"]+"-"+df["Dispersion correction"],df["Functional"])
 
-        for dispersion, file in zip(["D4", "no"], [output.png_file_dis, output.png_file_no]):
-            fig, ax = plt.subplots(2,3,sharex=True)
-            filtered_df = df[df["Dispersion correction"] == dispersion]
-            for column, solvent in zip(range(3), ["water", "ethanol", "toluene"]):
-                filtered2_df = filtered_df[filtered_df["Solvent"]==solvent]
-                add_legend = column==2
-                sns.scatterplot(filtered2_df,x="Functional",y="Time [s]",ax=ax[0][column],hue="Basis set", legend=add_legend)
-                sns.barplot(filtered2_df,x="Functional",y="Energy [kJ/mol]",ax=ax[1][column],color="white",edgecolor='black')
-                sns.scatterplot(filtered2_df,x="Functional",y="Energy [kJ/mol]",ax=ax[1][column],hue="Basis set",legend=False)
-                ax[0][column].set_title(solvent)
-                ax[1][column].tick_params(axis='x',rotation=45)
 
-            ax[0][2].legend(loc='upper left',bbox_to_anchor=(1, 1))
+        fig, ax = plt.subplots(2,1,sharex=True, figsize=(5, 4))
+        #for column, solvent in zip(range(3), ["water"]):
+        filtered2_df = df[df["Solvent"]=="water"]
+        sns.scatterplot(filtered2_df,x="Functional",y="Time [min]",ax=ax[0],hue="Basis set", legend=True)
+        sns.barplot(filtered2_df,x="Functional",y="Energy [kJ/mol]",ax=ax[1],color="white",edgecolor='black')
+        sns.scatterplot(filtered2_df,x="Functional",y="Energy [kJ/mol]",ax=ax[1],hue="Basis set",legend=False)
+        #ax[0][column].set_title(solvent)
+        ax[1].tick_params(axis='x',rotation=45)
 
-            # Automatically compute y-limits for top-row plots
-            top_min = min(myax.get_ylim()[0] for myax in ax[0, :])
-            top_max = max(myax.get_ylim()[1] for myax in ax[0, :])
-            for myax in ax[0, :]:
-                myax.set_ylim(top_min,top_max)
+        ax[0].legend(loc='upper left',bbox_to_anchor=(1, 1))
 
-            # Automatically compute y-limits for bottom-row plots
-            bottom_min = min(myax.get_ylim()[0] for myax in ax[1, :])
-            bottom_max = max(myax.get_ylim()[1] for myax in ax[1, :])
-            for myax in ax[1, :]:
-                myax.set_ylim(bottom_min,bottom_max)
+        # Automatically compute y-limits for top-row plots
+        # top_min = ax[0].get_ylim()[0]
+        # top_max = ax[0].get_ylim()[1]
+        # for myax in ax[0, :]:
+        #     myax.set_ylim(top_min,top_max)
+        #
+        # # Automatically compute y-limits for bottom-row plots
+        # bottom_min = min(myax.get_ylim()[0] for myax in ax[1])
+        # bottom_max = max(myax.get_ylim()[1] for myax in ax[1])
+        # for myax in ax[1, :]:
+        #     myax.set_ylim(bottom_min,bottom_max)
 
-            fig.tight_layout()
-            fig.savefig(file)
+        fig.tight_layout()
+        fig.savefig(output.png_file, dpi=600)
 
 
 
