@@ -1,0 +1,80 @@
+"""Here are parts of a sqra pipeline that are GROMACS-specific"""
+
+from workflow.snakemake_utils import modify_mdrun
+
+from molgri.paths import PATH_INPUT_BASEGRO, PATH_EXPERIMENTS
+
+configfile: "workflow/default_sqra_gromacs_config.yaml"
+
+PROVIDED_DATA_PATH =  f"{PATH_INPUT_BASEGRO}{config['experiment_type']}/"
+EXPERIMENT_FULL_PATH = f"{PATH_EXPERIMENTS}{config['experiment_type']}/{config['experiment_id']}/{config['grid_identifier']}/"
+
+rule copy_gromacs_input:
+    """
+    Copy the rest of necessary files to start a sqra run with a GROMACS calculation and potentially adapt default mdrun params.
+    """
+    input:
+        dimer_topology = f"{PROVIDED_DATA_PATH}topol.top",
+        select_energy = f"{PROVIDED_DATA_PATH}select_energy_five",
+        runfile= f"{PROVIDED_DATA_PATH}mdrun.mdp",
+        force_field_stuff = f"{PROVIDED_DATA_PATH}force_field_stuff/"
+    output:
+        dimer_topology = f"{EXPERIMENT_FULL_PATH}topol.top",
+        select_energy = f"{EXPERIMENT_FULL_PATH}select_energy",
+        runfile = f"{EXPERIMENT_FULL_PATH}mdrun.mdp",
+        force_field_stuff = directory(f"{EXPERIMENT_FULL_PATH}force_field_stuff/")
+    params:
+        tau_t = config["params_setup"]["tau_t"],
+        integrator = config["params_setup"]["integrator"],
+        energy_writeout_frequency= config["params_setup"]["energy_writeout_frequency"],
+        cutoff_scheme = config["params_setup"]["cutoff-scheme"],
+        epsilon = config["params_setup"]["epsilon"]
+    run:
+        import shutil
+        shutil.copy(input.select_energy,output.select_energy)
+        shutil.copy(input.dimer_topology, output.dimer_topology)
+        shutil.copy(input.runfile,output.runfile)
+        shutil.copytree(input.force_field_stuff,output.force_field_stuff, dirs_exist_ok=True)
+
+        # modifying files
+        modify_mdrun(output.runfile, "tau_t", params.tau_t)
+        modify_mdrun(output.runfile,"integrator",params.integrator)
+        modify_mdrun(output.runfile,"nstenergy",params.energy_writeout_frequency)
+        modify_mdrun(output.runfile, "pcoupl", "no")
+        modify_mdrun(output.runfile,"coulombtype",params.cutoff_scheme)
+        modify_mdrun(output.runfile, "epsilon-r", params.epsilon)
+
+rule gromacs_rerun:
+    """
+    This rule gets structure, trajectory, topology and gromacs run file as input, as output we are only interested in
+    energies.
+    """
+    wildcard_constraints:
+        ENERGY_PROGRAM  = "GROMACS"
+    input:
+        structure = rules.run_pt.output.structure,
+        trajectory = rules.run_pt.output.trajectory,
+        runfile = rules.copy_gromacs_input.output.runfile,
+        topology = rules.copy_gromacs_input.output.dimer_topology,
+        select_energy = rules.copy_gromacs_input.output.select_energy,
+        force_field_stuff = rules.copy_gromacs_input.output.force_field_stuff
+    shadow: "minimal"
+    log:
+        log = f"{EXPERIMENT_FULL_PATH}logging_gromacs.log"
+    benchmark:
+        repeat(f"{EXPERIMENT_FULL_PATH}gromacs_benchmark.txt", config['num_repeats'])
+    output:
+        energy = f"{EXPERIMENT_FULL_PATH}energy.xvg",
+    # use with arguments like path_structure path_trajectory path_topology path_default_files path_output_energy
+    params:
+        maxwarn = config["params_sqra"]["maxwarn"]
+    shell:
+        """
+        initial_dir=$(pwd)
+        cd $(dirname {input.structure})
+        export PATH="/home/janjoswig/local/gromacs-2022/bin:$PATH"
+        gmx22 grompp -f $(basename {input.runfile}) -c $(basename {input.structure}) -p $(basename {input.topology}) -o result.tpr  -maxwarn {params.maxwarn}
+        gmx22 mdrun -s result.tpr -rerun $(basename {input.trajectory}) -g $(basename {log.log})
+        gmx22 energy -f ener.edr -o $(basename {output.energy}) < $(basename {input.select_energy})
+        cd "$initial_dir" || exit
+        """

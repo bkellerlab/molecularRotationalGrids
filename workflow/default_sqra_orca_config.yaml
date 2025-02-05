@@ -1,0 +1,45 @@
+energy_program: ORCA
+structure_extension: xyz
+trajectory_extension: xyz
+num_repeats: 1
+
+params_grid:
+ factor_orientation_to_position: 1
+ position_grid_is_cartesian: False
+ include_outliers: True
+ 
+params_setup:
+ tau_t: 0.01
+ up1_nm: None
+ up2_nm: None
+ force_constant_restraint: None
+ nsteps: None
+ integrator: None
+ dt_ps: 0.002
+ energy_writeout_frequency: 0
+ compressed_writeout_frequency: 5
+ epsilon: 1
+ cutoff-scheme: Cut-off
+ 
+params_sqra:
+ number_lowest_E_structures: 10
+ temperature_K: 273
+ energy_type: "Energy [kJ/mol]"
+ lower_lim_rate_matrix: None
+ upper_lim_rate_matrix: None
+ sigma: 0
+ which: "SR"
+ tol: 1e-5
+ maxiter: 100000
+ num_eigenvec_to_plot: 6
+ num_extremes_to_plot: None
+ maxwarn: 0
+ 
+params_dft:
+ functional: PBE0
+ basis_set: def2-tzvp
+ dispersion: D4
+ solvent: water
+ num_scf: 16
+ num_cores: None
+ ram_per_core: None

@@ -454,6 +454,7 @@ class OrcaReader:
         self.out_file_path = out_file_path
         path = os.path.normpath(self.out_file_path)
         split_path = path.split(os.sep)
+        self.frame_num = split_path[-2]
         self.calculation_directory = os.path.join(*split_path[:-1])
 
     def assert_normal_finish(self, throw_error=True):
@@ -470,7 +471,8 @@ class OrcaReader:
         if returncode != 0 and throw_error:
             raise ChildProcessError(f"Orca did not terminate normally; see {self.out_file_path }")
         elif returncode != 0 and not throw_error:
-            print(f"Orca did not terminate normally; see {self.out_file_path }")
+            return False
+        return True
 
     def assert_optimization_complete(self, throw_error=True):
         """
@@ -491,7 +493,11 @@ class OrcaReader:
         if returncode != 0 and throw_error:
             raise ChildProcessError(f"Orca may have finished normally but did not converge; see {self.out_file_path}")
         elif returncode != 0 and not throw_error:
-            print(f"Orca may have finished normally but did not converge; see {self.out_file_path}")
+            return False
+        # also fail optimization if the calculation failed
+        elif not self.assert_normal_finish(throw_error=False):
+            return False
+        return True
 
     def extract_time_orca_output(self) -> pd.Timedelta:
         """
@@ -503,14 +509,14 @@ class OrcaReader:
         Returns:
             Time as days hours:min:sec
         """
-        line_time = subprocess.run(f"""grep "^TOTAL RUN TIME:" {self.out_file_path} | sed 's/^TOTAL RUN TIME: //'""", shell=True,
-                                   capture_output=True, text=True)
+        line_time = subprocess.run(f"""grep "^TOTAL RUN TIME:" {self.out_file_path} | sed 's/^TOTAL RUN TIME: //'""",
+                                   capture_output=True, text=True, shell=True)
         try:
             line_time = line_time.stdout.strip()
             line_time= line_time.replace("msec", "ms")
-            time_h_m_s = pd.to_timedelta(line_time)
+            time_h_m_s = line_time
         except AttributeError:
-            time_h_m_s = np.NaN
+            time_h_m_s = 0
 
         return time_h_m_s
 
@@ -561,11 +567,13 @@ class OrcaReader:
         with open(file_path, "w") as f:
             f.write(file_contents)
 
+    def get_frame_num(self):
+        return int(self.frame_num)
 
 
 
-def read_important_stuff_into_csv(out_files_to_read: list, csv_file_to_write: str, setup: QuantumSetup,
-                                  benchmark_files_to_read: list = None):
+
+def read_important_stuff_into_csv(out_files_to_read: list, csv_file_to_write: str, setup: QuantumSetup):
     """
     Read a list of orca .out files that were created with the same set-up (functional, basis set ...). Save the
     energies and generation times. Times can optionally be read from the benchmark files
@@ -579,7 +587,7 @@ def read_important_stuff_into_csv(out_files_to_read: list, csv_file_to_write: st
 
     """
 
-    columns = ["File", "Functional", "Basis set", "Dispersion correction", "Solvent",
+    columns = ["File", "Frame", "Functional", "Basis set", "Dispersion correction", "Solvent",
                "Energy [hartree]", "Time [h:m:s]"]
 
     all_df = []
@@ -587,24 +595,27 @@ def read_important_stuff_into_csv(out_files_to_read: list, csv_file_to_write: st
     for i, out_file_to_read in enumerate(out_files_to_read):
         my_reader = OrcaReader(out_file_to_read)
         energy_hartree = my_reader.extract_energy_orca_output()
+        frame = my_reader.get_frame_num()
 
-        # read time either from benchmark or from orca .out
-        if benchmark_files_to_read is not None:
-            benchmark_file_to_read = benchmark_files_to_read[i]
-            time_s = float(pd.read_csv(benchmark_file_to_read, delimiter="\t")["s"][0])
-            time_h_m_s = pd.to_timedelta(time_s, unit='s')
-        else:
-             time_h_m_s = my_reader.extract_time_orca_output()
+        time_h_m_s = my_reader.extract_time_orca_output()
 
-        all_data = [[out_file_to_read, setup.functional, setup.basis_set, setup.dispersion_correction,
+        all_data = [[out_file_to_read, frame, setup.functional, setup.basis_set, setup.dispersion_correction,
                      setup.solvent, energy_hartree, time_h_m_s]]
 
         df = pd.DataFrame(all_data, columns=columns)
         df["Energy [kJ/mol]"] = df["Energy [hartree]"] / 1000.0 * (HARTREE_TO_J * AVOGADRO_CONSTANT)
-        df["Time [s]"] = np.where(~df["Time [h:m:s]"].isna(), df["Time [h:m:s]"].dt.total_seconds(), np.NaN)
+
+        df["Normal Finish"] = my_reader.assert_normal_finish(throw_error=False)
+        df["Optimization Complete"] = my_reader.assert_optimization_complete(throw_error=False)
         all_df.append(df)
 
     combined_df = pd.concat(all_df)
+    try:
+        combined_df["Time [h:m:s]"] = pd.to_timedelta(combined_df["Time [h:m:s]"])
+        combined_df["Time [s]"] = np.where(combined_df["Normal Finish"], combined_df["Time [h:m:s]"].dt.total_seconds(), np.NaN)
+    except:
+        # THIS DELTA TIME THING IS A HEADACHE!!!!
+        pass
     combined_df.to_csv(csv_file_to_write, index=False)
 
 
@@ -623,20 +634,3 @@ def nice_str_of(string: str) -> str:
         return "no"
     return re.sub(r'[^a-zA-Z0-9]', '', string)
 
-
-def extract_last_coordinates_from_opt(orca_traj_xyz_file: str, new_file: str):
-    """
-
-
-    Args:
-        orca_traj_xyz_file ():
-        new_file ():
-
-    Returns:
-
-    """
-    line_number_last_coo =subprocess.run(f"""grep -n "Coordinates from" {orca_traj_xyz_file} | tail -n 1 | cut -d: -f1""",
-                                         shell=True, capture_output=True).stdout
-    line_with_num_of_atoms = int(line_number_last_coo)-1
-    subprocess.run(f"""tail -n +"{line_with_num_of_atoms}" {orca_traj_xyz_file} > {new_file}""",
-                               shell=True)

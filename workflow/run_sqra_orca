@@ -1,0 +1,282 @@
+"""Extra functions for sqra pipelines with orca on curta."""
+import sys
+import os
+import subprocess
+import numpy as np
+
+sys.path.append(".")
+from molgri.io import OrcaWriter, OrcaReader, QuantumMolecule, QuantumSetup, read_important_stuff_into_csv
+from molgri.space.fullgrid import FullGrid
+from molgri.paths import PATH_INPUT_BASEGRO, PATH_EXPERIMENTS
+
+
+configfile: "workflow/default_sqra_orca_config.yaml"
+
+PROVIDED_DATA_PATH =  f"{PATH_INPUT_BASEGRO}{config['experiment_type']}/"
+EXPERIMENT_FULL_PATH = f"{PATH_EXPERIMENTS}{config['experiment_type']}/{config['experiment_id']}/{config['grid_identifier']}/"
+
+
+QUANTUM_SETUP = QuantumSetup(
+        functional=config["params_dft"]["functional"],
+        basis_set=config["params_dft"]["basis_set"],
+        solvent=config["params_dft"]["solvent"],
+        dispersion_correction=config["params_dft"]["dispersion"],
+        num_scf=config["params_dft"]["num_scf"],
+        num_cores=config["params_dft"]["num_cores"],
+        ram_per_core = config["params_dft"]["ram_per_core"]
+    )
+ORCA_DIR = QUANTUM_SETUP.get_dir_name()
+
+NUM_GRID_POINTS = len(FullGrid(
+    b_grid_name=str(config["params_grid"]["num_orientations"]),
+    o_grid_name=str(config["params_grid"]["num_directions"]),
+    t_grid_name=config["params_grid"]["radial_distances_nm"]))
+
+def _determine_batch_folders(wildcards, file_needed):
+    all_paths = []
+    for batch in range(config['num_batches']):
+        section_size = NUM_GRID_POINTS//config['num_batches'] +1
+        batch_start_index = batch*section_size
+        batch_end_index = np.min([(batch+1)*section_size, NUM_GRID_POINTS])
+        all_paths.extend([f"{EXPERIMENT_FULL_PATH}{wildcards.orca_run_type}_{ORCA_DIR}batch_{batch}/{str(i).zfill(10)}/{file_needed}" for i in range(batch_start_index, batch_end_index)])
+    return all_paths
+
+
+def determine_output_files_in_batches(wildcards):
+    return _determine_batch_folders(wildcards, "orca.out")
+
+def determine_input_files_in_batches(wildcards):
+    inp_files = _determine_batch_folders(wildcards, "orca.inp")
+    xyz_files = _determine_batch_folders(wildcards, "orca.xyz")
+    all_files = inp_files
+    all_files.extend(xyz_files)
+    return all_files
+
+
+
+rule touch_all_input:
+    input:
+        determine_input_files_in_batches
+    output:
+        ready_to_copy = touch(f"{EXPERIMENT_FULL_PATH}{{orca_run_type}}_{ORCA_DIR}all_{{searched_file}}_exist.touch")
+
+
+#poetry run snakemake --snakefile workflow/run_sqra --configfile input/water_xyz/all_config_files/small_orca_run.yaml -R execute_on_curta
+rule copy_to_curta:
+    input:
+        ready_to_copy = f"{EXPERIMENT_FULL_PATH}{{orca_run_type}}_{ORCA_DIR}all_inputs_exist.touch",
+        script_run_orca_job = "molgri/scripts/run_ORCA.sh",
+        script_submit_all_jobs = "molgri/scripts/submit_on_curta.sh",
+    output:
+        copied=touch(f"{EXPERIMENT_FULL_PATH}{{orca_run_type}}_{ORCA_DIR}all_inputs_copied.touch"),
+    run:
+        calculation_directory = f"{EXPERIMENT_FULL_PATH}{wildcards.orca_run_type}_{ORCA_DIR}"
+        # make directories that may be missing
+        subprocess.run(f"""ssh hanaz63@curta.zedat.fu-berlin.de 'mkdir -p /home/hanaz63/{calculation_directory}'""",shell=True)
+        # copy script_run_orca_job
+        subprocess.run(f"""rsync -ruPE {input.script_run_orca_job} hanaz63@curta.zedat.fu-berlin.de:/home/hanaz63/{calculation_directory}/run_ORCA.sh""",shell=True)
+        # copy submission loop file
+        subprocess.run(f"""rsync -ruPE {input.script_submit_all_jobs} hanaz63@curta.zedat.fu-berlin.de:/home/hanaz63/{calculation_directory}/submit_on_curta.sh""",shell=True)
+        # copy all .xyz and .inp files
+        subprocess.run(f"""rsync -ruaPE  --include='*.inp' --include='*.xyz' {calculation_directory} hanaz63@curta.zedat.fu-berlin.de:/home/hanaz63/{calculation_directory}""",shell=True)
+
+rule run_on_curta:
+    input:
+        copied=f"{EXPERIMENT_FULL_PATH}{{orca_run_type}}_{ORCA_DIR}all_inputs_copied.touch"
+    output:
+        ran=touch(f"{EXPERIMENT_FULL_PATH}{{orca_run_type}}_{ORCA_DIR}all_inputs_ran.touch")
+    run:
+        # calculate max size of the batch
+        section_size = NUM_GRID_POINTS // config['num_batches'] + 1
+        assert section_size < 5000, "Curta can only handle up to 5000 jobs in an array!"
+        subprocess.run(f"""ssh hanaz63@curta.zedat.fu-berlin.de 'cd /home/hanaz63/{EXPERIMENT_FULL_PATH}{wildcards.orca_run_type}_{ORCA_DIR} && ./submit_on_curta.sh {section_size}'""",shell=True)
+
+rule get_from_curta:
+    # THIS CURRENTLY NEEDS TO BE MANUALLY RUN AFTER ALL JOBS FINISHED
+    output:
+        copied=touch(f"{EXPERIMENT_FULL_PATH}{{orca_run_type}}_{ORCA_DIR}all_outputs_copied.touch"),
+    run:
+        calculation_directory = f"{EXPERIMENT_FULL_PATH}{wildcards.orca_run_type}_{ORCA_DIR}"
+        subprocess.run(f"""rsync -ruaPE --exclude='slurm*' --exclude='*/directory' --exclude='*tmp*' --include='*.out' --include='*_trj.xyz' hanaz63@curta.zedat.fu-berlin.de:/home/hanaz63/{calculation_directory} {calculation_directory}""",shell=True)
+
+
+rule batch_xyz_file:
+    input:
+        without_batch=f"{EXPERIMENT_FULL_PATH}trajectory/{{frame_num}}.{config['structure_extension']}"
+    output:
+        in_batch=f"{EXPERIMENT_FULL_PATH}trajectory/batch_{{batch_index}}/{{frame_num}}.{config['structure_extension']}"
+    run:
+        import shutil
+
+        for file in input[0]:
+            shutil.copy(input.without_batch,output.in_batch)
+
+rule split_xyzfile:
+    """
+    If needed (e.g. for orca calculations) split a single file trajectory info a folder of single-structure files named 
+    from 0000000000 to the total num of points.
+
+    Warning, this is not a general tool for any .xyz files but specifically for my pseudotrajectory file.
+    """
+    input:
+        trajectory=f"{EXPERIMENT_FULL_PATH}trajectory.{config['trajectory_extension']}",
+        num_atoms=f"{EXPERIMENT_FULL_PATH}num_atoms.txt"
+    output:
+        trajectory_dict=directory(f"{EXPERIMENT_FULL_PATH}trajectory/"),
+        trajectory_files=expand(f"{EXPERIMENT_FULL_PATH}trajectory/{{frame_num}}.{config['structure_extension']}",
+            frame_num=[str(i).zfill(10) for i in range(NUM_GRID_POINTS)])
+    run:
+        with open(input.num_atoms) as f:
+            line1 = f.readline()
+            line2 = f.readline()
+            num_atoms = int(line1) + int(line2)
+        num_lines = num_atoms + 2
+
+        subprocess.run(f"split {input.trajectory} {output.trajectory_dict}/ -l {num_lines} -d --suffix-length=10 --additional-suffix=.xyz",shell=True)  # --'additional-suffix=.xyz'
+
+
+
+rule copy_trajectory_to_orca:
+    """
+    For running in the cloud it is more practical to have .xyz in same folder as .inp
+    """
+    input:
+        xyz_file = f"{EXPERIMENT_FULL_PATH}trajectory/{{frame_num}}.{config['structure_extension']}",
+    output:
+        xyz_file_orca = f"{EXPERIMENT_FULL_PATH}{{orca_run_type}}_{ORCA_DIR}batch_{{batch_index}}/{{frame_num}}/orca.{config['structure_extension']}",
+    run:
+        import shutil
+        shutil.copy(input.xyz_file, output.xyz_file_orca)
+
+rule make_orca_inp:
+    input:
+        xyz_file = f"{EXPERIMENT_FULL_PATH}{{orca_run_type}}_{ORCA_DIR}batch_{{batch_index}}/{{frame_num}}/orca.xyz",
+        num_atoms= f"{EXPERIMENT_FULL_PATH}num_atoms.txt"
+    output:
+        inp_file = f"{EXPERIMENT_FULL_PATH}{{orca_run_type}}_{ORCA_DIR}batch_{{batch_index}}/{{frame_num}}/orca.inp",
+    params:
+        charge = config["params_dft"]["charge"],
+        multiplicity = config["params_dft"]["multiplicity"],
+    run:
+        with open(input.num_atoms) as f:
+            first_fragment = int(f.readline())
+            second_fragment = int(f.readline())
+
+        xyz_path, xyz_filename = os.path.split(input.xyz_file)
+        dimer = QuantumMolecule(charge=params.charge,multiplicity=params.multiplicity,path_xyz=xyz_filename,
+                                fragment_1_len=first_fragment, fragment_2_len=second_fragment)
+
+        ob = OrcaWriter(dimer, QUANTUM_SETUP)
+
+        if wildcards.orca_run_type == "ConstOpt":
+            ob.make_optimization_inp(constrain_fragments=True)
+        elif wildcards.orca_run_type == "Opt":
+            ob.make_optimization_inp(constrain_fragments=False)
+        elif wildcards.orca_run_type == "SP":
+            ob.make_sp_inp()
+        else:
+            raise ValueError(f"Orca run type can only be 'SP', 'ConstOpt', 'Opt', not {wildcards.orca_run_type}")
+        ob.write_to_file(output.inp_file)
+
+
+rule orca_check_output:
+    """
+    For every PT structure run a corresponding orca calculation (SP/full optimization/constrained optimization)
+    """
+    input:
+        inp_file = f"{EXPERIMENT_FULL_PATH}{{orca_run_type}}_{ORCA_DIR}all_outputs_copied.touch"
+    output:
+        out_file = touch(f"{EXPERIMENT_FULL_PATH}{{orca_run_type}}_{ORCA_DIR}batch_{{batch_index}}/{{frame_num}}/orca.out"),
+#
+rule orca_get_constrained_opt_trajectory:
+    input:
+        optimization_step = f"{EXPERIMENT_FULL_PATH}ConstOpt_{ORCA_DIR}{{frame_num}}/orca.out"
+    output:
+        optimized_xyz = f"{EXPERIMENT_FULL_PATH}ConstOpt_trajectory/{{frame_num}}.xyz"
+    run:
+        all_coordinates = OrcaReader(input.optimization_step).extract_last_coordinates_to_file(output.optimized_xyz)
+
+
+rule combine_xyzfile:
+    """
+    The opposite to split xyz file.
+    """
+    input:
+        trajectory_dict = f"{EXPERIMENT_FULL_PATH}{{dirname}}/"
+    output:
+        trajectory=f"{EXPERIMENT_FULL_PATH}{{dirname}}.{config['trajectory_extension']}",
+    run:
+        import subprocess
+        subprocess.run(f"cat {input.trajectory_dict}/* > {output.trajectory}",shell=True)
+
+
+rule orca_collect_energies:
+    """
+    After energies for each point in trajectory have been calculated, combine them for
+    """
+    input:
+        determine_output_files_in_batches
+    output:
+        energy = f"{EXPERIMENT_FULL_PATH}energy_{{orca_run_type}}.csv"
+    run:
+        # note: since differences in energy are used, there is no need for ZPE-corrected energy
+        # TODO: make sure to allow for control of the number of cycles and deal with failing structures
+        read_important_stuff_into_csv(out_files_to_read=input, csv_file_to_write=output.energy,
+            setup=QUANTUM_SETUP)
+
+rule compare_initial_and_const_opt_energies:
+    input:
+        initial_energies = f"{EXPERIMENT_FULL_PATH}energy_SP.csv",
+        const_opt_energies = f"{EXPERIMENT_FULL_PATH}energy_ConstOpt.csv"
+    output:
+        plot = "{EXPERIMENT_FULL_PATH}absolute_energy_comparison.png",
+        plot_relative = "{EXPERIMENT_FULL_PATH}relative_energy_comparison.png",
+    run:
+        import seaborn as sns
+        import pandas as pd
+        import matplotlib.pyplot as plt
+
+        df_inital = pd.read_csv(input.initial_energies)
+        df_const_opt = pd.read_csv(input.const_opt_energies)
+
+        # absolute errors
+        fig, ax = plt.subplots(1, 1)
+
+        sns.scatterplot(df_inital["Energy [kJ/mol]"], ax=ax)
+        sns.scatterplot(df_const_opt["Energy [kJ/mol]"], ax=ax)
+        ax.set_xlabel("Trajectory index")
+
+        fig.savefig(output.plot)
+
+        # relative errors
+
+        # absolute errors
+        fig, ax = plt.subplots(1, 1)
+
+        sns.scatterplot(100*(df_const_opt["Energy [kJ/mol]"]-df_inital["Energy [kJ/mol]"])/df_const_opt["Energy [kJ/mol]"], ax=ax)
+        ax.set_xlabel("Trajectory index")
+
+        fig.savefig(output.plot_relative)
+
+rule orca_total_and_average_time:
+    input:
+        energy = f"{EXPERIMENT_FULL_PATH}energy_{{orca_run_type}}.csv"
+    output:
+        total_time = f"{EXPERIMENT_FULL_PATH}orca_time_{{orca_run_type}}.txt"
+    run:
+        import pandas as pd
+
+        my_df = pd.read_csv(input.energy)
+
+        time_s = my_df["Time [s]"]
+
+        with open(output.total_time, "w") as f:
+            f.write(f"Total time [s]: {time_s.sum():.2f}\n")
+            f.write(f"Mean time [s]: {time_s.mean():.2f} +- {time_s.std():.2f}\n")
+            f.write(f"Max time [s]: {time_s.max():.2f}\n")
+            f.write(f"Min time [s]: {time_s.min():.2f}\n")
+            f.write("--------------\n")
+            f.write(f"Total time [h:m:s]: {pd.to_timedelta(time_s.sum(), unit='s')}\n")
+            f.write(f"Mean time [h:m:s]: {pd.to_timedelta(time_s.mean(), unit='s')} +- {pd.to_timedelta(time_s.std(), unit='s')}\n")
+            f.write(f"Max time [h:m:s]: {pd.to_timedelta(time_s.max(), unit='s')}\n")
+            f.write(f"Min time [h:m:s]: {pd.to_timedelta(time_s.min(), unit='s')}\n")
