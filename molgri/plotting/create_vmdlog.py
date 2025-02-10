@@ -144,23 +144,23 @@ def from_eigenvector_array_to_dominant_eigenvector_indices(eigenvector_array: ND
         if assignments is not None:
             pos_eigenvector = find_indices_of_largest_eigenvectors(eigenvector_array[i], which="pos", add_one=False,
                                                                    index_list=index_list, num_extremes=num_extremes)
-            pos_eigenvector = find_assigned_trajectory_indices(self.assignments, pos_eigenvector, num_of_examples,
+            pos_eigenvector = find_assigned_trajectory_indices(assignments, pos_eigenvector, num_of_examples,
                                                                add_one=True)
             neg_eigenvector = find_indices_of_largest_eigenvectors(eigenvector_array[i], which="neg", add_one=False,
                                                                    index_list=index_list, num_extremes=num_extremes)
-            neg_eigenvector = find_assigned_trajectory_indices(self.assignments, neg_eigenvector, num_of_examples,
+            neg_eigenvector = find_assigned_trajectory_indices(assignments, neg_eigenvector, num_of_examples,
                                                                add_one=True)
         else:
             pos_eigenvector = find_indices_of_largest_eigenvectors(eigenvector_array[i], which="pos",
                                                                    index_list=index_list, num_extremes=num_extremes)
             neg_eigenvector = find_indices_of_largest_eigenvectors(eigenvector_array[i], which="neg",
                                                                    index_list=index_list, num_extremes=num_extremes)
-        all_pos_eigenvectors.append(pos_eigenvector)
-        all_neg_eigenvectors.append(neg_eigenvector)
+        all_pos_eigenvectors.append(list(pos_eigenvector))
+        all_neg_eigenvectors.append(list(neg_eigenvector))
 
-    zeroth_eigenvector = np.array(zeroth_eigenvector)
-    all_pos_eigenvectors = np.array(all_pos_eigenvectors)
-    all_neg_eigenvectors = np.array(all_neg_eigenvectors)
+    #zeroth_eigenvector = np.array(zeroth_eigenvector)
+    #all_pos_eigenvectors = np.array(all_pos_eigenvectors)
+    #all_neg_eigenvectors = np.array(all_neg_eigenvectors)
     return zeroth_eigenvector, all_pos_eigenvectors, all_neg_eigenvectors
 
 
@@ -271,11 +271,11 @@ display resize 1800 1200
         # because trajectory frames may be an int, a string, or a list-like object we ned to pre-process it
         if isinstance(trajectory_frames, np.integer) or isinstance(trajectory_frames, int):
             trajectory_frames_as_str = str(trajectory_frames)
-        elif type(trajectory_frames) == list:
+        elif isinstance(trajectory_frames, list):
             trajectory_frames_as_str = ', '.join(map(str, [int(x) for x in trajectory_frames]))
-        elif type(trajectory_frames) == NDArray:
+        elif isinstance(trajectory_frames, np.ndarray):
             trajectory_frames_as_str = ', '.join(map(str, trajectory_frames.flatten().astype(int)))
-        elif type(trajectory_frames) == str:
+        elif isinstance(trajectory_frames, str):
             trajectory_frames_as_str = trajectory_frames
         else:
             raise ValueError(f"Trajectory frame indices of type {type(trajectory_frames)} cannot be read.")
@@ -366,13 +366,13 @@ mol drawframes 0 {self.num_representations} {{ {trajectory_frames_as_str} }}
         self._add_representation(first_molecule=True, second_molecule=False, trajectory_frames=0)
 
         # add zeroth eigenvector without any special colors
-        self._add_representation(first_molecule=False, second_molecule=True, trajectory_frames=abs_eigenvector_frames[0])
+        self._add_representation(first_molecule=False, second_molecule=True, trajectory_frames=abs_eigenvector_frames)
 
         # for the rest add one red, one blue
         for pos_frames, neg_frames in zip(pos_eigenvector_frames, neg_eigenvector_frames):
-            self._add_representation(first_molecule=False, second_molecule=True, coloring="ColorId", color="blue",
+            self._add_representation(first_molecule=False, second_molecule=True, coloring="ColorID", color="blue",
                                      trajectory_frames=pos_frames)
-            self._add_representation(first_molecule=False, second_molecule=True, coloring="ColorId", color="red",
+            self._add_representation(first_molecule=False, second_molecule=True, coloring="ColorID", color="red",
                                      trajectory_frames= neg_frames)
 
         self._add_rotations_translations()
@@ -382,7 +382,7 @@ mol drawframes 0 {self.num_representations} {{ {trajectory_frames_as_str} }}
 
         # render the rest of eigenvectors
         last_used_representation = 1
-        for plot_name in enumerate(plot_names):
+        for i, plot_name in enumerate(plot_names[1:]):
             # each render contains first molecule in representation 0 and second molecule in representation 1, 2, 3 ...
             self._render_representations([0, last_used_representation+1, last_used_representation+2], plot_name)
             last_used_representation += 2

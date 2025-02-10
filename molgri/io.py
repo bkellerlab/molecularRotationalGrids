@@ -317,13 +317,13 @@ class QuantumMolecule:
     Just a simple class to collect variables that define a QM molecule.
     """
 
-    def __init__(self, charge: int, multiplicity: int, path_xyz: str,
+    def __init__(self, charge: int, multiplicity: int, xyz_file: str,
                  fragment_1_len: int = None, fragment_2_len: int = None):
         self.charge = charge
         self.multiplicity = multiplicity
-        self.path_xyz = path_xyz
         self.fragment_1_len = fragment_1_len
         self.fragment_2_len = fragment_2_len
+        self.xyz_file = xyz_file
 
 
 class QuantumSetup:
@@ -358,6 +358,8 @@ class OrcaWriter:
     def __init__(self, molecule:  QuantumMolecule, set_up: QuantumSetup):
         self.molecule = molecule
         self.setup = set_up
+        with open(self.molecule.xyz_file, "r") as f:
+            self.xyz_file_lines = f.readlines()
         self.total_text = ""
 
     def write_to_file(self, file_path: str):
@@ -404,8 +406,7 @@ class OrcaWriter:
 	  2 {{{self.molecule.fragment_1_len}:{self.molecule.fragment_1_len+self.molecule.fragment_2_len-1}}} end  
 	end 
 	  
-end
-        """
+end\n"""
 
     def _write_solvent(self):
         if self.setup.solvent is not None:
@@ -417,23 +418,51 @@ end
         # limit the number of SCF cycles to make hopeless calculations fail quickly
         if self.setup.num_scf is not None:
             self.total_text += f"""
-        %scf
-            MaxIter {self.setup.num_scf}
-        end
-        """
+%scf
+    MaxIter {self.setup.num_scf}
+end\n"""
         if self.setup.num_cores is not None and self.setup.num_cores != "None":
             self.total_text += f"%PAL NPROCS {self.setup.num_cores} END\n"
         if self.setup.ram_per_core is not None and self.setup.ram_per_core != "None":
             self.total_text += f"%maxcore {self.setup.ram_per_core}\n"
 
-    def _write_molecule_specification(self):
-        self.total_text += f"*xyzfile {self.molecule.charge} {self.molecule.multiplicity} {self.molecule.path_xyz}\n"
+    def make_entire_trajectory_inp(self, geo_optimization: bool, constrain_fragments: bool = False):
+        num_atoms = self.molecule.fragment_1_len + self.molecule.fragment_2_len
+        len_segment_pt = num_atoms+2
+        len_pt_file = len(self.xyz_file_lines) - 1
+        len_trajectory = len_pt_file // len_segment_pt
+        self.total_text += "%Compound\n"
+        for i in range(len_trajectory):
+            self.total_text += "New_Step\n"
+            # all that comes before molecule
+            self._write_first_line(geo_optimization=geo_optimization)
+            self.total_text += f'%base "{i}"\n'
+            self._write_solvent()
+            self._write_resources()
+            # writing this *xyz frame
+            start_line = i * len_segment_pt + 2
+            end_line = i * len_segment_pt + len_segment_pt
+            self._write_molecule_specification("".join(self.xyz_file_lines[start_line:end_line]))
+            # all that comes after
+            if constrain_fragments:
+                self._write_fragment_constraint()
+            self.total_text += "Step_End\n"
+        self.total_text += "EndRun\n"
+
+    def _write_molecule_specification(self, string_to_write):
+        """
+        Here we don't reference the .xyz file but write coordinates directly into .inp.
+        """
+        self.total_text += f"* xyz {self.molecule.charge} {self.molecule.multiplicity}\n"
+        self.total_text += string_to_write
+        self.total_text += "*\n"
 
     def make_optimization_inp(self, constrain_fragments: bool = False):
         self._write_first_line(geo_optimization=True)
         self._write_solvent()
         self._write_resources()
-        self._write_molecule_specification()
+        use_string = "".join(self.xyz_file_lines[2:])
+        self._write_molecule_specification(use_string)
         if constrain_fragments:
             self._write_fragment_constraint()
 
@@ -441,7 +470,8 @@ end
         self._write_first_line(geo_optimization=False)
         self._write_solvent()
         self._write_resources()
-        self._write_molecule_specification()
+        use_string = "".join(self.xyz_file_lines[2:])
+        self._write_molecule_specification(use_string)
 
 
 class OrcaReader:
@@ -466,8 +496,9 @@ class OrcaReader:
 
         Either throws an error or prints a warning.
         """
-        returncode = subprocess.run(f'grep "****ORCA TERMINATED NORMALLY****" {self.out_file_path}', shell=True,
-                                    text=False).returncode
+        returncode = subprocess.run(f"""grep -q "****ORCA TERMINATED NORMALLY****" {self.out_file_path}""",
+                       capture_output=True, shell=True).returncode
+
         if returncode != 0 and throw_error:
             raise ChildProcessError(f"Orca did not terminate normally; see {self.out_file_path }")
         elif returncode != 0 and not throw_error:
@@ -488,14 +519,17 @@ class OrcaReader:
 ***        THE OPTIMIZATION HAS CONVERGED     ***
 *************************************************
     """
-        returncode = subprocess.run(f'grep "{message_has_converged}" {self.out_file_path}', shell=True,
-                                    text=False).returncode
+
+        command = ['grep', f'"{message_has_converged}"', f"{self.out_file_path}"]
+        returncode = run(command, stdout=PIPE, stderr=PIPE, universal_newlines=True).returncode
         if returncode != 0 and throw_error:
             raise ChildProcessError(f"Orca may have finished normally but did not converge; see {self.out_file_path}")
         elif returncode != 0 and not throw_error:
+            print("Opt not complete")
             return False
         # also fail optimization if the calculation failed
         elif not self.assert_normal_finish(throw_error=False):
+            print("No normal finish")
             return False
         return True
 
@@ -538,6 +572,42 @@ class OrcaReader:
 
         return energy_hartree
 
+    def extract_num_atoms(self):
+        line = subprocess.run(
+            f'grep "^Number of atoms" {self.out_file_path}| head -n 1 ',
+            shell=True, capture_output=True, text=True)
+        number_atoms = line.stdout
+        number_atoms = int(number_atoms.strip().split()[-1])
+        return number_atoms
+
+    def extract_optimized_xyz(self) -> str:
+        if self.assert_optimization_complete(throw_error=False):
+            # find the line number with the last occurence of CARTESIAN COORDINATES (ANGSTROEM)
+            line = subprocess.run(
+                f'grep -n "CARTESIAN COORDINATES (ANGSTROEM)" {self.out_file_path} | cut -d: -f1 | tail -n 1 ',
+                shell=True, capture_output=True, text=True)
+            line_number_last_coo = int(line.stdout)
+            # start two lines after that, finish two lines + molecule length later
+            start_point = 2 + line_number_last_coo
+            end_point = 2 + line_number_last_coo + self.extract_num_atoms() -1
+            command = ['head', '-n', f"{end_point}", f"{self.out_file_path}", "|", "tail", "-n", f"+{start_point}"]
+
+            line = subprocess.run(
+                f'head -n {end_point} {self.out_file_path} | tail -n +{start_point}',
+                shell=True, capture_output=True, text=True)
+
+            # starting with num of atoms and comment line
+            result = f"{self.extract_num_atoms()}\n"
+            result += "\n"
+            print(line.stdout.__str__())
+            result += line.stdout
+            return result
+        else:
+            # to indicate an error while preserving pt length the initial structure is copied but all element names are
+            # changed to X
+            print(f"Not complete {self.out_file_path}")
+            return ""
+
     def extract_last_coordinates_from_opt(self) -> str:
         """
         Extract the last structure of the optimization.
@@ -573,7 +643,7 @@ class OrcaReader:
 
 
 
-def read_important_stuff_into_csv(out_files_to_read: list, csv_file_to_write: str, setup: QuantumSetup):
+def read_important_stuff_into_csv(out_files_to_read: list, csv_file_to_write: str, setup: QuantumSetup, is_pt=True):
     """
     Read a list of orca .out files that were created with the same set-up (functional, basis set ...). Save the
     energies and generation times. Times can optionally be read from the benchmark files
@@ -595,7 +665,11 @@ def read_important_stuff_into_csv(out_files_to_read: list, csv_file_to_write: st
     for i, out_file_to_read in enumerate(out_files_to_read):
         my_reader = OrcaReader(out_file_to_read)
         energy_hartree = my_reader.extract_energy_orca_output()
-        frame = my_reader.get_frame_num()
+
+        if is_pt:
+            frame = my_reader.get_frame_num()
+        else:
+            frame = None
 
         time_h_m_s = my_reader.extract_time_orca_output()
 

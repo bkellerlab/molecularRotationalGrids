@@ -340,5 +340,36 @@ rule vmd_plot_path:
 
 
 
+rule compare_initial_and_const_opt_energies:
+    input:
+        initial_energies = f"{EXPERIMENT_FULL_PATH}energy_SP.csv",
+        const_opt_energies = f"{EXPERIMENT_FULL_PATH}energy_ConstOpt.csv"
+    output:
+        plot = "{EXPERIMENT_FULL_PATH}absolute_energy_comparison.png",
+        plot_relative = "{EXPERIMENT_FULL_PATH}relative_energy_comparison.png",
+    run:
+        import seaborn as sns
+        import pandas as pd
+        import matplotlib.pyplot as plt
 
+        df_inital = pd.read_csv(input.initial_energies)
+        df_const_opt = pd.read_csv(input.const_opt_energies)
 
+        # absolute errors
+        fig, ax = plt.subplots(1, 1)
+
+        sns.scatterplot(df_inital["Energy [kJ/mol]"], ax=ax)
+        sns.scatterplot(df_const_opt["Energy [kJ/mol]"], ax=ax)
+        ax.set_xlabel("Trajectory index")
+
+        fig.savefig(output.plot)
+
+        # relative errors
+
+        # absolute errors
+        fig, ax = plt.subplots(1, 1)
+
+        sns.scatterplot(100*(df_const_opt["Energy [kJ/mol]"]-df_inital["Energy [kJ/mol]"])/df_const_opt["Energy [kJ/mol]"], ax=ax)
+        ax.set_xlabel("Trajectory index")
+
+        fig.savefig(output.plot_relative)

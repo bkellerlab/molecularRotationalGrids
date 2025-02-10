@@ -32,7 +32,7 @@ params_sqra:
  tol: 1e-5
  maxiter: 100000
  num_eigenvec_to_plot: 6
- num_extremes_to_plot: None
+ num_extremes_to_plot: 20
  maxwarn: 0
  
 params_dft:
@@ -43,3 +43,6 @@ params_dft:
  num_scf: 16
  num_cores: None
  ram_per_core: None
+ optimization_type: SP
+ max_runtime: "0-03:00:0"
+ max_mem_per_cpu: 500

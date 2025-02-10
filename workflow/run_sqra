@@ -10,33 +10,45 @@ plt.switch_backend('agg')
 # add molgri directory
 sys.path.append(".")
 from molgri.paths import PATH_INPUT_BASEGRO, PATH_EXPERIMENTS
+from molgri.io import QuantumSetup
 
 include: "run_grid"
 
 if config["energy_program"] == "ORCA":
     include: "run_sqra_orca"
+
+    QUANTUM_SETUP = QuantumSetup(
+        functional=config["params_dft"]["functional"],
+        basis_set=config["params_dft"]["basis_set"],
+        solvent=config["params_dft"]["solvent"],
+        dispersion_correction=config["params_dft"]["dispersion"],
+        num_scf=config["params_dft"]["num_scf"],
+        num_cores=config["params_dft"]["num_cores"],
+        ram_per_core=config["params_dft"]["ram_per_core"]
+    )
+    ORCA_DIR = QUANTUM_SETUP.get_dir_name()
+    EXPERIMENT_FULL_PATH = f"{PATH_EXPERIMENTS}{config['experiment_type']}/{config['experiment_id']}/{config['grid_identifier']}/{config['params_dft']['optimization_type']}_{ORCA_DIR}"
 elif config["energy_program"] == "GROMACS":
     include: "run_sqra_gromacs"
-
+    EXPERIMENT_FULL_PATH = f"{PATH_EXPERIMENTS}{config['experiment_type']}/{config['experiment_id']}/{config['grid_identifier']}/"
+    FULL_PATHS = [EXPERIMENT_FULL_PATH]
+else:
+    raise ValueError(f"Energy program must be ORCA or GROMACS, not {config['energy_program']}")
 
 PROVIDED_DATA_PATH =  f"{PATH_INPUT_BASEGRO}{config['experiment_type']}/"
-EXPERIMENT_FULL_PATH = f"{PATH_EXPERIMENTS}{config['experiment_type']}/{config['experiment_id']}/{config['grid_identifier']}/"
 
 
-
+# TODO: get opt trajectory!!!!!
 rule all_sqra:
     input:
         # FIRST STEP - ALL INPUTS  MUST EXIST
-        expand(f"{EXPERIMENT_FULL_PATH}{{orca_type}}_PBE0_def2tzvp_water_D4/all_inputs_exist.touch",orca_type=["SP", "ConstOpt"])
+        #expand(f"{{where}}all_inputs_exist.touch", where=FULL_PATHS)
         # SECOND STEP - ALL JOBS ARE SUBMITTED (use -R run_on_curta)
-        #expand(f"{EXPERIMENT_FULL_PATH}{{orca_type}}_PBE0_def2tzvp_water_D4/all_inputs_ran.touch", orca_type=["SP", "ConstOpt"])
+        #expand(f"{{where}}all_inputs_ran.touch", where=FULL_PATHS[1])
         # THIRD STEP - COPY ALL BACK HERE (use -R get_from_curta)
-        #expand(f"{EXPERIMENT_FULL_PATH}{{orca_type}}_PBE0_def2tzvp_water_D4/all_outputs_copied.touch",orca_type=["SP", "ConstOpt"])
+        #expand(f"{{where}}all_outputs_copied.touch", where=EXPERIMENT_FULL_PATH) #"SP", "ConstOpt"
         # FINALLY - WHEN FINISHED COLLECT AND PLOT
-        #f"{EXPERIMENT_FULL_PATH}absolute_energy_comparison.png"
-        #f"{EXPERIMENT_FULL_PATH}energy_SV.csv"
-        #f"{EXPERIMENT_FULL_PATH}ConstOpt_{ORCA_DIR}all_outputs_copied.touch"
-        #expand(f"{EXPERIMENT_FULL_PATH}{{what}}", what=["ConstOpt_energy.csv"]), #, "ConstOpt_trajectory.xyz"
+        expand(f"{{where}}{{what}}", what=["full_orca.inp"], where=EXPERIMENT_FULL_PATH), #, "ConstOpt_trajectory.xyz"
     #what=["its.png", "eigenvectors_vmdlog", "eigenvalues.png", "its.csv", "energy.csv", "orca_time.txt", "constrained_opt_energy.csv"]
     log:
         log = f"{EXPERIMENT_FULL_PATH}total_log.yaml"
@@ -108,9 +120,9 @@ rule run_pt:
 
 rule lowest_e_structures:
     input:
-        energy = f"{EXPERIMENT_FULL_PATH}energy_{{energy_kind}}.csv"
+        energy = f"{{where}}energy.csv"
     output:
-        list_structures = f"{EXPERIMENT_FULL_PATH}/indices_lowest_E_{{energy_kind}}.csv"
+        list_structures = f"{{where}}indices_lowest_E.csv"
     params:
         num = config["params_sqra"]["number_lowest_E_structures"]
     run:
@@ -138,15 +150,15 @@ rule run_sqra:
     As output we want to have the rate matrix.
     """
     input:
-        energy = f"{EXPERIMENT_FULL_PATH}energy_SV.csv",
+        energy = f"{{where}}energy.csv",
         distances_array = rules.run_grid.output.distances_array,
         borders_array = rules.run_grid.output.borders_array,
         volumes = rules.run_grid.output.volumes,
     output:
-        rate_matrix = f"{PATH_EXPERIMENTS}{{experiment_type}}/{{experiment_id}}/{{grid_identifier}}/rate_matrix.npz",
-        index_list = f"{PATH_EXPERIMENTS}{{experiment_type}}/{{experiment_id}}/{{grid_identifier}}/index_list.npy",
+        rate_matrix = f"{{where}}rate_matrix.npz",
+        index_list = f"{{where}}index_list.npy",
     benchmark:
-        repeat(f"{PATH_EXPERIMENTS}{{experiment_type}}/{{experiment_id}}/{{grid_identifier}}/rate_matrix_benchmark.txt", config['num_repeats'])
+        repeat(f"{{where}}rate_matrix_benchmark.txt", config['num_repeats'])
     params:
         T=float(config["params_sqra"]["temperature_K"]),
         energy_type=config["params_sqra"]["energy_type"],
@@ -211,10 +223,10 @@ rule run_decomposition:
     input:
         rate_matrix = rules.run_sqra.output.rate_matrix
     output:
-        eigenvalues = f"{PATH_EXPERIMENTS}{{experiment_type}}/{{experiment_id}}/{{grid_identifier}}/eigenvalues.npy",
-        eigenvectors = f"{PATH_EXPERIMENTS}{{experiment_type}}/{{experiment_id}}/{{grid_identifier}}/eigenvectors.npy",
+        eigenvalues = f"{{where}}eigenvalues.npy",
+        eigenvectors = f"{{where}}eigenvectors.npy",
     benchmark:
-        repeat(f"{PATH_EXPERIMENTS}{{experiment_type}}/{{experiment_id}}/{{grid_identifier}}/decomposition_benchmark.txt", config['num_repeats'])
+        repeat(f"{{where}}decomposition_benchmark.txt", config['num_repeats'])
     params:
         tol=config["params_sqra"]["tol"],
         maxiter=config["params_sqra"]["maxiter"],
@@ -249,9 +261,9 @@ rule run_plot_everything_sqra:
         eigenvalues = rules.run_decomposition.output.eigenvalues,
         eigenvectors = rules.run_decomposition.output.eigenvectors,
     output:
-        plot_eigenvectors=f"{PATH_EXPERIMENTS}{{experiment_type}}/{{experiment_id}}/{{grid_identifier}}/eigenvectors.png",
-        plot_eigenvalues=f"{PATH_EXPERIMENTS}{{experiment_type}}/{{experiment_id}}/{{grid_identifier}}/eigenvalues.png",
-        plot_its=report(f"{PATH_EXPERIMENTS}{{experiment_type}}/{{experiment_id}}/{{grid_identifier}}/its.png", category="{experiment_id}"),
+        plot_eigenvectors=f"{{where}}eigenvectors.png",
+        plot_eigenvalues=f"{{where}}eigenvalues.png",
+        plot_its=report(f"{{where}}its.png", category=config["experiment_id"]),
     run:
         from molgri.plotting.transition_plots import PlotlyTransitions
 
@@ -277,14 +289,14 @@ rule compile_vmd_log:
     """
     input:
         structure = rules.run_pt.output.structure,
-        trajectory = rules.run_pt.output.trajectory,
+        trajectory = f"{{where}}trajectory_opt.xyz" if config["energy_program"] == "ORCA" else f"{{where}}trajectory.xtc",
         eigenvectors = rules.run_decomposition.output.eigenvectors,
         index_list = rules.run_sqra.output.index_list,
         num_atoms = rules.find_num_atoms.output.num_atoms
     output:
-        vmdlog = f"{EXPERIMENT_FULL_PATH}/eigenvectors_vmdlog",
-        fig_tga = [f"{EXPERIMENT_FULL_PATH}/eigenvector{i}.tga" for i in range(config["params_sqra"]["num_eigenvec_to_plot"])],
-        fig_png = [f"{EXPERIMENT_FULL_PATH}/eigenvector{i}.png" for i in range(config["params_sqra"]["num_eigenvec_to_plot"])]
+        vmdlog = f"{{where}}eigenvectors_vmdlog",
+        fig_tga = expand(f"{{where}}eigenvector{{i}}.tga", i=range(config["params_sqra"]["num_eigenvec_to_plot"]), allow_missing=True),
+        fig_png = expand(f"{{where}}eigenvector{{i}}.png", i=range(config["params_sqra"]["num_eigenvec_to_plot"]), allow_missing=True)
     params:
         num_extremes=config["params_sqra"]["num_extremes_to_plot"],
         num_eigenvec=config["params_sqra"]["num_eigenvec_to_plot"]
@@ -302,7 +314,7 @@ rule compile_vmd_log:
         index_first = f"index < {num_first_mol}"
         index_second = f"index >= {num_first_mol}"
 
-        if wildcards.experiment_type == "sqra_bpti_trypsine":
+        if config["experiment_type"] == "sqra_bpti_trypsine":
             is_protein=True
         else:
             is_protein=False
@@ -316,7 +328,7 @@ rule compile_vmd_log:
             params.num_extremes = None
 
 
-        abs_e, pos_e, neg_e = from_eigenvector_array_to_dominant_eigenvector_indices(eigenvectors, index_list,
+        abs_e, pos_e, neg_e = from_eigenvector_array_to_dominant_eigenvector_indices(eigenvectors.T, index_list,
             n_eigenvectors=params.num_eigenvec, num_extremes=params.num_extremes)
 
         # now vmd creator
@@ -335,7 +347,7 @@ rule print_its:
     input:
         eigenvalues = rules.run_decomposition.output.eigenvalues
     output:
-        data = f"{PATH_EXPERIMENTS}{{experiment_type}}/{{experiment_id}}/{{grid_identifier}}/its.csv"
+        data = f"{{where}}its.csv"
     run:
         import pandas as pd
 

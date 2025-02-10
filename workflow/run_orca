@@ -17,20 +17,20 @@ from molgri.io import OrcaWriter, OrcaReader, QuantumMolecule, QuantumSetup,  \
     read_important_stuff_into_csv
 
 # WATER
-# EXPERIMENT_TYPE = "water_xyz"
-# M1_EQUALS_M2 = True
-# CHARGE_M1 = 0
-# CHARGE_M2 = 0
-# MULTIPLICITY = 1
-# Z_DISTANCE_A = 3
+EXPERIMENT_TYPE = "water_xyz"
+M1_EQUALS_M2 = True
+CHARGE_M1 = 0
+CHARGE_M2 = 0
+MULTIPLICITY = 1
+Z_DISTANCE_A = 3
 
 # GUANIDINIUM
-EXPERIMENT_TYPE = "guanidinium_xyz"
-M1_EQUALS_M2 = True
-CHARGE_M1 = 1
-CHARGE_M2 = 1
-MULTIPLICITY = 1
-Z_DISTANCE_A = 5
+# EXPERIMENT_TYPE = "guanidinium_xyz"
+# M1_EQUALS_M2 = True
+# CHARGE_M1 = 1
+# CHARGE_M2 = 1
+# MULTIPLICITY = 1
+# Z_DISTANCE_A = 5
 
 
 
@@ -123,7 +123,7 @@ rule make_inp:
         else:
             raise ValueError("Don't know how to determine charge!")
 
-        m1 = QuantumMolecule(charge=charge, multiplicity=params.multiplicity, path_xyz=input.xyz_file)
+        m1 = QuantumMolecule(charge=charge, multiplicity=params.multiplicity, xyz_file=input.xyz_file)
         m1_setup = QuantumSetup(functional=FUNCTIONALS[wildcards.functional], basis_set=BASIS_SETS[wildcards.basis_set],
             solvent=SOLVENTS[wildcards.solvent], dispersion_correction=DISPERSIONS[wildcards.dispersion], num_scf=None)
 
@@ -184,10 +184,12 @@ rule record_data:
     output:
         csv_file=f"{PATH_ORCA_EXAMPLE}{{functional}}_{{basis_set}}_{{solvent}}_{{dispersion}}/{{molecule}}_{{opt_or_sp}}/{{molecule}}.csv"
     run:
-        setup = QuantumSetup(functional=wildcards.functional, dispersion_correction=wildcards.dispersion,
-            solvent=wildcards.solvent, basis_set=wildcards.basis_set)
+        setup = QuantumSetup(functional=FUNCTIONALS[wildcards.functional],
+            dispersion_correction=DISPERSIONS[wildcards.dispersion],
+            solvent=SOLVENTS[wildcards.solvent],
+            basis_set=BASIS_SETS[wildcards.basis_set])
 
-        read_important_stuff_into_csv([input.out_file], output.csv_file, setup)
+        read_important_stuff_into_csv([input.out_file], output.csv_file, setup, is_pt=False)
 
 
 rule correction_ZPE:
@@ -267,28 +269,31 @@ rule visualize_time_energy:
         df["Functional"] = np.where(df["Dispersion correction"] == "D4",df["Functional"]+"-"+df["Dispersion correction"],df["Functional"])
 
 
-        fig, ax = plt.subplots(2,1,sharex=True, figsize=(5, 4))
-        #for column, solvent in zip(range(3), ["water"]):
-        filtered2_df = df[df["Solvent"]=="water"]
-        sns.scatterplot(filtered2_df,x="Functional",y="Time [min]",ax=ax[0],hue="Basis set", legend=True)
-        sns.barplot(filtered2_df,x="Functional",y="Energy [kJ/mol]",ax=ax[1],color="white",edgecolor='black')
-        sns.scatterplot(filtered2_df,x="Functional",y="Energy [kJ/mol]",ax=ax[1],hue="Basis set",legend=False)
-        #ax[0][column].set_title(solvent)
-        ax[1].tick_params(axis='x',rotation=45)
-
-        ax[0].legend(loc='upper left',bbox_to_anchor=(1, 1))
+        fig, ax = plt.subplots(2,len(SOLVENTS.keys()),sharex=True, figsize=(8, 4))
+        for i, solvent in enumerate(SOLVENTS.keys()):
+            filtered2_df = df[df["Solvent"]==solvent]
+            print(solvent, len(filtered2_df), len(df), filtered2_df["Energy [kJ/mol]"].mean())
+            sns.scatterplot(filtered2_df,x="Functional",y="Time [min]",ax=ax[0][i],hue="Basis set", legend=True)
+            sns.barplot(filtered2_df,x="Functional",y="Energy [kJ/mol]",ax=ax[1][i],color="white",edgecolor='black')
+            sns.scatterplot(filtered2_df,x="Functional",y="Energy [kJ/mol]",ax=ax[1][i],hue="Basis set",legend=False)
+            ax[0][i].set_title(solvent)
+            if i == len(SOLVENTS.keys()) - 1:
+                ax[0][i].legend(loc='upper left',bbox_to_anchor=(1, 1))
+            else:
+                ax[0][i].get_legend().remove()
+            ax[1][i].tick_params(axis='x',rotation=90)
 
         # Automatically compute y-limits for top-row plots
-        # top_min = ax[0].get_ylim()[0]
-        # top_max = ax[0].get_ylim()[1]
-        # for myax in ax[0, :]:
-        #     myax.set_ylim(top_min,top_max)
+        top_min = min(myax.get_ylim()[0] for myax in ax[0])
+        top_max = max(myax.get_ylim()[1] for myax in ax[0])
+        for myax in ax[0, :]:
+            myax.set_ylim(top_min,top_max)
         #
-        # # Automatically compute y-limits for bottom-row plots
-        # bottom_min = min(myax.get_ylim()[0] for myax in ax[1])
-        # bottom_max = max(myax.get_ylim()[1] for myax in ax[1])
-        # for myax in ax[1, :]:
-        #     myax.set_ylim(bottom_min,bottom_max)
+        # Automatically compute y-limits for bottom-row plots
+        bottom_min = min(myax.get_ylim()[0] for myax in ax[1])
+        bottom_max = max(myax.get_ylim()[1] for myax in ax[1])
+        for myax in ax[1, :]:
+            myax.set_ylim(bottom_min,bottom_max)
 
         fig.tight_layout()
         fig.savefig(output.png_file, dpi=600)
