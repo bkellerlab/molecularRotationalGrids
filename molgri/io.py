@@ -10,6 +10,7 @@ from numpy.typing import NDArray
 from scipy import sparse
 from scipy.constants import physical_constants
 from MDAnalysis import Merge
+from pathlib import Path
 
 from molgri.molecules.pts import Pseudotrajectory
 import MDAnalysis.transformations as trans
@@ -392,21 +393,27 @@ class OrcaWriter:
         assert self.molecule.fragment_1_len is not None, "Need to know fragment lengths to constrain them!"
         assert self.molecule.fragment_2_len is not None, "Need to know fragment lengths to constrain them!"
 
-        self.total_text += f"""
+        self.total_text += """
 %geom
+ConnectFragments {1 2 C} end
+end
+"""
 
-
-    ConnectFragments
-     {{1 2 C}}      # constrain the internal coordinates
-	          #  connecting fragments 1 and 2
-    end
-    
-	Fragments
-	  1 {{0:{self.molecule.fragment_1_len-1}}} end 
-	  2 {{{self.molecule.fragment_1_len}:{self.molecule.fragment_1_len+self.molecule.fragment_2_len-1}}} end  
-	end 
-	  
-end\n"""
+#         self.total_text += f"""
+# %geom
+#
+#
+#     ConnectFragments
+#      {{1 2 C}}      # constrain the internal coordinates
+#               #  connecting fragments 1 and 2
+#     end
+#
+#     Fragments
+#       1 {{0:{self.molecule.fragment_1_len-1}}} end
+#       2 {{{self.molecule.fragment_1_len}:{self.molecule.fragment_1_len+self.molecule.fragment_2_len-1}}} end
+#     end
+#
+# end\n"""
 
     def _write_solvent(self):
         if self.setup.solvent is not None:
@@ -426,52 +433,39 @@ end\n"""
         if self.setup.ram_per_core is not None and self.setup.ram_per_core != "None":
             self.total_text += f"%maxcore {self.setup.ram_per_core}\n"
 
-    def make_entire_trajectory_inp(self, geo_optimization: bool, constrain_fragments: bool = False):
+    def make_orca_appropriate_xyz(self, save_to: str):
+        xyz_file_text = ""
         num_atoms = self.molecule.fragment_1_len + self.molecule.fragment_2_len
-        len_segment_pt = num_atoms+2
+        len_segment_pt = num_atoms + 2
         len_pt_file = len(self.xyz_file_lines) - 1
         len_trajectory = len_pt_file // len_segment_pt
-        self.total_text += "%Compound\n"
         for i in range(len_trajectory):
-            self.total_text += "New_Step\n"
-            # all that comes before molecule
-            self._write_first_line(geo_optimization=geo_optimization)
-            self.total_text += f'%base "{i}"\n'
-            self._write_solvent()
-            self._write_resources()
             # writing this *xyz frame
-            start_line = i * len_segment_pt + 2
+            start_line = i * len_segment_pt
             end_line = i * len_segment_pt + len_segment_pt
-            self._write_molecule_specification("".join(self.xyz_file_lines[start_line:end_line]))
-            # all that comes after
-            if constrain_fragments:
-                self._write_fragment_constraint()
-            self.total_text += "Step_End\n"
-        self.total_text += "EndRun\n"
+            xyz_file_text += "".join(self.xyz_file_lines[start_line:end_line])
+            xyz_file_text += ">\n"
+        with open(save_to, "w") as f:
+            f.write(xyz_file_text)
 
-    def _write_molecule_specification(self, string_to_write):
+
+    def _write_molecule_specification(self):
         """
         Here we don't reference the .xyz file but write coordinates directly into .inp.
         """
-        self.total_text += f"* xyz {self.molecule.charge} {self.molecule.multiplicity}\n"
-        self.total_text += string_to_write
-        self.total_text += "*\n"
+        path_start, use_string = os.path.split(self.molecule.xyz_file)
+        self.total_text += f"* xyzfile {self.molecule.charge} {self.molecule.multiplicity} {use_string} \n"
+        #self.total_text += string_to_write
+        #self.total_text += "*\n"
 
-    def make_optimization_inp(self, constrain_fragments: bool = False):
-        self._write_first_line(geo_optimization=True)
+    def make_input(self, geo_optimization: bool = False, constrain_fragments: bool = False):
+        self._write_first_line(geo_optimization=geo_optimization)
         self._write_solvent()
         self._write_resources()
-        use_string = "".join(self.xyz_file_lines[2:])
-        self._write_molecule_specification(use_string)
+        self._write_molecule_specification()
         if constrain_fragments:
             self._write_fragment_constraint()
 
-    def make_sp_inp(self):
-        self._write_first_line(geo_optimization=False)
-        self._write_solvent()
-        self._write_resources()
-        use_string = "".join(self.xyz_file_lines[2:])
-        self._write_molecule_specification(use_string)
 
 
 class OrcaReader:
@@ -480,12 +474,13 @@ class OrcaReader:
     Does not read .inp, but .out files
     """
 
-    def __init__(self, out_file_path: str):
+    def __init__(self, out_file_path: str, is_multi_out: bool = False):
         self.out_file_path = out_file_path
         path = os.path.normpath(self.out_file_path)
         split_path = path.split(os.sep)
         self.frame_num = split_path[-2]
         self.calculation_directory = os.path.join(*split_path[:-1])
+        self.is_multi_out = is_multi_out
 
     def assert_normal_finish(self, throw_error=True):
         """
@@ -554,7 +549,7 @@ class OrcaReader:
 
         return time_h_m_s
 
-    def extract_energy_orca_output(self) -> float:
+    def extract_energy_orca_output(self) -> list:
         """
         Take any orca output file and give me the total energy resulting from the calculation.
 
@@ -562,13 +557,14 @@ class OrcaReader:
             Energy in the unit of Hartrees
         """
         # need the last one so use tail
-        line_energy = subprocess.run(f'grep "^FINAL SINGLE POINT ENERGY" {self.out_file_path} | tail -n 1 | sed "s/^FINAL SINGLE POINT '
+        line_energy = subprocess.run(f'grep "^FINAL SINGLE POINT ENERGY" {self.out_file_path} | sed "s/^FINAL SINGLE POINT '
                                      f'ENERGY //"', shell=True,
                                      capture_output=True, text=True)
         try:
-            energy_hartree = float(line_energy.stdout.strip())
+            line_energy = line_energy.stdout.strip().split()
+            energy_hartree = [float(x) for x in line_energy]
         except ValueError:
-            energy_hartree = np.NaN
+            energy_hartree = [np.NaN, ]
 
         return energy_hartree
 
@@ -641,6 +637,52 @@ class OrcaReader:
         return int(self.frame_num)
 
 
+def read_multi_out_into_csv(multi_out: str, csv_file_to_write: str, setup: QuantumSetup, size_per_batch: int):
+    """
+    Read a list of orca .out files that were created with the same set-up (functional, basis set ...). Save the
+    energies and generation times. Times can optionally be read from the benchmark files
+
+    Args:
+        out_files_to_read (list): a list of paths, usually to a number of .out files calculated along a molgri pt
+        csv_file_to_write (str): a path to a csv file where the data will be recorded.
+        setup ():
+
+    Returns:
+
+    """
+
+    columns = ["File", "Frame", "Functional", "Basis set", "Dispersion correction", "Solvent",
+               "Energy [hartree]"]
+
+    all_df = []
+
+    for out_file_to_read in multi_out:
+        my_reader = OrcaReader(out_file_to_read, is_multi_out=True)
+        energy_hartree = my_reader.extract_energy_orca_output()
+
+        num_structures = subprocess.run(f"grep -oP 'There are \K\d+(?= structures to be calculated)' {out_file_to_read}",
+                                        shell=True, capture_output=True)
+        num_structures = int(num_structures.stdout)
+        my_path = Path(out_file_to_read)
+        batch_index = int(list(my_path.parts)[-2].split("_")[1])
+        frames = list(range(batch_index*size_per_batch, batch_index*size_per_batch+np.min([num_structures, size_per_batch])))
+        print(frames)
+
+
+        all_data = []
+        for energy, frame in zip(energy_hartree, frames):
+            all_data.append([out_file_to_read, frame, setup.functional, setup.basis_set, setup.dispersion_correction,
+                         setup.solvent, energy])
+
+        df = pd.DataFrame(all_data, columns=columns)
+        df["Energy [kJ/mol]"] = df["Energy [hartree]"] / 1000.0 * (HARTREE_TO_J * AVOGADRO_CONSTANT)
+
+        df["Normal Finish"] = my_reader.assert_normal_finish(throw_error=False)
+        df["Optimization Complete"] = my_reader.assert_optimization_complete(throw_error=False)
+        all_df.append(df)
+
+    combined_df = pd.concat(all_df)
+    combined_df.to_csv(csv_file_to_write, index=False)
 
 
 def read_important_stuff_into_csv(out_files_to_read: list, csv_file_to_write: str, setup: QuantumSetup, is_pt=True):

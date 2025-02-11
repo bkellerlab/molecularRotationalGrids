@@ -48,7 +48,7 @@ rule all_sqra:
         # THIRD STEP - COPY ALL BACK HERE (use -R get_from_curta)
         #expand(f"{{where}}all_outputs_copied.touch", where=EXPERIMENT_FULL_PATH) #"SP", "ConstOpt"
         # FINALLY - WHEN FINISHED COLLECT AND PLOT
-        expand(f"{{where}}{{what}}", what=["full_orca.inp"], where=EXPERIMENT_FULL_PATH), #, "ConstOpt_trajectory.xyz"
+        expand(f"{{where}}{{what}}", what=["its.png", "eigenvectors_vmdlog", "eigenvalues.png", "its.csv"], where=EXPERIMENT_FULL_PATH), #, "ConstOpt_trajectory.xyz"
     #what=["its.png", "eigenvectors_vmdlog", "eigenvalues.png", "its.csv", "energy.csv", "orca_time.txt", "constrained_opt_energy.csv"]
     log:
         log = f"{EXPERIMENT_FULL_PATH}total_log.yaml"
@@ -289,7 +289,7 @@ rule compile_vmd_log:
     """
     input:
         structure = rules.run_pt.output.structure,
-        trajectory = f"{{where}}trajectory_opt.xyz" if config["energy_program"] == "ORCA" else f"{{where}}trajectory.xtc",
+        trajectory = f"{{where}}trajectory.xyz" if config["energy_program"] == "ORCA" else f"{{where}}trajectory.xtc",
         eigenvectors = rules.run_decomposition.output.eigenvectors,
         index_list = rules.run_sqra.output.index_list,
         num_atoms = rules.find_num_atoms.output.num_atoms
