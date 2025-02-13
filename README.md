@@ -270,7 +270,7 @@ commands. Currently, there are groups *notebooks*, *test* and *workflows*.
 3) To make sure no other dependencies are present in the environment, occasionally run
 
 ```
-poetry install --sync
+poetry install sync
 ```
 
 and to update to latest compatible versions occasionally run
