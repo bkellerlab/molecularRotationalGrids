@@ -12,6 +12,18 @@ from molgri.paths import PATH_INPUT_BASEGRO, PATH_EXPERIMENTS
 
 configfile: "workflow/default_sqra_orca_config.yaml"
 
+QUANTUM_SETUP = QuantumSetup(
+    functional=config["params_dft"]["functional"],
+    basis_set=config["params_dft"]["basis_set"],
+    solvent=config["params_dft"]["solvent"],
+    dispersion_correction=config["params_dft"]["dispersion"],
+    num_scf=config["params_dft"]["num_scf"],
+    num_cores=config["params_dft"]["num_cores"],
+    ram_per_core=config["params_dft"]["ram_per_core"]
+)
+ORCA_DIR = QUANTUM_SETUP.get_dir_name()
+EXPERIMENT_FULL_PATH = f"{PATH_EXPERIMENTS}{config['experiment_type']}/{config['experiment_id']}/{config['grid_identifier']}/{config['params_dft']['optimization_type']}_{ORCA_DIR}"
+
 
 
 NUM_GRID_POINTS = len(FullGrid(
@@ -21,36 +33,36 @@ NUM_GRID_POINTS = len(FullGrid(
 
 BATCH_SIZE = NUM_GRID_POINTS//config['num_batches'] +1
 
-# def _determine_batch_subfolders():
-#     all_paths = []
-#     for batch in range(config['num_batches']):
-#         section_size = NUM_GRID_POINTS//config['num_batches'] +1
-#         batch_start_index = batch*section_size
-#         batch_end_index = np.min([(batch+1)*section_size, NUM_GRID_POINTS])
-#         all_paths.extend([f"batch_{batch}/{str(i).zfill(10)}/" for i in range(batch_start_index, batch_end_index)])
-#     return all_paths
-#
-# def _determine_batch_folders(wildcards, file_needed):
-#     all_paths = []
-#     for batch in range(config['num_batches']):
-#         section_size = NUM_GRID_POINTS//config['num_batches'] +1
-#         batch_start_index = batch*section_size
-#         batch_end_index = np.min([(batch+1)*section_size, NUM_GRID_POINTS])
-#         all_paths.extend([f"{wildcards.where}batch_{batch}/{str(i).zfill(10)}/{file_needed}" for i in range(batch_start_index, batch_end_index)])
-#     return all_paths
-#
-#
-# def determine_output_files_in_batches(wildcards):
-#     return _determine_batch_folders(wildcards, "orca.out")
-#
-# def determine_input_files_in_batches(wildcards):
-#     return _determine_batch_folders(wildcards,"orca.inp")
+def _determine_batch_subfolders():
+    all_paths = []
+    for batch in range(config['num_batches']):
+        section_size = NUM_GRID_POINTS//config['num_batches'] +1
+        batch_start_index = batch*section_size
+        batch_end_index = np.min([(batch+1)*section_size, NUM_GRID_POINTS])
+        all_paths.extend([f"batch_{batch}/{str(i).zfill(10)}/" for i in range(batch_start_index, batch_end_index)])
+    return all_paths
+
+def _determine_batch_folders(wildcards, file_needed):
+    all_paths = []
+    for batch in range(config['num_batches']):
+        section_size = NUM_GRID_POINTS//config['num_batches'] +1
+        batch_start_index = batch*section_size
+        batch_end_index = np.min([(batch+1)*section_size, NUM_GRID_POINTS])
+        all_paths.extend([f"{wildcards.where}batch_{batch}/{str(i).zfill(10)}/{file_needed}" for i in range(batch_start_index, batch_end_index)])
+    return all_paths
+
+
+def determine_output_files_in_batches(wildcards):
+    return _determine_batch_folders(wildcards, "orca.out")
+
+def determine_input_files_in_batches(wildcards):
+    return _determine_batch_folders(wildcards,"orca.inp")
 
 rule modify_run_orca:
     input:
-        script_run_orca_job= "molgri/scripts/run_ORCA_single_run.sh",
+        script_run_orca_job= "molgri/scripts/run_ORCA.sh",
     output:
-        script_run_orca_job="{where}batch_{batch_index}/run_ORCA.sh",
+        script_run_orca_job="{where}run_ORCA.sh",
     run:
         with open(input.script_run_orca_job, "r") as f:
             all_lines = f.readlines()
@@ -65,14 +77,177 @@ rule modify_run_orca:
             f.writelines(all_lines)
 
 
-# rule copy_to_curta:
+rule copy_to_curta:
+    input:
+        ready_to_copy = f"{{where}}all_inputs_exist.touch",
+        script_run_orca_job = "{where}run_ORCA.sh",
+        script_submit_all_jobs = "molgri/scripts/submit_on_curta.sh",
+    output:
+        out_file = touch(f"{{where}}ran.touch")
+    #    out_file = expand(f"{{where}}{{batch_subf}}orca.out", batch_subf=_determine_batch_subfolders(), allow_missing=True)
+    run:
+        calculation_directory = wildcards.where
+        # make directories that may be missing
+        subprocess.run(f"""ssh hanaz63@curta.zedat.fu-berlin.de 'mkdir -p /home/hanaz63/{calculation_directory}'""",shell=True)
+        # copy script_run_orca_job
+        subprocess.run(f"""rsync -ruPEq {input.script_run_orca_job} hanaz63@curta.zedat.fu-berlin.de:/home/hanaz63/{calculation_directory}/run_ORCA.sh""",shell=True)
+        # copy submission loop file
+        subprocess.run(f"""rsync -ruPEq {input.script_submit_all_jobs} hanaz63@curta.zedat.fu-berlin.de:/home/hanaz63/{calculation_directory}/submit_on_curta.sh""",shell=True)
+        # copy all inp files
+        subprocess.run(f"""rsync -ruPEq --compress --exclude='*tex' --exclude='*cpcm*' --exclude='*densities*' --exclude='*engrad' --exclude='*.gbw' --exclude='*.txt' --exclude='*smd*' --exclude='slurm*' --exclude='*/directory' --exclude='*tmp*'  --include='*.inp' --exclude='*.xyz' {calculation_directory} hanaz63@curta.zedat.fu-berlin.de:/home/hanaz63/{calculation_directory}""",shell=True)
+        # calculate max size of the batch
+        section_size = NUM_GRID_POINTS // config['num_batches'] + 1
+        assert section_size < 5000, "Curta can only handle up to 5000 jobs in an array!"
+        subprocess.run(f"""ssh hanaz63@curta.zedat.fu-berlin.de 'cd /home/hanaz63/{wildcards.where} && ./submit_on_curta.sh {section_size}'""",shell=True)
+        #calculation_directory = wildcards.where
+        #subprocess.run(f"""rsync -ruaPE  --compress --exclude='*.sh' --exclude='*.opt' --exclude='*ges' --exclude='*tex' --exclude='*cpcm*' --exclude='*densities*' --exclude='*engrad' --exclude='*.gbw' --exclude='*.inp' --exclude='*.txt' --exclude='*smd*' --exclude='slurm*' --exclude='*/directory' --exclude='*tmp*' hanaz63@curta.zedat.fu-berlin.de:/home/hanaz63/{calculation_directory} {calculation_directory}""",shell=True)
+
+
+rule copy_from_curta:
+    output:
+        out_file = touch(f"{{where}}copied.touch")
+    run:
+        calculation_directory = wildcards.where
+        subprocess.run(f"""rsync -ruPEq  --compress --exclude='*.sh' --exclude='*.opt' --exclude='*ges' --exclude='*tex' --exclude='*cpcm*' --exclude='*densities*' --exclude='*engrad' --exclude='*.gbw' --exclude='*.inp' --exclude='*.txt' --exclude='*smd*' --exclude='slurm*' --exclude='*/directory' --exclude='*tmp*' hanaz63@curta.zedat.fu-berlin.de:/home/hanaz63/{calculation_directory} {calculation_directory}""",shell=True)
+
+
+rule split_inpfile:
+    """
+    If needed (e.g. for orca calculations) split a single file trajectory info a folder of single-structure files named
+    from 0000000000 to the total num of points.
+
+    Warning, this is not a general tool for any .xyz files but specifically for my pseudotrajectory file.
+    """
+    input:
+        full_inp=f"{{where}}full_orca.inp",
+    output:
+        all_out = expand(f"{{where}}{{specific_paths}}orca.inp",
+            specific_paths=_determine_batch_subfolders(), allow_missing=True),
+        to_touch = touch(f"{{where}}all_inputs_exist.touch")
+    run:
+        with open(input.full_inp, "r") as f:
+            print(input.full_inp)
+            all_lines = f.readlines() # throwing away the last \n line
+
+        split_len = len(all_lines)//NUM_GRID_POINTS
+
+        for i, output_file in enumerate(output.all_out):
+            with open(output_file, "w") as f:
+                f.writelines(all_lines[i*split_len:(i+1)*split_len])
+
+
+# rule make_allxyz:
 #     input:
-#         ready_to_copy = f"{{where}}all_inputs_exist.touch",
-#         script_run_orca_job = "{where}run_ORCA.sh",
-#         script_submit_all_jobs = "molgri/scripts/submit_on_curta.sh",
+#         xyz_file = "{where}trajectory.xyz",
+#         num_atoms= "{where}num_atoms.txt"
 #     output:
-#         copied=touch(f"{{where}}all_inputs_copied.touch"),
+#         orca_xyz_files = expand("{where}batch_{batch_index}/trajectory.allxyz",
+#             batch_index=range(config['num_batches']), allow_missing=True)
 #     run:
+#         # read num of atoms
+#         with open(input.num_atoms) as f:
+#             first_fragment = int(f.readline())
+#             second_fragment = int(f.readline())
+#
+#         # read xyz file
+#         with open(input.xyz_file, "r") as f:
+#             xyz_file_lines = f.readlines()
+#
+#         # write all of the batch allxyz files
+#         num_atoms = first_fragment + second_fragment
+#         len_segment_pt = num_atoms + 2
+#         len_pt_file = len(xyz_file_lines) - 1
+#         len_trajectory = len_pt_file // len_segment_pt
+#         for batch_i, output_file in enumerate(output.orca_xyz_files):
+#             xyz_file_text = ""
+#             section_size = NUM_GRID_POINTS // config['num_batches'] + 1
+#             batch_start_index = batch_i * section_size
+#             batch_end_index = np.min([(batch_i + 1) * section_size, NUM_GRID_POINTS])
+#             #print(batch_start_index, batch_end_index, batch_i,section_size )
+#
+#             for i in range(batch_start_index, batch_end_index):
+#                 if i != batch_start_index:
+#                     xyz_file_text += ">\n"
+#                 # writing this *xyz frame
+#                 start_line = i * len_segment_pt
+#                 end_line = i * len_segment_pt + len_segment_pt
+#                 # write the number of atoms
+#                 xyz_file_text += xyz_file_lines[start_line]
+#                 # write the comment
+#                 xyz_file_text += f"This is frame {i}\n"
+#                 # write atomic coordinates
+#                 for j in range(first_fragment):
+#                     line = xyz_file_lines[start_line+2 + j]
+#                     broken_line = line.strip().split()
+#                     broken_line[0] += "(1)"
+#                     xyz_file_text += " ".join(broken_line)
+#                     xyz_file_text += "\n"
+#                 for j in range(second_fragment):
+#                     line = xyz_file_lines[start_line+2+first_fragment + j]
+#                     broken_line = line.strip().split()
+#                     broken_line[0] += "(2)"
+#                     xyz_file_text += " ".join(broken_line)
+#                     xyz_file_text += "\n"
+#             with open(output_file,"w") as f:
+#                 f.write(xyz_file_text)
+rule make_orca_inp_whole_traj:
+    input:
+        xyz_file = f"{{where}}trajectory.xyz",
+        num_atoms= f"{{where}}num_atoms.txt"
+    output:
+        inp_file = f"{{where}}full_orca.inp",
+    params:
+        charge = config["params_dft"]["charge"],
+        multiplicity = config["params_dft"]["multiplicity"],
+    run:
+        with open(input.num_atoms) as f:
+            first_fragment = int(f.readline())
+            second_fragment = int(f.readline())
+
+        dimer = QuantumMolecule(charge=params.charge,multiplicity=params.multiplicity,xyz_file=input.xyz_file,
+                                fragment_1_len=first_fragment, fragment_2_len=second_fragment)
+
+        ob = OrcaWriter(dimer,QUANTUM_SETUP)
+        geo_optimization = "Opt" in config["params_dft"]["optimization_type"]
+        constrain_fragments = config["params_dft"]["optimization_type"] == "ConstOpt"
+        ob.make_entire_trajectory_inp(geo_optimization=geo_optimization, constrain_fragments=constrain_fragments)
+        ob.write_to_file(output.inp_file)
+
+# rule make_orca_inp:
+#     input:
+#         xyz_file = "{where}batch_{batch_index}/trajectory.allxyz",
+#         num_atoms= "{where}num_atoms.txt"
+#     output:
+#         inp_file = "{where}batch_{batch_index}/full_orca.inp",
+#     params:
+#         charge = config["params_dft"]["charge"],
+#         multiplicity = config["params_dft"]["multiplicity"],
+#     run:
+#         # read num of atoms
+#         with open(input.num_atoms) as f:
+#             first_fragment = int(f.readline())
+#             second_fragment = int(f.readline())
+#
+#         dimer = QuantumMolecule(charge=params.charge,multiplicity=params.multiplicity,xyz_file=input.xyz_file,
+#             fragment_1_len=first_fragment, fragment_2_len=second_fragment)
+#
+#         ob = OrcaWriter(dimer,QUANTUM_SETUP)
+#         geo_optimization = "Opt" in config["params_dft"]["optimization_type"]
+#         constrain_fragments = config["params_dft"]["optimization_type"] == "ConstOpt"
+#         ob.make_input(geo_optimization=geo_optimization, constrain_fragments=constrain_fragments)
+#         ob.write_to_file(output.inp_file)
+
+# rule orca_run_multi_inp:
+#     input:
+#         xyz_file = "{where}batch_{batch_index}/trajectory.allxyz",
+#         inp_file = "{where}batch_{batch_index}/full_orca.inp",
+#         script_run_orca_job = "{where}batch_{batch_index}/run_ORCA.sh",
+#         script_submit_all_jobs= "molgri/scripts/submit_on_curta.sh"
+#     output:
+#         out_file = "{where}batch_{batch_index}/full_orca.out"
+#     run:
+#         running_directory = os.path.split(input.inp_file)[0]
+#         # make directories that may be missing
 #         calculation_directory = wildcards.where
 #         # make directories that may be missing
 #         subprocess.run(f"""ssh hanaz63@curta.zedat.fu-berlin.de 'mkdir -p /home/hanaz63/{calculation_directory}'""",shell=True)
@@ -83,158 +258,12 @@ rule modify_run_orca:
 #         # copy all inp files
 #         subprocess.run(f"""rsync -ruaPE --compress --exclude='*tex' --exclude='*cpcm*' --exclude='*densities*' --exclude='*engrad' --exclude='*.gbw' --exclude='*.txt' --exclude='*smd*' --exclude='slurm*' --exclude='*/directory' --exclude='*tmp*'  --include='*.inp' --exclude='*.xyz' {calculation_directory} hanaz63@curta.zedat.fu-berlin.de:/home/hanaz63/{calculation_directory}""",shell=True)
 #
-# rule run_on_curta:
-#     input:
-#         copied=f"{{where}}all_inputs_copied.touch"
-#     output:
-#         ran=touch(f"{{where}}all_inputs_ran.touch")
-#     run:
-#         # calculate max size of the batch
-#         section_size = NUM_GRID_POINTS // config['num_batches'] + 1
-#         assert section_size < 5000, "Curta can only handle up to 5000 jobs in an array!"
-#         subprocess.run(f"""ssh hanaz63@curta.zedat.fu-berlin.de 'cd /home/hanaz63/{wildcards.where} && ./submit_on_curta.sh {section_size}'""",shell=True)
+#         # run on curta
+#         subprocess.run(f"""ssh hanaz63@curta.zedat.fu-berlin.de 'cd /home/hanaz63/{running_directory} && sbatch --wait run_ORCA.sh'""",shell=True)
 #
-# rule get_from_curta:
-#     input:
-#         ran = f"{{where}}all_inputs_ran.touch"
-#     output:
-#         copied=touch(f"{{where}}all_outputs_copied.touch"),
-#     run:
-#         calculation_directory = wildcards.where
-#         subprocess.run(f"""rsync -ruaPE  --compress --exclude='*.sh' --exclude='*.opt' --exclude='*ges' --exclude='*tex' --exclude='*cpcm*' --exclude='*densities*' --exclude='*engrad' --exclude='*.gbw' --exclude='*.inp' --exclude='*.txt' --exclude='*smd*' --exclude='slurm*' --exclude='*/directory' --exclude='*tmp*' hanaz63@curta.zedat.fu-berlin.de:/home/hanaz63/{calculation_directory} {calculation_directory}""",shell=True)
-#
-#
-# rule split_inpfile:
-#     """
-#     If needed (e.g. for orca calculations) split a single file trajectory info a folder of single-structure files named
-#     from 0000000000 to the total num of points.
-#
-#     Warning, this is not a general tool for any .xyz files but specifically for my pseudotrajectory file.
-#     """
-#     input:
-#         full_inp=f"{{where}}full_orca.inp",
-#     output:
-#         all_out = expand(f"{{where}}{{specific_paths}}orca.inp",
-#             specific_paths=_determine_batch_subfolders(), allow_missing=True),
-#         to_touch = touch(f"{{where}}all_inputs_exist.touch")
-#     run:
-#         with open(input.full_inp, "r") as f:
-#             print(input.full_inp)
-#             all_lines = f.readlines() # throwing away the last \n line
-#
-#         split_len = len(all_lines)//NUM_GRID_POINTS
-#
-#         for i, output_file in enumerate(output.all_out):
-#             with open(output_file, "w") as f:
-#                 f.writelines(all_lines[i*split_len:(i+1)*split_len])
-
-
-rule make_allxyz:
-    input:
-        xyz_file = "{where}trajectory.xyz",
-        num_atoms= "{where}num_atoms.txt"
-    output:
-        orca_xyz_files = expand("{where}batch_{batch_index}/trajectory.allxyz",
-            batch_index=range(config['num_batches']), allow_missing=True)
-    run:
-        # read num of atoms
-        with open(input.num_atoms) as f:
-            first_fragment = int(f.readline())
-            second_fragment = int(f.readline())
-
-        # read xyz file
-        with open(input.xyz_file, "r") as f:
-            xyz_file_lines = f.readlines()
-
-        # write all of the batch allxyz files
-        num_atoms = first_fragment + second_fragment
-        len_segment_pt = num_atoms + 2
-        len_pt_file = len(xyz_file_lines) - 1
-        len_trajectory = len_pt_file // len_segment_pt
-        for batch_i, output_file in enumerate(output.orca_xyz_files):
-            xyz_file_text = ""
-            section_size = NUM_GRID_POINTS // config['num_batches'] + 1
-            batch_start_index = batch_i * section_size
-            batch_end_index = np.min([(batch_i + 1) * section_size, NUM_GRID_POINTS])
-            #print(batch_start_index, batch_end_index, batch_i,section_size )
-
-            for i in range(batch_start_index, batch_end_index):
-                if i != batch_start_index:
-                    xyz_file_text += ">\n"
-                # writing this *xyz frame
-                start_line = i * len_segment_pt
-                end_line = i * len_segment_pt + len_segment_pt
-                # write the number of atoms
-                xyz_file_text += xyz_file_lines[start_line]
-                # write the comment
-                xyz_file_text += f"This is frame {i}\n"
-                # write atomic coordinates
-                for j in range(first_fragment):
-                    line = xyz_file_lines[start_line+2 + j]
-                    broken_line = line.strip().split()
-                    broken_line[0] += "(1)"
-                    xyz_file_text += " ".join(broken_line)
-                    xyz_file_text += "\n"
-                for j in range(second_fragment):
-                    line = xyz_file_lines[start_line+2+first_fragment + j]
-                    broken_line = line.strip().split()
-                    broken_line[0] += "(2)"
-                    xyz_file_text += " ".join(broken_line)
-                    xyz_file_text += "\n"
-            with open(output_file,"w") as f:
-                f.write(xyz_file_text)
-
-
-
-rule make_orca_inp:
-    input:
-        xyz_file = "{where}batch_{batch_index}/trajectory.allxyz",
-        num_atoms= "{where}num_atoms.txt"
-    output:
-        inp_file = "{where}batch_{batch_index}/full_orca.inp",
-    params:
-        charge = config["params_dft"]["charge"],
-        multiplicity = config["params_dft"]["multiplicity"],
-    run:
-        # read num of atoms
-        with open(input.num_atoms) as f:
-            first_fragment = int(f.readline())
-            second_fragment = int(f.readline())
-
-        dimer = QuantumMolecule(charge=params.charge,multiplicity=params.multiplicity,xyz_file=input.xyz_file,
-            fragment_1_len=first_fragment, fragment_2_len=second_fragment)
-
-        ob = OrcaWriter(dimer,QUANTUM_SETUP)
-        geo_optimization = "Opt" in config["params_dft"]["optimization_type"]
-        constrain_fragments = config["params_dft"]["optimization_type"] == "ConstOpt"
-        ob.make_input(geo_optimization=geo_optimization, constrain_fragments=constrain_fragments)
-        ob.write_to_file(output.inp_file)
-
-rule orca_run_multi_inp:
-    input:
-        xyz_file = "{where}batch_{batch_index}/trajectory.allxyz",
-        inp_file = "{where}batch_{batch_index}/full_orca.inp",
-        script_run_orca_job = "{where}batch_{batch_index}/run_ORCA.sh"
-    output:
-        out_file = "{where}batch_{batch_index}/full_orca.out"
-    run:
-        running_directory = os.path.split(input.inp_file)[0]
-        # make directories that may be missing
-        subprocess.run(f"""ssh hanaz63@curta.zedat.fu-berlin.de 'mkdir -p /home/hanaz63/{running_directory}'""",shell=True)
-        # copy to curta
-        subprocess.run(f"rsync -ruPE  {input.inp_file} hanaz63@curta.zedat.fu-berlin.de:/home/hanaz63/{input.inp_file}",
-            shell=True)
-        subprocess.run(f"rsync -ruPE  {input.xyz_file} hanaz63@curta.zedat.fu-berlin.de:/home/hanaz63/{input.xyz_file}",
-            shell=True)
-        subprocess.run(f"rsync -ruPE  {input.script_run_orca_job} hanaz63@curta.zedat.fu-berlin.de:/home/hanaz63/{input.script_run_orca_job}",
-            shell=True)
-
-        # run on curta
-        subprocess.run(f"""ssh hanaz63@curta.zedat.fu-berlin.de 'cd /home/hanaz63/{running_directory} && sbatch --wait run_ORCA.sh'""",shell=True)
-
-        # copy back
-        subprocess.run(f"scp hanaz63@curta.zedat.fu-berlin.de:/home/hanaz63/{output.out_file} {output.out_file}",
-            shell=True)
+#         # copy back
+#         subprocess.run(f"scp hanaz63@curta.zedat.fu-berlin.de:/home/hanaz63/{output.out_file} {output.out_file}",
+#             shell=True)
 
 
 
@@ -267,22 +296,23 @@ rule orca_run_multi_inp:
 #         with open(output.trajectory, "w") as f:
 #             f.write(all_xyz)
 
-
+all_existing_outputs = [f"{EXPERIMENT_FULL_PATH }{my_path}orca.out" for my_path in _determine_batch_subfolders() if os.path.exists(f"{EXPERIMENT_FULL_PATH }{my_path}orca.out")]
 
 rule orca_collect_energies:
     """
     After energies for each point in trajectory have been calculated, combine them for
     """
     input:
-        expand("{where}batch_{batch_index}/full_orca.out", batch_index=range(config['num_batches']),  allow_missing=True)
+        all_existing_outputs
+        #expand(f"{{where}}{{batch_subf}}orca.out",batch_subf=_determine_batch_subfolders(),allow_missing=True)
     output:
         energy = f"{{where}}energy.csv"
     run:
         # note: since differences in energy are used, there is no need for ZPE-corrected energy
         # TODO: make sure to allow for control of the number of cycles and deal with failing structures
         #for multi_out in input:
-        read_multi_out_into_csv(input, csv_file_to_write=output.energy,
-            setup=QUANTUM_SETUP, size_per_batch=BATCH_SIZE)
+        read_important_stuff_into_csv(input, csv_file_to_write=output.energy,
+            setup=QUANTUM_SETUP, num_points=NUM_GRID_POINTS )
 
 
 

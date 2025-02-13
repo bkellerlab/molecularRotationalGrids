@@ -393,27 +393,22 @@ class OrcaWriter:
         assert self.molecule.fragment_1_len is not None, "Need to know fragment lengths to constrain them!"
         assert self.molecule.fragment_2_len is not None, "Need to know fragment lengths to constrain them!"
 
-        self.total_text += """
-%geom
-ConnectFragments {1 2 C} end
-end
-"""
 
-#         self.total_text += f"""
-# %geom
-#
-#
-#     ConnectFragments
-#      {{1 2 C}}      # constrain the internal coordinates
-#               #  connecting fragments 1 and 2
-#     end
-#
-#     Fragments
-#       1 {{0:{self.molecule.fragment_1_len-1}}} end
-#       2 {{{self.molecule.fragment_1_len}:{self.molecule.fragment_1_len+self.molecule.fragment_2_len-1}}} end
-#     end
-#
-# end\n"""
+        self.total_text += f"""
+%geom
+
+
+    ConnectFragments
+     {{1 2 C}}      # constrain the internal coordinates
+              #  connecting fragments 1 and 2
+    end
+
+    Fragments
+      1 {{0:{self.molecule.fragment_1_len-1}}} end
+      2 {{{self.molecule.fragment_1_len}:{self.molecule.fragment_1_len+self.molecule.fragment_2_len-1}}} end
+    end
+
+end\n"""
 
     def _write_solvent(self):
         if self.setup.solvent is not None:
@@ -433,30 +428,33 @@ end\n"""
         if self.setup.ram_per_core is not None and self.setup.ram_per_core != "None":
             self.total_text += f"%maxcore {self.setup.ram_per_core}\n"
 
-    def make_orca_appropriate_xyz(self, save_to: str):
-        xyz_file_text = ""
+    def make_entire_trajectory_inp(self, geo_optimization: bool, constrain_fragments: bool = False):
         num_atoms = self.molecule.fragment_1_len + self.molecule.fragment_2_len
         len_segment_pt = num_atoms + 2
+        len_segment_pt = num_atoms+2
         len_pt_file = len(self.xyz_file_lines) - 1
         len_trajectory = len_pt_file // len_segment_pt
         for i in range(len_trajectory):
-            # writing this *xyz frame
-            start_line = i * len_segment_pt
+            # all that comes before molecule
+            self._write_first_line(geo_optimization=geo_optimization)
+            self._write_solvent()
+            self._write_resources()
+            # writing this *xyz frame, don't need the num of atoms
+            start_line = i * len_segment_pt + 2
             end_line = i * len_segment_pt + len_segment_pt
-            xyz_file_text += "".join(self.xyz_file_lines[start_line:end_line])
-            xyz_file_text += ">\n"
-        with open(save_to, "w") as f:
-            f.write(xyz_file_text)
+            self._write_molecule_specification("".join(self.xyz_file_lines[start_line:end_line]))
+            # all that comes after
+            if constrain_fragments:
+                self._write_fragment_constraint()
 
 
-    def _write_molecule_specification(self):
+    def _write_molecule_specification(self, use_string):
         """
         Here we don't reference the .xyz file but write coordinates directly into .inp.
         """
-        path_start, use_string = os.path.split(self.molecule.xyz_file)
-        self.total_text += f"* xyzfile {self.molecule.charge} {self.molecule.multiplicity} {use_string} \n"
-        #self.total_text += string_to_write
-        #self.total_text += "*\n"
+        self.total_text += f"* xyz {self.molecule.charge} {self.molecule.multiplicity}\n"
+        self.total_text += use_string
+        self.total_text += "*\n"
 
     def make_input(self, geo_optimization: bool = False, constrain_fragments: bool = False):
         self._write_first_line(geo_optimization=geo_optimization)
@@ -557,14 +555,16 @@ class OrcaReader:
             Energy in the unit of Hartrees
         """
         # need the last one so use tail
-        line_energy = subprocess.run(f'grep "^FINAL SINGLE POINT ENERGY" {self.out_file_path} | sed "s/^FINAL SINGLE POINT '
+        line_energy = subprocess.run(f'grep "^FINAL SINGLE POINT ENERGY" {self.out_file_path} | tail -n 1  | sed '
+                                     f'"s/^FINAL SINGLE POINT '
                                      f'ENERGY //"', shell=True,
                                      capture_output=True, text=True)
         try:
-            line_energy = line_energy.stdout.strip().split()
-            energy_hartree = [float(x) for x in line_energy]
+            print(line_energy)
+            line_energy = line_energy.stdout.strip()
+            energy_hartree = float(line_energy)
         except ValueError:
-            energy_hartree = [np.NaN, ]
+            energy_hartree = np.NaN
 
         return energy_hartree
 
@@ -595,7 +595,6 @@ class OrcaReader:
             # starting with num of atoms and comment line
             result = f"{self.extract_num_atoms()}\n"
             result += "\n"
-            print(line.stdout.__str__())
             result += line.stdout
             return result
         else:
@@ -656,6 +655,7 @@ def read_multi_out_into_csv(multi_out: str, csv_file_to_write: str, setup: Quant
 
     all_df = []
 
+
     for out_file_to_read in multi_out:
         my_reader = OrcaReader(out_file_to_read, is_multi_out=True)
         energy_hartree = my_reader.extract_energy_orca_output()
@@ -685,7 +685,8 @@ def read_multi_out_into_csv(multi_out: str, csv_file_to_write: str, setup: Quant
     combined_df.to_csv(csv_file_to_write, index=False)
 
 
-def read_important_stuff_into_csv(out_files_to_read: list, csv_file_to_write: str, setup: QuantumSetup, is_pt=True):
+def read_important_stuff_into_csv(out_files_to_read: list, csv_file_to_write: str, setup: QuantumSetup,
+                                  num_points: int, is_pt=True):
     """
     Read a list of orca .out files that were created with the same set-up (functional, basis set ...). Save the
     energies and generation times. Times can optionally be read from the benchmark files
@@ -700,30 +701,57 @@ def read_important_stuff_into_csv(out_files_to_read: list, csv_file_to_write: st
     """
 
     columns = ["File", "Frame", "Functional", "Basis set", "Dispersion correction", "Solvent",
-               "Energy [hartree]", "Time [h:m:s]"]
+               "Energy [hartree]", "Time [h:m:s]", "Normal Finish", "Optimization Complete"]
 
     all_df = []
 
-    for i, out_file_to_read in enumerate(out_files_to_read):
-        my_reader = OrcaReader(out_file_to_read)
-        energy_hartree = my_reader.extract_energy_orca_output()
+    from pathlib import Path
 
-        if is_pt:
-            frame = my_reader.get_frame_num()
+
+    all_frame_indices = [int(Path(out_file).parts[-2]) for out_file in out_files_to_read]
+
+    for frame_index in range(num_points):
+        if frame_index in all_frame_indices:
+            out_file_to_read = out_files_to_read[all_frame_indices.index(frame_index)]
+            my_reader = OrcaReader(out_file_to_read)
+            energy_hartree = my_reader.extract_energy_orca_output()
+            time_h_m_s = my_reader.extract_time_orca_output()
+            normal_finish = my_reader.assert_normal_finish(throw_error=False)
+            optimization_complete = my_reader.assert_optimization_complete(throw_error=False)
         else:
-            frame = None
+            out_file_to_read = np.NaN
+            energy_hartree = np.NaN
+            time_h_m_s = np.NaN
+            normal_finish = False
+            optimization_complete = False
 
-        time_h_m_s = my_reader.extract_time_orca_output()
-
-        all_data = [[out_file_to_read, frame, setup.functional, setup.basis_set, setup.dispersion_correction,
-                     setup.solvent, energy_hartree, time_h_m_s]]
+        all_data = [[out_file_to_read, frame_index, setup.functional, setup.basis_set, setup.dispersion_correction,
+                     setup.solvent, energy_hartree, time_h_m_s, normal_finish, optimization_complete]]
 
         df = pd.DataFrame(all_data, columns=columns)
         df["Energy [kJ/mol]"] = df["Energy [hartree]"] / 1000.0 * (HARTREE_TO_J * AVOGADRO_CONSTANT)
-
-        df["Normal Finish"] = my_reader.assert_normal_finish(throw_error=False)
-        df["Optimization Complete"] = my_reader.assert_optimization_complete(throw_error=False)
         all_df.append(df)
+
+    # for i, out_file_to_read in enumerate(out_files_to_read):
+    #     my_reader = OrcaReader(out_file_to_read)
+    #     energy_hartree = my_reader.extract_energy_orca_output()
+    #
+    #     if is_pt:
+    #         frame = my_reader.get_frame_num()
+    #     else:
+    #         frame = None
+    #
+    #     time_h_m_s = my_reader.extract_time_orca_output()
+    #
+    #     all_data = [[out_file_to_read, frame, setup.functional, setup.basis_set, setup.dispersion_correction,
+    #                  setup.solvent, energy_hartree, time_h_m_s]]
+    #
+    #     df = pd.DataFrame(all_data, columns=columns)
+    #     df["Energy [kJ/mol]"] = df["Energy [hartree]"] / 1000.0 * (HARTREE_TO_J * AVOGADRO_CONSTANT)
+    #
+    #     df["Normal Finish"] = my_reader.assert_normal_finish(throw_error=False)
+    #     df["Optimization Complete"] = my_reader.assert_optimization_complete(throw_error=False)
+    #     all_df.append(df)
 
     combined_df = pd.concat(all_df)
     try:

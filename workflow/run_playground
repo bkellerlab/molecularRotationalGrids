@@ -277,8 +277,8 @@ rule run_clustering_plotting:
 
 GRID_DIR = "experiments/grids/large_example_water/"
 PATH_SEARCH_DIR = "experiments/water_xyz/example/large_example_water/"
-PATH_START = 22221
-PATH_END = 29480
+PATH_START = 21714
+PATH_END = 28547
 
 rule run_path_search:
     input:
@@ -338,15 +338,18 @@ rule vmd_plot_path:
         tga_str = f"{PATH_SEARCH_DIR}path_{PATH_START}_{PATH_END}/path_*.tga"
         shell("convert -delay 40 -loop 0 {tga_str} {output.path_video}")
 
+#/home/hanaz63/2024_molgri2/nobackup/molecularRotationalGrids/experiments/guanidinium_xyz/example/huge_gua_grid//
 
 
+EXPERIMENT_FULL_PATH = "experiments/water_xyz/example_new/water_64K/"
 rule compare_initial_and_const_opt_energies:
     input:
-        initial_energies = f"{EXPERIMENT_FULL_PATH}energy_SP.csv",
-        const_opt_energies = f"{EXPERIMENT_FULL_PATH}energy_ConstOpt.csv"
+        initial_energies = f"{EXPERIMENT_FULL_PATH}SP_PBE0_def2tzvp_water_D4/energy.csv",
+        const_opt_energies = f"{EXPERIMENT_FULL_PATH}ConstOpt_PBE0_def2tzvp_water_D4/energy.csv"
     output:
-        plot = "{EXPERIMENT_FULL_PATH}absolute_energy_comparison.png",
-        plot_relative = "{EXPERIMENT_FULL_PATH}relative_energy_comparison.png",
+        plot = f"{EXPERIMENT_FULL_PATH}absolute_energy_comparison.png",
+        plot_hist = f"{EXPERIMENT_FULL_PATH}energy_hist.png",
+        plot_relative = f"{EXPERIMENT_FULL_PATH}relative_energy_comparison.png",
     run:
         import seaborn as sns
         import pandas as pd
@@ -355,12 +358,30 @@ rule compare_initial_and_const_opt_energies:
         df_inital = pd.read_csv(input.initial_energies)
         df_const_opt = pd.read_csv(input.const_opt_energies)
 
+        # sp energy
+        fig, ax = plt.subplots(1,2, sharey=True, sharex=True)
+
+        kj_mol_water_monomer = -200563.91397680662
+        df_inital["Binding energy [kJ/mol]"] = df_inital["Energy [kJ/mol]"]-2*kj_mol_water_monomer
+        df_const_opt["Binding energy [kJ/mol]"] = df_const_opt["Energy [kJ/mol]"] - 2 * kj_mol_water_monomer
+
+        filtered_initial = df_inital[df_inital['Binding energy [kJ/mol]'] < 50]
+        filtered_const_opt = df_const_opt[df_const_opt['Binding energy [kJ/mol]'] < 50]
+
+
+        sns.histplot(filtered_initial["Binding energy [kJ/mol]"],ax=ax[0], bins=100)
+        ax[0].set_title(f"SP Plotted: {len(filtered_initial)}, not: {len(df_inital)-len(filtered_initial)}")
+        sns.histplot(filtered_const_opt["Binding energy [kJ/mol]"],ax=ax[1], bins=100)
+        ax[1].set_title(f"OPT Plotted: {len(filtered_const_opt)}, not: {len(df_const_opt) - len(filtered_const_opt)}")
+        fig.savefig(output.plot_hist)
+
+
         # absolute errors
         fig, ax = plt.subplots(1, 1)
 
-        sns.scatterplot(df_inital["Energy [kJ/mol]"], ax=ax)
-        sns.scatterplot(df_const_opt["Energy [kJ/mol]"], ax=ax)
-        ax.set_xlabel("Trajectory index")
+        sns.histplot(df_inital["Energy [kJ/mol]"]-df_const_opt["Energy [kJ/mol]"], ax=ax)
+        ax.set_xlim(0, 10)
+        #ax.set_xlabel("Trajectory index")
 
         fig.savefig(output.plot)
 
@@ -369,7 +390,175 @@ rule compare_initial_and_const_opt_energies:
         # absolute errors
         fig, ax = plt.subplots(1, 1)
 
-        sns.scatterplot(100*(df_const_opt["Energy [kJ/mol]"]-df_inital["Energy [kJ/mol]"])/df_const_opt["Energy [kJ/mol]"], ax=ax)
-        ax.set_xlabel("Trajectory index")
+        sns.histplot(100*(df_const_opt["Binding energy [kJ/mol]"]-df_inital["Binding energy [kJ/mol]"])/df_const_opt["Binding energy [kJ/mol]"], ax=ax)
+        ax.set_xlim(0,10)
+        ax.set_xlabel("%")
 
         fig.savefig(output.plot_relative)
+
+
+# do this only for selected xyz files, eg those in final pics
+PLACE = """experiments/water_xyz/example/mid_example_water/ConstOpt_PBE0_def2tzvp_water_D4/"""
+rule get_optimized_structures:
+    """
+    The opposite to split xyz file.
+    """
+    input:
+        out_file = "{place}orca.out",
+    output:
+        structure="{place}structure_opt.xyz",
+    run:
+        from molgri.io import OrcaReader
+
+        my_reader = OrcaReader(input.out_file)
+        current_xyz = my_reader.extract_optimized_xyz()
+        with open(output.structure, "w") as f:
+            f.write(current_xyz)
+
+rule find_all_dominant_structures:
+    input:
+        eigenvectors = f"{PLACE}eigenvectors.npy",
+        index_list= f"{{where}}index_list.npy",
+    output:
+        dominant_structures = "{where}dominant_structures.npz"
+    params:
+        num_extremes = config["params_sqra"]["num_extremes_to_plot"],
+        num_eigenvec = config["params_sqra"]["num_eigenvec_to_plot"]
+    run:
+        from molgri.plotting.create_vmdlog import from_eigenvector_array_to_dominant_eigenvector_indices
+
+        index_list = np.load(input.index_list,allow_pickle=True)
+        if not np.any(index_list):
+            index_list = None
+        else:
+            index_list = list(index_list)
+        print("INDEX LIST", index_list)
+
+        # load eigenvectors
+        eigenvectors = np.load(input.eigenvectors)
+
+        abs_e, pos_e, neg_e = from_eigenvector_array_to_dominant_eigenvector_indices(eigenvectors.T,index_list=None,
+            n_eigenvectors=params.num_eigenvec,num_extremes=params.num_extremes, add_one=False)
+        np.savez(output.dominant_structures,abs_val=abs_e,pos_val=pos_e, neg_val=neg_e)
+
+rule vmdlog_dominant_structures:
+    input:
+        num_atoms = f"experiments/water_xyz/example/mid_example_water/num_atoms.txt",
+        num_structures = "{where}dominant_structures.npz"
+    output:
+        eigenvector_vmdlog = "{where}vmdlog_{i}"
+    run:
+        import os
+        from workflow.snakemake_utils import find_right_vmd_script
+        from molgri.plotting.create_vmdlog import VMDCreator
+
+        my_directory = os.path.split(output.eigenvector_vmdlog)[0]
+        plot_name = f"{my_directory}/plot_{wildcards.i}.tga"
+
+        # determine first and second index
+        with open(input.num_atoms, "r") as f:
+            num_first_mol = int(f.readline().strip())
+
+        index_first = f"index < {num_first_mol}"
+        index_second = f"index >= {num_first_mol}"
+
+        vmd_creator = VMDCreator(index_first_molecule=index_first,index_second_molecule=index_second,
+            is_protein=False)
+        vmd_creator.load_translation_rotation_script(find_right_vmd_script(config["experiment_type"]))
+
+        if int(wildcards.i) == 0:
+            num_structures = len(np.load(f"{PLACE}dominant_structures.npz")["abs_val"])
+            vmd_creator.prepare_evec_0(num_structures=num_structures, plot_name=plot_name)
+        else:
+            num_structures_pos = len(np.load(f"{PLACE}dominant_structures.npz")["pos_val"][int(wildcards.i)-1])
+            num_structures_neg = len(np.load(f"{PLACE}dominant_structures.npz")["neg_val"][int(wildcards.i) - 1])
+            vmd_creator.prepare_evec_pos_neg(num_structures_pos, num_structures_neg, plot_name)
+
+        vmd_creator.write_text_to_file(output.eigenvector_vmdlog)
+
+import os
+
+def find_all_structures_with_indices(indices, main_folder, file_needed):
+    list_structures = []
+    for subfolder in os.scandir(main_folder):
+        if subfolder.is_dir():
+            for sub_sub_folder in os.scandir(subfolder.path):
+                if sub_sub_folder.is_dir():
+                    folder_full_path = sub_sub_folder.path
+                    if int(os.path.split(folder_full_path)[-1]) in indices:
+                        file_full_path = f"{folder_full_path}/{file_needed}"
+                        list_structures.append(file_full_path)
+    return list_structures
+
+
+def get_evec_i_structures(wildcards):
+    if int(wildcards.i) == 0:
+        indices = np.load(f"{wildcards.where}dominant_structures.npz")["abs_val"]
+        structures = find_all_structures_with_indices(indices,wildcards.where,"structure_opt.xyz")
+    else:
+        indices_pos = np.load(f"{wildcards.where}dominant_structures.npz")["pos_val"][int(wildcards.i) - 1]
+        indices_neg = np.load(f"{wildcards.where}dominant_structures.npz")["neg_val"][int(wildcards.i) - 1]
+        structures = find_all_structures_with_indices(indices_pos,wildcards.where,"structure_opt.xyz")
+        structures.extend(find_all_structures_with_indices(indices_neg,wildcards.where,"structure_opt.xyz"))
+    return structures
+
+
+rule plot_dominant_structures:
+    input:
+        dominant_str = "{where}dominant_structures.npz",
+        structures = get_evec_i_structures,
+        vmdlog_file = "{where}vmdlog_{i}"
+    output:
+        fig_tga = "{where}plot_{i}.tga",
+        fig_png = "{where}plot_{i}.png"
+    run:
+        import subprocess
+        subprocess.run(f"vmd -dispdev text {' '.join(input.structures)} < {input.vmdlog_file}", shell=True)
+        shell("convert {output.fig_tga} {output.fig_png}")
+
+rule plot_all_dominant_structures:
+    input:
+        f"{PLACE}dominant_structures.npz",
+        #expand(f"{PLACE}plot_{{i}}.png", i=range(5))
+    run:
+        indices = np.load(f"{PLACE}dominant_structures.npz")
+        print(indices["abs_val"])
+        print(indices["pos_val"])
+        print(indices["neg_val"])
+
+rule fill_in_missing_values:
+    input:
+        const_opt = f"experiments/water_xyz/example_new/water_64K/ConstOpt_PBE0_def2tzvp_water_D4/energy.csv",
+        sp = f"experiments/water_xyz/example_new/water_64K/SP_PBE0_def2tzvp_water_D4/energy.csv",
+    output:
+        filled_in = f"experiments/water_xyz/example_new/water_64K/ConstOpt_PBE0_def2tzvp_water_D4/energy_corr.csv",
+        filled_in2= f"experiments/water_xyz/example_new/water_64K/SP_PBE0_def2tzvp_water_D4/energy_corr.csv",
+    run:
+        import pandas as pd
+        df_co = pd.read_csv(input.const_opt)
+        df_sp = pd.read_csv(input.sp)
+
+
+        num_missing = df_co['Energy [kJ/mol]'].isna().sum()
+        num_total = len(df_co)
+        print(f"Have to fill in {num_missing}/{num_total} missing values ({num_missing/num_total*100})%")
+
+        df_co["Energy [kJ/mol]"] = df_co["Energy [kJ/mol]"].fillna(df_sp["Energy [kJ/mol]"])
+        df_co.to_csv(output.filled_in)
+        df_sp.to_csv(output.filled_in2)
+
+rule find_missing_values:
+    input:
+        const_opt= "experiments/water_xyz/example_new/water_64K/ConstOpt_PBE0_def2tzvp_water_D4/energy.csv"
+    output:
+        list_of_files = "experiments/water_xyz/example_new/water_64K/ConstOpt_PBE0_def2tzvp_water_D4/missing_files.txt"
+    run:
+        import pandas as pd
+        my_df = pd.read_csv(input.const_opt)
+        pd.options.display.max_colwidth = 150
+        not_finished_df = my_df[~my_df["Normal Finish"]]
+        indices = not_finished_df["Frame"].to_numpy()
+        files = find_all_structures_with_indices(indices, "experiments/water_xyz/example_new/water_64K/ConstOpt_PBE0_def2tzvp_water_D4/", "orca.inp")
+        print(files)
+        with open(output.list_of_files, "w") as f:
+            f.write("\n".join(files))

@@ -67,7 +67,6 @@ def find_indices_of_largest_eigenvectors(eigenvector_array: NDArray, which: str,
             perhaps because some pt frames with very high energies were filtered out or similar
         add_one: add +1 to indices, used because VMD has the structure file as the 0th frame
     """
-
     # determine the max values based on which parameter you sort by
     if num_extremes is None:
         if which == "abs" or which == "pos":
@@ -116,7 +115,8 @@ def find_assigned_trajectory_indices(assignments, indices_to_find, num_of_exampl
 
 def from_eigenvector_array_to_dominant_eigenvector_indices(eigenvector_array: NDArray, index_list: list = None,
                                                            n_eigenvectors: int = 5, num_extremes: int = 10,
-                                                           num_of_examples: int = 1, assignments: NDArray = None):
+                                                           num_of_examples: int = 1, assignments: NDArray = None,
+                                                           add_one = True):
     if len(eigenvector_array) < n_eigenvectors:
         print(f"Warning! Don't have data for {n_eigenvectors}, will only plot {len(eigenvector_array)}")
         n_eigenvectors = len(eigenvector_array)
@@ -133,11 +133,12 @@ def from_eigenvector_array_to_dominant_eigenvector_indices(eigenvector_array: ND
                                                                   num_extremes=double_extremes,
                                                                   add_one=False)
         zeroth_eigenvector = find_assigned_trajectory_indices(assignments, zeroth_eigenvector, num_of_examples,
-                                                              add_one=True)
+                                                              add_one=add_one)
     else:
         zeroth_eigenvector = find_indices_of_largest_eigenvectors(eigenvector_array[0], which="abs",
                                                                   index_list=index_list,
-                                                                  num_extremes=double_extremes)
+                                                                  num_extremes=double_extremes,
+                                                                  add_one=add_one)
     all_pos_eigenvectors = []
     all_neg_eigenvectors = []
     for i in range(1, n_eigenvectors):
@@ -145,16 +146,18 @@ def from_eigenvector_array_to_dominant_eigenvector_indices(eigenvector_array: ND
             pos_eigenvector = find_indices_of_largest_eigenvectors(eigenvector_array[i], which="pos", add_one=False,
                                                                    index_list=index_list, num_extremes=num_extremes)
             pos_eigenvector = find_assigned_trajectory_indices(assignments, pos_eigenvector, num_of_examples,
-                                                               add_one=True)
+                                                               add_one=add_one)
             neg_eigenvector = find_indices_of_largest_eigenvectors(eigenvector_array[i], which="neg", add_one=False,
                                                                    index_list=index_list, num_extremes=num_extremes)
             neg_eigenvector = find_assigned_trajectory_indices(assignments, neg_eigenvector, num_of_examples,
-                                                               add_one=True)
+                                                               add_one=add_one)
         else:
             pos_eigenvector = find_indices_of_largest_eigenvectors(eigenvector_array[i], which="pos",
-                                                                   index_list=index_list, num_extremes=num_extremes)
+                                                                   index_list=index_list, num_extremes=num_extremes,
+                                                                   add_one=add_one)
             neg_eigenvector = find_indices_of_largest_eigenvectors(eigenvector_array[i], which="neg",
-                                                                   index_list=index_list, num_extremes=num_extremes)
+                                                                   index_list=index_list, num_extremes=num_extremes,
+                                                                   add_one=add_one)
         all_pos_eigenvectors.append(list(pos_eigenvector))
         all_neg_eigenvectors.append(list(neg_eigenvector))
 
@@ -386,6 +389,44 @@ mol drawframes 0 {self.num_representations} {{ {trajectory_frames_as_str} }}
             # each render contains first molecule in representation 0 and second molecule in representation 1, 2, 3 ...
             self._render_representations([0, last_used_representation+1, last_used_representation+2], plot_name)
             last_used_representation += 2
+
+    def prepare_evec_0(self, num_structures: int, plot_name: str) -> None:
+        """
+        Everything you need to plot eigenvectors:
+        - make plotting pretty
+        - translate, scale and rotate appropriately to have an optimal fig
+        - add indices of zeroth eigenvector at max absolute values
+        - add indices of higher eigenvectors at most positive/most negative values
+        - render the plots
+
+        INDICES OF FRAMES ALREADY MUST HAVE +1 IF NEEDED
+
+        Args:
+            abs_eigenvector_frames (NDArray): a 1D array of integers for representative cells of the 0th eigenvector
+            pos_eigenvector_frames (NDArray): a 2D array of integers, each row representing most positive cells of the
+                ith eigenvector with i=1,2,3... Must have same length as neg_eigenvector_frames.
+            neg_eigenvector_frames (NDArray): a 2D array of integers, each row representing most negative cells of the
+                ith eigenvector with i=1,2,3... Must have same length as pos_eigenvector_frames.
+            plot_names (list): file paths for all the renders. Must have the length of neg_eigenvector_frames + 1
+        """
+
+        self._add_representation(first_molecule=True, second_molecule=True,
+                                 trajectory_frames=list(range(num_structures)))
+        self._add_rotations_translations()
+        # render the zeroth eigenvector
+        self._render_representations([0], plot_name)
+
+    def prepare_evec_pos_neg(self, num_structures_pos: int, num_structures_neg: int, plot_name: str) -> None:
+        self._add_representation(first_molecule=True, second_molecule=False,
+                                 trajectory_frames=list(range(num_structures_pos+num_structures_neg)))
+        self._add_representation(first_molecule=False, second_molecule=True, coloring="ColorID", color="blue",
+                                 trajectory_frames=list(range(num_structures_pos)))
+        self._add_representation(first_molecule=False, second_molecule=True, coloring="ColorID", color="red",
+                                 trajectory_frames=list(range(num_structures_pos, num_structures_pos+num_structures_neg)))
+        self._add_rotations_translations()
+        # render the zeroth eigenvector
+        self._render_representations([0, 1, 2], plot_name)
+
 
     def prepare_clustering_script(self, indices_per_cluster: list, color_per_cluster: list, plot_name_all_together: str,
                                   plot_names_individual: list) -> None:
