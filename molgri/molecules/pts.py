@@ -52,7 +52,7 @@ class Pseudotrajectory:
             self.moving_molecule.atoms.positions = starting_positions
             position = se3_coo[:3]
             orientation = se3_coo[3:]
-            rotation_body = Rotation.from_quat(orientation)
+            rotation_body = Rotation.from_quat(orientation, scalar_first=True)
             self.moving_molecule.atoms.rotate(rotation_body.as_matrix(), point=self.moving_molecule.atoms.center_of_mass())
             self.moving_molecule.atoms.translate(position)
             merged_universe = Merge(self.static_molecule.atoms, self.moving_molecule.atoms)

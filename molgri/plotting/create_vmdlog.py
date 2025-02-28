@@ -5,7 +5,7 @@ Vmdlogs are instruction files provided to VMD. Here we create vmdlogs that help 
 import numpy as np
 from numpy.typing import NDArray, ArrayLike
 
-from molgri.space.utils import k_argmax_in_array
+from molgri.space.utils import k_argmax_in_array, k_argmin_in_array
 
 VMD_COLOR_DICT = {"black": 16, "yellow": 4, "orange": 3, "green": 7, "blue": 0, "cyan": 10, "purple": 11,
               "gray": 2, "pink": 9, "red": 1, "magenta": 27}
@@ -14,6 +14,43 @@ class TrajectoryIndexingTool:
     """
     A tool that helps getting specific indices from the trajectory
     """
+    def __init__(self):
+        self.adjacency = None
+        self.distances = None
+
+    def set_adjecency_array(self, adjacency_array):
+        self.adjacency=adjacency_array.tolil()
+
+    def set_distances(self, distances):
+        self.distances=distances.tolil()
+
+    def get_neighbours_of(self, index: int) -> NDArray:
+        """
+        Provide an index along a trajectory, get indices of all direct neighbours as a flat array.
+        """
+        if self.adjacency is None:
+            raise ValueError("Cannot determine neighbours if adjacency array is not provided.")
+        else:
+            return np.array(self.adjacency.rows[index], dtype=int)
+
+    def get_k_closest(self, index: int, k=5) -> NDArray:
+        """
+        Provide an index along a trajectory, get indices of all direct neighbours as a flat array.
+        """
+        if self.distances is None:
+            raise ValueError("Cannot determine closest neighbours if distances are not provided.")
+        else:
+            argmins = k_argmin_in_array(self.distances.data[index], k=k)
+            selected_indices = [self.distances.rows[index][int(am)] for am in argmins]
+            return np.array(selected_indices, dtype=int)
+
+    def find_all_orientations_at_same_position(self, index: int, num_orientations: int) -> NDArray:
+        """
+        Provide an index along a trajectory, get indices of all structures with same position.
+        """
+        position_index = index//num_orientations
+        return np.arange(position_index*num_orientations, (position_index+1)*num_orientations)
+
 
 def find_num_extremes(eigenvector_array: NDArray, explains_x_percent: float = 40, only_positive: bool = True) -> int:
     """
@@ -222,13 +259,13 @@ class VMDCreator:
         Delete the initial default representation. Don't add any representations yet.
         Additionally, some nice settings so that pictures look good.
         """
+        #display projection Orthographic
 
         self.total_file_text += f"""
 mol delrep 0 0
 color Display Background white
 axes location Off
 mol material Opaque
-display projection Orthographic
 display shadows on
 display ambientocclusion on
 material add copy AOChalky
@@ -443,7 +480,8 @@ mol drawframes 0 {self.num_representations} {{ {trajectory_frames_as_str} }}
             plot_name_all_together (str): path to the plot of all clusters together
             plot_names_individual (list): paths to the plots of 0th, 1st, 2nd ... cluster
         """
-        assert len(color_per_cluster) == len(indices_per_cluster) == len(plot_names_individual)
+        assert len(color_per_cluster) == len(indices_per_cluster) == len(plot_names_individual), \
+            f"{len(color_per_cluster)}!={len(indices_per_cluster)}!={len(plot_names_individual)}"
 
         # first molecule in a normal color
         self._add_representation(first_molecule=True, second_molecule=False, trajectory_frames=0)
@@ -451,7 +489,7 @@ mol drawframes 0 {self.num_representations} {{ {trajectory_frames_as_str} }}
         # now add second molecule separately for each cluster:
         for cluster_indices, cluster_color in zip(indices_per_cluster, color_per_cluster):
             self._add_representation(first_molecule=False, second_molecule=True, trajectory_frames=cluster_indices,
-                                     coloring="ColorId", color=cluster_color)
+                                     coloring="ColorID", color=cluster_color)
 
         self._add_rotations_translations()
 
@@ -463,28 +501,28 @@ mol drawframes 0 {self.num_representations} {{ {trajectory_frames_as_str} }}
         for cluster_i, plot_name in enumerate(plot_names_individual):
             self._render_representations([0, cluster_i+1], plot_name)
 
-    def prepare_path_script(self, my_path: list, plot_paths: list) -> None:
+    def plot_these_structures(self, my_indices: list, plot_names: list) -> None:
         """
         Use this method to represent a path with VMD pictures. Renders a figure for each grid point tn my_path.
 
         INDICES OF FRAMES ALREADY MUST HAVE +1 IF NEEDED
 
         Args:
-            my_path (list): a list of indices like [15, 7, 385, 22] describing a path on a grid, integers are grid
+            my_indices (list): a list of indices like [15, 7, 385, 22] describing a path on a grid, integers are grid
                 indices
-            plot_paths (list): a list of file names to which renders should be saved, should have the same length as
+            plot_names (list): a list of file names to which renders should be saved, should have the same length as
                 my_path
         """
-        assert len(my_path) == len(plot_paths)
+        assert len(my_indices) == len(plot_names)
 
         self._add_representation(first_molecule=True, second_molecule=False, trajectory_frames=0)
 
-        for path_index in my_path:
+        for path_index in my_indices:
             self._add_representation(first_molecule=False, second_molecule=True, trajectory_frames=path_index)
 
         self._add_rotations_translations()
 
-        for i, plot_path in enumerate(plot_paths):
+        for i, plot_path in enumerate(plot_names):
             # each render contains first molecule in representation 0 and second molecule in representation 1, 2, 3 ...
             self._render_representations([0, i+1], plot_path)
 
@@ -496,3 +534,4 @@ mol drawframes 0 {self.num_representations} {{ {trajectory_frames_as_str} }}
             with open(self.translations_rotations_script, "r") as f:
                 contents = f.read()
             self.total_file_text += contents
+    

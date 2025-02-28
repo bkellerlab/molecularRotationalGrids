@@ -560,7 +560,6 @@ class OrcaReader:
                                      f'ENERGY //"', shell=True,
                                      capture_output=True, text=True)
         try:
-            print(line_energy)
             line_energy = line_energy.stdout.strip()
             energy_hartree = float(line_energy)
         except ValueError:
@@ -666,7 +665,6 @@ def read_multi_out_into_csv(multi_out: str, csv_file_to_write: str, setup: Quant
         my_path = Path(out_file_to_read)
         batch_index = int(list(my_path.parts)[-2].split("_")[1])
         frames = list(range(batch_index*size_per_batch, batch_index*size_per_batch+np.min([num_structures, size_per_batch])))
-        print(frames)
 
 
         all_data = []

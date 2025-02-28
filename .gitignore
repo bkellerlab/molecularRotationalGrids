@@ -181,7 +181,7 @@ experiments/
 
 
 ex_exp
-workflow/playground
+workflow/playground.py
 *.lock
 pseudotrajectory/
 pseudotrajectory.*

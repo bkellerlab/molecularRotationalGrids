@@ -1,7 +1,0 @@
-# VMD for LINUXAMD64, version 1.9 (March 14, 2011)
-# Log file 'mylog', created by user hanaz63
-menu graphics off
-menu graphics on
-mol drawframes 0 0 {all}
-# VMD for LINUXAMD64, version 1.9 (March 14, 2011)
-# end of log file.

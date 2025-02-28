@@ -15,7 +15,7 @@ from plotly.subplots import make_subplots
 
 WIDTH = 600
 HEIGHT = 600
-NUM_EIGENV = 10
+NUM_EIGENV = 6
 
 class PlotlyTransitions:
 
@@ -29,7 +29,7 @@ class PlotlyTransitions:
         pio.templates.default = "simple_white"
         self.fig = go.Figure()
 
-    def save_to(self, path_to_save: str, width: float = WIDTH, height: float = HEIGHT):
+    def save_to(self, path_to_save: str, width: float = WIDTH, height: float = HEIGHT, talk=False):
         """
         Save everything that has been added to self.fig so far.
 
@@ -54,24 +54,37 @@ class PlotlyTransitions:
         if len(eigenvals.shape) == 2:
             eigenvals=eigenvals[index_tau]
 
-        # plotting
-        self.fig.add_scatter(x=xs, y=eigenvals, mode='markers+text', text=[f"{el:.3f}" for el in eigenvals],
-                        marker=dict(size=8, color="black"), opacity=1, **kwargs)
+
         # vertical lines
         for i, eigenw in enumerate(eigenvals):
-            self.fig.add_shape(type="line", x0=xs[i], y0=0, x1=xs[i], y1=eigenw, line=dict(color="black", width=2),
+            self.fig.add_shape(type="line", x0=xs[i], y0=0, x1=xs[i], y1=eigenw, line=dict(color="black", width=5),
                           opacity=1, **kwargs)
 
         # horizontal infinite line
-        self.fig.add_hline(y=0, line=dict(color="black", width=2), opacity=1, **kwargs)
+        self.fig.add_hline(y=0, line=dict(color="black", width=5), opacity=1, **kwargs)
+
+        # plotting (after the axes so that the numbers are on top if there is any overlap)
+        self.fig.add_scatter(x=xs, y=eigenvals, mode='markers+text', text=[f"{el:.3f}" for el in eigenvals],
+                        marker=dict(size=14, color="black"), opacity=1, **kwargs)
+
+        #self.fig.update_yaxes(title="Eigenvalues")
+        self.fig.update_layout(xaxis_visible=False, xaxis_showticklabels=False, font=dict(size=20), yaxis_visible=False)
 
         # where the labels are (above or below)
         if self.is_msm:
             self.fig.update_traces(textposition='top center')
         else:
-            self.fig.update_traces(textposition='bottom center')
-        self.fig.update_yaxes(title="Eigenvalues")
-        self.fig.update_layout(xaxis_visible=False, xaxis_showticklabels=False)
+            self.fig.update_traces(textposition='bottom center', textfont=dict(size=24))
+
+        self.fig.update_layout(
+            margin=dict(l=20, r=20, t=40, b=20),  # Reduce margins (left, right, top, bottom)
+            title_x=0.5,  # Center title
+            autosize=True,  # Allow automatic resizing
+            xaxis=dict(automargin=True),  # Auto-adjust x-axis margins
+            yaxis=dict(automargin=True)  # Auto-adjust y-axis margins
+        )
+
+
 
     def plot_its_as_line(self) -> None:
         """
