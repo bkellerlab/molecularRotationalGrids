@@ -34,13 +34,14 @@ rule run_grid:
     This rule should provide a full grid and its geometric parameters.
     """
     output:
-        full_array = f"{PATH_THIS_GRID}full_array.npy",
-        adjacency_array = f"{PATH_THIS_GRID}adjacency_array.npz",
-        adjacency_only_position = f"{PATH_THIS_GRID}adjacency_array_position.npz",
-        adjacency_only_orientation = f"{PATH_THIS_GRID}adjacency_array_orientation.npz",
-        distances_array = f"{PATH_THIS_GRID}distances_array.npz",
-        borders_array= f"{PATH_THIS_GRID}borders_array.npz",
-        volumes = f"{PATH_THIS_GRID}volumes.npy",
+        full_array = f"{{where}}full_array.npy",
+        adjacency_array = f"{{where}}adjacency_array.npz",
+        adjacency_only_position = f"{{where}}adjacency_array_position.npz",
+        adjacency_only_orientation = f"{{where}}adjacency_array_orientation.npz",
+        distances_array = f"{{where}}distances_array.npz",
+        borders_array= f"{{where}}borders_array.npz",
+        volumes = f"{{where}}volumes.npy",
+        grid_sizes = f"{{where}}grid_sizes.txt"
     params:
         n_points_orientations = str(int(config["params_grid"]["num_orientations"])),
         n_points_directions = str(int(config["params_grid"]["num_directions"])),
@@ -48,7 +49,7 @@ rule run_grid:
         factor_orientation_to_position=float(config["params_grid"]["factor_orientation_to_position"]),
         position_grid_cartesian = bool(config["params_grid"]["position_grid_is_cartesian"])
     benchmark:
-        repeat(f"{PATH_THIS_GRID}grid_benchmark.txt", NUM_REPEATS)
+        repeat(f"{{where}}grid_benchmark.txt", NUM_REPEATS)
     run:
         # create a grid
         fg = FullGrid(params.n_points_orientations, params.n_points_directions,
@@ -64,6 +65,10 @@ rule run_grid:
         sparse.save_npz(output.distances_array,fg.get_full_distances())
         np.save(output.volumes,fg.get_total_volumes())
 
+        # num quaternions, num directions, num distances
+        grid_sizes = np.array([fg.get_b_N(), fg.get_o_N(), fg.get_t_N()])
+        np.savetxt(output.grid_sizes, grid_sizes,  fmt='%i')
+
 # todo: have a timeout for plotting, if not done in 10min it is just not important enough
 rule plot_grid:
     input:
@@ -77,13 +82,13 @@ rule plot_grid:
     params:
         position_grid_cartesian = bool(config["params_grid"]["position_grid_is_cartesian"])
     output:
-        distances_heatmap = f"{PATH_THIS_GRID}distances_heatmap.png",
-        borders_heatmap= f"{PATH_THIS_GRID}borders_heatmap.png",
-        adjacency_heatmap= f"{PATH_THIS_GRID}adjacency_heatmap.png",
-        adjacency_heatmap_pos_ori = f"{PATH_THIS_GRID}adjacency_heatmap_position_orientation.png",
-        distances_violin= f"{PATH_THIS_GRID}distances_violinplot.png",
-        borders_violin= f"{PATH_THIS_GRID}borders_violinplot.png",
-        voronoi_cells = f"{PATH_THIS_GRID}voronoi.png"
+        distances_heatmap = f"{{where}}distances_heatmap.png",
+        borders_heatmap= f"{{where}}borders_heatmap.png",
+        adjacency_heatmap= f"{{where}}adjacency_heatmap.png",
+        adjacency_heatmap_pos_ori = f"{{where}}adjacency_heatmap_position_orientation.png",
+        distances_violin= f"{{where}}distances_violinplot.png",
+        borders_violin= f"{{where}}borders_violinplot.png",
+        voronoi_cells = f"{{where}}voronoi.png"
     run:
         from scipy import sparse
         from molgri.plotting.fullgrid_plots import (plot_array_heatmap, plot_violin_position_orientation,

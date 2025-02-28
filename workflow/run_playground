@@ -1,3 +1,4 @@
+import os.path
 import sys
 sys.path.append(".")
 
@@ -192,10 +193,10 @@ rule plot_time_its_diff_sizes:
 
 #"experiments/guanidinium_xyz/example/medium_gua_grid/"
 # "experiments/water_xyz/example/large_example_water/"
-EXPERIMENT_FULL_PATH = "experiments/guanidinium_xyz/example/large_gua_grid/"
-NUM_GRID_POINTS = 10500
-index1 = 10
-type_run = "guanidinium_xyz"
+EXPERIMENT_FULL_PATH = "experiments/water_xyz/example_new/water_64K/SP_PBE0_def2tzvp_water_D4/"
+NUM_GRID_POINTS = 64000
+index1 = 3
+type_run = "water_xyz"
 
 rule run_clustering_labelling:
     input:
@@ -218,9 +219,10 @@ rule run_clustering_labelling:
 rule run_clustering_plotting:
     input:
         structure = f"{EXPERIMENT_FULL_PATH}structure.xyz",
-        trajectory =  [f"{EXPERIMENT_FULL_PATH}trajectory/{str(i).zfill(10)}.xyz" for i in range(NUM_GRID_POINTS)],
+        trajectory =  f"{EXPERIMENT_FULL_PATH}trajectory.xyz",
         labels = f"{EXPERIMENT_FULL_PATH}labels.npy",
         eigenvectors = f"{EXPERIMENT_FULL_PATH}eigenvectors.npy",
+        script= "molgri/scripts/vmd_position_sqra_water"
     output:
         plot = f"{EXPERIMENT_FULL_PATH}clustering.png",
         clustering_vmdlog = f"{EXPERIMENT_FULL_PATH}clustering_vmdlog",
@@ -238,7 +240,7 @@ rule run_clustering_plotting:
         fig, ax = plt.subplots(1,1,subplot_kw={"projection": "3d"})
         c = np.load(input.labels).astype(int)
 
-        palette_sqra = ["black", "yellow", "orange", "green", "blue", "cyan", "purple", "gray", "pink", "red", "magenta"]  #pop over 10
+        palette_sqra = ["yellow", "orange", "green", "blue", "cyan", "purple", "gray", "pink", "red", "magenta"]  #pop over 10
         #palette = ["black", "yellow", "orange", "green", "blue", "cyan", "purple", "gray", "pink", "red"]   # pop over 20
 
 
@@ -247,27 +249,36 @@ rule run_clustering_plotting:
         third_evec = eigenvectors.T[3]
         unique, counts = np.unique(c,return_counts=True)
         #print(unique, counts)
+        list_of_indices = []
+        list_of_palette = []
+        color_index = 0
         for i, label in enumerate(unique[np.where(counts>1)[0]]):
             cluster = np.where(c == label)[0]
             population = len(cluster)
-            if population > 5:
-                try:
-                    ax.scatter(first_evec[cluster],second_evec[cluster],third_evec[cluster],c=[palette_sqra[i],]*len(cluster))
-                except:
-                    pass
 
-            if population > 50:
-                print(f"{label} with population {len(cluster)} ######## \n",", ".join([str(x + 1) for x in np.random.choice(cluster,30)]))
-            else:
-                print(f"{label} with population {len(cluster)} ######## \n",", ".join([str(x + 1) for x in cluster]))
-            print()
+            if population > 50 and population < 200:
+                list_of_indices.append([x + 1 for x in np.random.choice(cluster,30)])
+                ax.scatter(first_evec[cluster],second_evec[cluster],third_evec[cluster],c=[palette_sqra[color_index], ] * len(cluster))
+                color_index += 1
+                #list_of_palette.append(palette_sqra[i])
+            elif population >7 and population <= 50:
+                list_of_indices.append([x + 1 for x in cluster])
+                ax.scatter(first_evec[cluster],second_evec[cluster],third_evec[cluster],c=[palette_sqra[color_index], ] * len(cluster))
+                color_index += 1
+                #list_of_palette.append(palette_sqra[i])
+        print([len(i) for i in list_of_indices])
+
 
         plt.savefig(output.plot, dpi=600)
+        print(list_of_indices)
+        vmd_creator = VMDCreator(index_first_molecule=f"index < {index1}",index_second_molecule=f"index >= {index1}",
+            is_protein=False)
+        vmd_creator.load_translation_rotation_script(input.script)
 
-        my_vmd_builder = VMDCreator(type_run, f"index < {index1}", f"index >= {index1}")
-        vmdlog = my_vmd_builder.prepare_clustering_script(c,palette_sqra, output.vmd_plot_tga)
-        with open(output.clustering_vmdlog, "w") as f:
-            f.write(vmdlog)
+        individual_names = [f"{os.path.split(output.vmd_plot_tga)[0]}/cluster_{i}.tga" for i in range(len(list_of_indices))]
+        vmd_creator.prepare_clustering_script(list_of_indices,palette_sqra[:len(list_of_indices)], output.vmd_plot_tga, individual_names)
+        vmd_creator.write_text_to_file(output.clustering_vmdlog)
+
 
         # TODO: if trajectory in a directory, you can load structure trajectory/*
         shell("vmd  -dispdev text {input.structure} {input.trajectory} < {output.clustering_vmdlog}")
@@ -292,6 +303,10 @@ rule run_path_search:
         from scipy.sparse import load_npz
         import pandas as pd
         import matplotlib.pyplot as plt
+        import seaborn as sns
+
+        sns.set_context("talk")
+        sns.set_style("white")
 
         adj = load_npz(input.adjacency_matrix)
         energy = pd.read_csv(input.energy, usecols=["Energy [kJ/mol]"]).to_numpy()
@@ -304,6 +319,8 @@ rule run_path_search:
 
         fig, ax = plt.subplots(1,1)
         my_maze.plot_profile_along_path(simple_path, fig, ax)
+        sns.despine()
+        plt.tight_layout()
         fig.savefig(output.path_plot)
 
 rule vmd_plot_path:
@@ -330,7 +347,7 @@ rule vmd_plot_path:
         path_names = [f"{PATH_SEARCH_DIR}path_{PATH_START}_{PATH_END}/path_{i}.tga" for i in range(len(simple_path))]
 
         vmdlog.load_translation_rotation_script(input.script_rot_tr)
-        vmdlog.prepare_path_script(simple_path_added_one, path_names)
+        vmdlog.plot_these_structures(simple_path_added_one, path_names)
         vmdlog.write_text_to_file(output.vmdlog)
 
         shell("vmd -dispdev text {input.structure} {input.trajectory} < {output.vmdlog}")
@@ -348,12 +365,14 @@ rule compare_initial_and_const_opt_energies:
         const_opt_energies = f"{EXPERIMENT_FULL_PATH}ConstOpt_PBE0_def2tzvp_water_D4/energy.csv"
     output:
         plot = f"{EXPERIMENT_FULL_PATH}absolute_energy_comparison.png",
-        plot_hist = f"{EXPERIMENT_FULL_PATH}energy_hist.png",
+        #plot_hist = f"{EXPERIMENT_FULL_PATH}energy_hist.png",
         plot_relative = f"{EXPERIMENT_FULL_PATH}relative_energy_comparison.png",
     run:
         import seaborn as sns
         import pandas as pd
         import matplotlib.pyplot as plt
+
+        sns.set_context("talk")
 
         df_inital = pd.read_csv(input.initial_energies)
         df_const_opt = pd.read_csv(input.const_opt_energies)
@@ -366,23 +385,23 @@ rule compare_initial_and_const_opt_energies:
         df_const_opt["Binding energy [kJ/mol]"] = df_const_opt["Energy [kJ/mol]"] - 2 * kj_mol_water_monomer
 
         filtered_initial = df_inital[df_inital['Binding energy [kJ/mol]'] < 50]
-        filtered_const_opt = df_const_opt[df_const_opt['Binding energy [kJ/mol]'] < 50]
+        filtered_const_opt = df_const_opt[df_inital['Binding energy [kJ/mol]'] < 50]
 
 
-        sns.histplot(filtered_initial["Binding energy [kJ/mol]"],ax=ax[0], bins=100)
-        ax[0].set_title(f"SP Plotted: {len(filtered_initial)}, not: {len(df_inital)-len(filtered_initial)}")
-        sns.histplot(filtered_const_opt["Binding energy [kJ/mol]"],ax=ax[1], bins=100)
-        ax[1].set_title(f"OPT Plotted: {len(filtered_const_opt)}, not: {len(df_const_opt) - len(filtered_const_opt)}")
-        fig.savefig(output.plot_hist)
+        # sns.histplot(filtered_initial["Binding energy [kJ/mol]"],ax=ax[0], bins=100)
+        # ax[0].set_title(f"SP Plotted: {len(filtered_initial)}, not: {len(df_inital)-len(filtered_initial)}")
+        # sns.histplot(filtered_const_opt["Binding energy [kJ/mol]"],ax=ax[1], bins=100)
+        # ax[1].set_title(f"OPT Plotted: {len(filtered_const_opt)}, not: {len(df_const_opt) - len(filtered_const_opt)}")
+        # fig.savefig(output.plot_hist)
 
 
         # absolute errors
-        fig, ax = plt.subplots(1, 1)
+        fig, ax = plt.subplots(1, 1, figsize=(6,6))
 
-        sns.histplot(df_inital["Energy [kJ/mol]"]-df_const_opt["Energy [kJ/mol]"], ax=ax)
-        ax.set_xlim(0, 10)
-        #ax.set_xlabel("Trajectory index")
-
+        sns.histplot(df_const_opt['Energy [kJ/mol]']-df_inital['Energy [kJ/mol]'], ax=ax, bins=50, binrange=(-5,1), binwidth=6/50, stat="probability")
+        ax.set_xlim(-5, 1)
+        ax.set_xlabel("E(opt) - E(SP) [kJ/mol]")
+        fig.tight_layout()
         fig.savefig(output.plot)
 
         # relative errors
@@ -390,141 +409,16 @@ rule compare_initial_and_const_opt_energies:
         # absolute errors
         fig, ax = plt.subplots(1, 1)
 
-        sns.histplot(100*(df_const_opt["Binding energy [kJ/mol]"]-df_inital["Binding energy [kJ/mol]"])/df_const_opt["Binding energy [kJ/mol]"], ax=ax)
-        ax.set_xlim(0,10)
-        ax.set_xlabel("%")
-
+        sns.histplot(100*(filtered_const_opt["Binding energy [kJ/mol]"]-filtered_initial["Binding energy [kJ/mol]"])/np.abs(filtered_const_opt["Binding energy [kJ/mol]"]),
+            ax=ax, bins=50, binrange=(-50,0), binwidth=50/50)
+        ax.set_xlim(-50,0)
+        ax.set_xlabel("Change in energy after optimization [%]")
+        fig.tight_layout()
         fig.savefig(output.plot_relative)
 
 
 # do this only for selected xyz files, eg those in final pics
 PLACE = """experiments/water_xyz/example/mid_example_water/ConstOpt_PBE0_def2tzvp_water_D4/"""
-rule get_optimized_structures:
-    """
-    The opposite to split xyz file.
-    """
-    input:
-        out_file = "{place}orca.out",
-    output:
-        structure="{place}structure_opt.xyz",
-    run:
-        from molgri.io import OrcaReader
-
-        my_reader = OrcaReader(input.out_file)
-        current_xyz = my_reader.extract_optimized_xyz()
-        with open(output.structure, "w") as f:
-            f.write(current_xyz)
-
-rule find_all_dominant_structures:
-    input:
-        eigenvectors = f"{PLACE}eigenvectors.npy",
-        index_list= f"{{where}}index_list.npy",
-    output:
-        dominant_structures = "{where}dominant_structures.npz"
-    params:
-        num_extremes = config["params_sqra"]["num_extremes_to_plot"],
-        num_eigenvec = config["params_sqra"]["num_eigenvec_to_plot"]
-    run:
-        from molgri.plotting.create_vmdlog import from_eigenvector_array_to_dominant_eigenvector_indices
-
-        index_list = np.load(input.index_list,allow_pickle=True)
-        if not np.any(index_list):
-            index_list = None
-        else:
-            index_list = list(index_list)
-        print("INDEX LIST", index_list)
-
-        # load eigenvectors
-        eigenvectors = np.load(input.eigenvectors)
-
-        abs_e, pos_e, neg_e = from_eigenvector_array_to_dominant_eigenvector_indices(eigenvectors.T,index_list=None,
-            n_eigenvectors=params.num_eigenvec,num_extremes=params.num_extremes, add_one=False)
-        np.savez(output.dominant_structures,abs_val=abs_e,pos_val=pos_e, neg_val=neg_e)
-
-rule vmdlog_dominant_structures:
-    input:
-        num_atoms = f"experiments/water_xyz/example/mid_example_water/num_atoms.txt",
-        num_structures = "{where}dominant_structures.npz"
-    output:
-        eigenvector_vmdlog = "{where}vmdlog_{i}"
-    run:
-        import os
-        from workflow.snakemake_utils import find_right_vmd_script
-        from molgri.plotting.create_vmdlog import VMDCreator
-
-        my_directory = os.path.split(output.eigenvector_vmdlog)[0]
-        plot_name = f"{my_directory}/plot_{wildcards.i}.tga"
-
-        # determine first and second index
-        with open(input.num_atoms, "r") as f:
-            num_first_mol = int(f.readline().strip())
-
-        index_first = f"index < {num_first_mol}"
-        index_second = f"index >= {num_first_mol}"
-
-        vmd_creator = VMDCreator(index_first_molecule=index_first,index_second_molecule=index_second,
-            is_protein=False)
-        vmd_creator.load_translation_rotation_script(find_right_vmd_script(config["experiment_type"]))
-
-        if int(wildcards.i) == 0:
-            num_structures = len(np.load(f"{PLACE}dominant_structures.npz")["abs_val"])
-            vmd_creator.prepare_evec_0(num_structures=num_structures, plot_name=plot_name)
-        else:
-            num_structures_pos = len(np.load(f"{PLACE}dominant_structures.npz")["pos_val"][int(wildcards.i)-1])
-            num_structures_neg = len(np.load(f"{PLACE}dominant_structures.npz")["neg_val"][int(wildcards.i) - 1])
-            vmd_creator.prepare_evec_pos_neg(num_structures_pos, num_structures_neg, plot_name)
-
-        vmd_creator.write_text_to_file(output.eigenvector_vmdlog)
-
-import os
-
-def find_all_structures_with_indices(indices, main_folder, file_needed):
-    list_structures = []
-    for subfolder in os.scandir(main_folder):
-        if subfolder.is_dir():
-            for sub_sub_folder in os.scandir(subfolder.path):
-                if sub_sub_folder.is_dir():
-                    folder_full_path = sub_sub_folder.path
-                    if int(os.path.split(folder_full_path)[-1]) in indices:
-                        file_full_path = f"{folder_full_path}/{file_needed}"
-                        list_structures.append(file_full_path)
-    return list_structures
-
-
-def get_evec_i_structures(wildcards):
-    if int(wildcards.i) == 0:
-        indices = np.load(f"{wildcards.where}dominant_structures.npz")["abs_val"]
-        structures = find_all_structures_with_indices(indices,wildcards.where,"structure_opt.xyz")
-    else:
-        indices_pos = np.load(f"{wildcards.where}dominant_structures.npz")["pos_val"][int(wildcards.i) - 1]
-        indices_neg = np.load(f"{wildcards.where}dominant_structures.npz")["neg_val"][int(wildcards.i) - 1]
-        structures = find_all_structures_with_indices(indices_pos,wildcards.where,"structure_opt.xyz")
-        structures.extend(find_all_structures_with_indices(indices_neg,wildcards.where,"structure_opt.xyz"))
-    return structures
-
-
-rule plot_dominant_structures:
-    input:
-        dominant_str = "{where}dominant_structures.npz",
-        structures = get_evec_i_structures,
-        vmdlog_file = "{where}vmdlog_{i}"
-    output:
-        fig_tga = "{where}plot_{i}.tga",
-        fig_png = "{where}plot_{i}.png"
-    run:
-        import subprocess
-        subprocess.run(f"vmd -dispdev text {' '.join(input.structures)} < {input.vmdlog_file}", shell=True)
-        shell("convert {output.fig_tga} {output.fig_png}")
-
-rule plot_all_dominant_structures:
-    input:
-        f"{PLACE}dominant_structures.npz",
-        #expand(f"{PLACE}plot_{{i}}.png", i=range(5))
-    run:
-        indices = np.load(f"{PLACE}dominant_structures.npz")
-        print(indices["abs_val"])
-        print(indices["pos_val"])
-        print(indices["neg_val"])
 
 rule fill_in_missing_values:
     input:
@@ -547,6 +441,7 @@ rule fill_in_missing_values:
         df_co.to_csv(output.filled_in)
         df_sp.to_csv(output.filled_in2)
 
+
 rule find_missing_values:
     input:
         const_opt= "experiments/water_xyz/example_new/water_64K/ConstOpt_PBE0_def2tzvp_water_D4/energy.csv"
@@ -562,3 +457,75 @@ rule find_missing_values:
         print(files)
         with open(output.list_of_files, "w") as f:
             f.write("\n".join(files))
+
+rule get_total_time:
+    input:
+        "experiments/water_xyz/example_new/water_64K/ConstOpt_PBE0_def2tzvp_water_D4/orca_time.txt",
+        "experiments/water_xyz/example_new/water_64K/SP_PBE0_def2tzvp_water_D4/orca_time.txt"
+
+rule orca_total_and_average_time:
+    input:
+        energy=f"{{where}}energy.csv"
+    output:
+        total_time=f"{{where}}orca_time.txt"
+    run:
+        import pandas as pd
+
+        my_df = pd.read_csv(input.energy)
+        my_df["TIME"] = pd.to_timedelta(my_df["Time [h:m:s]"],errors="coerce")
+        my_df["Time [s]"] = my_df["TIME"].dt.total_seconds()
+        time_s = my_df["Time [s]"]
+
+        with open(output.total_time,"w") as f:
+            f.write(f"Total time [s]: {time_s.sum():.2f}\n")
+            f.write(f"Total time [h:m:s]: {pd.to_timedelta(time_s.sum(),unit='s')}\n")
+            f.write(f"700 parallel processes total time [h:m:s]: {pd.to_timedelta(time_s.sum()/700,unit='s')}\n")
+            f.write("--------------\n")
+            f.write(f"Mean time [s]: {time_s.mean():.2f} +- {time_s.std():.2f}\n")
+            f.write(f"Mean time [h:m:s]: {pd.to_timedelta(time_s.mean(),unit='s')} +- {pd.to_timedelta(time_s.std(),unit='s')}\n")
+            f.write("--------------\n")
+            f.write(f"Max time [s]: {time_s.max():.2f}\n")
+            f.write(f"Min time [s]: {time_s.min():.2f}\n")
+            f.write(f"Max time [h:m:s]: {pd.to_timedelta(time_s.max(),unit='s')}\n")
+            f.write(f"Min time [h:m:s]: {pd.to_timedelta(time_s.min(),unit='s')}\n")
+
+rule run_example:
+    input:
+        "/home/hanaz63/2024_molgri2/nobackup/molecularRotationalGrids/experiments/sqra_water_in_vacuum/example/large_example_water/neighbours_17/vmdlog"
+
+
+
+rule plot_neighbours:
+    input:
+        neighbours_of = "{path}/neighbours_{central_index}/neighbours.txt",
+        water_script = "molgri/scripts/vmd_position_sqra_water",
+        structure = "{path}/structure.gro",
+        trajectory = "{path}/trajectory.xtc"
+    output:
+        vmdlog="{path}/neighbours_{central_index}/vmdlog",
+    run:
+        from molgri.plotting.create_vmdlog import VMDCreator
+
+        neighbours = np.loadtxt(input.neighbours_of, dtype=int)
+        point_itself = int(wildcards.central_index)
+
+        # a list of the point and its neighbours with +1 for each point -> because VMD starts with 1
+        neighbour_list = list(neighbours)
+        neighbour_list.append(point_itself)
+        neighbour_list = [el+1 for el in neighbour_list]
+        neighbour_names = [f"{wildcards.path}/neighbours_{wildcards.central_index}/structure_{i-1}.tga" for i in neighbour_list]
+        neighbour_names_png = [f"{wildcards.path}/neighbours_{wildcards.central_index}/structure_{i - 1}.png" for i in neighbour_list]
+
+        num_first_mol = 3
+        index_first = f"index < {num_first_mol}"
+        index_second = f"index >= {num_first_mol}"
+        my_vmd = VMDCreator(index_first, index_second)
+        my_vmd.load_translation_rotation_script(input.water_script)
+        my_vmd.plot_these_structures(neighbour_list, neighbour_names)
+        my_vmd.write_text_to_file(output.vmdlog)
+
+        shell("vmd  -dispdev text {input.structure} {input.trajectory} < {output.vmdlog}")
+        for el_tga, el_png in zip(neighbour_names, neighbour_names_png):
+            shell("convert {el_tga} {el_png}")
+
+        print(neighbour_list)

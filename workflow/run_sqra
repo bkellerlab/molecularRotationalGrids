@@ -2,6 +2,7 @@
 All the workflows relating to pseudotrajectories, subsequent SQRAs and their related outputs (figures ...)
 """
 import sys
+import os
 import numpy as np
 import matplotlib.pyplot as plt
 
@@ -31,7 +32,6 @@ if config["energy_program"] == "ORCA":
 elif config["energy_program"] == "GROMACS":
     include: "run_sqra_gromacs"
     EXPERIMENT_FULL_PATH = f"{PATH_EXPERIMENTS}{config['experiment_type']}/{config['experiment_id']}/{config['grid_identifier']}/"
-    FULL_PATHS = [EXPERIMENT_FULL_PATH]
 else:
     raise ValueError(f"Energy program must be ORCA or GROMACS, not {config['energy_program']}")
 
@@ -42,19 +42,22 @@ PROVIDED_DATA_PATH =  f"{PATH_INPUT_BASEGRO}{config['experiment_type']}/"
 rule all_sqra:
     input:
         # FIRST STEP - ALL INPUTS  MUST EXIST
-        #expand(f"{{where}}all_inputs_exist.touch", where=FULL_PATHS)
+        #expand(f"{{where}}structure.{config['structure_extension']}", where=EXPERIMENT_FULL_PATH)
         # SECOND STEP - ALL JOBS ARE SUBMITTED (use -R run_on_curta)
         #expand(f"{{where}}all_inputs_ran.touch", where=FULL_PATHS[1])
         # THIRD STEP - COPY ALL BACK HERE (use -R get_from_curta)
         #expand(f"{{where}}all_outputs_copied.touch", where=EXPERIMENT_FULL_PATH) #"SP", "ConstOpt"
         # FINALLY - WHEN FINISHED COLLECT AND PLOT
-        expand(f"{{where}}{{what}}", what=["eigenvectors.npy"], where=EXPERIMENT_FULL_PATH), #, "ConstOpt_trajectory.xyz"
+        f"{EXPERIMENT_FULL_PATH}energy.csv", #/home/nobackup/
+        #expand(f"{EXPERIMENT_FULL_PATH}network_analysis/all_{{what}}_87.tga", what=["neighbours", "orientations", "closest"]),
+        #expand(f"{{where}}{{what}}", what="neighbours_17/neighbours.txt", where=EXPERIMENT_FULL_PATH),
     #what=["its.png", "eigenvectors_vmdlog", "eigenvalues.png", "its.csv", "energy.csv", "orca_time.txt", "constrained_opt_energy.csv"]
     log:
         log = f"{EXPERIMENT_FULL_PATH}total_log.yaml"
     benchmark:
         repeat(f"{EXPERIMENT_FULL_PATH}total_benchmark.txt", config['num_repeats'])
     run:
+        print("This input:", input)
         import yaml
         with open(log.log, "w")  as f:
             yaml.dump(config, f)
@@ -67,8 +70,8 @@ rule copy_structures:
         m1 = f"{PROVIDED_DATA_PATH}m1.{config['structure_extension']}",
         m2 = f"{PROVIDED_DATA_PATH}m2.{config['structure_extension']}",
     output:
-        m1 = f"{EXPERIMENT_FULL_PATH}m1.{config['structure_extension']}",
-        m2 = f"{EXPERIMENT_FULL_PATH}m2.{config['structure_extension']}",
+        m1 = f"{{where}}m1.{config['structure_extension']}",
+        m2 = f"{{where}}m2.{config['structure_extension']}",
     run:
         import shutil
         shutil.copy(input.m1, output.m1)
@@ -83,7 +86,7 @@ rule find_num_atoms:
         m1 = rules.copy_structures.output.m1,
         m2 = rules.copy_structures.output.m2,
     output:
-        num_atoms = f"{EXPERIMENT_FULL_PATH}num_atoms.txt"
+        num_atoms = f"{{where}}num_atoms.txt"
     run:
         from molgri.io import OneMoleculeReader
 
@@ -102,12 +105,12 @@ rule run_pt:
     This rule should produce the structure and pseudo-trajectory as single files.
     """
     input:
-        molecule1 = rules.copy_structures.output.m1,
-        molecule2 = rules.copy_structures.output.m2,
-        grid = rules.run_grid.output.full_array
+        molecule1 = f"{{where}}m1.{config['structure_extension']}",
+        molecule2 = f"{{where}}m2.{config['structure_extension']}",
+        grid = f"{{where}}full_array.npy"
     output:
-        structure = f"{EXPERIMENT_FULL_PATH}structure.{config['structure_extension']}",
-        trajectory = f"{EXPERIMENT_FULL_PATH}trajectory.{config['trajectory_extension']}"
+        structure = f"{{where}}structure.{config['structure_extension']}",
+        trajectory = f"{{where}}trajectory.{config['trajectory_extension']}"
     params:
         cell_size_A = config["params_sqra"]["cell_size_A"]  # cubic box will be the output, this is size of the box in one dimension
     # benchmark:
@@ -117,6 +120,59 @@ rule run_pt:
         my_writer = PtWriter(input.molecule1, input.molecule2, cell_size_A=params.cell_size_A, path_grid=input.grid)
         my_writer.write_full_pt(path_output_pt=output.trajectory,path_output_structure=output.structure)
 
+
+checkpoint find_connections_to_point:
+    input:
+        distances = "{where}distances_array.npz",
+        adj_array= "{where}adjacency_array.npz",
+        grid_sizes= f"{{where}}grid_sizes.txt"
+    output:
+        indices = "{where}network_analysis/{connection_type}_{central_index}_indices.txt"
+    run:
+        from molgri.plotting.create_vmdlog import TrajectoryIndexingTool
+        from scipy.sparse import load_npz
+
+        central_index = int(wildcards.central_index)
+
+        tit = TrajectoryIndexingTool()
+        print(wildcards.connection_type)
+        if wildcards.connection_type == "closest":
+            distances = load_npz(input.distances)
+            tit.set_distances(distances)
+            result_array = tit.get_k_closest(central_index)
+        elif wildcards.connection_type == "orientations":
+            sizes = np.loadtxt(input.grid_sizes,dtype=int)
+            num_quaternions = sizes[0]
+            result_array = tit.find_all_orientations_at_same_position(central_index,num_quaternions)
+        elif wildcards.connection_type == "neighbours":
+            adjacency_sparse = load_npz(input.adj_array)
+            tit.set_adjecency_array(adjacency_sparse)
+            result_array = tit.get_neighbours_of(central_index)
+
+        np.savetxt(output.indices,result_array,fmt='%i')
+
+
+def prepare_all_individual_plots(wildcards):
+    """
+    To make a joint plot of all neighbours, closest structures or similar you must first determine the relevant indices
+    and then plot all of them. This will be input to join_plots.
+    """
+    indices_file = checkpoints.find_connections_to_point.get(where=wildcards.where,
+        central_index=wildcards.central_index, connection_type=wildcards.connection_type).output.indices
+    indices = np.loadtxt(indices_file, dtype=int)
+    return expand(f"{wildcards.where}molecular_plots/frame_{{frame_index}}.tga", frame_index=indices)
+
+
+rule join_plots:
+    input:
+        prepare_all_individual_plots
+    output:
+        joint_plot = "{where}network_analysis/all_{connection_type}_{central_index}.tga"
+    run:
+        from molgri.plotting.modifying_images import trim_images_with_common_bbox, join_images
+        modified_paths = [f"{os.path.split(file)[0]}/trimmed_{os.path.split(file)[1]}" for file in input]
+        trim_images_with_common_bbox(input,modified_paths)
+        join_images(modified_paths, output.joint_plot)
 
 rule lowest_e_structures:
     input:
@@ -267,17 +323,16 @@ rule run_plot_everything_sqra:
         plot_its=report(f"{{where}}its.png", category=config["experiment_id"]),
     run:
         from molgri.plotting.transition_plots import PlotlyTransitions
-
         pt = PlotlyTransitions(is_msm=False,path_eigenvalues=input.eigenvalues,path_eigenvectors=input.eigenvectors)
         # eigenvectors
         pt.plot_eigenvectors_flat()
-        pt.save_to(output.plot_eigenvectors,height=800, width=400)
+        pt.save_to(output.plot_eigenvectors,height=800, width=400, talk=True)
         # eigenvalues
         pt.plot_eigenvalues()
-        pt.save_to(output.plot_eigenvalues)
+        pt.save_to(output.plot_eigenvalues, talk=True)
         # # its for msm
         pt.plot_its_as_line()
-        pt.save_to(output.plot_its)
+        pt.save_to(output.plot_its, talk=True)
         # we could also plot the heatmap of the matrix, but it's honestly not that useful and can become very large
 
 
@@ -293,7 +348,8 @@ rule compile_vmd_log:
         trajectory = f"{{where}}trajectory.xyz" if config["energy_program"] == "ORCA" else f"{{where}}trajectory.xtc",
         eigenvectors = rules.run_decomposition.output.eigenvectors,
         index_list = rules.run_sqra.output.index_list,
-        num_atoms = rules.find_num_atoms.output.num_atoms
+        num_atoms = rules.find_num_atoms.output.num_atoms,
+        script= "molgri/scripts/vmd_alt_position_sqra_water"
     output:
         vmdlog = f"{{where}}eigenvectors_vmdlog",
         fig_tga = expand(f"{{where}}eigenvector{{i}}.tga", i=range(config["params_sqra"]["num_eigenvec_to_plot"]), allow_missing=True),
@@ -335,7 +391,7 @@ rule compile_vmd_log:
         # now vmd creator
         vmd_creator = VMDCreator(index_first_molecule=index_first, index_second_molecule=index_second,
             is_protein=is_protein)
-        vmd_creator.load_translation_rotation_script(find_right_vmd_script(config["experiment_type"]))
+        vmd_creator.load_translation_rotation_script(input.script)
         vmd_creator.prepare_eigenvector_script(abs_e, pos_e, neg_e, plot_names=output.fig_tga)
         vmd_creator.write_text_to_file(output.vmdlog)
 
@@ -359,4 +415,123 @@ rule print_its:
         my_df.to_csv(output.data)
 
 
+
+rule get_optimized_structures:
+    """
+    The opposite to split xyz file.
+    """
+    input:
+        out_file = "{where}orca.out",
+    output:
+        structure="{where}structure_opt.xyz",
+    run:
+        from molgri.io import OrcaReader
+
+        my_reader = OrcaReader(input.out_file)
+        current_xyz = my_reader.extract_optimized_xyz()
+        with open(output.structure, "w") as f:
+            f.write(current_xyz)
+
+rule find_all_dominant_structures:
+    input:
+        eigenvectors = "{where}eigenvectors.npy",
+        index_list= "{where}index_list.npy",
+    output:
+        dominant_structures = "{where}dominant_structures.npz"
+    params:
+        num_extremes = config["params_sqra"]["num_extremes_to_plot"],
+        num_eigenvec = config["params_sqra"]["num_eigenvec_to_plot"]
+    run:
+        from molgri.plotting.create_vmdlog import from_eigenvector_array_to_dominant_eigenvector_indices
+
+        index_list = np.load(input.index_list,allow_pickle=True)
+        if not np.any(index_list):
+            index_list = None
+        else:
+            index_list = list(index_list)
+        print("INDEX LIST", index_list)
+
+        # load eigenvectors
+        eigenvectors = np.load(input.eigenvectors)
+
+        abs_e, pos_e, neg_e = from_eigenvector_array_to_dominant_eigenvector_indices(eigenvectors.T,index_list=None,
+            n_eigenvectors=params.num_eigenvec,num_extremes=params.num_extremes, add_one=False)
+        np.savez(output.dominant_structures,abs_val=abs_e,pos_val=pos_e, neg_val=neg_e)
+
+rule vmdlog_dominant_structures:
+    input:
+        num_atoms = f"experiments/water_xyz/example/mid_example_water/num_atoms.txt",
+        num_structures = "{where}dominant_structures.npz",
+        script = "molgri/scripts/vmd_position_sqra_water"
+    output:
+        eigenvector_vmdlog = "{where}vmdlog_{i}"
+    run:
+        import os
+        from workflow.snakemake_utils import find_right_vmd_script
+        from molgri.plotting.create_vmdlog import VMDCreator
+
+        my_directory = os.path.split(output.eigenvector_vmdlog)[0]
+        plot_name = f"{my_directory}/plot_{wildcards.i}.tga"
+
+        # determine first and second index
+        with open(input.num_atoms, "r") as f:
+            num_first_mol = int(f.readline().strip())
+
+        index_first = f"index < {num_first_mol}"
+        index_second = f"index >= {num_first_mol}"
+
+        vmd_creator = VMDCreator(index_first_molecule=index_first,index_second_molecule=index_second,
+            is_protein=False)
+        vmd_creator.load_translation_rotation_script(input.script)
+
+        if int(wildcards.i) == 0:
+            num_structures = len(np.load(f"{wildcards.where}dominant_structures.npz")["abs_val"])
+            vmd_creator.prepare_evec_0(num_structures=num_structures, plot_name=plot_name)
+        else:
+            num_structures_pos = len(np.load(f"{wildcards.where}dominant_structures.npz")["pos_val"][int(wildcards.i)-1])
+            num_structures_neg = len(np.load(f"{wildcards.where}dominant_structures.npz")["neg_val"][int(wildcards.i) - 1])
+            vmd_creator.prepare_evec_pos_neg(num_structures_pos, num_structures_neg, plot_name)
+
+        vmd_creator.write_text_to_file(output.eigenvector_vmdlog)
+
+import os
+
+def find_all_structures_with_indices(indices, main_folder, file_needed):
+    list_structures = []
+    for subfolder in os.scandir(main_folder):
+        if subfolder.is_dir():
+            for sub_sub_folder in os.scandir(subfolder.path):
+                if sub_sub_folder.is_dir():
+                    folder_full_path = sub_sub_folder.path
+                    if int(os.path.split(folder_full_path)[-1]) in indices:
+                        file_full_path = f"{folder_full_path}/{file_needed}"
+                        list_structures.append(file_full_path)
+    return list_structures
+
+
+def get_evec_i_structures(wildcards):
+    if int(wildcards.i) == 0:
+        indices = np.load(f"{wildcards.where}dominant_structures.npz")["abs_val"]
+        structures = find_all_structures_with_indices(indices,wildcards.where,"structure_opt.xyz")
+    else:
+        indices_pos = np.load(f"{wildcards.where}dominant_structures.npz")["pos_val"][int(wildcards.i) - 1]
+        indices_neg = np.load(f"{wildcards.where}dominant_structures.npz")["neg_val"][int(wildcards.i) - 1]
+        structures = find_all_structures_with_indices(indices_pos,wildcards.where,"structure_opt.xyz")
+        structures.extend(find_all_structures_with_indices(indices_neg,wildcards.where,"structure_opt.xyz"))
+    return structures
+
+
+rule plot_dominant_structures:
+    input:
+        dominant_str = "{where}dominant_structures.npz",
+        structures = get_evec_i_structures,
+        vmdlog_file = "{where}vmdlog_{i}"
+    output:
+        fig_tga = "{where}plot_{i}.tga",
+        fig_png = "{where}plot_{i}.png"
+    run:
+        import subprocess
+        print(f"vmd -dispdev text {' '.join(input.structures)} < {input.vmdlog_file}")
+        subprocess.run(f"vmd -dispdev text {' '.join(input.structures)} < {input.vmdlog_file}", shell=True)
+        shell("convert {output.fig_tga} {output.fig_png}")
 
