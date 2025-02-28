@@ -247,7 +247,7 @@ class ZeroRotations4D(SphereGrid4Dim):
         rot_matrix = np.eye(3)
         rot_matrix = rot_matrix[np.newaxis, :]
         self.rotations = Rotation.from_matrix(rot_matrix)
-        self.grid = self.rotations.as_quat()
+        self.grid = self.rotations.as_quat(scalar_first=True)
         return super()._gen_grid()
 
 

@@ -168,7 +168,7 @@ class FullGrid:
 
     def get_body_rotations(self) -> Rotation:
         """Get a Rotation object (may encapsulate a list of rotations) from the body grid."""
-        return Rotation.from_quat(self.b_rotations.get_grid_as_array())
+        return Rotation.from_quat(self.b_rotations.get_grid_as_array(), scalar_first=True)
 
     def get_full_grid_as_array(self) -> NDArray:
         """

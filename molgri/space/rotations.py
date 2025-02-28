@@ -51,7 +51,7 @@ def quaternion2grid(quaternions: NDArray) -> Tuple[NDArray, ...]:
     See rotation2grid function. This is only a helper function that parsers quaternions as inputs.
     """
     assert quaternions.shape[1] == 4, "Quaternions must have 4 dimensions"
-    rotations = Rotation.from_quat(quaternions)
+    rotations = Rotation.from_quat(quaternions, scalar_first=True)
     return rotation2grid(rotations)
 
 
@@ -99,7 +99,7 @@ def grid2quaternion(grid_x: NDArray, grid_y: NDArray, grid_z: NDArray) -> NDArra
     See grid2rotation; this function only reformats the output as a (N, 4) array of quaternions.
     """
     rot_objects = grid2rotation(grid_x, grid_y, grid_z)
-    quaternions = rot_objects.as_quat()
+    quaternions = rot_objects.as_quat(scalar_first=True)
     assert quaternions.shape[1] == 4, "quaternions must have 4 dimensions"
     return quaternions
 

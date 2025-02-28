@@ -212,7 +212,7 @@ def random_sphere_points(n: int = 1000) -> NDArray:
     """
     z_vec = np.array([0, 0, 1])
     quats = random_quaternions(n)
-    rot = Rotation.from_quat(quats)
+    rot = Rotation.from_quat(quats, scalar_first=True)
     return rot.apply(z_vec)
 
 

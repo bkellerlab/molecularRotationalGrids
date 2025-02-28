@@ -257,7 +257,7 @@ class Maze:
             mid_hline = 0.5 * ((i * (len_state + space_between)) + (i * (len_state + space_between) + len_state))
 
             y_offset = 0.02
-            ax.text(mid_hline, energy + y_offset, f"{simple_path[i]}")
+            #ax.text(mid_hline, energy + y_offset, f"{simple_path[i]}")
 
             # plot diagonal lines
             if i + 1 < len(energies_along_path):
