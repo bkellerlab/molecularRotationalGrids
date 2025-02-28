@@ -72,7 +72,7 @@ class ExamplePotential(RepresentationCollection):
         self._equalize_axes()
         self._set_axis_limits((-1.6, 1.6, -1.6, 1.6))
 
-    def _get_path(self, x_start=-1, y_start=0.7, num_points=50000, T=20):
+    def _get_path(self, x_start=-1, y_start=0.7, num_points=1000000, T=20):
         if self.path is None:
             np.random.seed = 5
             xs = [x_start]
@@ -148,11 +148,70 @@ class ExamplePotential(RepresentationCollection):
 
 
 
+class Example_1D:
+
+    def __init__(self, data_name="example_1D"):
+        #default_complexity_level="half_empty",
+        self.path = None
+
+    def potential(self, x):
+        return 0.5 * np.sin(5 * np.pi * x) + 8 * np.abs(x) * np.sin(2 * np.pi * x) ** 2 - 0.2 * np.cos(8 * x) - np.exp(-((x-0.3)/0.1)**2) - 1.5*np.exp(-((x+0.3)/0.2)**2) + np.exp(-((x+0.1)/0.1)**2) + np.exp(-((x+0.5)/0.2)**2)
+
+    def _my_dx(self, x):
+
+        return -(60.0 - 200.0 * x) * np.exp(-100.0 * (x - 0.3) ** 2) + (-200.0 * x - 20.0) * np.exp(-100.0 * (x +
+                                                                                                              0.1) **
+                                                                                            2) + (
+                    -50.0 * x - 25.0) * np.exp(-25.0 * (x + 0.5) ** 2) - 1.5 * (-50.0 * x - 15.0) * np.exp(
+            -25.0 * (x + 0.3) ** 2) + 1.6 * np.sin(8 * x) + 32 * np.pi * np.sin(2 * np.pi * x) * np.cos(2 * np.pi * x)\
+               * np.abs(
+            x) + 2.5 * np.pi * np.cos(5 * np.pi * x) + 8 * x * np.sin(2 * np.pi * x) ** 2 * np.sign(
+            x) / x
+
+    def _get_path(self, x_start=-0.1, v_start = 0.01, num_points=10000000, T=150):
+        if self.path is None:
+            np.random.seed = 5
+            xs = [x_start]
+            vs = [v_start]
+            dt = 0.005
+            for i in range(num_points):
+                ran_fac =  T / 100 *np.random.uniform(-1,1)
+                F = -self._my_dx(xs[-1]) + ran_fac
+                vs.append(vs[-1] + F*dt)
+                xs.append(xs[-1] + vs[-1]*dt)
+            self.path = (xs)
+        return self.path
+
+
+    def plot_potential(self, ax):
+        xs = np.linspace(-0.75, 0.75, 500)
+        ys = self.potential(xs)
+        sns.lineplot(x=xs, y=ys, ax=ax, color="black")
+
+    #@plot_method
+    def plot_boltzmann(self, ax):
+        xs = np.linspace(-0.75, 0.75, 100)
+        ys = np.exp(-self.potential(xs))
+        ax[0].bar(x=xs, height=ys, edgecolor="black", facecolor="white")
+        #sns.lineplot(x=ys, y=xs, ax=ax)
+        #ax[0].set_xlim(-0.75,0.75)
+
+        #ax[0].set_ylim(0, 3)
+
+
+    def plot_histogram(self, ax):
+        xs = self._get_path()
+        #print(xs)
+        xs = np.array(xs)
+
+        sns.histplot(xs, ax=ax[1], bins=100, binrange=(-0.75,0.75))
+        #self.ax.set_xlim(-0.75,0.75)
+
 
 
 if __name__ == "__main__":
     import matplotlib.pyplot as plt
-    sns.set_context("talk")
+    sns.set(context="talk", style="white")
     cp = ExamplePotential("myplot")
     # simply the plot
     # cp.plot_random_2D(save=True)
@@ -183,5 +242,35 @@ if __name__ == "__main__":
     # cp.plot_probability_dist_ideal()
     # cp.plot_probability_dist_sim(T=200)
 
-    cp.plot_point(-1, 0.7, color="blue", marker="o", s=5, save=False)
-    plt.show()
+    #cp.plot_point(-1, 0.7, color="blue", marker="o", s=5, save=False)
+    #cp.plot_probability_dist_sim_1D(save=False)
+    #cp.plot_random_2D(save=False)
+
+    fig = plt.figure(figsize=(6, 5))
+    ax = fig.add_subplot(111)
+
+    #fig, ax = plt.subplots(2, 1, figsize=(6, 8))
+    my_pot = Example_1D()
+
+    xs = np.linspace(-0.75, 0.75, 100)
+    ys = np.exp(-my_pot.potential(xs))
+    for x, y in zip(xs, ys):
+        ax.bar(x=x, height=y, edgecolor="black", facecolor="white")
+    ax.set_xlim(-0.75,0.75)
+
+    # ax = fig.add_subplot(212)
+    # xs = np.linspace(-0.75, 0.75, 500)
+    # ys = my_pot.potential(xs)
+    # sns.lineplot(x=xs, y=ys, ax=ax, color="black")
+
+    # for subax in ax:
+    #     subax.set_title("")  # Remove title
+    #     subax.set_xticks([])  # Remove x-axis ticks
+    #     subax.set_yticks([])  # Remove y-axis ticks
+    #     subax.set_xticklabels([])  # Remove x-axis tick labels
+    #     subax.set_yticklabels([])  # Remove y-axis tick labels
+    #     subax.set_xlabel("")  # Remove x-axis label
+    #     subax.set_ylabel("")  # Remove y-axis label
+
+    plt.tight_layout()
+    plt.savefig("output/figures/my_ex_1d.png", dpi=600)
