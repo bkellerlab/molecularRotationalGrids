@@ -79,33 +79,3 @@ rule gromacs_rerun:
         cd "$initial_dir" || exit
         """
 
-rule plot_one_frame:
-    """
-    To be used with GROMACS - based trajectories - plot one specific frame
-    """
-    input:
-        structure=f"{{where}}structure.{config['structure_extension']}",
-        trajectory=f"{{where}}trajectory.{config['trajectory_extension']}",
-        script="molgri/scripts/vmd_position_sqra_water",
-        num_atoms=f"{{where}}num_atoms.txt"
-    output:
-        vmdlog="{where}molecular_vmdlog/frame_{frame_index}",
-        frame_plot="{where}molecular_plots/frame_{frame_index}.tga"
-    run:
-        from molgri.plotting.create_vmdlog import VMDCreator
-
-        with open(input.num_atoms) as f:
-            num_first_mol = int(f.readline())
-
-        index_first = f"index < {num_first_mol}"
-        index_second = f"index >= {num_first_mol}"
-        my_vmd = VMDCreator(index_first,index_second)
-        #TODO: generalize script
-        my_vmd.load_translation_rotation_script(input.script)
-
-        index_to_plot = [int(wildcards.frame_index) + 1]
-
-        my_vmd.plot_these_structures(index_to_plot,[output.frame_plot])
-        my_vmd.write_text_to_file(output.vmdlog)
-
-        shell("vmd  -dispdev text {input.structure} {input.trajectory} < {output.vmdlog}")

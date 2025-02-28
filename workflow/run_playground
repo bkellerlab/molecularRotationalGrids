@@ -222,14 +222,15 @@ rule run_clustering_plotting:
         trajectory =  f"{EXPERIMENT_FULL_PATH}trajectory.xyz",
         labels = f"{EXPERIMENT_FULL_PATH}labels.npy",
         eigenvectors = f"{EXPERIMENT_FULL_PATH}eigenvectors.npy",
-        script= "molgri/scripts/vmd_position_sqra_water"
+
     output:
         plot = f"{EXPERIMENT_FULL_PATH}clustering.png",
         clustering_vmdlog = f"{EXPERIMENT_FULL_PATH}clustering_vmdlog",
         vmd_plot_tga = f"{EXPERIMENT_FULL_PATH}eigenvector_clustering.tga",
         #vmd_plot_png = f"{EXPERIMENT_FULL_PATH}eigenvector_clustering.png",
     run:
-
+        from workflow.snakemake_utils import find_right_vmd_script
+        my_script = find_right_vmd_script(config['experiment_type'])
         eigenvectors = np.load(input.eigenvectors)[:,:6]
 
         import matplotlib.pyplot as plt
@@ -286,135 +287,7 @@ rule run_clustering_plotting:
         #    shell("convert {el_tga} {el_png}")
 
 
-GRID_DIR = "experiments/grids/large_example_water/"
-PATH_SEARCH_DIR = "experiments/water_xyz/example/large_example_water/"
-PATH_START = 21714
-PATH_END = 28547
 
-rule run_path_search:
-    input:
-        adjacency_matrix = f"{GRID_DIR}adjacency_array.npz",
-        energy = f"{PATH_SEARCH_DIR}energy.csv"
-    output:
-        path_plot = f"{PATH_SEARCH_DIR}path_{PATH_START}_{PATH_END}/best_path.png",
-        path = f"{PATH_SEARCH_DIR}path_{PATH_START}_{PATH_END}/path.npy"
-    run:
-        from molgri.space.mazes import Maze
-        from scipy.sparse import load_npz
-        import pandas as pd
-        import matplotlib.pyplot as plt
-        import seaborn as sns
-
-        sns.set_context("talk")
-        sns.set_style("white")
-
-        adj = load_npz(input.adjacency_matrix)
-        energy = pd.read_csv(input.energy, usecols=["Energy [kJ/mol]"]).to_numpy()
-
-        my_maze = Maze(adj)
-        my_maze.add_energy_attribute("Energy [kJ/mol]", energy)
-
-        simple_path =my_maze.smallest_dE_start_path(PATH_START, PATH_END)
-        np.save(output.path, simple_path)
-
-        fig, ax = plt.subplots(1,1)
-        my_maze.plot_profile_along_path(simple_path, fig, ax)
-        sns.despine()
-        plt.tight_layout()
-        fig.savefig(output.path_plot)
-
-rule vmd_plot_path:
-    input:
-        path = f"{PATH_SEARCH_DIR}path_{PATH_START}_{PATH_END}/path.npy",
-        structure = f"{PATH_SEARCH_DIR}structure.xyz",
-        trajectory = f"{PATH_SEARCH_DIR}trajectory.xyz",
-        script_rot_tr = f"molgri/scripts/vmd_position_sqra_water"
-    output:
-        vmdlog = f"{PATH_SEARCH_DIR}path_{PATH_START}_{PATH_END}/path_vmdlog",
-        path_video = f"{PATH_SEARCH_DIR}path_{PATH_START}_{PATH_END}/path.mp4"
-    run:
-        from molgri.plotting.create_vmdlog import VMDCreator
-
-        num_first_mol = 3
-        index_first = f"index < {num_first_mol}"
-        index_second = f"index >= {num_first_mol}"
-        experiment_type="water_xyz"
-
-
-        vmdlog = VMDCreator(index_first, index_second)
-        simple_path = np.load(input.path)
-        simple_path_added_one = [sp+1 for sp in simple_path]
-        path_names = [f"{PATH_SEARCH_DIR}path_{PATH_START}_{PATH_END}/path_{i}.tga" for i in range(len(simple_path))]
-
-        vmdlog.load_translation_rotation_script(input.script_rot_tr)
-        vmdlog.plot_these_structures(simple_path_added_one, path_names)
-        vmdlog.write_text_to_file(output.vmdlog)
-
-        shell("vmd -dispdev text {input.structure} {input.trajectory} < {output.vmdlog}")
-
-        tga_str = f"{PATH_SEARCH_DIR}path_{PATH_START}_{PATH_END}/path_*.tga"
-        shell("convert -delay 40 -loop 0 {tga_str} {output.path_video}")
-
-#/home/hanaz63/2024_molgri2/nobackup/molecularRotationalGrids/experiments/guanidinium_xyz/example/huge_gua_grid//
-
-
-EXPERIMENT_FULL_PATH = "experiments/water_xyz/example_new/water_64K/"
-rule compare_initial_and_const_opt_energies:
-    input:
-        initial_energies = f"{EXPERIMENT_FULL_PATH}SP_PBE0_def2tzvp_water_D4/energy.csv",
-        const_opt_energies = f"{EXPERIMENT_FULL_PATH}ConstOpt_PBE0_def2tzvp_water_D4/energy.csv"
-    output:
-        plot = f"{EXPERIMENT_FULL_PATH}absolute_energy_comparison.png",
-        #plot_hist = f"{EXPERIMENT_FULL_PATH}energy_hist.png",
-        plot_relative = f"{EXPERIMENT_FULL_PATH}relative_energy_comparison.png",
-    run:
-        import seaborn as sns
-        import pandas as pd
-        import matplotlib.pyplot as plt
-
-        sns.set_context("talk")
-
-        df_inital = pd.read_csv(input.initial_energies)
-        df_const_opt = pd.read_csv(input.const_opt_energies)
-
-        # sp energy
-        fig, ax = plt.subplots(1,2, sharey=True, sharex=True)
-
-        kj_mol_water_monomer = -200563.91397680662
-        df_inital["Binding energy [kJ/mol]"] = df_inital["Energy [kJ/mol]"]-2*kj_mol_water_monomer
-        df_const_opt["Binding energy [kJ/mol]"] = df_const_opt["Energy [kJ/mol]"] - 2 * kj_mol_water_monomer
-
-        filtered_initial = df_inital[df_inital['Binding energy [kJ/mol]'] < 50]
-        filtered_const_opt = df_const_opt[df_inital['Binding energy [kJ/mol]'] < 50]
-
-
-        # sns.histplot(filtered_initial["Binding energy [kJ/mol]"],ax=ax[0], bins=100)
-        # ax[0].set_title(f"SP Plotted: {len(filtered_initial)}, not: {len(df_inital)-len(filtered_initial)}")
-        # sns.histplot(filtered_const_opt["Binding energy [kJ/mol]"],ax=ax[1], bins=100)
-        # ax[1].set_title(f"OPT Plotted: {len(filtered_const_opt)}, not: {len(df_const_opt) - len(filtered_const_opt)}")
-        # fig.savefig(output.plot_hist)
-
-
-        # absolute errors
-        fig, ax = plt.subplots(1, 1, figsize=(6,6))
-
-        sns.histplot(df_const_opt['Energy [kJ/mol]']-df_inital['Energy [kJ/mol]'], ax=ax, bins=50, binrange=(-5,1), binwidth=6/50, stat="probability")
-        ax.set_xlim(-5, 1)
-        ax.set_xlabel("E(opt) - E(SP) [kJ/mol]")
-        fig.tight_layout()
-        fig.savefig(output.plot)
-
-        # relative errors
-
-        # absolute errors
-        fig, ax = plt.subplots(1, 1)
-
-        sns.histplot(100*(filtered_const_opt["Binding energy [kJ/mol]"]-filtered_initial["Binding energy [kJ/mol]"])/np.abs(filtered_const_opt["Binding energy [kJ/mol]"]),
-            ax=ax, bins=50, binrange=(-50,0), binwidth=50/50)
-        ax.set_xlim(-50,0)
-        ax.set_xlabel("Change in energy after optimization [%]")
-        fig.tight_layout()
-        fig.savefig(output.plot_relative)
 
 
 # do this only for selected xyz files, eg those in final pics

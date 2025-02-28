@@ -98,8 +98,6 @@ rule find_num_atoms:
             f.write(f"{N_m2}\n")
 
 
-
-
 rule run_pt:
     """
     This rule should produce the structure and pseudo-trajectory as single files.
@@ -120,59 +118,6 @@ rule run_pt:
         my_writer = PtWriter(input.molecule1, input.molecule2, cell_size_A=params.cell_size_A, path_grid=input.grid)
         my_writer.write_full_pt(path_output_pt=output.trajectory,path_output_structure=output.structure)
 
-
-checkpoint find_connections_to_point:
-    input:
-        distances = "{where}distances_array.npz",
-        adj_array= "{where}adjacency_array.npz",
-        grid_sizes= f"{{where}}grid_sizes.txt"
-    output:
-        indices = "{where}network_analysis/{connection_type}_{central_index}_indices.txt"
-    run:
-        from molgri.plotting.create_vmdlog import TrajectoryIndexingTool
-        from scipy.sparse import load_npz
-
-        central_index = int(wildcards.central_index)
-
-        tit = TrajectoryIndexingTool()
-        print(wildcards.connection_type)
-        if wildcards.connection_type == "closest":
-            distances = load_npz(input.distances)
-            tit.set_distances(distances)
-            result_array = tit.get_k_closest(central_index)
-        elif wildcards.connection_type == "orientations":
-            sizes = np.loadtxt(input.grid_sizes,dtype=int)
-            num_quaternions = sizes[0]
-            result_array = tit.find_all_orientations_at_same_position(central_index,num_quaternions)
-        elif wildcards.connection_type == "neighbours":
-            adjacency_sparse = load_npz(input.adj_array)
-            tit.set_adjecency_array(adjacency_sparse)
-            result_array = tit.get_neighbours_of(central_index)
-
-        np.savetxt(output.indices,result_array,fmt='%i')
-
-
-def prepare_all_individual_plots(wildcards):
-    """
-    To make a joint plot of all neighbours, closest structures or similar you must first determine the relevant indices
-    and then plot all of them. This will be input to join_plots.
-    """
-    indices_file = checkpoints.find_connections_to_point.get(where=wildcards.where,
-        central_index=wildcards.central_index, connection_type=wildcards.connection_type).output.indices
-    indices = np.loadtxt(indices_file, dtype=int)
-    return expand(f"{wildcards.where}molecular_plots/frame_{{frame_index}}.tga", frame_index=indices)
-
-
-rule join_plots:
-    input:
-        prepare_all_individual_plots
-    output:
-        joint_plot = "{where}network_analysis/all_{connection_type}_{central_index}.tga"
-    run:
-        from molgri.plotting.modifying_images import trim_images_with_common_bbox, join_images
-        modified_paths = [f"{os.path.split(file)[0]}/trimmed_{os.path.split(file)[1]}" for file in input]
-        trim_images_with_common_bbox(input,modified_paths)
-        join_images(modified_paths, output.joint_plot)
 
 rule lowest_e_structures:
     input:

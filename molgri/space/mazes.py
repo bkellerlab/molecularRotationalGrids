@@ -8,6 +8,10 @@ import matplotlib.pyplot as plt
 from matplotlib.figure import Figure
 from matplotlib.axes import Axes
 import pandas as pd
+import seaborn as sns
+
+sns.set_context("talk")
+sns.set_style("white")
 
 from molgri.constants import DIM_SQUARE
 
@@ -62,19 +66,8 @@ class Maze:
         # register energy name for use in other functions
         self.energy_name = energy_name
         self.energy_array = np.array(energy_values)
-
         assert len(energy_values) == self.maze.number_of_nodes()
-
         nx.set_node_attributes(self.maze, dict(enumerate(energy_values)), name=energy_name)
-        # edge attributes - differences in energy
-        diff_energies = self.energy_array[self.adjacency_matrix.row] - self.energy_array[self.adjacency_matrix.col]
-        diff_energies_coo = self.adjacency_matrix.copy()
-        diff_energies_coo.data = diff_energies
-
-        edge_delta_E = {(i, j): max([float(d), 0.0]) for i, j, d in zip(diff_energies_coo.row,
-                                                                        diff_energies_coo.col,
-                                                                        diff_energies_coo.data)}
-        nx.set_edge_attributes(self.maze, edge_delta_E, name="ΔE")
 
     def get_energies(self, indices: list) -> NDArray:
         """
@@ -222,7 +215,8 @@ class Maze:
         plt.tight_layout()
         return fig, ax
 
-    def plot_profile_along_path(self, simple_path: list, fig: Figure, ax: Axes) -> (Figure, Axes):
+    def plot_profile_along_path(self, simple_path: list, fig: Figure, ax: Axes, plot_state_labels: bool = False) -> (
+            Figure, Axes):
         """
         Given a list of node indices, find their corresponding energies and plot them in a schematic "barrier profile
         along reaction coordinate" way.
@@ -232,6 +226,7 @@ class Maze:
             through nodes k1 ... km - order is important!
             fig: Matplotlib's figure object
             ax: Matplotlib's axes object
+            plot_state_labels: if True, every state will be labeled with corresponding index -> useful for debugging
 
         Returns:
             (fig, ax) of the plot
@@ -254,10 +249,10 @@ class Maze:
                       linewidth=1, alpha=1)
 
             # labels of states
-            mid_hline = 0.5 * ((i * (len_state + space_between)) + (i * (len_state + space_between) + len_state))
-
-            y_offset = 0.02
-            #ax.text(mid_hline, energy + y_offset, f"{simple_path[i]}")
+            if plot_state_labels:
+                mid_hline = 0.5 * ((i * (len_state + space_between)) + (i * (len_state + space_between) + len_state))
+                y_offset = 0.02
+                ax.text(mid_hline, energy + y_offset, f"{simple_path[i]}")
 
             # plot diagonal lines
             if i + 1 < len(energies_along_path):
@@ -273,9 +268,11 @@ class Maze:
         # y axis
         ax.set_ylabel(self.energy_name)
 
+        sns.despine()
+        plt.tight_layout()
         return fig, ax
 
-    def plot_maze_index_energy(self, only_nodes: list = None) -> None:
+    def plot_maze_index_energy(self, only_nodes: list, fig: Figure, ax: Axes) -> tuple:
         """
         Create a visualization of a maze featuring:
         - a label of cell index and energy
@@ -285,6 +282,8 @@ class Maze:
 
         Args:
             only_nodes (list): only plot the nodes with specified indices
+            fig: Matplotlib's figure object
+            ax: Matplotlib's axes object
         """
 
         dict_node_energy = nx.get_node_attributes(self.maze, self.energy_name)
@@ -302,8 +301,10 @@ class Maze:
             if only_nodes is not None:
                 node_colors = [node_colors[i] for i in sorted(only_nodes)]
 
+
             nx.draw_networkx(self.maze, labels=full_labels, node_color=node_colors, cmap="coolwarm",
                              nodelist=only_nodes,
-                             node_size=700)
+                             node_size=700, ax=ax)
 
-        plt.show()
+        plt.tight_layout()
+        return fig, ax

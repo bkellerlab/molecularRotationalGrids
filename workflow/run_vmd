@@ -1,0 +1,219 @@
+"Perform analyses on energy-structure networks, eg identifying and plotting paths."
+import os
+
+import numpy as np
+import matplotlib.pyplot as plt
+
+plt.switch_backend('agg')
+
+GRID_DIR = "experiments/grids/large_example_water/"
+PATH_SEARCH_DIR = "experiments/water_xyz/example/large_example_water/"
+#GRID_DIR = "experiments/grids/huge_gua_grid/"
+#PATH_SEARCH_DIR = "experiments/guanidinium_xyz/example/huge_gua_grid/SP_B3LYP_def2tzvp_water_D4/"
+
+
+rule all_paths:
+    input:
+        path_video = expand("{where}path_{path_start}_{path_end}/path.mp4",
+            where=PATH_SEARCH_DIR, path_start=[21714, 0], path_end=[28547, 63999]),
+        # neighbours_of = expand("{where}network_analysis/all_{what}_{index}.tga",
+        #     where=PATH_SEARCH_DIR,
+        #     what=["neighbours", "orientations", "closest"],
+        #     index=[21714, 0, 28547, 63999]),
+
+
+##################################################################################################################
+#                                PATHS
+##################################################################################################################
+
+checkpoint run_path_search:
+    input:
+        adjacency_matrix = f"{GRID_DIR}adjacency_array.npz",
+        energy = "{where}energy.csv"
+    output:
+        path_plot = "{where}path_{path_start}_{path_end}/best_path.png",
+        path = "{where}path_{path_start}_{path_end}/path.txt",
+    run:
+        from molgri.space.mazes import Maze
+        from molgri.io import EnergyReader
+        from scipy.sparse import load_npz
+
+        adj = load_npz(input.adjacency_matrix)
+        energy = EnergyReader(input.energy).load_single_energy_column("Energy [kJ/mol]")
+
+        my_maze = Maze(adj)
+        my_maze.add_energy_attribute("Energy [kJ/mol]", energy)
+
+        simple_path = my_maze.smallest_dE_start_path(int(wildcards.path_start), int(wildcards.path_end))
+        np.savetxt(output.path, simple_path)
+
+        fig, ax = plt.subplots(1,1)
+        my_maze.plot_profile_along_path(simple_path, fig, ax)
+        fig.savefig(output.path_plot)
+
+def prepare_all_individual_plots_path(wildcards):
+    """
+    To make a joint plot of all neighbours, closest structures or similar you must first determine the relevant indices
+    and then plot all of them. This will be input to join_plots.
+    """
+    indices_file = checkpoints.run_path_search.get(where=wildcards.where,
+        path_start=wildcards.path_start, path_end=wildcards.path_end).output.path
+    indices = np.loadtxt(indices_file, dtype=int)
+    return expand(f"{wildcards.where}molecular_plots/frame_{{frame_index}}.tga", frame_index=indices)
+
+rule join_plots_path:
+    input:
+        prepare_all_individual_plots_path
+    output:
+        path_video= "{where}path_{path_start}_{path_end}/path.mp4"
+    run:
+        # make video
+        shell("convert -delay 40 -loop 0 {input} {output.path_video}")
+
+##################################################################################################################
+#                                CONNECTIONS - neighbours, all similar orientations etc
+##################################################################################################################
+
+checkpoint find_connections_to_point:
+    input:
+        distances = "{where}distances_array.npz",
+        adj_array= "{where}adjacency_array.npz",
+        grid_sizes= f"{{where}}grid_sizes.txt"
+    output:
+        indices = "{where}network_analysis/{connection_type}_{central_index}_indices.txt"
+    run:
+        from molgri.plotting.create_vmdlog import TrajectoryIndexingTool
+        from scipy.sparse import load_npz
+
+        central_index = int(wildcards.central_index)
+
+        tit = TrajectoryIndexingTool()
+        print(wildcards.connection_type)
+        if wildcards.connection_type == "closest":
+            distances = load_npz(input.distances)
+            tit.set_distances(distances)
+            result_array = tit.get_k_closest(central_index)
+        elif wildcards.connection_type == "orientations":
+            sizes = np.loadtxt(input.grid_sizes,dtype=int)
+            num_quaternions = sizes[0]
+            result_array = tit.find_all_orientations_at_same_position(central_index,num_quaternions)
+        elif wildcards.connection_type == "neighbours":
+            adjacency_sparse = load_npz(input.adj_array)
+            tit.set_adjecency_array(adjacency_sparse)
+            result_array = tit.get_neighbours_of(central_index)
+
+        np.savetxt(output.indices,result_array,fmt='%i')
+
+rule plot_one_frame:
+    """
+    Plot one specific frame and save it to molecular_plots/
+    """
+    input:
+        structure=f"{{where}}structure.{config['structure_extension']}",
+        trajectory=f"{{where}}trajectory.{config['trajectory_extension']}",
+        num_atoms=f"{{where}}num_atoms.txt"
+    output:
+        vmdlog="{where}molecular_vmdlog/frame_{frame_index}",
+        frame_plot="{where}molecular_plots/frame_{frame_index}.tga"
+    run:
+        from molgri.plotting.create_vmdlog import VMDCreator
+        from workflow.snakemake_utils import find_right_vmd_script
+        my_script = find_right_vmd_script(config['experiment_type'])
+
+        with open(input.num_atoms) as f:
+            num_first_mol = int(f.readline())
+
+        index_first = f"index < {num_first_mol}"
+        index_second = f"index >= {num_first_mol}"
+        my_vmd = VMDCreator(index_first,index_second)
+        my_vmd.load_translation_rotation_script(my_script)
+
+        index_to_plot = [int(wildcards.frame_index) + 1]
+
+        my_vmd.plot_these_structures(index_to_plot,[output.frame_plot])
+        my_vmd.write_text_to_file(output.vmdlog)
+
+        shell("vmd  -dispdev text {input.structure} {input.trajectory} < {output.vmdlog}")
+
+def prepare_all_individual_plots(wildcards):
+    """
+    To make a joint plot of all neighbours, closest structures or similar you must first determine the relevant indices
+    and then plot all of them. This will be input to join_plots.
+    """
+    indices_file = checkpoints.find_connections_to_point.get(where=wildcards.where,
+        central_index=wildcards.central_index, connection_type=wildcards.connection_type).output.indices
+    indices = np.loadtxt(indices_file, dtype=int)
+    return expand(f"{wildcards.where}molecular_plots/frame_{{frame_index}}.tga", frame_index=indices)
+
+rule join_plots:
+    input:
+        prepare_all_individual_plots
+    output:
+        joint_plot = "{where}network_analysis/all_{connection_type}_{central_index}.tga"
+    run:
+        from molgri.plotting.modifying_images import trim_images_with_common_bbox, join_images
+        modified_paths = [f"{os.path.split(file)[0]}/trimmed_{os.path.split(file)[1]}" for file in input]
+        trim_images_with_common_bbox(input,modified_paths)
+        join_images(modified_paths, output.joint_plot)
+
+
+#/home/hanaz63/2024_molgri2/nobackup/molecularRotationalGrids/experiments/guanidinium_xyz/example/huge_gua_grid//
+
+
+EXPERIMENT_FULL_PATH = "experiments/water_xyz/example_new/water_64K/"
+rule compare_initial_and_const_opt_energies:
+    input:
+        initial_energies = f"{EXPERIMENT_FULL_PATH}SP_PBE0_def2tzvp_water_D4/energy.csv",
+        const_opt_energies = f"{EXPERIMENT_FULL_PATH}ConstOpt_PBE0_def2tzvp_water_D4/energy.csv"
+    output:
+        plot = f"{EXPERIMENT_FULL_PATH}absolute_energy_comparison.png",
+        #plot_hist = f"{EXPERIMENT_FULL_PATH}energy_hist.png",
+        plot_relative = f"{EXPERIMENT_FULL_PATH}relative_energy_comparison.png",
+    run:
+        import seaborn as sns
+        import pandas as pd
+        import matplotlib.pyplot as plt
+
+        sns.set_context("talk")
+
+        df_inital = pd.read_csv(input.initial_energies)
+        df_const_opt = pd.read_csv(input.const_opt_energies)
+
+        # sp energy
+        fig, ax = plt.subplots(1,2, sharey=True, sharex=True)
+
+        kj_mol_water_monomer = -200563.91397680662
+        df_inital["Binding energy [kJ/mol]"] = df_inital["Energy [kJ/mol]"]-2*kj_mol_water_monomer
+        df_const_opt["Binding energy [kJ/mol]"] = df_const_opt["Energy [kJ/mol]"] - 2 * kj_mol_water_monomer
+
+        filtered_initial = df_inital[df_inital['Binding energy [kJ/mol]'] < 50]
+        filtered_const_opt = df_const_opt[df_inital['Binding energy [kJ/mol]'] < 50]
+
+
+        # sns.histplot(filtered_initial["Binding energy [kJ/mol]"],ax=ax[0], bins=100)
+        # ax[0].set_title(f"SP Plotted: {len(filtered_initial)}, not: {len(df_inital)-len(filtered_initial)}")
+        # sns.histplot(filtered_const_opt["Binding energy [kJ/mol]"],ax=ax[1], bins=100)
+        # ax[1].set_title(f"OPT Plotted: {len(filtered_const_opt)}, not: {len(df_const_opt) - len(filtered_const_opt)}")
+        # fig.savefig(output.plot_hist)
+
+
+        # absolute errors
+        fig, ax = plt.subplots(1, 1, figsize=(6,6))
+
+        sns.histplot(df_const_opt['Energy [kJ/mol]']-df_inital['Energy [kJ/mol]'], ax=ax, bins=50, binrange=(-5,1), binwidth=6/50, stat="probability")
+        ax.set_xlim(-5, 1)
+        ax.set_xlabel("E(opt) - E(SP) [kJ/mol]")
+        fig.tight_layout()
+        fig.savefig(output.plot)
+
+        # relative errors
+
+        # absolute errors
+        fig, ax = plt.subplots(1, 1)
+
+        sns.histplot(100*(filtered_const_opt["Binding energy [kJ/mol]"]-filtered_initial["Binding energy [kJ/mol]"])/np.abs(filtered_const_opt["Binding energy [kJ/mol]"]),
+            ax=ax, bins=50, binrange=(-50,0), binwidth=50/50)
+        ax.set_xlim(-50,0)
+        ax.set_xlabel("Change in energy after optimization [%]")
+        fig.tight_layout()
+        fig.savefig(output.plot_relative)
