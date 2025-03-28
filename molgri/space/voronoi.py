@@ -205,7 +205,7 @@ class AbstractVoronoi(ABC):
                     dist = self._calculate_borders(*index_tuple)
                     elements.extend([dist, dist])
                 else:
-                    raise ValueError(f"Didn't understand the argument property={sel_property}.")
+                    raise ValueError(f"Didn't understand the argument my_property={sel_property}.")
         N = len(self.get_all_voronoi_centers())
         adj_matrix = coo_array((elements, (rows, columns)), shape=(N, N))
         return adj_matrix

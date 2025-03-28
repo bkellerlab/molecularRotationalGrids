@@ -330,7 +330,7 @@ class SQRA:
         print(f"Warning! {len(np.where(diff_energies > 5e2)[0])} pairs of cells have a very large difference in "
               f"energy, more than factor 500. This would lead to overflow, so these differences are capped to a "
               f"factor 500. This might be a sign of poor discretisation or just the case of L-J overlap.")
-        diff_energies = np.where(diff_energies < 5e2, diff_energies, 5e2)
+        #diff_energies = np.where(diff_energies < 5e2, diff_energies, 5e2)
         print("DIFF", diff_energies.shape, self.volumes.shape, self.distances.shape, self.surfaces.shape)
 
         pi_exponent = np.round(diff_energies,14) * 1000 / (2 * kB * N_A * T)
@@ -345,7 +345,8 @@ class SQRA:
         transition_matrix = transition_matrix.tocsr() + diagonal_array.tocsr()
         return transition_matrix
 
-    def cut_and_merge(self, transition_matrix: csr_array, T: float, lower_limit: float, upper_limit: float) -> tuple:
+    def cut_and_merge(self, transition_matrix: csr_array, T: float, lower_limit: float, upper_limit: float,
+                      lower_bound_factor: float, upper_bound_factor: float) -> tuple:
         # cut and merge
         if lower_limit is not None:
             rate_to_join = determine_rate_cells_to_join(self.distances, self.energies,
@@ -355,7 +356,9 @@ class SQRA:
         else:
             current_index_list = None
         if upper_limit is not None:
-            too_high = determine_rate_cells_with_too_high_energy(self.energies,energy_limit=upper_limit,T=T)
+            too_high = determine_rate_cells_with_too_high_energy(self.energies,energy_limit=upper_limit,T=T,
+                                                                 lower_bound_factor=lower_bound_factor,
+                                                                 upper_bound_factor=upper_bound_factor)
             transition_matrix, current_index_list = delete_rate_cells(transition_matrix, to_remove=too_high,
                 index_list=current_index_list)
         else:

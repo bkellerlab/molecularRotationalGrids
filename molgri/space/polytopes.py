@@ -50,7 +50,7 @@ class Polytope(ABC):
 
     def __init__(self, d: int = 3):
         """
-        The  central property of a Polytope is its graph G. The nodes of G are integers that uniquely describe a node
+        The  central my_property of a Polytope is its graph G. The nodes of G are integers that uniquely describe a node
         (also called central index). Each node has the following properties:
          - polytope_point (coordinates of the point on the surface of a polytope)
          - projection (coordinates of the point normed to length 1)

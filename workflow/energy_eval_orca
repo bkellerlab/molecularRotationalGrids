@@ -67,6 +67,11 @@ def determine_output_files_in_batches(wildcards):
 def determine_input_files_in_batches(wildcards):
     return _determine_batch_folders(wildcards,"orca.inp")
 
+paths = [f"{REMOTE_PATH}{EXPERIMENT_FULL_PATH}{my_path}orca.out" for my_path in
+                            _determine_batch_subfolders() if
+                            os.path.exists(f"{REMOTE_PATH}{EXPERIMENT_FULL_PATH}{my_path}orca.out")]
+print("NUM PATHS", len(paths))
+
 rule modify_run_orca:
     input:
         script_run_orca_job= "molgri/scripts/run_ORCA.sh",
@@ -160,7 +165,7 @@ def find_all_created_outs(wildcards):
     all_existing_outputs = [f"{REMOTE_PATH}{EXPERIMENT_FULL_PATH}{my_path}orca.out" for my_path in
                             _determine_batch_subfolders() if
                             os.path.exists(f"{REMOTE_PATH}{EXPERIMENT_FULL_PATH}{my_path}orca.out")]
-
+    print("len outputs", len(all_existing_outputs))
     return all_existing_outputs
 
 

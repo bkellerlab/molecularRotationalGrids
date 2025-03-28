@@ -1,5 +1,14 @@
 """
-All the workflows relating to pseudotrajectories, subsequent SQRAs and their related outputs (figures ...)
+The process of evaluating a SQRA model consists of steps:
+1. making a grid (in run_grid)
+2. making a PT from a grid and two molecules
+3. TIME INTENSE: evaluating energies along a PT (in energy_eval_orca or energy_eval_gromacs)
+4. combining all energy evaluations in a .csv file
+5. building a rate matrix from grid data and energy .csv file + removing outliers
+6. TIME INTENSE: eigendecomposition of rate matrix
+7. visualization of eigenvector, eigenvalue and other data (in molecular_visualizations)
+
+Time intense steps should be performed on CURTA.
 """
 import sys
 import os
@@ -13,10 +22,12 @@ sys.path.append(".")
 from molgri.paths import PATH_INPUT_BASEGRO, PATH_EXPERIMENTS
 from molgri.io import QuantumSetup
 
+config['num_repeats'] = 1
+
 include: "run_grid"
 
 if config["energy_program"] == "ORCA":
-    include: "run_sqra_orca"
+    include: "energy_eval_orca"
 
     QUANTUM_SETUP = QuantumSetup(
         functional=config["params_dft"]["functional"],
@@ -30,7 +41,7 @@ if config["energy_program"] == "ORCA":
     ORCA_DIR = QUANTUM_SETUP.get_dir_name()
     EXPERIMENT_FULL_PATH = f"{PATH_EXPERIMENTS}{config['experiment_type']}/{config['experiment_id']}/{config['grid_identifier']}/{config['params_dft']['optimization_type']}_{ORCA_DIR}"
 elif config["energy_program"] == "GROMACS":
-    include: "run_sqra_gromacs"
+    include: "energy_eval_gromacs"
     EXPERIMENT_FULL_PATH = f"{PATH_EXPERIMENTS}{config['experiment_type']}/{config['experiment_id']}/{config['grid_identifier']}/"
 else:
     raise ValueError(f"Energy program must be ORCA or GROMACS, not {config['energy_program']}")
@@ -48,8 +59,9 @@ rule all_sqra:
         # THIRD STEP - COPY ALL BACK HERE (use -R get_from_curta)
         #expand(f"{{where}}all_outputs_copied.touch", where=EXPERIMENT_FULL_PATH) #"SP", "ConstOpt"
         # FINALLY - WHEN FINISHED COLLECT AND PLOT
-        f"{EXPERIMENT_FULL_PATH}energy.csv", #/home/nobackup/
-        #expand(f"{EXPERIMENT_FULL_PATH}network_analysis/all_{{what}}_87.tga", what=["neighbours", "orientations", "closest"]),
+        #f"{EXPERIMENT_FULL_PATH}energy.csv",
+        f"{EXPERIMENT_FULL_PATH}energy.csv"
+    #expand(f"{EXPERIMENT_FULL_PATH}network_analysis/all_{{what}}_87.tga", what=["neighbours", "orientations", "closest"]),
         #expand(f"{{where}}{{what}}", what="neighbours_17/neighbours.txt", where=EXPERIMENT_FULL_PATH),
     #what=["its.png", "eigenvectors_vmdlog", "eigenvalues.png", "its.csv", "energy.csv", "orca_time.txt", "constrained_opt_energy.csv"]
     log:
@@ -217,7 +229,6 @@ rule run_sqra:
         np.save(output.index_list,np.array(index_list,dtype=object))
 
 
-
 rule run_decomposition:
     """
     As output we want to have eigenvalues, eigenvectors. Es input we get a (sparse) rate matrix.
@@ -255,95 +266,7 @@ rule run_decomposition:
         np.save(output.eigenvectors,np.array(all_eigenvec))
 
 
-rule run_plot_everything_sqra:
-    """
-    Make a plot of eigenvalues
-    """
-    input:
-        eigenvalues = rules.run_decomposition.output.eigenvalues,
-        eigenvectors = rules.run_decomposition.output.eigenvectors,
-    output:
-        plot_eigenvectors=f"{{where}}eigenvectors.png",
-        plot_eigenvalues=f"{{where}}eigenvalues.png",
-        plot_its=report(f"{{where}}its.png", category=config["experiment_id"]),
-    run:
-        from molgri.plotting.transition_plots import PlotlyTransitions
-        pt = PlotlyTransitions(is_msm=False,path_eigenvalues=input.eigenvalues,path_eigenvectors=input.eigenvectors)
-        # eigenvectors
-        pt.plot_eigenvectors_flat()
-        pt.save_to(output.plot_eigenvectors,height=800, width=400, talk=True)
-        # eigenvalues
-        pt.plot_eigenvalues()
-        pt.save_to(output.plot_eigenvalues, talk=True)
-        # # its for msm
-        pt.plot_its_as_line()
-        pt.save_to(output.plot_its, talk=True)
-        # we could also plot the heatmap of the matrix, but it's honestly not that useful and can become very large
 
-
-rule compile_vmd_log:
-    """
-    Input are the saved eigenvectors. Output = a vmd log that can be used later with:
-
-    vmd <gro file> <xtc file>
-    play <vmdlog file>
-    """
-    input:
-        structure = rules.run_pt.output.structure,
-        trajectory = f"{{where}}trajectory.xyz" if config["energy_program"] == "ORCA" else f"{{where}}trajectory.xtc",
-        eigenvectors = rules.run_decomposition.output.eigenvectors,
-        index_list = rules.run_sqra.output.index_list,
-        num_atoms = rules.find_num_atoms.output.num_atoms,
-        script= "molgri/scripts/vmd_alt_position_sqra_water"
-    output:
-        vmdlog = f"{{where}}eigenvectors_vmdlog",
-        fig_tga = expand(f"{{where}}eigenvector{{i}}.tga", i=range(config["params_sqra"]["num_eigenvec_to_plot"]), allow_missing=True),
-        fig_png = expand(f"{{where}}eigenvector{{i}}.png", i=range(config["params_sqra"]["num_eigenvec_to_plot"]), allow_missing=True)
-    params:
-        num_extremes=config["params_sqra"]["num_extremes_to_plot"],
-        num_eigenvec=config["params_sqra"]["num_eigenvec_to_plot"]
-    run:
-        from molgri.plotting.create_vmdlog import VMDCreator, from_eigenvector_array_to_dominant_eigenvector_indices
-        from workflow.snakemake_utils import  find_right_vmd_script
-
-        # load eigenvectors
-        eigenvectors = np.load(input.eigenvectors)
-
-        # determine first and second index
-        with open(input.num_atoms, "r") as f:
-            num_first_mol = int(f.readline().strip())
-
-        index_first = f"index < {num_first_mol}"
-        index_second = f"index >= {num_first_mol}"
-
-        if config["experiment_type"] == "sqra_bpti_trypsine":
-            is_protein=True
-        else:
-            is_protein=False
-
-        index_list = np.load(input.index_list,allow_pickle=True)
-        if not np.any(index_list):
-            index_list = None
-        else:
-            index_list = list(index_list)
-        if params.num_extremes == "None":
-            params.num_extremes = None
-
-
-        abs_e, pos_e, neg_e = from_eigenvector_array_to_dominant_eigenvector_indices(eigenvectors.T, index_list,
-            n_eigenvectors=params.num_eigenvec, num_extremes=params.num_extremes)
-
-        # now vmd creator
-        vmd_creator = VMDCreator(index_first_molecule=index_first, index_second_molecule=index_second,
-            is_protein=is_protein)
-        vmd_creator.load_translation_rotation_script(input.script)
-        vmd_creator.prepare_eigenvector_script(abs_e, pos_e, neg_e, plot_names=output.fig_tga)
-        vmd_creator.write_text_to_file(output.vmdlog)
-
-        # make all the figures
-        shell("vmd  -dispdev text {input.structure} {input.trajectory} < {output.vmdlog}")
-        for el_tga, el_png in zip(output.fig_tga, output.fig_png):
-            shell("convert {el_tga} {el_png}")
 
 rule print_its:
     input:
@@ -358,125 +281,3 @@ rule print_its:
         all_its.append([-1 / (eigenval) for eigenval in eigenvals])
         my_df = pd.DataFrame(all_its, columns=[f"ITS {i} [ps]" for i in range(1, len(all_its[0])+1)])
         my_df.to_csv(output.data)
-
-
-
-rule get_optimized_structures:
-    """
-    The opposite to split xyz file.
-    """
-    input:
-        out_file = "{where}orca.out",
-    output:
-        structure="{where}structure_opt.xyz",
-    run:
-        from molgri.io import OrcaReader
-
-        my_reader = OrcaReader(input.out_file)
-        current_xyz = my_reader.extract_optimized_xyz()
-        with open(output.structure, "w") as f:
-            f.write(current_xyz)
-
-rule find_all_dominant_structures:
-    input:
-        eigenvectors = "{where}eigenvectors.npy",
-        index_list= "{where}index_list.npy",
-    output:
-        dominant_structures = "{where}dominant_structures.npz"
-    params:
-        num_extremes = config["params_sqra"]["num_extremes_to_plot"],
-        num_eigenvec = config["params_sqra"]["num_eigenvec_to_plot"]
-    run:
-        from molgri.plotting.create_vmdlog import from_eigenvector_array_to_dominant_eigenvector_indices
-
-        index_list = np.load(input.index_list,allow_pickle=True)
-        if not np.any(index_list):
-            index_list = None
-        else:
-            index_list = list(index_list)
-        print("INDEX LIST", index_list)
-
-        # load eigenvectors
-        eigenvectors = np.load(input.eigenvectors)
-
-        abs_e, pos_e, neg_e = from_eigenvector_array_to_dominant_eigenvector_indices(eigenvectors.T,index_list=None,
-            n_eigenvectors=params.num_eigenvec,num_extremes=params.num_extremes, add_one=False)
-        np.savez(output.dominant_structures,abs_val=abs_e,pos_val=pos_e, neg_val=neg_e)
-
-rule vmdlog_dominant_structures:
-    input:
-        num_atoms = f"experiments/water_xyz/example/mid_example_water/num_atoms.txt",
-        num_structures = "{where}dominant_structures.npz",
-        script = "molgri/scripts/vmd_position_sqra_water"
-    output:
-        eigenvector_vmdlog = "{where}vmdlog_{i}"
-    run:
-        import os
-        from workflow.snakemake_utils import find_right_vmd_script
-        from molgri.plotting.create_vmdlog import VMDCreator
-
-        my_directory = os.path.split(output.eigenvector_vmdlog)[0]
-        plot_name = f"{my_directory}/plot_{wildcards.i}.tga"
-
-        # determine first and second index
-        with open(input.num_atoms, "r") as f:
-            num_first_mol = int(f.readline().strip())
-
-        index_first = f"index < {num_first_mol}"
-        index_second = f"index >= {num_first_mol}"
-
-        vmd_creator = VMDCreator(index_first_molecule=index_first,index_second_molecule=index_second,
-            is_protein=False)
-        vmd_creator.load_translation_rotation_script(input.script)
-
-        if int(wildcards.i) == 0:
-            num_structures = len(np.load(f"{wildcards.where}dominant_structures.npz")["abs_val"])
-            vmd_creator.prepare_evec_0(num_structures=num_structures, plot_name=plot_name)
-        else:
-            num_structures_pos = len(np.load(f"{wildcards.where}dominant_structures.npz")["pos_val"][int(wildcards.i)-1])
-            num_structures_neg = len(np.load(f"{wildcards.where}dominant_structures.npz")["neg_val"][int(wildcards.i) - 1])
-            vmd_creator.prepare_evec_pos_neg(num_structures_pos, num_structures_neg, plot_name)
-
-        vmd_creator.write_text_to_file(output.eigenvector_vmdlog)
-
-import os
-
-def find_all_structures_with_indices(indices, main_folder, file_needed):
-    list_structures = []
-    for subfolder in os.scandir(main_folder):
-        if subfolder.is_dir():
-            for sub_sub_folder in os.scandir(subfolder.path):
-                if sub_sub_folder.is_dir():
-                    folder_full_path = sub_sub_folder.path
-                    if int(os.path.split(folder_full_path)[-1]) in indices:
-                        file_full_path = f"{folder_full_path}/{file_needed}"
-                        list_structures.append(file_full_path)
-    return list_structures
-
-
-def get_evec_i_structures(wildcards):
-    if int(wildcards.i) == 0:
-        indices = np.load(f"{wildcards.where}dominant_structures.npz")["abs_val"]
-        structures = find_all_structures_with_indices(indices,wildcards.where,"structure_opt.xyz")
-    else:
-        indices_pos = np.load(f"{wildcards.where}dominant_structures.npz")["pos_val"][int(wildcards.i) - 1]
-        indices_neg = np.load(f"{wildcards.where}dominant_structures.npz")["neg_val"][int(wildcards.i) - 1]
-        structures = find_all_structures_with_indices(indices_pos,wildcards.where,"structure_opt.xyz")
-        structures.extend(find_all_structures_with_indices(indices_neg,wildcards.where,"structure_opt.xyz"))
-    return structures
-
-
-rule plot_dominant_structures:
-    input:
-        dominant_str = "{where}dominant_structures.npz",
-        structures = get_evec_i_structures,
-        vmdlog_file = "{where}vmdlog_{i}"
-    output:
-        fig_tga = "{where}plot_{i}.tga",
-        fig_png = "{where}plot_{i}.png"
-    run:
-        import subprocess
-        print(f"vmd -dispdev text {' '.join(input.structures)} < {input.vmdlog_file}")
-        subprocess.run(f"vmd -dispdev text {' '.join(input.structures)} < {input.vmdlog_file}", shell=True)
-        shell("convert {output.fig_tga} {output.fig_png}")
-

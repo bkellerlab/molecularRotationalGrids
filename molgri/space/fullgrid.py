@@ -447,8 +447,9 @@ class PositionGrid:
                                                                           include_opposing_neighbours=False).toarray()
             multiply = self.get_radii()
         else:
-            raise ValueError(f"Not recognised argument property={sel_property}")
+            raise ValueError(f"Not recognised argument my_property={sel_property}")
 
+        # TODO: these are 
         same_ray_neighbours = diags(my_diags, offsets=n_o, shape=(n_points, n_points), dtype=my_dtype,
                                           format="coo")
         same_ray_neighbours += diags(my_diags, offsets=-n_o, shape=(n_points, n_points), dtype=my_dtype,
@@ -516,7 +517,7 @@ def _t_and_o_2_positions(o_property, t_property):
         - then all orientations at second distance
         - ....
 
-    Outputs an array of len n_o*n_t, can have shape 1 or higher depending on the property
+    Outputs an array of len n_o*n_t, can have shape 1 or higher depending on the my_property
 
     Returns:
 

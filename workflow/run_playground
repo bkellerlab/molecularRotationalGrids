@@ -7,6 +7,7 @@ import yaml
 from itertools import product
 
 from molgri.paths import PATH_EXPERIMENTS
+configfile: "workflow/default_sqra_orca_config.yaml"
 
 rule lowest_e:
     input:
@@ -193,98 +194,68 @@ rule plot_time_its_diff_sizes:
 
 #"experiments/guanidinium_xyz/example/medium_gua_grid/"
 # "experiments/water_xyz/example/large_example_water/"
-EXPERIMENT_FULL_PATH = "experiments/water_xyz/example_new/water_64K/SP_PBE0_def2tzvp_water_D4/"
-NUM_GRID_POINTS = 64000
-index1 = 3
-type_run = "water_xyz"
 
-rule run_clustering_labelling:
+#/home/hanaz63/2024_molgri2/nobackup/molecularRotationalGrids/experiments/guanidinium_xyz/example/huge_gua_grid//
+
+
+EXPERIMENT_FULL_PATH = "experiments/water_xyz/example_new/water_64K/"
+FUNCTIONAL = "PBE0_def2tzvp_water_D4"
+rule compare_initial_and_const_opt_energies:
     input:
-        eigenvectors = f"{EXPERIMENT_FULL_PATH}eigenvectors.npy",
-    params:
-        num_clusters = 12
+        initial_energies = f"{EXPERIMENT_FULL_PATH}SP_{FUNCTIONAL}/energy.csv",
+        const_opt_energies = f"{EXPERIMENT_FULL_PATH}ConstOpt_{FUNCTIONAL}/energy.csv"
     output:
-        labels = f"{EXPERIMENT_FULL_PATH}labels.npy"
+        plot = f"{EXPERIMENT_FULL_PATH}absolute_energy_comparison.png",
+        #plot_hist = f"{EXPERIMENT_FULL_PATH}energy_hist.png",
+        plot_relative = f"{EXPERIMENT_FULL_PATH}relative_energy_comparison.png",
     run:
-        from sklearn.cluster import KMeans
-
-        eigenvectors = np.load(input.eigenvectors)[:, :6]
-        clustering = KMeans(n_clusters=params.num_clusters).fit(eigenvectors)
-        my_labels = clustering.labels_
-        unique, counts = np.unique(my_labels, return_counts=True)
-        print(unique[np.where(counts>10)[0]], counts[np.where(counts>10)[0]])
-        np.save(output.labels, my_labels)
-
-
-rule run_clustering_plotting:
-    input:
-        structure = f"{EXPERIMENT_FULL_PATH}structure.xyz",
-        trajectory =  f"{EXPERIMENT_FULL_PATH}trajectory.xyz",
-        labels = f"{EXPERIMENT_FULL_PATH}labels.npy",
-        eigenvectors = f"{EXPERIMENT_FULL_PATH}eigenvectors.npy",
-
-    output:
-        plot = f"{EXPERIMENT_FULL_PATH}clustering.png",
-        clustering_vmdlog = f"{EXPERIMENT_FULL_PATH}clustering_vmdlog",
-        vmd_plot_tga = f"{EXPERIMENT_FULL_PATH}eigenvector_clustering.tga",
-        #vmd_plot_png = f"{EXPERIMENT_FULL_PATH}eigenvector_clustering.png",
-    run:
-        from workflow.snakemake_utils import find_right_vmd_script
-        my_script = find_right_vmd_script(config['experiment_type'])
-        eigenvectors = np.load(input.eigenvectors)[:,:6]
-
-        import matplotlib.pyplot as plt
         import seaborn as sns
-        from molgri.plotting.create_vmdlog import VMDCreator
+        import pandas as pd
+        import matplotlib.pyplot as plt
 
-        sns.set_style("white")
-        fig, ax = plt.subplots(1,1,subplot_kw={"projection": "3d"})
-        c = np.load(input.labels).astype(int)
+        sns.set_context("talk")
 
-        palette_sqra = ["yellow", "orange", "green", "blue", "cyan", "purple", "gray", "pink", "red", "magenta"]  #pop over 10
-        #palette = ["black", "yellow", "orange", "green", "blue", "cyan", "purple", "gray", "pink", "red"]   # pop over 20
+        df_inital = pd.read_csv(input.initial_energies)
+        df_const_opt = pd.read_csv(input.const_opt_energies)
 
+        # sp energy
+        fig, ax = plt.subplots(1,2, sharey=True, sharex=True)
+        # kj_mol_gua_monomer = -540470.8771032256
+        kj_mol_water_monomer = -200563.91397680662
+        df_inital["Binding energy [kJ/mol]"] = df_inital["Energy [kJ/mol]"]-2*kj_mol_water_monomer
+        df_const_opt["Binding energy [kJ/mol]"] = df_const_opt["Energy [kJ/mol]"] - 2 * kj_mol_water_monomer
 
-        first_evec = eigenvectors.T[1]
-        second_evec = eigenvectors.T[2]
-        third_evec = eigenvectors.T[3]
-        unique, counts = np.unique(c,return_counts=True)
-        #print(unique, counts)
-        list_of_indices = []
-        list_of_palette = []
-        color_index = 0
-        for i, label in enumerate(unique[np.where(counts>1)[0]]):
-            cluster = np.where(c == label)[0]
-            population = len(cluster)
-
-            if population > 50 and population < 200:
-                list_of_indices.append([x + 1 for x in np.random.choice(cluster,30)])
-                ax.scatter(first_evec[cluster],second_evec[cluster],third_evec[cluster],c=[palette_sqra[color_index], ] * len(cluster))
-                color_index += 1
-                #list_of_palette.append(palette_sqra[i])
-            elif population >7 and population <= 50:
-                list_of_indices.append([x + 1 for x in cluster])
-                ax.scatter(first_evec[cluster],second_evec[cluster],third_evec[cluster],c=[palette_sqra[color_index], ] * len(cluster))
-                color_index += 1
-                #list_of_palette.append(palette_sqra[i])
-        print([len(i) for i in list_of_indices])
+        filtered_initial = df_inital[df_inital['Binding energy [kJ/mol]'] < 50]
+        filtered_const_opt = df_const_opt[df_inital['Binding energy [kJ/mol]'] < 50]
 
 
-        plt.savefig(output.plot, dpi=600)
-        print(list_of_indices)
-        vmd_creator = VMDCreator(index_first_molecule=f"index < {index1}",index_second_molecule=f"index >= {index1}",
-            is_protein=False)
-        vmd_creator.load_translation_rotation_script(input.script)
-
-        individual_names = [f"{os.path.split(output.vmd_plot_tga)[0]}/cluster_{i}.tga" for i in range(len(list_of_indices))]
-        vmd_creator.prepare_clustering_script(list_of_indices,palette_sqra[:len(list_of_indices)], output.vmd_plot_tga, individual_names)
-        vmd_creator.write_text_to_file(output.clustering_vmdlog)
+        # sns.histplot(filtered_initial["Binding energy [kJ/mol]"],ax=ax[0], bins=100)
+        # ax[0].set_title(f"SP Plotted: {len(filtered_initial)}, not: {len(df_inital)-len(filtered_initial)}")
+        # sns.histplot(filtered_const_opt["Binding energy [kJ/mol]"],ax=ax[1], bins=100)
+        # ax[1].set_title(f"OPT Plotted: {len(filtered_const_opt)}, not: {len(df_const_opt) - len(filtered_const_opt)}")
+        # fig.savefig(output.plot_hist)
 
 
-        # TODO: if trajectory in a directory, you can load structure trajectory/*
-        shell("vmd  -dispdev text {input.structure} {input.trajectory} < {output.clustering_vmdlog}")
-        #for el_tga, el_png in zip(output.vmd_plot_tga, output.vmd_plot_png):
-        #    shell("convert {el_tga} {el_png}")
+        # absolute errors
+        fig, ax = plt.subplots(1, 1, figsize=(6,6))
+
+        sns.histplot(df_const_opt['Energy [kJ/mol]']-df_inital['Energy [kJ/mol]'], ax=ax, bins=50, binrange=(-5,1), binwidth=6/50, stat="probability")
+        ax.set_xlim(-5, 1)
+        ax.set_xlabel("E(opt) - E(SP) [kJ/mol]")
+        fig.tight_layout()
+        fig.savefig(output.plot)
+
+        # relative errors
+
+        # absolute errors
+        fig, ax = plt.subplots(1, 1)
+
+        sns.histplot(100*(filtered_const_opt["Binding energy [kJ/mol]"]-filtered_initial["Binding energy [kJ/mol]"])/np.abs(filtered_const_opt["Binding energy [kJ/mol]"]),
+            ax=ax, bins=50, binrange=(-50,0), binwidth=50/50)
+        ax.set_xlim(-50,0)
+        ax.set_xlabel("Change in energy after optimization [%]")
+        fig.tight_layout()
+        fig.savefig(output.plot_relative)
 
 
 
@@ -334,7 +305,9 @@ rule find_missing_values:
 rule get_total_time:
     input:
         "experiments/water_xyz/example_new/water_64K/ConstOpt_PBE0_def2tzvp_water_D4/orca_time.txt",
-        "experiments/water_xyz/example_new/water_64K/SP_PBE0_def2tzvp_water_D4/orca_time.txt"
+        "experiments/water_xyz/example_new/water_64K/SP_PBE0_def2tzvp_water_D4/orca_time.txt",
+        "experiments/guanidinium_xyz/example_new/huge_gua_grid/SP_B3LYP_def2tzvp_water_D4/orca_time.txt",
+        "experiments/guanidinium_xyz/example_new/huge_gua_grid/ConstOpt_B3LYP_def2tzvp_water_D4/orca_time.txt"
 
 rule orca_total_and_average_time:
     input:
@@ -367,38 +340,217 @@ rule run_example:
         "/home/hanaz63/2024_molgri2/nobackup/molecularRotationalGrids/experiments/sqra_water_in_vacuum/example/large_example_water/neighbours_17/vmdlog"
 
 
+import sys
+import os
+import numpy as np
+import matplotlib.pyplot as plt
 
-rule plot_neighbours:
+plt.switch_backend('agg')
+
+# add molgri directory
+sys.path.append(".")
+from molgri.paths import PATH_INPUT_BASEGRO, PATH_EXPERIMENTS
+from molgri.io import QuantumSetup
+
+#include: "run_grid"
+
+if config["energy_program"] == "ORCA":
+    #include: "energy_eval_orca"
+
+    QUANTUM_SETUP = QuantumSetup(
+        functional=config["params_dft"]["functional"],
+        basis_set=config["params_dft"]["basis_set"],
+        solvent=config["params_dft"]["solvent"],
+        dispersion_correction=config["params_dft"]["dispersion"],
+        num_scf=config["params_dft"]["num_scf"],
+        num_cores=config["params_dft"]["num_cores"],
+        ram_per_core=config["params_dft"]["ram_per_core"]
+    )
+    ORCA_DIR = QUANTUM_SETUP.get_dir_name()
+    PATH_SEARCH_DIR = f"{PATH_EXPERIMENTS}{config['experiment_type']}/{config['experiment_id']}/{config['grid_identifier']}/{config['params_dft']['optimization_type']}_{ORCA_DIR}"
+elif config["energy_program"] == "GROMACS":
+    #include: "energy_eval_gromacs"
+    PATH_SEARCH_DIR = f"{PATH_EXPERIMENTS}{config['experiment_type']}/{config['experiment_id']}/{config['grid_identifier']}/"
+else:
+    raise ValueError(f"Energy program must be ORCA or GROMACS, not {config['energy_program']}")
+
+
+rule from_rough_to_clean_csv:
     input:
-        neighbours_of = "{path}/neighbours_{central_index}/neighbours.txt",
-        water_script = "molgri/scripts/vmd_position_sqra_water",
-        structure = "{path}/structure.gro",
-        trajectory = "{path}/trajectory.xtc"
+        rough = f"{PATH_SEARCH_DIR}orca_results.csv"
     output:
-        vmdlog="{path}/neighbours_{central_index}/vmdlog",
+        clean = f"{PATH_SEARCH_DIR}playground/results.csv"
     run:
-        from molgri.plotting.create_vmdlog import VMDCreator
+        import pandas as pd
+        from pathlib import Path
+        from scipy.constants import physical_constants
 
-        neighbours = np.loadtxt(input.neighbours_of, dtype=int)
-        point_itself = int(wildcards.central_index)
+        HARTREE_TO_J = physical_constants["Hartree energy"][0]
+        AVOGADRO_CONSTANT = physical_constants["Avogadro constant"][0]
 
-        # a list of the point and its neighbours with +1 for each point -> because VMD starts with 1
-        neighbour_list = list(neighbours)
-        neighbour_list.append(point_itself)
-        neighbour_list = [el+1 for el in neighbour_list]
-        neighbour_names = [f"{wildcards.path}/neighbours_{wildcards.central_index}/structure_{i-1}.tga" for i in neighbour_list]
-        neighbour_names_png = [f"{wildcards.path}/neighbours_{wildcards.central_index}/structure_{i - 1}.png" for i in neighbour_list]
+        # "File,Total Run Time,Final Single Point Energy"
+        df = pd.read_csv(input.rough)
+        df['Frame'] = df['File'].apply(lambda x: int(Path(x).parent.name))
+        df["Energy [kJ/mol]"] = df["Final Single Point Energy"] / 1000.0 * (HARTREE_TO_J * AVOGADRO_CONSTANT)
+        df = df.sort_values(by="Frame")
+        print(df)
 
-        num_first_mol = 3
-        index_first = f"index < {num_first_mol}"
-        index_second = f"index >= {num_first_mol}"
-        my_vmd = VMDCreator(index_first, index_second)
-        my_vmd.load_translation_rotation_script(input.water_script)
-        my_vmd.plot_these_structures(neighbour_list, neighbour_names)
-        my_vmd.write_text_to_file(output.vmdlog)
+        df.to_csv(output.clean)
 
-        shell("vmd  -dispdev text {input.structure} {input.trajectory} < {output.vmdlog}")
-        for el_tga, el_png in zip(neighbour_names, neighbour_names_png):
-            shell("convert {el_tga} {el_png}")
 
-        print(neighbour_list)
+rule remove_too_long:
+    input:
+        rough = f"{PATH_SEARCH_DIR}energy.csv"
+    output:
+        clean = f"{PATH_SEARCH_DIR}removed_energy.csv"
+    params:
+        max_time_in_s = config['params_dft']['max_runtime']
+    run:
+        import pandas as pd
+        from pathlib import Path
+        from scipy.constants import physical_constants
+
+
+        def time_string_to_seconds(time_str):
+            # Replace '-' with ' days ' to match pandas timedelta format
+            time_str = time_str.replace('-',' days ')
+            # Convert to timedelta
+            td = pd.to_timedelta(time_str)
+            # Return total seconds as float
+            return td.total_seconds()
+
+        # "File,Total Run Time,Final Single Point Energy"
+        df = pd.read_csv(input.rough)
+        try:
+            df["Time [h:m:s]"] = pd.to_timedelta(df["Time [h:m:s]"])
+            df["Time [s]"] = np.where(df["Normal Finish"],df["Time [h:m:s]"].dt.total_seconds(),np.NaN)
+        except:
+            pass
+
+        # Create new_df with conditions applied
+        new_df = df.copy()
+        try:
+            new_df.loc[new_df['Time [s]'] >= time_string_to_seconds(params.max_time_in_s), 'Energy [kJ/mol]'] = np.nan
+        except:
+            pass
+        new_df.to_csv(output.clean)
+
+rule run_sqra:
+    """
+    As input we need: energies, adjacency, volume, borders, distances.
+    As output we want to have the rate matrix.
+    """
+    input:
+        energy = f"{PATH_SEARCH_DIR}removed_energy.csv",
+        distances_array = f"{PATH_SEARCH_DIR}distances_array.npz",
+        borders_array = f"{PATH_SEARCH_DIR}borders_array.npz",
+        volumes = f"{PATH_SEARCH_DIR}volumes.npy",
+    output:
+        rate_matrix = f"{PATH_SEARCH_DIR}absolute_lim_{{upper_bound}}/rate_matrix.npz",
+        index_list = f"{PATH_SEARCH_DIR}absolute_lim_{{upper_bound}}/index_list.npy",
+    benchmark:
+        f"{PATH_SEARCH_DIR}absolute_lim_{{upper_bound}}/rate_matrix_benchmark.txt"
+    params:
+        T=float(config["params_sqra"]["temperature_K"]),
+        energy_type=config["params_sqra"]["energy_type"],
+        m_h2o = float(config["params_sqra"]["mass_kg"]),
+        tau = float(config["params_setup"]["tau_t"]),
+        lower_lim = config["params_sqra"]["lower_lim_rate_matrix"],
+        upper_lim = config["params_sqra"]["upper_lim_rate_matrix"],
+    run:
+        from molgri.io import EnergyReader
+        from molgri.molecules.transitions import SQRA
+        from scipy import sparse
+        from scipy.constants import k as k_B
+        import pandas as pd
+
+        tau = float(params.tau) * 1e-12 # now in s
+
+        D = k_B * params.T *tau / params.m_h2o  # in m^2/s
+        D*= 1e8  # now in A^2/ps
+        print(f"Diffusion const D={D} ")
+
+        # load input files
+        all_volumes = np.load(input.volumes)
+        all_surfaces = sparse.load_npz(input.borders_array)
+        all_distances = sparse.load_npz(input.distances_array)
+
+
+
+        # determine limits
+        if params.lower_lim == "None":
+            lower_limit = None
+        else:
+            lower_limit = float(params.lower_lim)
+        if params.upper_lim == "None":
+            upper_limit = None
+        else:
+            upper_limit = float(params.upper_lim)
+
+
+        energies = EnergyReader(input.energy).load_single_energy_column(params.energy_type)
+
+        # subtract monomer energies
+        if config['experiment_type'] == "guanidinium_xyz":
+            kj_mol_monomer = -540470.8771032256
+        elif config['experiment_type'] == "water_xyz":
+            kj_mol_monomer = -200563.91397680662
+        energies = energies - 2*kj_mol_monomer
+
+        energies = np.nan_to_num(energies, nan=np.infty)
+
+        sqra = SQRA(energies=energies,volumes=all_volumes,distances=all_distances,surfaces=all_surfaces)
+
+
+        rate_matrix = sqra.get_rate_matrix(D,params.T)
+        print("rate matrix", pd.DataFrame(rate_matrix.data).describe())
+        rate_matrix, index_list = sqra.cut_and_merge(rate_matrix,T=params.T,lower_limit=None,
+            upper_limit=float(wildcards.upper_bound), lower_bound_factor=None,
+        upper_bound_factor=None)
+        print("rate matrix after cut",pd.DataFrame(rate_matrix.data).describe())
+        # saving to file
+        sparse.save_npz(output.rate_matrix,rate_matrix)
+        np.save(output.index_list,np.array(index_list,dtype=object))
+
+
+
+rule run_decomposition:
+    """
+    As output we want to have eigenvalues, eigenvectors. Es input we get a (sparse) rate matrix.
+    """
+    input:
+        rate_matrix = f"{PATH_SEARCH_DIR}absolute_lim_{{upper_bound}}/rate_matrix.npz"
+    output:
+        eigenvalues = f"{PATH_SEARCH_DIR}absolute_lim_{{upper_bound}}/eigenvalues.npy",
+        eigenvectors = f"{PATH_SEARCH_DIR}absolute_lim_{{upper_bound}}/eigenvectors.npy",
+    benchmark:
+        f"{PATH_SEARCH_DIR}absolute_lim_{{upper_bound}}/decomposition_benchmark.txt"
+    params:
+        tol=config["params_sqra"]["tol"],
+        maxiter=config["params_sqra"]["maxiter"],
+        sigma=config["params_sqra"]["sigma"],
+        which=config["params_sqra"]["which"],
+    run:
+        from scipy import sparse
+        from molgri.molecules.transitions import DecompositionTool
+
+        # loading
+        my_matrix = sparse.load_npz(input.rate_matrix)
+
+        if params.sigma == "None":
+            sigma = None
+        else:
+            sigma = float(params.sigma)
+        # calculation
+        dt = DecompositionTool(my_matrix)
+        all_eigenval, all_eigenvec = dt.get_decomposition(tol=params.tol, maxiter=params.maxiter, which=params.which,
+            sigma=sigma)
+
+        # saving to file
+        np.save(output.eigenvalues,np.array(all_eigenval))
+        np.save(output.eigenvectors,np.array(all_eigenvec))
+
+rule all_bound_eigenalues:
+    input:
+        expand(f"{PATH_SEARCH_DIR}absolute_lim_{{upper_bound}}/rate_matrix.npz", zip,
+            upper_bound=["1", "3", "5", "10", "20", "50", "100", "200", "500", "1000"])

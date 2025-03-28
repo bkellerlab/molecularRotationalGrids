@@ -11,7 +11,7 @@ def find_right_vmd_script(experiment_type):
         case "sqra_water_in_vacuum":
             return "molgri/scripts/vmd_position_sqra_water"
         case "water_xyz":
-            return "molgri/scripts/vmd_position_sqra_water"
+            return "molgri/scripts/vmd_alt_position_sqra_water"
         case "msm_water_in_vacuum":
             return "molgri/scripts/vmd_position_msm_water_vacuum"
         case "fullerene_xyz":

@@ -1,0 +1,260 @@
+from scipy.sparse import load_npz
+from scipy import sparse
+import pandas as pd
+import numpy as np
+
+import sys
+sys.path.append(".")
+from molgri.molecules.rate_merger import sqra_normalize
+
+SEED = 1
+rng = np.random.default_rng(SEED)
+
+REMOTE_PATH = "/home/hanaz63/nobackup/"
+STARTING_PATH = "experiments/guanidinium_xyz/example_new/huge_gua_grid/ConstOpt_B3LYP_def2tzvp_water_D4/"
+
+rule all:
+    input:
+        synthetic_matrices = expand("{remote}experiments/synthetic_matrices/normal_{mu}_{sigma}_{renormalize}/{what}",
+            mu=[0], sigma=[1, 100, 10000, 1000000], renormalize=[True, False], what=["eigenvalues.npy"], remote=REMOTE_PATH)
+
+rule all_smaller:
+    input:
+        smaller_matrices = expand("{remote}experiments/synthetic_matrices/size_{resize}_{renormalize}/{what}",
+            resize=[100, 500, 1000, 5000, 10000, 50000], renormalize=[True, False],
+            what=["eigenvalues.npy"], remote=REMOTE_PATH)
+
+rule all_remote:
+    input:
+        smaller_matrices = expand("{where}experiments/synthetic_matrices/size_{resize}_{renormalize}/{what}",
+            resize=[100, 300, 500, 800, 1000, 3000, 5000, 8000, 10000, 20000, 30000, 50000], renormalize=[False],
+            what=["eigenvalues.npy"], where=REMOTE_PATH), #100, 500, 1000, 5000,
+        original_matrix = f"{REMOTE_PATH}{STARTING_PATH}eigenvalues.npy"
+
+rule all_tolerances:
+    input:
+        diff_tolerances=expand("{where}experiments/synthetic_matrices/tol_{my_tol}/{what}",
+            my_tol=[3, 5, 9, 12, 15, 20, 15, 30], what=["eigenvalues.npy"], where=REMOTE_PATH)
+
+rule all_water_SP:
+    input:
+        matrices=expand("{where}absolute_lim_{upper_bound}/{what}",
+            upper_bound=["1", "3", "5", "10", "20", "50", "100", "200", "500", "1000"], what=["eigenvalues.npy"],
+            where=f"{REMOTE_PATH}experiments/water_xyz/example_new/water_64K/SP_PBE0_def2tzvp_water_D4/")
+
+rule all_gua_SP:
+    input:
+        matrices=expand("{where}absolute_lim_{upper_bound}/{what}",
+            upper_bound=["1", "3", "5", "10", "20", "50", "100", "200", "500", "1000"], what=["eigenvalues.npy"],
+            where=f"{REMOTE_PATH}experiments/guanidinium_xyz/example_new/huge_gua_grid/SP_B3LYP_def2tzvp_water_D4/"),
+        original_matrix= f"{REMOTE_PATH}experiments/guanidinium_xyz/example_new/huge_gua_grid/SP_B3LYP_def2tzvp_water_D4/eigenvalues.npy"
+
+rule try_tolerances:
+    input:
+        matrix = f"{STARTING_PATH}rate_matrix.npz",
+        sbatch_script = f"{REMOTE_PATH}{{some_path}}tol_{{my_tol}}/run_python.sh",
+        python_script = f"molgri/scripts/do_decomposition_tol.py"
+    output:
+        eigenvectors = f"{REMOTE_PATH}{{some_path}}tol_{{my_tol}}/eigenvectors.npy",
+        eigenvalues = f"{REMOTE_PATH}{{some_path}}tol_{{my_tol}}/eigenvalues.npy",
+    benchmark:
+        f"{REMOTE_PATH}{{some_path}}tol_{{my_tol}}/decomposition_benchmark.txt"
+    run:
+        #print(wildcards)
+        calculation_dict = f"{REMOTE_PATH}{wildcards.some_path}tol_{wildcards.my_tol}/"
+        curta_calculation_dict = f"{wildcards.some_path}tol_{wildcards.my_tol}/"
+        import shutil
+        shutil.copy(input.matrix, f"{calculation_dict}rate_matrix.npz")
+        shutil.copy(input.python_script,f"{calculation_dict}do_decomposition_tol.py")
+        # run script on curta
+
+        shell("ssh hanaz63@curta.zedat.fu-berlin.de 'cd {curta_calculation_dict} && sbatch --wait run_python.sh'")
+
+rule generate_matrix:
+    input:
+        rate_gua = "experiments/guanidinium_xyz/example_new/huge_gua_grid/ConstOpt_B3LYP_def2tzvp_water_D4/rate_matrix.npz"
+    output:
+        rate_synthetic = "experiments/synthetic_matrices/normal_{mu}_{sigma}_{renormalize}/rate_matrix.npz"
+    run:
+        my_start_matrix = load_npz(input.rate_gua)
+
+        # now change the data to the desired distribution
+        my_start_matrix.data = rng.normal(float(wildcards.mu), float(wildcards.sigma), my_start_matrix.size)
+
+        # renormalize
+        if wildcards.renormalize == "True":
+            end_matrix = sqra_normalize(my_start_matrix)
+            sparse.save_npz(output.rate_synthetic, end_matrix)
+        elif wildcards.renormalize == "False":
+            sparse.save_npz(output.rate_synthetic,my_start_matrix)
+
+rule generate_smaller_matrix:
+    """
+    Now the data stays the same but the size of the matrix is cut.
+    """
+    input:
+        rate_gua = "experiments/guanidinium_xyz/example_new/huge_gua_grid/ConstOpt_B3LYP_def2tzvp_water_D4/rate_matrix.npz"
+    output:
+        rate_synthetic = "experiments/synthetic_matrices/size_{resize}_{renormalize}/rate_matrix.npz"
+    run:
+        from scipy.sparse import csr_matrix
+        my_start_matrix = load_npz(input.rate_gua)
+        my_sparse = my_start_matrix.tocsr()
+
+        # now subselect just some of the rows
+        num_rows = int(wildcards.resize)
+        random_indices = np.random.choice(my_sparse.shape[0],size=num_rows,replace=False)
+        random_indices.sort()
+        # Extract the submatrix (both rows and columns with the same indices)
+        submatrix = my_sparse[random_indices, :][:, random_indices]
+        print(submatrix.shape)
+
+        # renormalize
+        if wildcards.renormalize == "True":
+            end_matrix = sqra_normalize(submatrix)
+            sparse.save_npz(output.rate_synthetic, end_matrix)
+        elif wildcards.renormalize == "False":
+            sparse.save_npz(output.rate_synthetic,submatrix)
+
+rule analyse_matrix:
+    input:
+        matrix = "{some_path}.npz"
+    output:
+        analysis = "{some_path}.txt"
+    run:
+        my_start_matrix = load_npz(input.matrix)
+        df = pd.DataFrame(my_start_matrix.data)
+
+        with open(output.analysis,"w") as f:
+            f.write(df.describe().to_string())
+
+rule modify_run:
+    input:
+        sbatch_script = "molgri/scripts/run_python.sh",
+        python_script= "molgri/scripts/do_decomposition.py",
+    output:
+        sbatch_script=f"{REMOTE_PATH}{{where}}run_python.sh",
+        python_script= f"{REMOTE_PATH}{{where}}do_decomposition.py"
+    params:
+        max_time = config['max_runtime'],
+        max_memory = config['max_mem_per_cpu']
+    run:
+        import shutil
+        shutil.copy(input.python_script,output.python_script)
+
+        print("PARAMS", params.max_memory, params.max_time)
+
+        with open(input.sbatch_script, "r") as f:
+            all_lines = f.readlines()
+
+        for i, line in enumerate(all_lines):
+            if line.startswith("#SBATCH --time="):
+                all_lines[i] = f"#SBATCH --time={params.max_time}\n"
+            if line.startswith("#SBATCH --mem-per-cpu="):
+                all_lines[i] = f"#SBATCH --mem-per-cpu={params.max_memory}\n"
+            if line.startswith("python do_decomposition.py") and "tol_" in wildcards.where:
+                tolerance_find = wildcards.where.split("/")
+                for el in tolerance_find:
+                    if el.startswith("tol_"):
+                        exponent_tol = int(el.split("_")[-1])
+                all_lines[i] = f"python do_decomposition_tol.py {exponent_tol}\n"
+
+        with open(output.sbatch_script,"w") as f:
+            f.writelines(all_lines)
+
+
+rule decompose_matrix_on_curta:
+    input:
+        matrix = "{some_path}rate_matrix.npz",
+        sbatch_script = f"{REMOTE_PATH}{{some_path}}run_python.sh",
+        python_script = f"{REMOTE_PATH}{{some_path}}do_decomposition.py"
+    output:
+        eigenvectors = f"{REMOTE_PATH}{{some_path}}eigenvectors.npy",
+        eigenvalues = f"{REMOTE_PATH}{{some_path}}eigenvalues.npy",
+    benchmark:
+        f"{REMOTE_PATH}{{some_path}}decomposition_benchmark.txt"
+    run:
+        # copy to curta
+        import shutil
+        shutil.copy(input.matrix, f"{REMOTE_PATH}{input.matrix}")
+        # run script on curta
+        calculation_dict = f"{REMOTE_PATH}{wildcards.some_path}"
+        shell("ssh hanaz63@curta.zedat.fu-berlin.de 'cd /home/hanaz63/{wildcards.some_path} && sbatch --wait run_python.sh'")
+
+
+
+rule decompose_matrix:
+    input:
+        matrix = "{some_path}rate_matrix.npz"
+    output:
+        eigenvectors = "{some_path}eigenvectors.npy",
+        eigenvalues = "{some_path}eigenvalues.npy",
+    benchmark:
+        "{some_path}decomposition_benchmark.txt"
+    wildcard_constraints:
+        some_path = "(?!/home/hanaz63/nobackup/).*"
+    params:
+        tol=0,
+        maxiter=100000,
+        sigma=0,
+        which="SR",
+        num_eigenvalues=6
+    run:
+        from scipy.sparse.linalg import eigs
+        from scipy import sparse
+
+        # loading
+        my_matrix = sparse.load_npz(input.matrix)
+
+
+        eigenval, eigenvec = eigs(my_matrix.T, k=int(params.num_eigenvalues),
+            tol=float(params.tol), maxiter=int(params.maxiter), which=params.which,sigma=params.sigma)
+        # if imaginary eigenvectors or eigenvalues, raise error
+        if not np.allclose(eigenvec.imag.max(),0,rtol=1e-3,atol=1e-5) or not np.allclose(eigenval.imag.max(),0,
+                rtol=1e-3,atol=1e-5):
+            print(f"Complex values for eigenvectors and/or eigenvalues: {eigenvec}, {eigenval}")
+        eigenvec = eigenvec.real
+        eigenval = eigenval.real
+        # sort eigenvectors according to their eigenvalues
+        idx = eigenval.argsort()[::-1]
+        eigenval = eigenval[idx]
+        eigenvec = eigenvec[:, idx]
+
+        # saving to file
+        np.save(output.eigenvalues,np.array(eigenval))
+        np.save(output.eigenvectors,np.array(eigenvec))
+
+rule collect_rate_matrix_info:
+    input:
+        all_matrices = expand("{where}experiments/synthetic_matrices/tol_{my_tol}/{what}",
+            my_tol=[3, 5, 9, 12, 15, 20, 15, 30], what=["matrix.npz"], where=REMOTE_PATH),
+        all_eigenvalues= expand("{where}experiments/synthetic_matrices/tol_{my_tol}/{what}",
+            my_tol=[3, 5, 9, 12, 15, 20, 15, 30], what=["eigenvalues.npy"], where=REMOTE_PATH),
+        all_decompositions = expand("{where}experiments/synthetic_matrices/tol_{my_tol}/{what}",
+            my_tol=[3, 5, 9, 12, 15, 20, 15, 30], what=["decomposition_benchmark.txt"], where=REMOTE_PATH),
+    output:
+        joint_matrix = f"experiments/synthetic_matrices/size_joint_data/tolerance_matrix_comparison.csv"
+    run:
+        from scipy.sparse import load_npz
+        columns = ["File name", "Rate matrix shape", "Rate matrix non-zero", "Min value",
+                   "Max value", "Mean value", "Decomposition_time [h:m:s]", "Decomposition_time [s]",
+                   "Physical memory [MB]", "Virtual memory [MB]", "Eigenvalue 0", "Eigenvalue 1", "Eigenvalue 2"]
+        all_data = []
+
+        for matrix_path, eigenvalue_path, decompose_path in zip(input.all_matrices, input.all_eigenvalues, input.all_decompositions):
+            my_rate_matrix = load_npz(matrix_path)
+
+            df_decomp = pd.read_csv(decompose_path, delimiter="\t")
+            time_decomp = df_decomp["h:m:s"][0]
+            time_decomp_s = df_decomp["s"][0]
+            physical_memory = df_decomp["max_rss"][0]
+            virtual_memory = df_decomp["max_vms"][0]
+
+            eigenvalues = np.load(eigenvalue_path)
+
+            all_data.append([matrix_path, my_rate_matrix.shape, my_rate_matrix.size, np.min(my_rate_matrix.data),
+                             np.max(my_rate_matrix.data), np.mean(my_rate_matrix.data), time_decomp, time_decomp_s,
+                             physical_memory, virtual_memory, eigenvalues[0], eigenvalues[1], eigenvalues[2]])
+
+        df = pd.DataFrame(np.array(all_data, dtype=object), columns=columns)
+        df.to_csv(output.joint_matrix)

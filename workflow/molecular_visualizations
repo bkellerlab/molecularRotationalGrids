@@ -1,0 +1,630 @@
+"Perform analyses on energy-structure networks, eg identifying and plotting paths."
+import sys
+import os
+import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
+
+plt.switch_backend('agg')
+
+# add molgri directory
+sys.path.append(".")
+from molgri.paths import PATH_INPUT_BASEGRO, PATH_EXPERIMENTS
+from molgri.io import QuantumSetup
+
+configfile: "workflow/default_sqra_orca_config.yaml"
+
+if config["energy_program"] == "ORCA":
+
+    QUANTUM_SETUP = QuantumSetup(
+        functional=config["params_dft"]["functional"],
+        basis_set=config["params_dft"]["basis_set"],
+        solvent=config["params_dft"]["solvent"],
+        dispersion_correction=config["params_dft"]["dispersion"],
+        num_scf=config["params_dft"]["num_scf"],
+        num_cores=config["params_dft"]["num_cores"],
+        ram_per_core=config["params_dft"]["ram_per_core"]
+    )
+    ORCA_DIR = QUANTUM_SETUP.get_dir_name()
+    PATH_SEARCH_DIR = f"{PATH_EXPERIMENTS}{config['experiment_type']}/{config['experiment_id']}/{config['grid_identifier']}/{config['params_dft']['optimization_type']}_{ORCA_DIR}"
+elif config["energy_program"] == "GROMACS":
+    PATH_SEARCH_DIR = f"{PATH_EXPERIMENTS}{config['experiment_type']}/{config['experiment_id']}/{config['grid_identifier']}/"
+else:
+    raise ValueError(f"Energy program must be ORCA or GROMACS, not {config['energy_program']}")
+
+REMOTE_PATH = "/home/hanaz63/nobackup/"
+INTERESTING_EIGENVECTORS = list(range(int(config["params_sqra"]["num_eigenvec_to_plot"])))
+
+CLUSTERING_PALETTE = ["yellow", "orange", "green", "blue", "cyan", "purple", "gray", "pink", "red", "magenta", "black",
+                      "lime", "gold", "silver"]
+
+
+
+
+rule all_remote:
+    input:
+        #expand(f"{PATH_SEARCH_DIR}absolute_lim_{{upper_bound}}/num_atoms.txt", subfolder=find_subfolders())
+        optimized_str = expand(f"{PATH_SEARCH_DIR}eigenvectors/eigenvector_{{i}}.png",
+           i=INTERESTING_EIGENVECTORS, upper_bound=["1", "3", "5", "10", "20", "50", "100", "200", "500", "1000"]),
+        #absolute_lim_{{upper_bound}}/eigenvectors/
+        eigenvectors= expand(f"{PATH_SEARCH_DIR}eigenvectors/{{what}}",
+            what=["its.png"], upper_bound=["1", "3", "5", "10", "20", "50", "100", "200", "500", "1000"]),
+        #energy= f"{PATH_SEARCH_DIR}lowest_energy/all_lowestE.png"
+    #absolute_lim_{{upper_bound}}/eigenvectors/
+
+rule all:
+    input:
+        path_video = expand("{where}path_{path_start}_{path_end}/path.mp4",
+            where=PATH_SEARCH_DIR, path_start=[21714, 0], path_end=[28547, 63999]),
+        neighbours_of = expand("{where}network_analysis/all_{what}_{index}.tga",
+            where=PATH_SEARCH_DIR,
+            what=["neighbours", "orientations", "closest"],
+            index=[21714, 0, 28547, 63999]),
+        clusters = expand("{where}clustering/{what}", where=PATH_SEARCH_DIR,
+            what=["eigenvector_clustering.tga", "clustering_3D.png"]),
+        eigenvectors = expand("{where}eigenvectors/{what}", where=PATH_SEARCH_DIR,
+            what=["its.png", "eigenvectors_vmdlog"])
+
+##################################################################################################################
+#                                GENERAL AND HELPER FUNCTIONS
+##################################################################################################################
+
+
+def save_lists_of_different_lengths(filename, list_of_lists):
+    """
+    Write a list of lists containing integers to a file so that each sub-list is a new line, each element separated by
+    comma.
+    """
+    with open(filename,"w") as f:
+        for sublist in list_of_lists:
+            f.write(", ".join([str(x) for x in sublist]))
+            f.write("\n")
+
+
+def read_lists_of_different_lengths(filename):
+    with open(filename,'r') as f:
+        return [list(map(int,line.strip().split(','))) for line in f if line.strip()]
+
+def prepare_vmd(input):
+    from molgri.plotting.create_vmdlog import VMDCreator
+    from workflow.snakemake_utils import find_right_vmd_script
+    my_script = find_right_vmd_script(config['experiment_type'])
+
+    with open(input.num_atoms) as f:
+        num_first_mol = int(f.readline())
+
+    index_first = f"index < {num_first_mol}"
+    index_second = f"index >= {num_first_mol}"
+    if config["experiment_type"] == "sqra_bpti_trypsine":
+        is_protein = True
+    else:
+        is_protein = False
+
+    my_vmd = VMDCreator(index_first,index_second, is_protein=is_protein)
+    my_vmd.load_translation_rotation_script(my_script)
+    return my_vmd
+
+rule copy_to_subfolders:
+    input:
+        structure = f"{PATH_SEARCH_DIR}structure.xyz",
+        trajectory = f"{PATH_SEARCH_DIR}trajectory.xyz",
+        num_atoms = f"{PATH_SEARCH_DIR}num_atoms.txt"
+    output:
+        structure=f"{PATH_SEARCH_DIR}{{subfolder}}/structure.xyz",
+        trajectory=f"{PATH_SEARCH_DIR}{{subfolder}}/trajectory.xyz",
+        num_atoms=f"{PATH_SEARCH_DIR}{{subfolder}}/num_atoms.txt"
+    run:
+        import shutil
+        shutil.copy(input.structure, output.structure)
+        shutil.copy(input.trajectory, output.trajectory)
+        shutil.copy(input.num_atoms, output.num_atoms)
+
+
+rule plot_one_frame:
+    """
+    Plot one specific frame and save it to molecular_plots/
+    """
+    input:
+        structure=f"{{where}}structure.{config['structure_extension']}",
+        trajectory=f"{{where}}trajectory.{config['trajectory_extension']}",
+        num_atoms=f"{{where}}num_atoms.txt"
+    output:
+        vmdlog="{where}molecular_vmdlog/frame_{frame_index}",
+        frame_plot="{where}molecular_plots/frame_{frame_index}.tga"
+    wildcard_constraints:
+        where=".*SP.*"
+    run:
+        my_vmd = prepare_vmd(input)
+
+        index_to_plot = [int(wildcards.frame_index) + 1]
+
+        my_vmd.plot_these_structures(index_to_plot,[output.frame_plot])
+        my_vmd.write_text_to_file(output.vmdlog)
+
+        shell("vmd  -dispdev text {input.structure} {input.trajectory} < {output.vmdlog}")
+
+rule plot_one_frame_constopt:
+    input:
+        opt_structure = f"{PATH_SEARCH_DIR}optimized_structures/{{frame_index}}.xyz",
+        num_atoms=f"{{where}}num_atoms.txt"
+    output:
+        vmdlog="{where}molecular_vmdlog/frame_{frame_index}",
+        frame_plot="{where}molecular_plots/frame_{frame_index}.tga"
+    wildcard_constraints:
+        where=".*ConstOpt.*"
+    run:
+        my_vmd = prepare_vmd(input)
+
+        index_to_plot = [0]
+
+        my_vmd.plot_these_structures(index_to_plot,[output.frame_plot])
+        my_vmd.write_text_to_file(output.vmdlog)
+
+        shell("vmd  -dispdev text {input.opt_structure} < {output.vmdlog}")
+
+##################################################################################################################
+#                                LOWEST ENERGY
+##################################################################################################################
+checkpoint find_lowest_E:
+    input:
+        energies = "{where}energy.csv",
+    params:
+        num_to_plot = 10
+    output:
+        indices = "{where}lowest_energy/indices.txt"
+    run:
+        from molgri.plotting.create_vmdlog import TrajectoryIndexingTool
+        import pandas as pd
+
+        energies = pd.read_csv(input.energies)["Energy [kJ/mol]"]
+
+        tit = TrajectoryIndexingTool()
+        tit.set_energies(energies)
+        result_array = tit.find_structures_lowest_energy(params.num_to_plot)
+
+        np.savetxt(output.indices,result_array,fmt='%i')
+
+
+def prepare_all_lowestE_plots(wildcards):
+    """
+    To make a joint plot of all neighbours, closest structures or similar you must first determine the relevant indices
+    and then plot all of them. This will be input to join_plots.
+    """
+    indices_file = checkpoints.find_lowest_E.get(where=wildcards.where).output.indices
+    indices = np.loadtxt(indices_file, dtype=int)
+    return expand(f"{wildcards.where}molecular_plots/frame_{{frame_index}}.tga", frame_index=indices)
+
+rule join_plots_lowestE:
+    input:
+        prepare_all_lowestE_plots
+    output:
+        joint_plot = "{where}lowest_energy/all_lowestE.png"
+    run:
+        from molgri.plotting.modifying_images import trim_images_with_common_bbox, join_images
+        modified_paths = [f"{os.path.split(file)[0]}/trimmed_{os.path.split(file)[1]}" for file in input]
+        trim_images_with_common_bbox(input,modified_paths)
+        join_images(modified_paths, output.joint_plot)
+##################################################################################################################
+#                                PATHS
+##################################################################################################################
+
+checkpoint run_path_search:
+    input:
+        adjacency_matrix = "{where}adjacency_array.npz",
+        energy = "{where}energy.csv"
+    output:
+        path_plot = "{where}path_{path_start}_{path_end}/best_path.png",
+        path = "{where}path_{path_start}_{path_end}/path.txt",
+    run:
+        from molgri.space.mazes import Maze
+        from molgri.io import EnergyReader
+        from scipy.sparse import load_npz
+
+        adj = load_npz(input.adjacency_matrix)
+        energy = EnergyReader(input.energy).load_single_energy_column("Energy [kJ/mol]")
+
+        my_maze = Maze(adj)
+        my_maze.add_energy_attribute("Energy [kJ/mol]", energy)
+
+        simple_path = my_maze.smallest_dE_start_path(int(wildcards.path_start), int(wildcards.path_end))
+        np.savetxt(output.path, simple_path, fmt='%i')
+
+        fig, ax = plt.subplots(1,1)
+        my_maze.plot_profile_along_path(simple_path, fig, ax)
+        fig.savefig(output.path_plot)
+
+def prepare_all_individual_plots_path(wildcards):
+    """
+    To make a joint plot of all neighbours, closest structures or similar you must first determine the relevant indices
+    and then plot all of them. This will be input to join_plots.
+    """
+    indices_file = checkpoints.run_path_search.get(where=wildcards.where,
+        path_start=wildcards.path_start, path_end=wildcards.path_end).output.path
+    indices = np.loadtxt(indices_file, dtype=int)
+    return expand(f"{wildcards.where}molecular_plots/frame_{{frame_index}}.tga", frame_index=indices)
+
+rule join_plots_path:
+    input:
+        prepare_all_individual_plots_path
+    output:
+        path_video= "{where}path_{path_start}_{path_end}/path.mp4"
+    run:
+        # make video
+        shell("convert -delay 40 -loop 0 {input} {output.path_video}")
+
+##################################################################################################################
+#                                CONNECTIONS - neighbours, all similar orientations etc
+##################################################################################################################
+
+checkpoint find_connections_to_point:
+    input:
+        distances = "{where}distances_array.npz",
+        adj_array= "{where}adjacency_array.npz",
+        grid_sizes= f"{{where}}grid_sizes.txt"
+    output:
+        indices = "{where}network_analysis/{connection_type}_{central_index}_indices.txt"
+    run:
+        from molgri.plotting.create_vmdlog import TrajectoryIndexingTool
+        from scipy.sparse import load_npz
+
+        central_index = int(wildcards.central_index)
+
+        tit = TrajectoryIndexingTool()
+        if wildcards.connection_type == "closest":
+            distances = load_npz(input.distances)
+            tit.set_distances(distances)
+            result_array = tit.get_k_closest(central_index)
+        elif wildcards.connection_type == "orientations":
+            sizes = np.loadtxt(input.grid_sizes,dtype=int)
+            num_quaternions = sizes[0]
+            result_array = tit.find_all_orientations_at_same_position(central_index,num_quaternions)
+        elif wildcards.connection_type == "neighbours":
+            adjacency_sparse = load_npz(input.adj_array)
+            tit.set_adjecency_array(adjacency_sparse)
+            result_array = tit.get_neighbours_of(central_index)
+
+        np.savetxt(output.indices,result_array,fmt='%i')
+
+
+def prepare_all_individual_plots(wildcards):
+    """
+    To make a joint plot of all neighbours, closest structures or similar you must first determine the relevant indices
+    and then plot all of them. This will be input to join_plots.
+    """
+    indices_file = checkpoints.find_connections_to_point.get(where=wildcards.where,
+        central_index=wildcards.central_index, connection_type=wildcards.connection_type).output.indices
+    indices = np.loadtxt(indices_file, dtype=int)
+    return expand(f"{wildcards.where}molecular_plots/frame_{{frame_index}}.tga", frame_index=indices)
+
+rule join_plots:
+    input:
+        prepare_all_individual_plots
+    output:
+        joint_plot = "{where}network_analysis/all_{connection_type}_{central_index}.tga"
+    run:
+        from molgri.plotting.modifying_images import trim_images_with_common_bbox, join_images
+        modified_paths = [f"{os.path.split(file)[0]}/trimmed_{os.path.split(file)[1]}" for file in input]
+        trim_images_with_common_bbox(input,modified_paths)
+        join_images(modified_paths, output.joint_plot)
+
+
+##################################################################################################################
+#                                CLUSTERING
+##################################################################################################################
+
+rule run_clustering_labelling:
+    input:
+        eigenvectors = f"{{where}}eigenvectors.npy",
+    params:
+        num_clusters = 12,
+        max_num_per_cluster = 30,
+        ignore_smaller_than = 7,
+        ignore_larger_than = 200
+    output:
+        labels = f"{{where}}clustering/labels.txt",
+        clusters = f"{{where}}clustering/clusters.txt"
+    run:
+        from sklearn.cluster import KMeans
+        from molgri.plotting.create_vmdlog import TrajectoryIndexingTool
+
+        eigenvectors = np.load(input.eigenvectors)[:, :6]
+        clustering = KMeans(n_clusters=params.num_clusters).fit(eigenvectors)
+        # get labels for each individual structure
+        my_labels = clustering.labels_
+        np.savetxt(output.labels,my_labels,fmt='%i')
+
+        # now convert this long list of labels into specific clusters
+        tit = TrajectoryIndexingTool()
+        tit.set_labels(my_labels)
+        all_clusters = tit.get_all_cluster_elements(max_num_per_cluster=params.max_num_per_cluster,
+                                                    ignore_smaller_than=params.ignore_smaller_than,
+                                                    ignore_larger_than=params.ignore_larger_than)
+
+        save_lists_of_different_lengths(output.clusters, all_clusters)
+
+
+rule plot_clusters_3D:
+    input:
+        clusters = "{where}clustering/clusters.txt",
+        eigenvectors = "{where}eigenvectors.npy"
+    output:
+         plot = "{where}clustering/clustering_3D.png",
+    run:
+        import matplotlib.pyplot as plt
+        import seaborn as sns
+
+        sns.set_style("white")
+        sns.set_context("talk")
+        fig, ax = plt.subplots(1,1,subplot_kw={"projection": "3d"})
+
+        # read clusters
+        all_clusters = read_lists_of_different_lengths(input.clusters)
+
+        # read eigenvectors
+        eigenvectors = np.load(input.eigenvectors)[:,:6]
+        first_evec = eigenvectors.T[1]
+        second_evec = eigenvectors.T[2]
+        third_evec = eigenvectors.T[3]
+
+        for i, cluster in enumerate(all_clusters):
+            if i > len(CLUSTERING_PALETTE) - 1:
+                raise IndexError("The clustering pallete is too short for the number of clusters you wanna draw!")
+            ax.scatter(first_evec[cluster],second_evec[cluster],third_evec[cluster],c=[CLUSTERING_PALETTE[i],] * len(cluster))
+
+        plt.tight_layout()
+        plt.savefig(output.plot,dpi=600)
+
+
+rule run_clustering_plotting:
+    input:
+        structure=f"{{where}}structure.{config['structure_extension']}",
+        trajectory=f"{{where}}trajectory.{config['trajectory_extension']}",
+        clusters = "{where}clustering/clusters.txt",
+        num_atoms=f"{{where}}num_atoms.txt"
+    output:
+        clustering_vmdlog = "{where}clustering/vmdlog",
+        vmd_plot_tga = "{where}clustering/eigenvector_clustering.tga",
+    run:
+        all_clusters = read_lists_of_different_lengths(input.clusters)
+        plot_cluster_indices = [[x + 1 for x in sublist] for sublist in all_clusters]
+        individual_names = [f"{os.path.split(output.vmd_plot_tga)[0]}/cluster_{i}.tga" for i in
+                            range(len(plot_cluster_indices))]
+        colors = CLUSTERING_PALETTE[:len(individual_names)]
+
+        vmd_creator = prepare_vmd(input)
+        vmd_creator.prepare_clustering_script(plot_cluster_indices, colors, output.vmd_plot_tga, individual_names)
+
+        vmd_creator.write_text_to_file(output.clustering_vmdlog)
+        shell("vmd  -dispdev text {input.structure} {input.trajectory} < {output.clustering_vmdlog}")
+
+
+##################################################################################################################
+#                                EIGENVECTORS
+##################################################################################################################
+
+rule run_plot_everything_sqra:
+    """
+    Make a plot of eigenvalues
+    """
+    input:
+        eigenvalues = f"{REMOTE_PATH}{PATH_SEARCH_DIR}eigenvalues.npy",
+        eigenvectors = f"{REMOTE_PATH}{PATH_SEARCH_DIR}eigenvectors.npy"
+    output:
+        plot_eigenvectors=f"{PATH_SEARCH_DIR}eigenvectors/eigenvectors.png",
+        plot_eigenvalues=f"{PATH_SEARCH_DIR}eigenvectors/eigenvalues.png",
+        plot_its=report(f"{PATH_SEARCH_DIR}eigenvectors/its.png", category=config["experiment_id"]),
+    run:
+        from molgri.plotting.transition_plots import PlotlyTransitions
+        pt = PlotlyTransitions(is_msm=False,path_eigenvalues=input.eigenvalues,path_eigenvectors=input.eigenvectors)
+        # eigenvectors
+        pt.plot_eigenvectors_flat()
+        pt.save_to(output.plot_eigenvectors,height=800, width=400, talk=True)
+        # eigenvalues
+        pt.plot_eigenvalues()
+        pt.save_to(output.plot_eigenvalues, talk=True)
+        # # its for msm
+        pt.plot_its_as_line()
+        pt.save_to(output.plot_its, talk=True)
+        # we could also plot the heatmap of the matrix, but it's honestly not that useful and can become very large
+
+
+checkpoint find_all_dominant_structures:
+    """
+    Find the structures most involved in eigenvector space and save their indices in a file for further use.
+    """
+    input:
+        eigenvectors = f"{REMOTE_PATH}{{where}}eigenvectors.npy",
+        index_list= f"{{where}}index_list.npy",
+    output:
+        abs_structures = f"{{where}}eigenvectors/eigenvec_0_structures.txt",
+        pos_structures = f"{{where}}eigenvectors/most_pos_structures.txt",
+        neg_structures = f"{{where}}eigenvectors/most_neg_structures.txt",
+    params:
+        num_extremes = config["params_sqra"]["num_extremes_to_plot"],
+        num_eigenvec = config["params_sqra"]["num_eigenvec_to_plot"]
+    run:
+        from molgri.plotting.create_vmdlog import TrajectoryIndexingTool
+
+        index_list = np.load(input.index_list,allow_pickle=True)
+        eigenvectors = np.load(input.eigenvectors).T
+
+        tit = TrajectoryIndexingTool()
+        tit.set_eigenvectors(eigenvectors, index_list)
+        abs_e, pos_e, neg_e = tit.get_all_dominant_structures(num_extremes=int(params.num_extremes),
+                                                              num_eigenvec=int(params.num_eigenvec))
+
+        np.savetxt(output.abs_structures, abs_e, fmt='%i')
+        save_lists_of_different_lengths(output.pos_structures, pos_e)
+        save_lists_of_different_lengths(output.neg_structures,neg_e)
+
+
+def find_out_file_for_index_i(wildcards):
+    """
+    Simply look in all batch folders if the file with desired structure index exists there.
+    """
+    num_batches = config['num_batches']
+    for batch_index in range(num_batches):
+        structure_index = str(wildcards.structure_index).zfill(10)
+        proposed_path = f"{REMOTE_PATH}{PATH_SEARCH_DIR}batch_{batch_index}/{structure_index}/orca.out"
+        if os.path.exists(proposed_path):
+            return proposed_path
+    return []
+
+rule get_optimized_structures:
+    """
+    The opposite to split xyz file.
+    """
+    input:
+        find_out_file_for_index_i
+    output:
+        structure=f"{PATH_SEARCH_DIR}optimized_structures/{{structure_index}}.xyz",
+    run:
+        from molgri.io import OrcaReader
+
+        my_reader = OrcaReader(input[0])
+        current_xyz = my_reader.extract_optimized_xyz()
+        with open(output.structure, "w") as f:
+            f.write(current_xyz)
+
+
+def get_evec_i_structures(wildcards):
+    checkpoints.find_all_dominant_structures.get(where=wildcards.where).output
+    index_eigenvector = int(wildcards.i)
+    if index_eigenvector == 0:
+        all_indices = np.loadtxt(f"{wildcards.where}eigenvectors/eigenvec_0_structures.txt", dtype=int)
+    else:
+        all_indices = read_lists_of_different_lengths(f"{wildcards.where}eigenvectors/most_pos_structures.txt")[index_eigenvector-1]
+        all_indices.extend(read_lists_of_different_lengths(f"{wildcards.where}eigenvectors/most_neg_structures.txt")[index_eigenvector-1])
+    structures = [f"{PATH_SEARCH_DIR}optimized_structures/{structure_index}.xyz" for structure_index in all_indices]
+    return structures
+
+rule vmdlog_dominant_structures:
+    input:
+        structures = get_evec_i_structures,
+        structure_0 = "{where}structure.xyz",
+        abs_structures="{where}eigenvectors/eigenvec_0_structures.txt",
+        pos_structures="{where}eigenvectors/most_pos_structures.txt",
+        neg_structures="{where}eigenvectors/most_neg_structures.txt",
+        num_atoms=f"{{where}}num_atoms.txt"
+    output:
+        eigenvector_vmdlog = f"{{where}}eigenvectors/vmdlog_{{i}}",
+        fig_tga = f"{{where}}eigenvectors/eigenvector_{{i}}.tga",
+        fig_png = f"{{where}}eigenvectors/eigenvector_{{i}}.png",
+    wildcard_constraints:
+        where=".*ConstOpt.*",
+    run:
+        import os
+        import subprocess
+        vmd_creator = prepare_vmd(input)
+
+        eigenvector_index = int(wildcards.i)
+
+        # todo: make sure they don't move, maybe still requre "structure" + "trajectory files just so the start point is the same
+
+        if eigenvector_index == 0:
+            num_structures = len(np.loadtxt(input.abs_structures, dtype=int))
+            vmd_creator.prepare_evec_0(num_structures=num_structures,plot_name=output.fig_tga)
+        else:
+            len_pos = len(read_lists_of_different_lengths(input.pos_structures)[eigenvector_index-1])
+            len_neg = len(read_lists_of_different_lengths(input.neg_structures)[eigenvector_index-1])
+            vmd_creator.prepare_evec_pos_neg(len_pos, len_neg, output.fig_tga)
+        vmd_creator.write_text_to_file(output.eigenvector_vmdlog)
+        subprocess.run(f"vmd -dispdev text {input.structure_0} {' '.join(input.structures)} < {output.eigenvector_vmdlog}",shell=True)
+        shell("convert {output.fig_tga} {output.fig_png}")
+
+
+rule vmd_eigenvectors:
+    """
+    This is for the use with full trajectory file.
+    """
+    input:
+        structure=f"{{where}}structure.{config['structure_extension']}",
+        trajectory=f"{{where}}trajectory.{config['trajectory_extension']}",
+        abs_structures="{where}eigenvectors/eigenvec_0_structures.txt",
+        pos_structures="{where}eigenvectors/most_pos_structures.txt",
+        neg_structures="{where}eigenvectors/most_neg_structures.txt",
+        num_atoms = "{where}num_atoms.txt"
+    output:
+        vmdlog = f"{{where}}eigenvectors/eigenvectors_vmdlog",
+        fig_tga = expand(f"{{where}}eigenvectors/eigenvector_{{i}}.tga", i=INTERESTING_EIGENVECTORS, allow_missing=True),
+        fig_png = expand(f"{{where}}eigenvectors/eigenvector_{{i}}.png", i=INTERESTING_EIGENVECTORS, allow_missing=True)
+    wildcard_constraints:
+        where=".*SP.*"
+    run:
+
+        vmd_creator = prepare_vmd(input)
+
+        abs_e = np.loadtxt(input.abs_structures, dtype=int)
+        pos_e = read_lists_of_different_lengths(input.pos_structures)
+        neg_e = read_lists_of_different_lengths(input.neg_structures)
+
+        pos_e = [[x + 1 for x in sublist] for sublist in pos_e]
+        neg_e = [[x + 1 for x in sublist] for sublist in neg_e]
+
+        vmd_creator.prepare_eigenvector_script(abs_e, pos_e, neg_e, plot_names=output.fig_tga)
+        vmd_creator.write_text_to_file(output.vmdlog)
+
+        # make all the figures
+        shell("vmd  -dispdev text {input.structure} {input.trajectory} < {output.vmdlog}")
+        for el_tga, el_png in zip(output.fig_tga, output.fig_png):
+            shell("convert {el_tga} {el_png}")
+
+
+rule do_collection:
+    input:
+        joint_images = expand("{where}joint_images/{what}",
+                              where = PATH_SEARCH_DIR,
+                              what=[#"eigenvector_0.png", "eigenvector_1.png",
+                                    #"eigenvector_2.png", "eigenvector_3.png", "eigenvectors.png",
+                                    "rate_matrix_comparison.csv"])
+
+rule collect_these_images:
+    """
+    Over different sub-folders (eg different cut-offs) collect the same image eg. first eigenvector.
+    """
+    input:
+        all_images = expand("{where}absolute_lim_{limit}/eigenvectors/{what}.png", limit=["1", "3", "5", "10", "20", "50", "100", "200", "500", "1000"], allow_missing=True)
+    output:
+        joint_image = "{where}joint_images/{what}.png"
+    run:
+        from molgri.plotting.modifying_images import trim_images_with_common_bbox, join_images
+        modified_paths = [f"{os.path.split(file)[0]}/trimmed_{os.path.split(file)[1]}" for file in input]
+        trim_images_with_common_bbox(input,modified_paths)
+        join_images(modified_paths, output.joint_image, flip=False)
+
+rule collect_rate_matrix_info:
+    """
+    Over different sub-folders (eg different cut-offs) collect the same image eg. first eigenvector.
+    """
+    input:
+        all_matrices = expand("{where}absolute_lim_{limit}/rate_matrix.npz", limit=["1", "3", "5", "10", "20", "50", "100", "200", "500", "1000"], allow_missing=True),
+        all_eigenvalues= expand(f"{REMOTE_PATH}{{where}}absolute_lim_{{limit}}/eigenvalues.npy", limit=["1", "3", "5", "10", "20", "50", "100", "200", "500", "1000"], allow_missing=True),
+        all_decompositions = expand(f"{REMOTE_PATH}{{where}}absolute_lim_{{limit}}/decomposition_benchmark.txt", limit=["1", "3", "5", "10", "20", "50", "100", "200", "500", "1000"], allow_missing=True),
+    output:
+        joint_matrix = "{where}joint_images/rate_matrix_comparison.csv"
+    run:
+        from scipy.sparse import load_npz
+        columns = ["File name", "Energy limit [k_B T]", "Rate matrix shape", "Rate matrix non-zero", "Min value",
+                   "Max value", "Mean value", "Decomposition_time [h:m:s]", "Decomposition_time [s]",
+                   "Eigenvalue 0", "Eigenvalue 1", "Eigenvalue 2"]
+        all_data = []
+
+        for matrix_path, eigenvalue_path, decompose_path in zip(input.all_matrices, input.all_eigenvalues, input.all_decompositions):
+            path_name = matrix_path.split("/")
+            for el in path_name :
+                if el.startswith("absolute_lim_"):
+                    limit = int(el.split("_")[-1])
+
+            my_rate_matrix = load_npz(matrix_path)
+
+            df_decomp = pd.read_csv(decompose_path, delimiter="\t")
+            time_decomp = df_decomp["h:m:s"][0]
+            time_decomp_s = df_decomp["s"][0]
+            eigenvalues = np.load(eigenvalue_path)
+
+            all_data.append([matrix_path, limit, my_rate_matrix.shape, my_rate_matrix.size, np.min(my_rate_matrix.data),
+                             np.max(my_rate_matrix.data), np.mean(my_rate_matrix.data), time_decomp, time_decomp_s,
+                             eigenvalues[0], eigenvalues[1], eigenvalues[2]])
+
+        df = pd.DataFrame(np.array(all_data, dtype=object), columns=columns)
+        df.to_csv(output.joint_matrix)

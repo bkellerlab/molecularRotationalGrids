@@ -33,7 +33,7 @@ def find_el_within_nested_list(my_list: list[list[Any]], my_el: Any) -> NDArray:
 def merge_sublists(input_list: list[list[Any]]) -> list[list[Any]]:
     """
     Given is an input_list of sub-lists. We want to join all sublists that share at least one element (transitive
-    property, if [a, c] and [c, b] -> [a, b, c]. In the output list there should be no duplicates.
+    my_property, if [a, c] and [c, b] -> [a, b, c]. In the output list there should be no duplicates.
 
     Args:
         input_list: list of lists, e.g. [[0, 7], [2, 7, 3], [6, 8], [3, 1]]
@@ -188,12 +188,37 @@ def determine_rate_cells_to_join(distances, potentials, bottom_treshold=0.001, T
     return high_cell_pairs
 
 
-def determine_rate_cells_with_too_high_energy(my_energies, energy_limit: float = 10, T: float = 273):
-    too_high = np.where(my_energies*1000/(kB*N_A*T) > energy_limit)[0]
-    print("MIN TOO HIGH", np.min(my_energies[too_high]))
-    print("ENERGY LIM", energy_limit)
-    print("removed ", len(too_high))
-    return too_high
+def determine_rate_cells_with_too_high_energy(my_energies, energy_limit: float = 10, T: float = 273,
+                                              lower_bound_factor: float = 1.5, upper_bound_factor: float = 1.5):
+    # WORK WITH ENERGY LIMIT NOW
+    import pandas as pd
+    import numpy as np
+
+    thermal_energy_kJ_mol = kB*N_A*T / 1000
+    outlier_indices = np.where(my_energies > energy_limit*thermal_energy_kJ_mol)[0]
+    print(f"With limit {energy_limit} gonna cut {len(outlier_indices)} cells.")
+
+    #values = my_energies*1000/(kB*N_A*T)
+    #df = pd.DataFrame({'values': values}) # in J/mol
+
+    # Compute Q1 (25th percentile) and Q3 (75th percentile)
+    # Q1 = df['values'].quantile(0.25, interpolation='midpoint')
+    # Q3 = df['values'].quantile(0.75, interpolation='midpoint')
+    # IQR = Q3 - Q1  # Interquartile range
+    #
+    # # Define outlier bounds
+    # lower_bound = Q1 - lower_bound_factor * IQR
+    # upper_bound = Q3 + upper_bound_factor * IQR
+
+    # Identify outliers (including NaNs and Infs)
+    # df['outlier'] = (df['values'] < lower_bound) | (df['values'] > upper_bound) | df['values'].isna() | np.isinf(
+    #     df['values'])
+    #
+    # outlier_indices = df[df['outlier']].index.tolist()
+
+    #too_high = np.where(my_energies*1000/(kB*N_A*T) > energy_limit)[0]
+
+    return outlier_indices
 
 
 def delete_rate_cells(my_matrix: NDArray | csr_array, to_remove: list,
@@ -231,6 +256,7 @@ def delete_rate_cells(my_matrix: NDArray | csr_array, to_remove: list,
     # as csr matrix delete relevant columns
 
     result = my_matrix.copy()
+    print(my_matrix.shape[1], len(reindexing_to_join))
     to_keep = list(set(range(my_matrix.shape[1])) - set(reindexing_to_join))
     result = result[:, to_keep]
     # as csc array delete relevant rows
