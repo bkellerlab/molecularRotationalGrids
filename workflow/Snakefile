@@ -7,6 +7,20 @@ from workflow.helpers.build_subgrids import auto_create_grid
 
 config = auto_create_grid(config)
 
+NUM_GRID_POINTS = int(config["grid"]["N_rotations"])
+if config["grid"]["translation_algorithm"]=="spherical":
+    N_directions = int(config["grid"]["translation_subgrids_A"][0])
+    N_radial = int(config["grid"]["translation_subgrids_A"][1][-1])
+    NUM_GRID_POINTS = NUM_GRID_POINTS * N_directions * N_radial
+elif config["grid"]["translation_algorithm"]=="cartesian":
+    N_x = int(config["grid"]["translation_subgrids_A"][0][-1])
+    N_y = int(config["grid"]["translation_subgrids_A"][1][-1])
+    N_z = int(config["grid"]["translation_subgrids_A"][2][-1])
+    NUM_GRID_POINTS = NUM_GRID_POINTS * N_x * N_y * N_z
+else:
+    raise ValueError("Cannot calculate total number of grid points.")
+
+
 pathvars:
     # general terms, not complete paths
     molecule1 = config["pseudotrajectory"]["molecule_1"],
@@ -16,6 +30,7 @@ pathvars:
     output_directory = "nobackup/",
     ext_str = config["pseudotrajectory"]["structure_ending"],
     ext_trj = config["pseudotrajectory"]["trajectory_ending"],
+    ext_inp = config["pseudotrajectory"]["input_structure_ending"],
 
     # inputs
     inputs = "inputs/",
@@ -55,6 +70,8 @@ if config["analysis"]["energy_program"] == "GROMACS":
     include: "rules/gromacs.smk"
 elif config["analysis"]["energy_program"] == "ORCA":
     include: "rules/orca.smk"
+elif config["analysis"]["energy_program"] == "LAMMPS":
+    include: "rules/lammps.smk"
 include: "rules/indices.smk"
 include: "rules/assign.smk"
 include: "rules/plots.smk"
@@ -90,20 +107,20 @@ if "get_energy_simulation" in config["analysis"]["parts_to_perform"]:
 if "plot_some_frames" in config["analysis"]["parts_to_perform"]:
     DESIRED_RESULTS.extend(
         [expand(f"<outputs_frame_plots>{{sim_pseudo_wrapped}}/frame_{{frame_index}}_zoom{{zoom_level}}_view{{view_index}}.png",
-            sim_pseudo_wrapped=["pseudosimulation"], frame_index=[5, 300, 2000, 2236, 1554, 2176, 6900, 7000, 7999], zoom_level=zoom_level, view_index=view_index)]
+            sim_pseudo_wrapped=["simulation", "simulation_COM", "wrapped", "wrapped_COM", "pseudosimulation", "pseudosimulation_COM"], frame_index=[2, 468, 2098], zoom_level=zoom_level, view_index=view_index)] #, "COM_simulation"
     )
 
 if "plot_lowest_energies" in config["analysis"]["parts_to_perform"]:
     DESIRED_RESULTS.extend(
         [expand(f"<outputs_molecular_plots>lowest_energy/{{sim_pseudo_wrapped}}/{{N}}_lowest_zoom{{zoom_level}}_view{{view_index}}.png",
-            sim_pseudo_wrapped=["pseudosimulation"], zoom_level=zoom_level, view_index=view_index, N=[1, 2, 4, 5, 10, 20, 30, 50])]
+            sim_pseudo_wrapped=["simulation", "wrapped"], zoom_level=zoom_level, view_index=view_index, N=[1, 2, 5, 10])]
     )
 
 if "assign_trajectory"  in config["analysis"]["parts_to_perform"]:
     DESIRED_RESULTS.extend(
         ["<outputs_assignment>wrapped_trajectory.<ext_trj>", "<outputs_assignment>full_assignment.npy",
          expand(f"<outputs_molecular_plots>compare_to_assignment/overlapping_frame_{{i}}zoom{{zoom_level}}_view{{view_index}}_{{COM_or_full}}.png",
-             zoom_level=[8],view_index=[1],COM_or_full=["COM", "full"], i=[5390, 44854, 83546, 27, 3567])]
+             zoom_level=zoom_level,view_index=view_index,COM_or_full=["full"], i=[0, 1, 2, 3, 4, 5, 6, 7, 468, 98])]
     )
 
 if "sqra"  in config["analysis"]["parts_to_perform"]:
@@ -121,9 +138,12 @@ if "prepare_all_on_curta" in config["analysis"]["parts_to_perform"]:
 if "msm" in  config["analysis"]["parts_to_perform"]:
     DESIRED_RESULTS.extend(
         [expand(f"<outputs_transitions>{{tau}}/msm.npz", tau=[1, 5, 10, 20]),
-         "<outputs_other_plots>its.png", rules.get_all_eigenvectors.input, rules.plot_all_eigenvectors_as_lines.input,
-        expand(f"<outputs_molecular_plots>eigenvectors/{{tau}}/ALL_EIGENVECTORS_zoom{{zoom_level}}_view{{view_index}}_{{COM_or_full}}.png",
-            zoom_level=zoom_level, view_index=view_index, COM_or_full=["full"], tau=[1, 10, 100]),]
+         "<outputs_other_plots>its.png", rules.plot_all_eigenvectors_as_lines.input,
+         expand(f"<outputs_other_plots>eigenvectors_for_tau_{{tau}}.png", tau=[1, 10, 100]),
+         rules.get_all_eigenvectors.input,]
+        #
+        # expand(f"<outputs_molecular_plots>eigenvectors/{{tau}}/ALL_EIGENVECTORS_zoom{{zoom_level}}_view{{view_index}}_{{COM_or_full}}.png",
+        #     zoom_level=zoom_level, view_index=view_index, COM_or_full=["full"], tau=[1, 10, 100]),]
     )
 
 if "all_translations_all_rotations" in config["analysis"]["parts_to_perform"]:
@@ -133,6 +153,12 @@ if "all_translations_all_rotations" in config["analysis"]["parts_to_perform"]:
              zoom_level=zoom_level, view_index=view_index, COM_or_full = ["full"]),
          expand(f"<outputs_molecular_plots>all_rotations/zoom{{zoom_level}}_view{{view_index}}_{{COM_or_full}}.png",
              zoom_level=[8], view_index=[1], COM_or_full =["COM", "full"]),]
+    )
+
+if "all_rotations" in config["analysis"]["parts_to_perform"]:
+    DESIRED_RESULTS.extend(
+        [expand(f"<outputs_frame_plots>{{sim_pseudo_wrapped}}/frame_{{frame_index}}_zoom{{zoom_level}}_view{{view_index}}.png",
+            sim_pseudo_wrapped=["pseudosimulation"],frame_index=list(range(80)),zoom_level=2,view_index=view_index)]
     )
 
 if "make_pseudotrajectory_lammps" in config["analysis"]["parts_to_perform"]:

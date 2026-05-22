@@ -55,6 +55,7 @@ def sqra_determine_indices_never_visited_states(rate_matrix: csr_array, cutting_
     else:
         too_large_diagonal = np.where(rate_matrix.diagonal() < -float(cutting_factor))[0]
     too_large_diagonal.sort()
+    print("too_large_diagonal ", too_large_diagonal)
     return np.array(too_large_diagonal)
 
     mask = np.isinf(rate_matrix.data)

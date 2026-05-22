@@ -7,12 +7,10 @@ from typing import Optional, Sequence, Tuple, Any
 
 from numpy.typing import NDArray
 import numpy as np
-from scipy.linalg import eig
 from scipy.signal import find_peaks
-from scipy.sparse import coo_array, csr_array, diags_array, dok_array
+from scipy.sparse import coo_array, csr_array, diags_array, dok_array, vstack, hstack
 
 from scipy.constants import k as kB, N_A
-from scipy.sparse.linalg import eigs
 from sklearn.neighbors import KernelDensity
 from petsc4py import PETSc
 from slepc4py import SLEPc
@@ -173,15 +171,36 @@ class SQRA:
     distances, surfaces, volumes - but only one energy evaluation per cell
     """
 
-    def __init__(self, energies: NDArray, volumes: NDArray, distances: csr_array, surfaces: csr_array, bulk_neighbours: NDArray):
+    def __init__(self, energies: NDArray, volumes: csr_array, distances: csr_array, surfaces: csr_array, T: float):
         self.energies = energies
         self.volumes = volumes
         self.distances = distances
         self.surfaces = surfaces
-        self.bulk_neighbours = bulk_neighbours
+        self.T = T
+        self.rate_matrix = None
+
+    def add_bulk(self, flow_to_bulk: float, surfaces_to_bulk: NDArray, energy_kJ_mol_bulk: float, volumes_to_bulk: NDArray):
+        sum_surfaces = np.sum(surfaces_to_bulk)
+        V_bulk = 6563 #62563.28#299.4# 25563.287333333334
+        # energy ratio is cca 1 because the interaction energy already basically zero)
+        energy_ratios = np.exp((energy_kJ_mol_bulk-self.energies) * 1000 / (2 * kB * N_A * self.T))
+        #print(flow_to_bulk/surfaces_to_bulk)
+        inv_energy_ratios = np.exp((self.energies-energy_kJ_mol_bulk) * 1000 / (2 * kB * N_A * self.T))
+        final_flow = np.where(surfaces_to_bulk != 0, flow_to_bulk*surfaces_to_bulk/sum_surfaces * energy_ratios, 0.0)
+        new_row = csr_array(final_flow)
+        print(new_row)
+        self.rate_matrix = vstack([self.rate_matrix, new_row])
+        final_flow_column = np.where(surfaces_to_bulk != 0, flow_to_bulk*surfaces_to_bulk /sum_surfaces *
+                                     inv_energy_ratios, 0.0)
+        final_flow_column = np.hstack((final_flow_column, -np.sum(final_flow)))
+        final_flow_column = final_flow_column.reshape((-1, 1))
+        new_column = csr_array(final_flow_column)
+        print(new_column)
+        self.rate_matrix = hstack([self.rate_matrix, new_column])
+        return self.rate_matrix
 
 
-    def get_rate_matrix(self, D: float, T: float, capping_factor: float, flow_to_bulk: float) -> csr_array:
+    def get_rate_matrix(self, D: float, capping_factor: float) -> csr_array:
         """
         This is the method that gets from cell properties (energies, volumes) and adjacency properties (distances,
         surfaces) to the full rate matrix.
@@ -196,34 +215,34 @@ class SQRA:
             a sparse array of rates of shape (N_gridpoints, N_gridpoints)
         """
         # for sqra demand that each energy corresponds to exactly one cell
-        assert len(self.energies) == len(self.volumes), f"{len(self.energies)} != {len(self.volumes)}"
+        #assert len(self.energies) == len(self.volumes), f"{len(self.energies)} != {len(self.volumes)}"
         # you cannot multiply or divide directly in a coo format
         # using a higher-precision dtype is not useful, since we take exponentials of huge numbers - always overflow
         rate_matrix = D * self.surfaces
         rate_matrix = rate_matrix.tocoo()
         rate_matrix.data /= self.distances.tocoo().data
         # Divide every row of transition_matrix with the corresponding volume
-        rate_matrix.data /= self.volumes[rate_matrix.row]
+        rate_matrix.data /= self.volumes.tocoo().data #[rate_matrix.row]
         # multiply with sqrt(pi_j/pi_i) = e**((V_i-V_j)*1000/(2*k_B*N_A*T))
         # gromacs uses kJ/mol as energy unit, boltzmann constant is J/K
         energy_differences = self.energies[rate_matrix.row] - self.energies[rate_matrix.col]
         energy_differences[np.isnan(energy_differences)] = np.inf
-        import pandas as pd
-        print(pd.DataFrame(energy_differences).describe())
+        # import pandas as pd
+        # print(pd.DataFrame(energy_differences).describe())
 
         if capping_factor!="None":
             energy_differences = np.where(energy_differences < float(capping_factor), energy_differences, float(capping_factor))
 
-        pi_exponent = energy_differences * 1000 / (2 * kB * N_A * T)
+        pi_exponent = energy_differences * 1000 / (2 * kB * N_A * self.T)
         rate_matrix.data *= np.exp(pi_exponent)
-        print(pd.DataFrame(rate_matrix.data).describe())
+        #print(pd.DataFrame(rate_matrix.data).describe())
 
-        # normalize
+        # normalize sum of rows
         rate_matrix.setdiag(0)
         sums = rate_matrix.sum(axis=1)
         sum_diag = diags_array(-sums, format="csr")
         all_together = rate_matrix + sum_diag
-        print(pd.DataFrame(all_together.data).describe())
+        self.rate_matrix = all_together
         return all_together
 
 
@@ -260,7 +279,7 @@ class DecompositionTool:
             (eigenvalues, eigenvectors) where eigenvalues is an array of shape (12,) and eigenvectors an array of
             shape (total_len, 12)
         """
-        return self.get_decomposition(tol=1e-8, maxiter=100000, which="LR", sigma=None)
+        return self.get_decomposition(tol=1e-12, maxiter=100000, which="LR", sigma=1.0)
 
     def decompose_sqra(self, sigma, tolerance, **kwargs) -> tuple:
         """
@@ -270,26 +289,21 @@ class DecompositionTool:
             (eigenvalues, eigenvectors) where eigenvalues is an array of shape (12,) and eigenvectors an array of
             shape (total_len, 12)
         """
-        print(f"Matrix size is {self.matrix_to_decompose.shape}")
-        eigenvalues, eigenvectors = self.get_decomposition(tol=tolerance, maxiter=10000, which="SR", sigma=sigma,
+        eigenvalues, eigenvectors = self.get_decomposition(tol=tolerance, maxiter=10000000, which="SR", sigma=sigma,
                                                            **kwargs)
         # now divide into three categories: sum +-1, sum 0, sum other
         indices_sum_to_0 = []
-        indices_sum_to_1 = []
         indices_sum_to_other = []
         for i, expanded_eigenvector in enumerate(eigenvectors.T):
             print(i, np.abs(np.sum(expanded_eigenvector)))
             if np.isclose(np.sum(expanded_eigenvector), 0, atol=1e-3, rtol=1e-3):
                 indices_sum_to_0.append(i)
-            elif np.isclose(np.abs(np.sum(expanded_eigenvector)), 1, atol=1e-2, rtol=1e-2):
-                indices_sum_to_1.append(i)
             else:
                 indices_sum_to_other.append(i)
         # return the three categories
         first_tuple = (eigenvalues[indices_sum_to_0], eigenvectors[:, indices_sum_to_0])
-        second_tuple = (eigenvalues[indices_sum_to_1], eigenvectors[:, indices_sum_to_1])
         third_tuple = (eigenvalues[indices_sum_to_other], eigenvectors[:, indices_sum_to_other])
-        return first_tuple, second_tuple, third_tuple
+        return first_tuple, third_tuple
 
     def get_decomposition(self, tol: float, maxiter: int, which: str, sigma: Optional[float], k: int = 24) -> tuple:
         """
@@ -312,6 +326,7 @@ class DecompositionTool:
         """
         # two options for transpose: large, sparse matrices need specialized methods but small ones perform better
         # with full eigendecomposition
+        print("getting decomposition ", self.matrix_to_decompose.shape, sigma, k)
         eigenval, eigenvec = decompose_with_petsc(self.matrix_to_decompose.T, sigma, num_eigenvectors=k)
         # if self.matrix_to_decompose.shape[0] > 20000:
         #     eigenval, eigenvec = eigs(self.matrix_to_decompose.T, k=k, tol=tol, maxiter=maxiter, which=which,

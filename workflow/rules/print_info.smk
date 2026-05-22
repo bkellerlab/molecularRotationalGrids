@@ -44,15 +44,15 @@ rule print_assignment:
         full_assignment = f"<outputs_assignment>full_assignment.npy",
     run:
         my_assignments = read_object(input.rot_assignment)
-        print("Rot assignment: ", my_assignments[[5390, 44854, 83546]])
+        print("Rot assignment: ", my_assignments[[0,1,2,3,4,5,6]])
         my_assignments = read_object(input.translation_assignment)
-        print("Trans assignment: ", my_assignments[[5390, 44854, 83546]])
+        print("Trans assignment: ", my_assignments[[0,1,2,3,4,5,6]])
         my_assignments = read_object(input.full_assignment)
-        print(my_assignments[[5390, 44854, 83546]])
+        print(my_assignments[[0,1,2,3,4,5,6]])
 
         df = read_object(input.trans_csv, header = [0,1])
         print(df)
-        print(df.loc[83546])
+        #print(df.loc[83546])
 
 
 rule print_indices_interpretation:
@@ -110,11 +110,17 @@ rule display_matrices:
         adjacency = "<outputs_network>adjacency.npz",
         distances = "<outputs_network>distances.npz",
         surfaces = "<outputs_network>surfaces.npz",
+        volumes= "<outputs_network>volumes.npz",
+        numerical_edge_type= "<outputs_network>edge_types.npz",
     run:
-        some_arr = read_object(input.adjacency).toarray()
+        some_arr = read_object(input.volumes).toarray()
+        num_edge = read_object(input.numerical_edge_type).toarray()
         np.set_printoptions(precision=3,suppress=True,linewidth=np.inf)
-        print(np.where(some_arr[0, :]))
-        print(np.where(some_arr[200, :]))
+        print(some_arr[0])
+        print(num_edge[0])
+        print()
+        print(some_arr[20])
+        print(num_edge[20])
 
 rule display_energy_difference:
     input:
@@ -281,3 +287,27 @@ rule align_to_xy:
         input_u = read_object(input.structure)
         output_u = move_universe_to_xy_plane(input_u)
         write_object(output_u, output.structure)
+
+rule look_at_network:
+    input:
+        network = "<outputs_network>network.pkl"
+    run:
+        my_network = read_object(input.network)
+        print("these are volumes \n", my_network.adjacency_volume)
+
+        # num_rotations = np.max(my_network.get_rotation_indices()) +1
+        # print(num_rotations)
+        #
+        # all_areas = []
+        # for node in my_nodes:
+        #     if node.is_boundary_to_bulk():
+        #         upper_radius = node.translation_node.r.hull[-1]
+        #         print(upper_radius)
+        #         unit_area = node.translation_node.sphere.unit_voronoi_area
+        #         area = upper_radius ** 2 * unit_area / num_rotations
+        #         #print(node, node.translation_node.hull[-1])
+        #         print(area)
+        #         all_areas.append(area)
+        #
+        # print(np.sum(all_areas), np.sqrt(np.sum(all_areas)/4/3.1415))
+        #print(my_network.hulls)

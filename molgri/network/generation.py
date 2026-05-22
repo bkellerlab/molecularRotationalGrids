@@ -106,7 +106,11 @@ def _build_spherical_network(subgrids: tuple) -> SphericalTranslationNetwork:
         delta_r = np.abs(r_grid[1] - r_grid[0])
     for coo_i, coo in enumerate(r_grid):
         hull = (coo - delta_r / 2, coo + delta_r / 2)
-        nodes.append(OneDimTranslationNode("r", coo_i, coo, hull))
+        if coo_i == np.argmax(r_grid):
+            is_edge_to_bulk = True
+        else:
+            is_edge_to_bulk = False
+        nodes.append(OneDimTranslationNode("r", coo_i, coo, hull, is_edge_to_bulk))
     radial_network  = nx.Graph()
     radial_network .add_nodes_from(nodes)
     # now add edges to these sub-graphs - this is without periodicity

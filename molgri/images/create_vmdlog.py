@@ -86,6 +86,7 @@ material change shininess Material22 0.000000
 display depthcue off
 display projection Orthographic
 color Type C gray
+color Name C gray
 display nearclip 0.001
 display farclip 1000.0
 display resize 1800 1800
@@ -302,11 +303,11 @@ graphics top sphere {{ {coordinate[0]} {coordinate[1]} {coordinate[2]} }} radius
             self.load_translation_rotation_script(translation_rotation_script)
         if draw_m1 != "None":
             # plot only one non-zero frame since they are all the same
-            self._add_representation(first_molecule=True, second_molecule=False, periodic="Z",
+            self._add_representation(first_molecule=True, second_molecule=False, periodic="xyzXYZ",
                                        representation=VMD_BOND_TYPE_DICT[draw_m1], trajectory_frames=[1]) #
         if draw_m2 != "None":
             # plot all provided frames except 0
-            self._add_representation(first_molecule=False, second_molecule=True, periodic="zZ",
+            self._add_representation(first_molecule=False, second_molecule=True, periodic="xyzXYZ",
                                        representation=VMD_BOND_TYPE_DICT[draw_m2], trajectory_frames=list(range(1,
                                                                                                                 num_frames+1)))
         if draw_rectangular_box:
@@ -336,7 +337,7 @@ graphics top sphere {{ {coordinate[0]} {coordinate[1]} {coordinate[2]} }} radius
             self.load_translation_rotation_script(translation_rotation_script)
         if draw_m1 != "None":
             # plot only one non-zero frame since they are all the same
-            self._add_representation(first_molecule=True, second_molecule=False, periodic="Z",
+            self._add_representation(first_molecule=True, second_molecule=False, periodic="xyzXYZ",
                                        representation=VMD_BOND_TYPE_DICT[draw_m1], trajectory_frames=[1])
         if draw_m2 != "None":
             # plot red frames

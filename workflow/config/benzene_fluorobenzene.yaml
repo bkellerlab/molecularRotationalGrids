@@ -1,15 +1,15 @@
 grid:
-  unique_network_name: "20_sph_20rot"
+  unique_network_name: "162_sph_272rot"
   rotation_algorithm: "hypercube"
   rotation_random_seed: 1
-  N_rotations: 20
+  N_rotations: 272
   periodic_in: [ False, False ]
   translation_algorithm: "spherical"
-  translation_subgrids_A: [ 20, [1, 10, 20] ]
+  translation_subgrids_A: [ 162, [1.5, 10, 10] ]
 
 pseudotrajectory:
-  molecule_1: "guanidinium"
-  molecule_2: "guanidinium"
+  molecule_1: "benzene"
+  molecule_2: "fluorobenzene"
   structure_ending: "gro"
   trajectory_ending: "xtc"
 
@@ -22,13 +22,10 @@ analysis:
   analyse_first_N_frames: None
 
 sqra:
-  capping_factor: 3000
-  cutting_factor: 1e10
-  tolerance_rate_matrix_row_sum: 1e-16
   sigma: 0
   tolerance_eigendecomposition: 0
 
 eigenvectors:
   num_interesting_timescales: 4
   num_interesting_eigenvectors: 12
-  num_extremes_to_plot: "auto"
+  num_extremes_to_plot: 10

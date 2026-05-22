@@ -123,6 +123,9 @@ class FullNetwork(AbstractNetwork):
     def _numerical_edge_type(self, edge_dict: dict) -> dict:
         return {edge_dict["edge_type"]: edge_dict["numerical_edge_type"]}
 
+    def _vol(self, edge_dict: dict) -> dict:
+        return {edge_dict["edge_type"]: edge_dict["vol"]}
+
     def get_translation_indices(self) -> NDArray:
         """
         The ordering of nodes looks like this: first N_rot elements are all the different rotations at the
@@ -154,6 +157,29 @@ class FullNetwork(AbstractNetwork):
         """
         indices = np.array([node.rotation_node.index for node in self.sorted_nodes], dtype=int)
         return indices
+
+    def get_surface_to_bulk(self):
+        edges_to_bulk = [node.is_boundary_to_bulk() for node in self.sorted_nodes]
+        #num_rotations = np.max(self.get_rotation_indices()) + 1
+
+        all_unit_surfaces = np.array([node.translation_node.sphere.unit_voronoi_area for node in self.sorted_nodes])
+        unit_surfaces_to_bulk = np.where(edges_to_bulk, all_unit_surfaces, 0.0)
+
+        all_max_radii = np.array([node.translation_node.r.hull[-1] for node in self.sorted_nodes])
+        radii_to_bulk = np.where(edges_to_bulk, all_max_radii, 0.0 )
+
+
+        result = radii_to_bulk**2 * unit_surfaces_to_bulk #/ num_rotations
+        return np.array(result)
+
+    def get_volumes_to_bulk(self):
+        edges_to_bulk = [node.is_boundary_to_bulk() for node in self.sorted_nodes]
+        #num_rotations = np.max(self.get_rotation_indices()) + 1
+
+        all_volumes = np.array([node.translation_node.volume for node in self.sorted_nodes])
+        volumes_to_bulk = np.where(edges_to_bulk, all_volumes, 0.0)
+
+        return np.array(volumes_to_bulk)
 
     @cached_property
     def list_of_position_nodes(self) -> NDArray:

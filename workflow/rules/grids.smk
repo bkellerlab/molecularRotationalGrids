@@ -70,6 +70,19 @@ rule create_full_network:
         full_network = create_full_network(translation_network, rotation_network)
         write_object(full_network, output.network_file)
 
+if config["sqra"]["allow_diffusion_to_bulk"]:
+    rule save_to_bulk:
+        input:
+            network_file = "<outputs_network>network.pkl"
+        output:
+            boundaries_to_bulk = f"<outputs_network>boundaries_to_bulk.npy",
+            volumes_to_bulk= f"<outputs_network>volumes_to_bulk.npy"
+        run:
+            full_network = read_object(input.network_file)
+            boundaries_to_bulk = full_network.get_surface_to_bulk()
+            write_object(boundaries_to_bulk,output.boundaries_to_bulk)
+            volumes_to_bulk = full_network.get_volumes_to_bulk()
+            write_object(volumes_to_bulk,output.volumes_to_bulk)
 
 rule save_network_properties:
     input:
@@ -82,14 +95,11 @@ rule save_network_properties:
         numerical_edge_type = "<outputs_network>edge_types.npz",
         distances = "<outputs_network>distances.npz",
         surfaces = "<outputs_network>surfaces.npz",
-        volumes = "<outputs_network>volumes.npy",
-        boundaries_to_bulk= f"<outputs_network>boundaries_to_bulk.npy"
+        volumes = "<outputs_network>volumes.npz",
     run:
         full_network = read_object(input.network_file)
-        boundaries_to_bulk = np.array([n.is_boundary_to_bulk() for n in full_network.sorted_nodes])
-        write_object(boundaries_to_bulk, output.boundaries_to_bulk)
         write_object(full_network.grid, output.grid)
-        write_object(full_network.volumes, output.volumes)
+        write_object(full_network.adjacency_volume, output.volumes)
 
         write_object(full_network.adjacency_matrix, output.adjacency)
         write_object(full_network.adjacency_type_matrix,output.numerical_edge_type)
@@ -111,12 +121,14 @@ rule display_network_edge_matrices:
         adjacency = "<outputs_network>adjacency.npz",
         numerical_edge_type = "<outputs_network>edge_types.npz",
         distances = "<outputs_network>distances.npz",
-        surfaces = "<outputs_network>surfaces.npz"
+        surfaces = "<outputs_network>surfaces.npz",
+        volumes= "<outputs_network>volumes.npz",
     output:
         adjacency = "<outputs_network>adjacency.png",
         numerical_edge_type = "<outputs_network>edge_types.png",
         distances = "<outputs_network>distances.png",
-        surfaces = "<outputs_network>surfaces.png"
+        surfaces = "<outputs_network>surfaces.png",
+        volumes= "<outputs_network>volumes.png",
     run:
         show_array(read_object(input.adjacency).toarray(), "Adjacency_type",
             save_as=output.adjacency, show=False)
@@ -126,6 +138,8 @@ rule display_network_edge_matrices:
             save_as=output.distances, show=False)
         show_array(read_object(input.surfaces).toarray(), "Surface_matrix",
             save_as=output.surfaces, show=False)
+        show_array(read_object(input.volumes).toarray(),"Volume_matrix",
+            save_as=output.volumes,show=False)
 
 rule display_network_node_attributes:
     input:

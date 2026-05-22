@@ -190,6 +190,12 @@ class AbstractNetwork(nx.Graph, ABC):
         pass
 
     @abstractmethod
+    def _vol(self, *edge_dict) -> dict:
+        """
+        """
+        pass
+
+    @abstractmethod
     def _numerical_edge_type(self, *edge_dict) -> dict:
         """
         Must return a dict in which for every edge type a number is returned.
@@ -207,10 +213,11 @@ class AbstractNetwork(nx.Graph, ABC):
             lambda row: self._numerical_edge_type(row.to_dict())[row["edge_type"]], axis=1)
         df_edges["distance"] = df_edges.apply(
             lambda row: self._distances(row.to_dict())[row["edge_type"]], axis=1)
-        # there is some problem with surfaces, investigate
         df_edges["surface"] = df_edges.apply(
             lambda row: self._surfaces(row.to_dict())[row["edge_type"]], axis=1)
-        for attribute in ["distance", "surface", "numerical_edge_type"]:
+        df_edges["vol"] = df_edges.apply(
+            lambda row: self._vol(row.to_dict())[row["edge_type"]], axis=1)
+        for attribute in ["distance", "surface", "numerical_edge_type", "vol"]:
             nx.set_edge_attributes(self, df_edges.set_index(["source", "target"])[attribute].to_dict(), name=attribute)
 
     @cached_property
@@ -219,7 +226,11 @@ class AbstractNetwork(nx.Graph, ABC):
 
     @cached_property
     def adjacency_type_matrix(self):
-        return nx.adjacency_matrix(self, nodelist=self.sorted_nodes, dtype=bool, weight="numerical_edge_type")
+        return nx.adjacency_matrix(self, nodelist=self.sorted_nodes, dtype=int, weight="numerical_edge_type")
+
+    @cached_property
+    def adjacency_volume(self):
+        return nx.adjacency_matrix(self, nodelist=self.sorted_nodes, dtype=float, weight="vol")
 
     @cached_property
     def distance_matrix(self):

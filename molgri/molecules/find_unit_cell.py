@@ -12,6 +12,7 @@ from itertools import product
 
 import plotly.graph_objects as go
 from MDAnalysis import Universe
+from ase.geometry import cellpar_to_cell
 from ase.io import read
 from numpy.typing import NDArray
 from pymatgen.core import Structure
@@ -172,7 +173,7 @@ def find_cuboid_cell(ase_cell: list, ase_positions: NDArray, numerator_options =
     return results[0]["lattice"]
 
 
-def find_primitive_cell(path_structure: str, precision: float = 0.01) -> Structure:
+def find_primitive_cell(path_structure: str, precision: float = 0.001) -> Structure:
     """
     Find the smallest (but not necessarily cuboid) unit cell of structure at path_structure.
 
@@ -184,8 +185,10 @@ def find_primitive_cell(path_structure: str, precision: float = 0.01) -> Structu
         a Structure instance that provides the lattice of primitive cell
     """
     atoms = read(path_structure)
+    atoms.set_cell(cellpar_to_cell([14.5086, 14.5086, 14.5086, 60, 60, 60]))
+    atoms.set_pbc(True)
     structure = AseAtomsAdaptor.get_structure(atoms)
-    sga = SpacegroupAnalyzer(structure, symprec=precision)
+    sga = SpacegroupAnalyzer(structure, symprec=precision, angle_tolerance=5)
     prim = sga.get_primitive_standard_structure()
     return prim
 
@@ -284,33 +287,35 @@ if __name__ == "__main__":
     """
     from molgri.images.plotting import draw_structure, draw_unit_cell
 
-    my_path = "/home/hanaz63/2026_molgri/nobackup/graphene_xylene/auto_20/pseudosimulation/"
+    my_path = "/home/hanaz63/2026_molgri/nobackup/MOF_num_AR/40_40_40/pseudosimulation/"
 
-    structure = f"{my_path}structure.gro"
-    structure1 = f"{my_path}molecule1.gro"
-    trajectory = f"{my_path}trajectory.xtc"
+    structure = f"{my_path}structure.xyz"
+    structure1 = f"{my_path}molecule1.xyz"
+    trajectory = f"{my_path}trajectory.xyz"
 
-    u = Universe(structure, trajectory)
-    ag2 = u.select_atoms("all")
-    ag2 = ag2[1056:]
 
-    primitive_structure = find_primitive_cell(structure)
+    primitive_structure = find_primitive_cell(structure1)
     primitive_atoms = AseAtomsAdaptor.get_atoms(primitive_structure)
+    primitive_cell = primitive_atoms.cell.cellpar()
+    print("primitive_atoms ", primitive_atoms)
 
 
-    supercell_atoms = make_supercell(primitive_atoms, np.diag([2,2,1]))
+    supercell_atoms = make_supercell(primitive_atoms, np.diag([3,3,3]))
     supercell_structure = AseAtomsAdaptor.get_structure(supercell_atoms)
+    supercell_cell = supercell_atoms.get_cell().cellpar()
 
-    cuboid_unit_structure = find_cuboid_cell(supercell_atoms.get_cell(), supercell_atoms.get_positions(),
-                                                       numerator_options=(-1,0,1), denominator_options=(1, 2, 4))
-
-    print(cuboid_unit_structure)
+    # cuboid_unit_structure = find_cuboid_cell(supercell_atoms.get_cell(), supercell_atoms.get_positions(),
+    #                                                    numerator_options=(-1,0,1), denominator_options=(1, 3)) #, 2, 4
+    #
+    # print(cuboid_unit_structure)
 
 
     fig = go.Figure()
-    draw_unit_cell(fig, primitive_structure.lattice.matrix.diagonal())
-    draw_unit_cell(fig, supercell_structure.lattice.matrix.diagonal(), color="red")
+    print("matrix ", primitive_structure.lattice)
+    draw_unit_cell(fig, primitive_cell[:3], primitive_cell[3:], color="blue")
+    draw_unit_cell(fig, supercell_cell[:3], supercell_cell[3:], color="red")
+    draw_unit_cell(fig, np.array([14.5086, 12.564816173346905, 11.84622229] ), np.array([90,90,90]),
+                   color="green", show=True)
+    #draw_unit_cell(fig, cuboid_unit_structure.diagonal(), color="green")
 
-    draw_unit_cell(fig, cuboid_unit_structure.diagonal(), color="green")
-
-    draw_structure(fig, structure1, show=True)
+    #draw_structure(fig, structure1, show=True)

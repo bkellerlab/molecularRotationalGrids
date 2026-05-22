@@ -223,33 +223,93 @@ def show_violin(data, cutoff=None, name=None):
 
 
 @save_plotly
-def draw_structure(fig, path, color="black"):
-    u = Universe(path)
-    fig = draw_points(u.atoms.positions, fig=fig, equal_aspect=True, color=color)
+def draw_structure(fig, ag, color="black", side_lengths: NDArray = None, side_angles: NDArray = None, periodic=""):
+    unique_types = np.unique(ag.atoms.types)
+    some_colors = ["black", "gray", "red", "green", "blue", "yellow"]
+    for type_i, atom_type in enumerate(unique_types):
+        selected_indices = np.where(ag.atoms.types == atom_type)[0]
+        fig = draw_points(ag.atoms.positions[selected_indices], fig=fig, equal_aspect=True, color=some_colors[type_i])
+
+    if side_lengths is not None:
+        draw_unit_cell(fig=fig, side_lengths=side_lengths, color="black", side_angles=side_angles)
+        if "X" in periodic:
+            ag.atoms.positions
     fig.update_layout(showlegend=False)
     return fig
 
+
+def find_triclinic_vertices(side_lengths: NDArray, side_angles: NDArray = None):
+    a, b, c = side_lengths
+    alpha, beta, gamma = np.deg2rad(side_angles)
+    va = np.array([a, 0.0, 0.0])
+
+    # b-axis in xy-plane
+    vb = np.array([
+        b * np.cos(gamma),
+        b * np.sin(gamma),
+        0.0
+    ])
+
+    # c-axis general triclinic construction
+    cx = c * np.cos(beta)
+
+    cy = c * (np.cos(alpha) - np.cos(beta) * np.cos(gamma)) / np.sin(gamma)
+
+    cz_term = (
+        1
+        - np.cos(alpha) ** 2
+        - np.cos(beta) ** 2
+        - np.cos(gamma) ** 2
+        + 2 * np.cos(alpha) * np.cos(beta) * np.cos(gamma)
+    )
+
+    cz = c * np.sqrt(max(cz_term, 0.0)) / np.sin(gamma)
+
+    vc = np.array([cx, cy, cz])
+    return va, vb, vc
+
+
 @save_plotly
-def draw_unit_cell(fig: go.Figure, side_lengths: NDArray, color="blue", in_3d = True, **kwargs):
+def draw_unit_cell(fig: go.Figure, side_lengths: NDArray, side_angles: NDArray = None, color="blue", in_3d = True,
+                   v0=[0,0,0], **kwargs):
     """
     Provide a 3x3 array where every row is a lattice vector and get a drawing of a unit cell (all edges)
+
+    Angles should be given in degrees and as [angle(b,c), angle(a, c), angle(a, b)]
     """
+    if side_angles is None:
+        side_angles = np.array([90, 90, 90])
 
     if in_3d:
-        v0 = np.array([0,0,0])
+        v0 = np.array(v0)
 
-        Lx, Ly, Lz = side_lengths
+        # Lx, Ly, Lz = side_lengths
+        #
+        #
+        va, vb, vc = find_triclinic_vertices(side_lengths, side_angles)
+        print(f"triclinic vertices {color} ", va + vb + vc)
 
         vertices = np.array([
             v0,
-            v0 + [Lx, 0, 0],
-            v0 + [0, Ly, 0],
-            v0 + [0, 0, Lz],
-            v0 + [Lx, Ly, 0],
-            v0 + [Lx, 0, Lz],
-            v0 + [0, Ly, Lz],
-            v0 + [Lx, Ly, Lz],
+            v0+va,
+            v0+vb,
+            v0+vc,
+            v0+va + vb,
+            v0+va + vc,
+            v0+vb + vc,
+            v0+va + vb + vc,
         ])
+
+        # vertices = np.array([
+        #     v0,
+        #     v0 + [va, 0, 0],
+        #     v0 + [0, vb, 0],
+        #     v0 + [0, 0, vc],
+        #     v0 + [va, vb, 0],
+        #     v0 + [va, 0, vc],
+        #     v0 + [0, vb, vc],
+        #     v0 + [va, vb, vc],
+        # ])
         edges = [
             (0, 1), (0, 2), (0, 3),
             (1, 4), (1, 5),
@@ -263,6 +323,7 @@ def draw_unit_cell(fig: go.Figure, side_lengths: NDArray, color="blue", in_3d = 
 
         fig.update_layout(scene_aspectmode="data")
         fig.update_layout(showlegend=False)
+        print("have fig")
     else:
         Lx, Ly,= side_lengths
         draw_line_between(fig, np.array([0, 0]), np.array([Lx, 0]), color="green")

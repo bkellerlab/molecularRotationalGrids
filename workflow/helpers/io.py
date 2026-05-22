@@ -109,6 +109,7 @@ def _write_csv(df, filename: str):
     df.to_csv(filename)
 
 def _read_csv(filename: str, *args, **kwargs) -> pd.DataFrame:
+    print(kwargs)
     return pd.read_csv(filename, index_col=0, **kwargs)
 
 def _write_array(array, filename: str):

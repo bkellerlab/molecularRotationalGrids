@@ -4,8 +4,6 @@ import numpy as np
 import pandas as pd
 
 from workflow.helpers.io import get_num_atoms, read_object, write_object
-from MDAnalysis import Universe
-import MDAnalysis as md
 
 from workflow.helpers.orca_reader import AVOGADRO_CONSTANT, HARTREE_TO_J
 
@@ -15,16 +13,16 @@ N_structures_per_batch = int(config["curta"]["num_structures_per_batch"])
 N_batches = int(config["curta"]["num_batches"])
 
 
-NUM_GRID_POINTS = N_structures_per_batch * N_batches
+NUM_GRID_POINTS_CURTA = N_structures_per_batch * N_batches
 
 ########################   HERE THE OPTION OF COMLETELY SPLIT TRAJECTORIES (BATCH + FRAME) ################
 
 def _determine_batch_subfolders():
     all_paths = []
     for batch in range(N_batches):
-        section_size = NUM_GRID_POINTS//N_batches
+        section_size = NUM_GRID_POINTS_CURTA // N_batches
         batch_start_index = batch*section_size
-        batch_end_index = np.min([(batch+1)*section_size, NUM_GRID_POINTS])
+        batch_end_index = np.min([(batch+1) * section_size, NUM_GRID_POINTS_CURTA])
         all_paths.extend([f"batch_{batch}/{str(i).zfill(10)}/" for i in range(batch_start_index, batch_end_index)])
 
     return all_paths
@@ -32,9 +30,9 @@ def _determine_batch_subfolders():
 def _determine_batch_folders(wildcards, file_needed):
     all_paths = []
     for batch in range(N_batches):
-        section_size = NUM_GRID_POINTS//N_batches
+        section_size = NUM_GRID_POINTS_CURTA // N_batches
         batch_start_index = batch*section_size
-        batch_end_index = np.min([(batch+1)*section_size, NUM_GRID_POINTS])
+        batch_end_index = np.min([(batch+1) * section_size, NUM_GRID_POINTS_CURTA])
         all_paths.extend([f"{wildcards.where}batch_{batch}/{str(i).zfill(10)}/{file_needed}" for i in range(batch_start_index, batch_end_index)])
     return all_paths
 
@@ -65,7 +63,7 @@ rule completely_split_trajectory:
         with open(input.trajectory, "r") as f:
             all_lines = f.readlines() # throwing away the last \n line
 
-        split_len = len(all_lines)//NUM_GRID_POINTS
+        split_len = len(all_lines) // NUM_GRID_POINTS_CURTA
         print("total len ", len(all_lines))
 
         for i, output_file in enumerate(output.all_out):
@@ -237,14 +235,3 @@ rule inp_into_every_batch:
 #         cp {input.energy} {output.energy_csv}
 #         """
 
-
-rule convert_to_lammps:
-    input:
-        trajectory = "<pseudosimulation>trajectory.<ext_trj>",
-    output:
-        lammps_trajectory = "<pseudosimulation>lammps_trajectory.dcd",
-    run:
-        u = Universe(input.trajectory)
-        with md.coordinates.LAMMPS.DCDWriter(output.lammps_trajectory,n_atoms=u.atoms.n_atoms) as W:
-            for ts in u.trajectory:
-                W.write(u.atoms)

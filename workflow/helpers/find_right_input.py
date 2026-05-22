@@ -14,9 +14,9 @@ def find_the_right_structure(what: str) -> str:
     Returns:
         a string giving a path to stucture file
     """
-    return f"<pseudosimulation>{what}.<ext_str>"
+    return f"<pseudosimulation>{what}.gro"
 
-def find_the_right_frames(where: str, what: str, indices: list) -> tuple:
+def find_the_right_frames(where: str, what: str, indices: list, grid_len) -> tuple:
     """
     Since we create VMD plots from multiple .gro files, each one containing just one frame, we often need to select
     the right set of frames. Here we select from the correct directory given that we know the indices of desired frames.
@@ -28,7 +28,15 @@ def find_the_right_frames(where: str, what: str, indices: list) -> tuple:
     Returns:
         a tuple where all elements are paths to .gro files we want
     """
-    return tuple([f"{where}trajectory_slices/{what}{frame_index}.<ext_str>" for frame_index in indices])
+    result = []
+    for frame_index in indices:
+        if frame_index < grid_len:
+            result.append(f"{where}trajectory_slices/{what}{frame_index}.gro")
+        elif frame_index == grid_len:
+            result.append(f"<pseudosimulation>bulk_structure.gro")
+        else:
+            raise ValueError(f"Cannot find index {frame_index} in PT of length {grid_len}!")
+    return tuple(result)
 
 def where_to_look(keyword: str) -> str:
     """

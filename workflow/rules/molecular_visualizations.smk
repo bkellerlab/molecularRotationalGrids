@@ -19,10 +19,11 @@ pathvars:
 
 ##################################### GENERAL FUNCTIONS ####################################################
 
+
 def input_base(where, what, wc):
     structure_path = find_the_right_structure(what)
     return {"structure": structure_path,
-            "structure1": "<pseudosimulation>molecule1.<ext_str>",
+            "structure1": "<pseudosimulation>molecule1.<ext_inp>",
             "grid_info": "<outputs_network>grid_info.yaml",
             "translation_rotation_script": f"<inputs_vmd>script{wc.view_index}.log",
             "grid": "<outputs_network>grid.npy"}
@@ -32,7 +33,7 @@ def input_one_frame(wc):
     what = what_to_provide(wc.sim_pseudo_wrapped, for_a_structure=True)
     result = input_base(where, what, wc)
     what = what_to_provide(wc.sim_pseudo_wrapped,for_a_structure=False)
-    frame = find_the_right_frames(where, what, [wc.frame_index])
+    frame = find_the_right_frames(where, what, [int(wc.frame_index)], NUM_GRID_POINTS)
     result["frame_gro"] = frame[0]
     return result
 
@@ -46,8 +47,8 @@ rule new_vmd_plot_one_frame:
     params:
         draw_m1 = config["analysis"]["plot_m1_as"],
         draw_m2 = config["analysis"]["plot_m2_as"],
-        draw_rectangular_box = False,
-        draw_gridpoints = False,
+        draw_rectangular_box = True,
+        draw_gridpoints = True,
         center_on_box = False
     run:
 
@@ -115,7 +116,7 @@ def input_lowestE(wc):
 
     what = what_to_provide(wc.sim_pseudo_wrapped,for_a_structure=False)
     indices = read_object(indices_file).astype(int)
-    result["all_frame_gros"] = find_the_right_frames(where, what, indices)
+    result["all_frame_gros"] = find_the_right_frames(where, what, indices, NUM_GRID_POINTS)
     return result
 
 rule lowest20:
@@ -160,7 +161,7 @@ def input_all_translations(wc):
     indices_file = checkpoints.all_positions_first_rotation_indices.get().output.indices
     indices = read_object(indices_file).astype(int)
     what = what_to_provide(wc.COM_or_full,for_a_structure=False)
-    result["all_frame_gros"] = find_the_right_frames("<pseudosimulation>", what, indices)
+    result["all_frame_gros"] = find_the_right_frames("<pseudosimulation>", what, indices, NUM_GRID_POINTS)
     return result
 
 rule all_translations_overlapping_frames:
@@ -200,7 +201,7 @@ def input_all_rotations(wc):
     indices_file = checkpoints.all_rotations_first_position_indices.get().output.indices
     indices = read_object(indices_file).astype(int)
     what = what_to_provide(wc.COM_or_full,for_a_structure=False)
-    result["all_frame_gros"] = find_the_right_frames("<pseudosimulation>", what, indices)
+    result["all_frame_gros"] = find_the_right_frames("<pseudosimulation>", what, indices, NUM_GRID_POINTS)
     return result
 
 rule all_rotations_overlapping_frames:
@@ -262,7 +263,7 @@ rule stack_all_eigenvectors:
 rule get_all_eigenvectors:
     input:
         expand(f"<outputs_molecular_plots>eigenvectors/{{tau}}/ALL_EIGENVECTORS_zoom{{zoom_level}}_view{{view_index}}_{{COM_or_full}}.png",
-            tau=[1, 10, 100], zoom_level=[8],view_index=[1, 4],
+            tau=[1, 10, 100], zoom_level=config["analysis"]["zoom_level"],view_index=config["analysis"]["view_index"],
             COM_or_full=["full"]),
 
 def input_zeroth_eigenvector(wc):
@@ -276,7 +277,7 @@ def input_zeroth_eigenvector(wc):
     indices_file = indices_file[0]
     indices = read_object(indices_file).astype(int)
     what = what_to_provide(wc.COM_or_full,for_a_structure=False)
-    result["all_frame_gros"] = find_the_right_frames(where, what, indices)
+    result["all_frame_gros"] = find_the_right_frames(where, what, indices, NUM_GRID_POINTS)
     print(result)
     return result
 
@@ -287,6 +288,9 @@ rule zeroth_eigenvector_overlapping_frames:
         vmdlog=f"<outputs_vmd>eigenvectors/{{tau}}/0th_eigenvector_zoom{{zoom_level}}_view{{view_index}}_{{COM_or_full}}",
         frame_plot=f"<outputs_molecular_plots>eigenvectors/{{tau}}/0th_eigenvector_zoom{{zoom_level}}_view{{view_index}}_{{COM_or_full}}.tga",
         frame_plot_png = f"<outputs_molecular_plots>eigenvectors/{{tau}}/0th_eigenvector_zoom{{zoom_level}}_view{{view_index}}_{{COM_or_full}}.png"
+    params:
+        draw_m1 = config["analysis"]["plot_m1_as"],
+        draw_m2 = config["analysis"]["plot_m2_as"],
     run:
         n1 = get_num_atoms(input.structure1)
         box_limits, gridpoints = collect_box_information(input)
@@ -296,13 +300,14 @@ rule zeroth_eigenvector_overlapping_frames:
 
         my_vmd.prepare_frame_script(vmd_name=output.vmdlog, plot_name=output.frame_plot,
             num_frames=len(input.all_frame_gros),
-            box_limits=box_limits, draw_m1=True, draw_m2=True,
+            box_limits=box_limits, draw_m1=params.draw_m1, draw_m2=params.draw_m2,
             draw_rectangular_box=False, gridpoints=None,
             zoom_level=int(wildcards.zoom_level), translation_rotation_script=input.translation_rotation_script)
 
         names_all_frames = ' '.join(input.all_frame_gros)
 
         shell("vmd  -dispdev text {input.structure} {names_all_frames} < {output.vmdlog}")
+        print(f"vmd  -dispdev text {input.structure} {names_all_frames} < {output.vmdlog}")
         shell("convert {output.frame_plot} {output.frame_plot_png}")
 
 
@@ -318,12 +323,8 @@ def input_red_blue(wc):
     indices_neg = read_object(indices_neg_file[int(wc.i)-1]).astype(int)
 
     what = what_to_provide(wc.COM_or_full,for_a_structure=False)
-    result["pos_e_structures"] = find_the_right_frames(where, what, indices_pos)
-    result["neg_e_structures"] = find_the_right_frames(where, what, indices_neg)
-
-    print(wc.i)
-    print(result["pos_e_structures"])
-    print(result["neg_e_structures"])
+    result["pos_e_structures"] = find_the_right_frames(where, what, indices_pos, NUM_GRID_POINTS )
+    result["neg_e_structures"] = find_the_right_frames(where, what, indices_neg, NUM_GRID_POINTS )
     return result
 
 
@@ -336,6 +337,9 @@ rule higher_eigenvector_overlapping_frames:
         vmdlog=f"<outputs_vmd>eigenvectors/{{tau}}/{{i}}th_eigenvector_zoom{{zoom_level}}_view{{view_index}}_{{COM_or_full}}",
         frame_plot=f"<outputs_molecular_plots>eigenvectors/{{tau}}/{{i}}th_eigenvector_zoom{{zoom_level}}_view{{view_index}}_{{COM_or_full}}.tga",
         frame_plot_png = f"<outputs_molecular_plots>eigenvectors/{{tau}}/{{i}}th_eigenvector_zoom{{zoom_level}}_view{{view_index}}_{{COM_or_full}}.png"
+    params:
+        draw_m1 = config["analysis"]["plot_m1_as"],
+        draw_m2 = config["analysis"]["plot_m2_as"],
     run:
         from molgri.images.create_vmdlog import VMDCreator
         from workflow.helpers.io import get_num_atoms, read_object
@@ -347,7 +351,7 @@ rule higher_eigenvector_overlapping_frames:
         my_vmd = VMDCreator(f"index < {n1}",f"index >= {n1}")
 
         my_vmd.prepare_eigenvector_script(num_red=len(input.pos_e_structures), num_blue=len(input.neg_e_structures),
-            vmd_name=output.vmdlog, plot_name=output.frame_plot,
+            vmd_name=output.vmdlog, plot_name=output.frame_plot, draw_m1=params.draw_m1, draw_m2=params.draw_m2,
             box_limits=box_limits, draw_rectangular_box=False, gridpoints=None,
             zoom_level=int(wildcards.zoom_level), translation_rotation_script=input.translation_rotation_script)
 
@@ -454,8 +458,8 @@ def input_assignment_overlapping(wc):
     assignment_i = int(all_assignments[int(wc.i)])
 
     what = what_to_provide(wc.COM_or_full,for_a_structure=False)
-    structure_1 = find_the_right_frames("<outputs_assignment>", what, [int(wc.i)])[0]
-    structure_2 = find_the_right_frames("<pseudosimulation>",what,[assignment_i])[0]
+    structure_1 = find_the_right_frames("<outputs_assignment>", what, [int(wc.i)], NUM_GRID_POINTS )[0]
+    structure_2 = find_the_right_frames("<pseudosimulation>",what,[assignment_i], NUM_GRID_POINTS )[0]
     result["all_frame_gros"] = tuple([structure_1, structure_2])
     return result
 
@@ -466,16 +470,18 @@ rule assignment_overlapping:
         vmdlog=f"<outputs_vmd>compare_to_assignment/frame_{{i}}_zoom{{zoom_level}}_view{{view_index}}_{{COM_or_full}}",
         frame_plot=f"<outputs_molecular_plots>compare_to_assignment/overlapping_frame_{{i}}_zoom{{zoom_level}}_view{{view_index}}_{{COM_or_full}}.tga",
         frame_plot_png = f"<outputs_molecular_plots>compare_to_assignment/overlapping_frame_{{i}}zoom{{zoom_level}}_view{{view_index}}_{{COM_or_full}}.png"
+    params:
+        draw_m1 = config["analysis"]["plot_m1_as"],
+        draw_m2 = config["analysis"]["plot_m2_as"],
     run:
         n1 = get_num_atoms(input.structure1)
         box_limits, gridpoints = collect_box_information(input)
 
         my_vmd = VMDCreator(f"index < {n1}",f"index >= {n1}")
 
-
         my_vmd.prepare_frame_script(vmd_name=output.vmdlog, plot_name=output.frame_plot,
             num_frames=len(input.all_frame_gros),
-            box_limits=box_limits, draw_m1=True, draw_m2=True,
+            box_limits=box_limits, draw_m1=params.draw_m1, draw_m2=params.draw_m2,
             draw_rectangular_box=True, gridpoints=gridpoints,
             zoom_level=int(wildcards.zoom_level), translation_rotation_script=input.translation_rotation_script)
 

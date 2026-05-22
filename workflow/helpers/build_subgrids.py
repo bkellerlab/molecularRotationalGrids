@@ -22,6 +22,7 @@ def auto_create_grid(config_data: dict):
         z = config_data["grid"]["translation_subgrids_A"][2]
         x, y = get_x_y_grid_inputs(path_input, num_x_points=num_x_points, num_y_points=num_y_points)
         config_data["grid"]["translation_subgrids_A"] = [x, y, z]
+    config_data["grid"]["GRID_LENGTH"] = config_data["grid"]["N_rotations"]
     return config_data
 
 

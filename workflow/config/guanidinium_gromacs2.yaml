@@ -1,11 +1,11 @@
 grid:
-  unique_network_name: "gromacs_40_sph_50rot"
+  unique_network_name: "gromacs_162_sph_272rot"
   rotation_algorithm: "hypercube"
   rotation_random_seed: 1
-  N_rotations: 50
+  N_rotations: 272
   periodic_in: [ False, False ]
   translation_algorithm: "spherical"
-  translation_subgrids_A: [ 40, [3, 6, 5] ]
+  translation_subgrids_A: [162, [1.5, 10, 10]]
 
 pseudotrajectory:
   molecule_1: "guanidinium"
@@ -28,11 +28,11 @@ curta:
 
 sqra:
   capping_factor: 3000
-  tolerance_rate_matrix_row_sum: 1e-12
+  tolerance_rate_matrix_row_sum: 1e-10
   sigma: 0
   tolerance_eigendecomposition: 0
 
 eigenvectors:
   num_interesting_timescales: 4
   num_interesting_eigenvectors: 12
-  num_extremes_to_plot: "auto"
+  num_extremes_to_plot: 10

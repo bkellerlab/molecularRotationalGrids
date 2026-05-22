@@ -1,11 +1,11 @@
 grid:
-  unique_network_name: "large_bulk_1"
+  unique_network_name: "small_bulk"
   rotation_algorithm: "hypercube"
   rotation_random_seed: 1
   N_rotations: 1
   periodic_in: [ False, False ]
   translation_algorithm: "spherical"
-  translation_subgrids_A: [80, [2, 6.8, 20]]
+  translation_subgrids_A: [20, [2.5, 4, 5]]
 
 pseudotrajectory:
   molecule_1: "water"
@@ -35,11 +35,10 @@ sqra:
   sigma: 0
   tolerance_eigendecomposition: 0
   allow_diffusion_to_bulk: True
-  flow_to_bulk:  28.163265306122454  #1.499 #675.7
+  flow_to_bulk: 6.75e-2 # 675 # per ns# 6.75e-4
   diffusion_coefficient: 230 # A^2/ns
 
 eigenvectors:
-  num_interesting_eigenvectors_as_lines: 5
   num_interesting_timescales: 4
   num_interesting_eigenvectors: 12
-  num_extremes_to_plot: 20
+  num_extremes_to_plot: "auto"

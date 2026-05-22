@@ -121,6 +121,10 @@ class RotationNetwork(AbstractNetwork):
             area = 0.0
         return  {"rotational": area}
 
+    def _vol(self, edge_dict: dict) -> dict:
+        node1 = edge_dict["source"]
+        return  {"rotational": node1.volume}
+
     def _numerical_edge_type(self, edge_dict: dict) -> dict:
         """
         Here we set that rotational edges always have a numerical edge type 4. This has no particular meaning,

@@ -55,6 +55,11 @@ checkpoint lowest_E_indices:
         print(required_indices)
         write_object(required_indices, output.indices)
 
+rule dominant10:
+    input:
+        abs_e_indices = expand(f"<outputs_indices>100/0_eigenvector_20_largest_abs_values.txt",
+            j=config["eigenvectors"]["num_extremes_to_plot"],allow_missing=True),
+
 checkpoint find_indices_dominant_eigenvectors:
     """
     For each eigenvector find the structures that contribute the most to the eigenvector.

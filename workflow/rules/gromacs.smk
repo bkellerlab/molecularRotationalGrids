@@ -6,6 +6,39 @@ from MDAnalysis import Merge
 
 from workflow.helpers.io import read_object, from_xvg_to_csv_energy
 
+rule copy_other_gromacs_input:
+    """
+    Copy the rest of necessary files to start a GROMACS calculation.
+    """
+    input:
+        dimer_topology = f"<inputs_gromacs>topol.top",
+        select_energy = f"<inputs_gromacs>select_energy",
+        index = f"<inputs_gromacs>index.ndx",
+        force_field_stuff = f"<inputs_gromacs>force_field_stuff/"
+    output:
+        dimer_topology = f"<pseudosimulation>topol.top",
+        select_energy = f"<pseudosimulation>select_energy",
+        index = f"<pseudosimulation>index.ndx",
+        force_field_stuff = directory(f"<pseudosimulation>force_field_stuff/")
+    run:
+        import shutil
+        shutil.copy(input.select_energy,output.select_energy)
+        shutil.copy(input.dimer_topology, output.dimer_topology)
+        shutil.copy(input.select_energy,output.select_energy)
+        shutil.copy(input.index,output.index)
+        shutil.copytree(input.force_field_stuff,output.force_field_stuff, dirs_exist_ok=True)
+
+rule copy_mdp_files:
+    """
+    Copy only mdp files that are required - e.g. for rerun you do not need a minim.mdp and nvt.mdp.
+    """
+    input:
+        mdp = f"<inputs_gromacs>{{file_name}}.mdp",
+    output:
+        mdp = f"<pseudosimulation>{{file_name}}.mdp",
+    run:
+        import shutil
+        shutil.copy(input.mdp,output.mdp)
 
 rule add_timesteps_to_pt:
     """
@@ -13,12 +46,12 @@ rule add_timesteps_to_pt:
     to use gromacs slicing options since they refer to time rather than to frame index.
     """
     input:
-        trajectory=f"<pseudosimulation>trajectory.<ext_trj>",
-        structure_tpr=f"<pseudosimulation>structure.<ext_str>",
+        trajectory=f"<pseudosimulation>trajectory.xtc",
+        structure_tpr=f"<pseudosimulation>structure.gro",
         index=f"<pseudosimulation>index.ndx",
         runfile=f"<pseudosimulation>production.mdp"
     output:
-        trajectory=f"<pseudosimulation>trajectory_with_timesteps.<ext_trj>",
+        trajectory=f"<pseudosimulation>trajectory_with_timesteps.xtc",
     run:
         from workflow.helpers.io import read_from_mdrun
 
@@ -46,8 +79,8 @@ def input_function_trajectory_slice(wc):
     else:
         trajectory_name = "trajectory"
         path_other_files = "<simulation>"
-    return {"trajectory": f"{wc.path}{trajectory_name}.<ext_trj>",
-            "structure_tpr": f"{path_other_files}structure.<ext_str>",
+    return {"trajectory": f"{wc.path}{trajectory_name}.xtc",
+            "structure_tpr": f"{path_other_files}structure.gro",
             "index": f"{path_other_files}index.ndx",
             "runfile": f"{path_other_files}production.mdp"}
 
@@ -60,7 +93,7 @@ rule trajectory_slice:
         unpack(input_function_trajectory_slice)
     shadow: "minimal"
     output:
-        frame_gro="{path}trajectory_slices/frame_{frame_i}.<ext_str>",
+        frame_gro="{path}trajectory_slices/frame_{frame_i}.gro",
     run:
         from workflow.helpers.io import read_from_mdrun
         writeout = int(read_from_mdrun(input.runfile,"nstxout-compressed"))
@@ -84,7 +117,7 @@ rule shortened_trajectory:
     params:
         length_shortened_trajectory_ps = int(1000 * float(config["analysis"]["length_shortened_trajectory_ns"]))
     output:
-        trajectory="{path}shortened_trajectory.<ext_trj>",
+        trajectory="{path}shortened_trajectory.xtc",
     shell:
         """
         export PATH="/home/janjoswig/local/gromacs-2022/bin:$PATH"
@@ -121,7 +154,7 @@ checkpoint create_energy_csv_trajectory:
 #     energies.
 #     """
 #     input:
-#         structure=f"<outputs_gromacs>structure.<ext_str>",
+#         structure=f"<outputs_gromacs>structure.gro",
 #         runfile_minim=f"<outputs_gromacs>minim.mdp",
 #         runfile_nvt=f"<outputs_gromacs>nvt.mdp",
 #         index=f"<outputs_gromacs>index.ndx",
@@ -152,7 +185,7 @@ checkpoint create_energy_csv_trajectory:
 #     energies.
 #     """
 #     input:
-#         structure=f"<outputs_gromacs>nvt.<ext_str>",
+#         structure=f"<outputs_gromacs>nvt.gro",
 #         runfile=f"<outputs_gromacs>production.mdp",
 #         topology=f"<outputs_gromacs>topol.top",
 #         select_energy=f"<outputs_gromacs>select_energy",
@@ -166,7 +199,7 @@ checkpoint create_energy_csv_trajectory:
 #     output:
 #         structure_tpr=f"<outputs_gromacs>structure.tpr",
 #         energy=f"<outputs_gromacs>energy.xvg",
-#         original_trajectory=f"<outputs_gromacs>raw_trajectory.<ext_trj>"
+#         original_trajectory=f"<outputs_gromacs>raw_trajectory.xtc"
 #     shell:
 #         """
 #         initial_dir=$(pwd)
@@ -179,10 +212,23 @@ checkpoint create_energy_csv_trajectory:
 #         cd "$initial_dir" || exit
 #         """
 
+rule create_structure:
+    input:
+        molecule_1 = f"<pseudosimulation>molecule1.<ext_inp>",
+        molecule_2 = f"<pseudosimulation>molecule2.<ext_inp>",
+    output:
+        structure = f"<pseudosimulation>structure.<ext_str>",
+    run:
+        from molgri.molecules.bimolecular import get_bimolecular_structure
+        m1 = read_object(input.molecule_1)
+        m2 = read_object(input.molecule_2)
+        z_distance = float(config["grid"]["translation_subgrids_A"][-1][1])
+        structure = get_bimolecular_structure(m1, m2, z_distance=z_distance)
+        write_object(structure, output.structure)
 
 rule postprocess_gromacs:
     input:
-        original_trajectory = f"<simulation>raw_trajectory.<ext_trj>",
+        original_trajectory = f"<simulation>raw_trajectory.xtc",
         structure_tpr=f"<simulation>structure.tpr",
         structure_gro=f"<pseudosimulation>structure.gro",
         index=f"<simulation>index.ndx",
@@ -190,8 +236,8 @@ rule postprocess_gromacs:
         repeat(f"<simulation>duration_gromacs_postprocessing.txt",1)
     shadow: "minimal"
     output:
-        centered_trajectory = f"<simulation>centered_trajectory.<ext_trj>",
-        trajectory=f"<simulation>trajectory.<ext_trj>",
+        centered_trajectory = f"<simulation>centered_trajectory.xtc",
+        trajectory=f"<simulation>trajectory.xtc",
     shell:
         """
         export PATH="/home/janjoswig/local/gromacs-2022/bin:$PATH"
@@ -206,8 +252,8 @@ rule gromacs_rerun:
     energies.
     """
     input:
-        structure = f"<pseudosimulation>structure.<ext_str>",
-        trajectory = f"<pseudosimulation>trajectory.<ext_trj>",
+        structure = f"<pseudosimulation>structure.gro",
+        trajectory = f"<pseudosimulation>trajectory.xtc",
         runfile = f"<pseudosimulation>production.mdp",
         topology = f"<pseudosimulation>topol.top",
         index=f"<pseudosimulation>index.ndx",
@@ -233,7 +279,7 @@ rule trajectory_slice_m1:
         structure = rules.trajectory_slice.output.frame_gro,
         index = "<pseudosimulation>index.ndx",
     output:
-        trajectory = "{path}trajectory_slices/m1_frame_{frame_i}.<ext_str>",
+        trajectory = "{path}trajectory_slices/m1_frame_{frame_i}.gro",
     shadow: "minimal"
     shell:
         """
@@ -246,7 +292,7 @@ rule trajectory_slice_com_m2:
         structure = rules.trajectory_slice.output.frame_gro,
         index = "<pseudosimulation>index.ndx",
     output:
-        trajectory = "{path}trajectory_slices/COM_m2_frame_{frame_i}.<ext_str>",
+        trajectory = "{path}trajectory_slices/COM_m2_frame_{frame_i}.gro",
     shadow: "minimal"
     shell:
         """
@@ -256,11 +302,11 @@ rule trajectory_slice_com_m2:
 
 rule full_trajectory_com_m2:
     input:
-        structure = "{path}structure.<ext_str>",
-        trajectory = "{path}trajectory.<ext_trj>",
+        structure = "{path}structure.gro",
+        trajectory = "{path}trajectory.xtc",
         index = "{path}index.ndx",
     output:
-        trajectory = "{path}COM_m2.<ext_trj>",
+        trajectory = "{path}COM_m2.xtc",
         positions = "{path}COM_m2.xvg",
     shadow: "minimal"
     shell:
@@ -274,7 +320,7 @@ rule combine_m1_com_m2:
         structure_m1 = rules.trajectory_slice_m1.output.trajectory,
         structure_com_m2 = rules.trajectory_slice_com_m2.output.trajectory,
     output:
-        structure = "{path}trajectory_slices/m1_COM_m2_frame_{frame_i}.<ext_str>",
+        structure = "{path}trajectory_slices/m1_COM_m2_frame_{frame_i}.gro",
     run:
         m1 = read_object(input.structure_m1)
         m2 = read_object(input.structure_com_m2)
@@ -285,10 +331,10 @@ rule combine_m1_com_m2:
 
 rule structure_com_m2:
     input:
-        structure = "{path}structure.<ext_str>",
+        structure = "{path}structure.gro",
         index = "<pseudosimulation>index.ndx",
     output:
-        trajectory = "{path}COM_m2.<ext_str>",
+        trajectory = "{path}COM_m2.gro",
     shadow: "minimal"
     shell:
         """
@@ -298,10 +344,10 @@ rule structure_com_m2:
 
 rule structure_m1_com_m2:
     input:
-        structure_m1 = "<pseudosimulation>molecule1.<ext_str>",
-        structure_com_m2 = "{path}COM_m2.<ext_str>"
+        structure_m1 = "<pseudosimulation>molecule1.gro",
+        structure_com_m2 = "{path}COM_m2.gro"
     output:
-        structure = "{path}structure_COM.<ext_str>",
+        structure = "{path}structure_COM.gro",
     run:
         m1 = read_object(input.structure_m1)
         m2 = read_object(input.structure_com_m2)
@@ -316,11 +362,11 @@ rule trajectory_centered_at_m2_COM:
     molecule1 is not written. This is useful so we can later assign the best rotation.
     """
     input:
-        trajectory = "{path}trajectory.<ext_trj>",
-        structure="{path}structure.<ext_str>",
+        trajectory = "{path}trajectory.xtc",
+        structure="{path}structure.gro",
         index="{path}index.ndx",
     output:
-        trajectory="{path}m2_trajectory_centered.<ext_trj>",
+        trajectory="{path}m2_trajectory_centered.xtc",
     shadow: "minimal"
     shell:
         """

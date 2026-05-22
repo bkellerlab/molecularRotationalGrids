@@ -253,6 +253,10 @@ class SphericalTranslationNetwork(TranslationNetwork):
         """
         return dist_on_sphere(np.array(node1.sphere.coordinate), np.array(node2.sphere.coordinate))
 
+    def _vol(self, edge_dict: dict) -> dict:
+        node1 = edge_dict["source"]
+        return {"r": node1.volume, "spherical": node1.volume}
+
     def _distances(self, edge_dict: dict) -> dict | None:
         """
         A function assigning the right distance function based on edge type.
@@ -402,3 +406,7 @@ class CartesianTranslationNetwork(TranslationNetwork):
             an integer according to edge type
         """
         return {"x": 1, "y": 2, "z": 3}
+
+    def _vol(self, edge_dict: dict) -> dict:
+        node1 = edge_dict["source"]
+        return {"x": node1.volume, "y": node1.volume, "z": node1.volume}

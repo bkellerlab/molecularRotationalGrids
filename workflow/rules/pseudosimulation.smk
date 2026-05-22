@@ -1,6 +1,8 @@
 """
 Everything here is saved to the pseudosimulation/gromacs folder: creating a structure, pseudotrajectory and calculating the energy along it.
 """
+from MDAnalysis.topology.guessers import guess_masses
+
 from workflow.helpers.io import read_object, write_object
 
 rule copy_molecular_files_from_input:
@@ -8,11 +10,11 @@ rule copy_molecular_files_from_input:
     Here the goal is just to start a new directory and copy molecular files there.
     """
     input:
-        molecule_1 = f"<inputs_structures><molecule1>.<ext_str>",
-        molecule_2 = f"<inputs_structures><molecule2>.<ext_str>",
+        molecule_1 = f"<inputs_structures><molecule1>.<ext_inp>",
+        molecule_2 = f"<inputs_structures><molecule2>.<ext_inp>",
     output:
-        molecule_1 = f"<pseudosimulation>molecule1.<ext_str>",
-        molecule_2 = f"<pseudosimulation>molecule2.<ext_str>",
+        molecule_1 = f"<pseudosimulation>molecule1.<ext_inp>",
+        molecule_2 = f"<pseudosimulation>molecule2.<ext_inp>",
     run:
         from molgri.molecules.bimolecular import move_to_center
 
@@ -26,62 +28,35 @@ rule copy_molecular_files_from_input:
         write_object(m1, output.molecule_1)
         write_object(m2, output.molecule_2)
 
-rule create_structure:
+
+
+rule create_bulk_structure:
     input:
-        molecule_1 = f"<pseudosimulation>molecule1.<ext_str>",
-        molecule_2 = f"<pseudosimulation>molecule2.<ext_str>",
+        molecule_1 = f"<pseudosimulation>molecule1.<ext_inp>",
+        molecule_2 = f"<pseudosimulation>molecule2.<ext_inp>",
     output:
-        structure = f"<pseudosimulation>structure.<ext_str>",
+        structure = f"<pseudosimulation>bulk_structure.<ext_str>",
     run:
         from molgri.molecules.bimolecular import get_bimolecular_structure
         m1 = read_object(input.molecule_1)
         m2 = read_object(input.molecule_2)
-        z_distance = float(config["grid"]["translation_subgrids_A"][-1][1])
+        z_distance = 20
         structure = get_bimolecular_structure(m1, m2, z_distance=z_distance)
         write_object(structure, output.structure)
 
-rule copy_mdp_files:
-    """
-    Copy only mdp files that are required - e.g. for rerun you do not need a minim.mdp and nvt.mdp.
-    """
-    input:
-        mdp = f"<inputs_gromacs>{{file_name}}.mdp",
-    output:
-        mdp = f"<pseudosimulation>{{file_name}}.mdp",
-    run:
-        import shutil
-        shutil.copy(input.mdp,output.mdp)
 
 
-rule copy_other_gromacs_input:
-    """
-    Copy the rest of necessary files to start a GROMACS calculation.
-    """
-    input:
-        dimer_topology = f"<inputs_gromacs>topol.top",
-        select_energy = f"<inputs_gromacs>select_energy",
-        index = f"<inputs_gromacs>index.ndx",
-        force_field_stuff = f"<inputs_gromacs>force_field_stuff/"
-    output:
-        dimer_topology = f"<pseudosimulation>topol.top",
-        select_energy = f"<pseudosimulation>select_energy",
-        index = f"<pseudosimulation>index.ndx",
-        force_field_stuff = directory(f"<pseudosimulation>force_field_stuff/")
-    run:
-        import shutil
-        shutil.copy(input.select_energy,output.select_energy)
-        shutil.copy(input.dimer_topology, output.dimer_topology)
-        shutil.copy(input.select_energy,output.select_energy)
-        shutil.copy(input.index,output.index)
-        shutil.copytree(input.force_field_stuff,output.force_field_stuff, dirs_exist_ok=True)
+
+
 
 rule create_pseudotrajectory:
     """
     Here we are creating a pseudotrajectory from two molecules and a network.
     """
     input:
-        molecule_1 = f"<pseudosimulation>molecule1.<ext_str>",
-        molecule_2 = f"<pseudosimulation>molecule2.<ext_str>",
+        structure = f"<simulation>structure.gro",
+        molecule_1 = f"<pseudosimulation>molecule1.<ext_inp>",
+        molecule_2 = f"<pseudosimulation>molecule2.<ext_inp>",
         network = f"<outputs_network>network.pkl"
     output:
         trajectory = f"<pseudosimulation>trajectory.<ext_trj>"
@@ -91,10 +66,25 @@ rule create_pseudotrajectory:
         m1 = read_object(input.molecule_1)
         m2 = read_object(input.molecule_2)
 
+        us = read_object(input.structure)
+        m1.dimensions = us.dimensions
+        m2.dimensions = us.dimensions
         network = read_object(input.network)
         weights = m2.atoms.masses
         coordinates = network.create_pseudotrajectory_coordinates_from(m2.atoms.positions, weights)
         pt = get_bimolecular_pseudotrajectory(m1, m2, coordinates)
+        u=pt
+        u.add_TopologyAttr('elements')
+        u.add_TopologyAttr('names')
+        dict_labels = {"1": "H", "2": "C", "3": "O", "4": "O", "5": "O", "6": "Zr", "OW": "O", "HW1": "H", "HW2": "H",
+                       "7": "Ar", "CD1": "C", "CD2": "C", "CE1": "C", "CE2": "C", "CG": "C", "CZ": "C", "HD1": "H",
+                       "HD2": "H", "HE1": "H", "HE2": "H", "HG": "H", "HZ": "H"}
+        #initial_labels = u.atoms.names
+        u.atoms.elements = [dict_labels[name] if name in dict_labels.keys() else name for name in u.atoms.types]
+        u.atoms.names = [dict_labels[name] if name in dict_labels.keys() else name for name in u.atoms.types]
+        u.atoms.types = u.atoms.names
+        u.add_TopologyAttr('masses')
+        u.atoms.masses = guess_masses(u.atoms.elements)
         write_object(pt, output.trajectory)
 
 

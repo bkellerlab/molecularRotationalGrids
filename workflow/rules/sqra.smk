@@ -6,41 +6,53 @@ from plotly.subplots import make_subplots
 from molgri.images.create_vmdlog import VMDCreator
 from molgri.images.modifying_images import join_images
 from molgri.images.plotting import show_array
-from molgri.molecules.rate_merger import delete_rows_columns, expand_eigenvector_to_full_length
+from molgri.molecules.rate_merger import delete_rows_columns
 from molgri.molecules.transitions import SQRA, auto_determine_eigenvector_extremes
-from molgri.utils.arrays import k_argmax_in_array, k_argmin_in_array
-from workflow.helpers.find_right_input import find_the_right_frames, find_the_right_structure, what_to_provide, \
-    where_to_look
+from workflow.helpers.find_right_input import find_the_right_frames, find_the_right_structure, what_to_provide
 from workflow.helpers.io import get_num_atoms, read_object, write_object
 from molgri.molecules.transitions import DecompositionTool
 
+
+def input_sqra(wc):
+    base_properties = {"energies": "<pseudosimulation>energy.csv",
+            "volumes": "<outputs_network>volumes.npz",
+            "distances": "<outputs_network>distances.npz",
+            "surfaces": "<outputs_network>surfaces.npz"}
+    if config["sqra"]["allow_diffusion_to_bulk"]:
+        base_properties["surfaces_to_bulk"] = f"<outputs_network>boundaries_to_bulk.npy"
+        base_properties["volumes_to_bulk"] = f"<outputs_network>volumes_to_bulk.npy"
+    return base_properties
+
 rule make_sqra:
     input:
-        energies = "<pseudosimulation>energy.csv",
-        volumes = "<outputs_network>volumes.npy",
-        distances= "<outputs_network>distances.npz",
-        surfaces= "<outputs_network>surfaces.npz",
-        boundaries_to_bulk= f"<outputs_network>boundaries_to_bulk.npy"
+        unpack(input_sqra)
     output:
         rate_matrix = f"<outputs_transitions>sqra/sqra.npz",
     params:
         T_in_K = 293,
         diffusion_coefficient = config["sqra"]["diffusion_coefficient"],
         capping_factor = config["sqra"]["capping_factor"],
-        flow_to_bulk = config["sqra"]["rate_diffusion_to_bulk"]
+        flow_to_bulk = config["sqra"]["flow_to_bulk"],
+        allow_diffusion_to_bulk = config["sqra"]["allow_diffusion_to_bulk"],
+        energy_kJ_mol_bulk = config["sqra"]["energy_kJ_mol_bulk"],
     run:
         my_energy = read_object(input.energies)
         my_energy_array = my_energy["Energy [kJ/mol]"].to_numpy()
-        print("When making sqra len of energy array is ", len(my_energy_array))
         volumes = read_object(input.volumes)
         distances = read_object(input.distances)
         surfaces = read_object(input.surfaces)
-        bulk_neighbours = read_object(input.boundaries_to_bulk)
+        flow_to_bulk = float(params.flow_to_bulk)
+        energy_kJ_mol_bulk = float(params.energy_kJ_mol_bulk)
 
-        sqra = SQRA(energies=my_energy_array,volumes=volumes,distances=distances,surfaces=surfaces, bulk_neighbours = bulk_neighbours )
-        rate_matrix = sqra.get_rate_matrix(params.diffusion_coefficient,params.T_in_K,
-            capping_factor=params.capping_factor, flow_to_bulk=float(params.flow_to_bulk))
-        print("Written initial sqra has shape ", rate_matrix.shape)
+        sqra = SQRA(energies=my_energy_array,volumes=volumes,distances=distances,surfaces=surfaces, T=params.T_in_K)
+        rate_matrix = sqra.get_rate_matrix(params.diffusion_coefficient,
+            capping_factor=params.capping_factor)
+        print("pre ", pd.DataFrame(rate_matrix.data).describe())
+        if bool(params.allow_diffusion_to_bulk):
+            surfaces_to_bulk = read_object(input.surfaces_to_bulk)
+            volumes_to_bulk = read_object(input.volumes_to_bulk)
+            rate_matrix = sqra.add_bulk(flow_to_bulk, surfaces_to_bulk, energy_kJ_mol_bulk, volumes_to_bulk)
+            print("post ", pd.DataFrame(rate_matrix.data).describe())
         write_object(rate_matrix, output.rate_matrix)
 
 rule reduce_sqra_size:
@@ -92,70 +104,93 @@ rule run_decomposition_sqra:
     output:
         eigenvalues_sum_0 = f"<outputs_transitions>sqra/eigenvalues_sum_0.npy",
         eigenvectors_sum_0 = f"<outputs_transitions>sqra/eigenvectors_sum_0.npy",
-        eigenvalues_sum_1= f"<outputs_transitions>sqra/eigenvalues_sum_1.npy",
-        eigenvectors_sum_1= f"<outputs_transitions>sqra/eigenvectors_sum_1.npy",
         eigenvalues_sum_other= f"<outputs_transitions>sqra/eigenvalues_sum_other.npy",
         eigenvectors_sum_other= f"<outputs_transitions>sqra/eigenvectors_sum_other.npy",
     params:
         tolerance = config["sqra"]["tolerance_eigendecomposition"],
-        sigma_sqra = config["sqra"]["sigma"]
+        sigma_sqra = config["sqra"]["sigma"],
+        allow_diffusion_to_bulk= config["sqra"]["allow_diffusion_to_bulk"]
     run:
         grid_info = read_object(input.grid_info)
         total_length = int(grid_info["N_total"])
+        if params.allow_diffusion_to_bulk:
+            total_length += 1
+        print("total_length", total_length)
         kept_indices = read_object(input.indices_to_keep)
         my_matrix = read_object(input.reduced_sqra)
         print("Read out matrx has shape ", my_matrix.shape)
         dt = DecompositionTool(my_matrix, kept_indices, total_length)
-        sum_to_0, sum_to_1, sum_to_other = dt.decompose_sqra(sigma=float(params.sigma_sqra), tolerance=float(params.tolerance))
+        sum_to_0, sum_to_other = dt.decompose_sqra(sigma=float(params.sigma_sqra), tolerance=float(params.tolerance))
         write_object(sum_to_0[0], output.eigenvalues_sum_0)
         write_object(sum_to_0[1],output.eigenvectors_sum_0)
-        write_object(sum_to_1[0], output.eigenvalues_sum_1)
-        write_object(sum_to_1[1],output.eigenvectors_sum_1)
         write_object(sum_to_other[0], output.eigenvalues_sum_other)
         write_object(sum_to_other[1],output.eigenvectors_sum_other)
 
 rule plot_sqra_eigenvectors_as_lines:
     input:
         eigenvectors_sum_0 = f"<outputs_transitions>sqra/eigenvectors_sum_0.npy",
-        eigenvectors_sum_1= f"<outputs_transitions>sqra/eigenvectors_sum_1.npy",
         eigenvectors_sum_other= f"<outputs_transitions>sqra/eigenvectors_sum_other.npy",
     output:
         plot = f"<outputs_other_plots>eigenvectors_sqra.png"
     params:
-        N_interesting_eigenvectors = config["eigenvectors"]["num_interesting_eigenvectors"]
+        N_interesting_eigenvectors = config["eigenvectors"]["num_interesting_eigenvectors_as_lines"]
     run:
 
         eigenvector_array_0 = read_object(input.eigenvectors_sum_0)
-        eigenvector_array_1 = read_object(input.eigenvectors_sum_1)
         eigenvector_array_other = read_object(input.eigenvectors_sum_other)
-        all_eigenvector_arrays = (eigenvector_array_1, eigenvector_array_0, eigenvector_array_other)
+        all_eigenvector_arrays = (eigenvector_array_0, eigenvector_array_other)
+        print("line plot ", eigenvector_array_0.shape, eigenvector_array_other.shape)
+        print("last el ", np.max(eigenvector_array_0.T[0]), np.min(eigenvector_array_0.T[0]), np.max(eigenvector_array_other.T[0]), eigenvector_array_0.T[0][-1], eigenvector_array_other.T[0][-1])
 
         N_interesting_eigenvectors = params.N_interesting_eigenvectors
 
-        fig = make_subplots(rows=N_interesting_eigenvectors,cols=3, column_titles=["Sum=1", "Sum=0", "Sum=Other"])
+        fig = make_subplots(rows=N_interesting_eigenvectors,cols=2, column_titles=["Sum=0", "Sum=Other"])
 
-        for col in range(3):
+        for col in range(2):
             selected_array = all_eigenvector_arrays[col]
             for row in range(min(N_interesting_eigenvectors, selected_array.shape[1])):
+                data_eigenvector = selected_array[:, row]
+                selected_x = np.where(~np.isclose(data_eigenvector,0, rtol=1e-3, atol=1e-5))[0]
+                print(len(selected_x))
+                selected_y = data_eigenvector[selected_x]
+
+
+                xs = np.empty(3 * len(selected_x))
+                ys = np.empty(3 * len(selected_y))
+
+                xs[0::3] = selected_x
+                xs[1::3] = selected_x
+                xs[2::3] = np.nan
+
+                ys[0::3] = 0
+                ys[1::3] = selected_y
+                ys[2::3] = np.nan
+
+
                 fig.add_trace(
-                    go.Scatter(x=np.arange(selected_array.shape[0]),y=selected_array[:, row], line=dict(color="black"),
+                    go.Scattergl(x=xs,y=ys, line=dict(color="black"),
                         mode="lines"),row=1+row,col=1+col)
+                fig.update_xaxes(range=[0, len(data_eigenvector)], showticklabels=False, ticks="",col=1 + col,row=1+row)
+                # hline - for all values that are zero
+                fig.add_hline(y=0,line=dict(color="black",width=1),opacity=1,col=1 + col,row=1+row)
             # todo names of peaks
         # fig.add_hline(
         #     y=1,
-        #     line_color="red",
+        #     line_color="gray",
         #     line_width=1,
-        #     line_dash="dash"
+        #     line_dash="dot"
         # )
         # fig.add_hline(
         #     y=-1,
-        #     line_color="blue",
+        #     line_color="gray",
         #     line_width=1,
         #     line_dash="dash"
         # )
-        fig.update_layout(showlegend=False,plot_bgcolor="white",)
-        fig.update_yaxes(showticklabels=False, ticks="") #range=[-1, 1],
-        fig.update_xaxes(showticklabels=False,ticks="")
+        fig.update_layout(showlegend=False,plot_bgcolor="white", autosize=False,
+    width=800,
+    height=1000,)
+        fig.update_yaxes(showticklabels=False, ticks="", range=[-0.4, 0.4]) #range=[-1, 1],
+        #fig.update_xaxes(showticklabels=False,ticks="")
         fig.write_image(output.plot, scale=3)
 
 rule display_rate_matrix:
@@ -184,7 +219,7 @@ rule display_rate_matrix:
 rule plot_sqra_eigenvalues:
     input:
         eigenvalues_sum_0 = f"<outputs_transitions>sqra/eigenvalues_sum_0.npy",
-        eigenvalues_sum_1= f"<outputs_transitions>sqra/eigenvalues_sum_1.npy",
+        # eigenvalues_sum_1= f"<outputs_transitions>sqra/eigenvalues_sum_1.npy",
         eigenvalues_sum_other= f"<outputs_transitions>sqra/eigenvalues_sum_other.npy",
     output:
         plot = f"<outputs_other_plots>eigenvalues_sqra.png"
@@ -192,18 +227,18 @@ rule plot_sqra_eigenvalues:
         N_interesting_eigenvectors = config["eigenvectors"]["num_interesting_eigenvectors"]
     run:
         eigenvals_0 = read_object(input.eigenvalues_sum_0)
-        eigenvals_1 = read_object(input.eigenvalues_sum_1)
+        # eigenvals_1 = read_object(input.eigenvalues_sum_1)
         eigenvals_other = read_object(input.eigenvalues_sum_other)
-        all_eigenvalues = (eigenvals_1, eigenvals_0, eigenvals_other)
+        all_eigenvalues = (eigenvals_0, eigenvals_other)
 
-        fig = make_subplots(rows=1,cols=3,column_titles=["Sum=1", "Sum=0", "Sum=Other"],
+        fig = make_subplots(rows=1,cols=2,column_titles=["Sum=0", "Sum=Other"],
             horizontal_spacing=0.03, vertical_spacing=0.01)
 
         max_num = int(params.N_interesting_eigenvectors)
 
         xs = np.linspace(0, 1, num=max_num)
 
-        for col in range(3):
+        for col in range(2):
             eigenvalue_array = all_eigenvalues[col]
             actual_max_num = min(max_num, len(eigenvalue_array))
             # vertical lines
@@ -261,9 +296,9 @@ rule plot_sqra_its:
 
         fig = go.Figure()
 
-        for it in its:
+        for it in its[:4]:
             fig.add_hline(it,line=dict(color="black",dash="dash",width=1),opacity=1)
-        fig.update_layout(xaxis_title=r"$\tau$",yaxis_title="ITS",xaxis=dict(range=[0, 1]),
+        fig.update_layout(xaxis_title=r"",yaxis_title="ITS [ns]",xaxis=dict(range=[0, 1]),
             yaxis=dict(range=[0, np.max(its) + 0.2]))
 
         fig.update_layout(
@@ -271,6 +306,21 @@ rule plot_sqra_its:
             paper_bgcolor="white",
             font=dict(size=18)
         )
+        fig.update_layout(
+            xaxis=dict(
+                showline=True,# show axis spine
+                linecolor="black",
+                ticks="",# hide ticks
+                showticklabels=False,# hide tick labels
+                title=None  # no axis label
+            ),
+            yaxis=dict(
+                showline=True,
+                linecolor="black",
+            ),
+            plot_bgcolor="white"
+        )
+
         fig.write_image(output.plot, scale=3)
 
 checkpoint sqra_find_indices_dominant_eigenvectors:
@@ -278,12 +328,12 @@ checkpoint sqra_find_indices_dominant_eigenvectors:
     For each eigenvector find the structures that contribute the most to the eigenvector.
     """
     input:
-        eigenvectors_sum_1=f"<outputs_transitions>sqra/eigenvectors_sum_1.npy",
+        # eigenvectors_sum_1=f"<outputs_transitions>sqra/eigenvectors_sum_1.npy",
         eigenvectors_sum_0=f"<outputs_transitions>sqra/eigenvectors_sum_0.npy",
         eigenvectors_sum_other= f"<outputs_transitions>sqra/eigenvectors_sum_other.npy",
     output:
-        abs_e_indices=expand(f"<outputs_indices>sqra/{{i}}_eigenvector_sum_1_{{j}}_largest_abs_values.txt",
-            j=config["eigenvectors"]["num_extremes_to_plot"], i=range(config["eigenvectors"]["num_interesting_eigenvectors"])),
+        # abs_e_indices=expand(f"<outputs_indices>sqra/{{i}}_eigenvector_sum_1_{{j}}_largest_abs_values.txt",
+        #     j=config["eigenvectors"]["num_extremes_to_plot"], i=range(config["eigenvectors"]["num_interesting_eigenvectors"])),
         pos_e_indices= expand(f"<outputs_indices>sqra/{{i}}_eigenvector_sum_0_{{j}}_most_positive.txt",
             i=range(config["eigenvectors"]["num_interesting_eigenvectors"]),j=config["eigenvectors"]["num_extremes_to_plot"]),
         neg_e_indices= expand(f"<outputs_indices>sqra/{{i}}_eigenvector_sum_0_{{j}}_most_negative.txt",
@@ -295,19 +345,19 @@ checkpoint sqra_find_indices_dominant_eigenvectors:
         N_interesting_eigenvectors=config["eigenvectors"]["num_interesting_eigenvectors"],
         N_extremes_to_plot=config["eigenvectors"]["num_extremes_to_plot"]
     run:
-        eigenvectors = read_object(input.eigenvectors_sum_1)
+        # eigenvectors = read_object(input.eigenvectors_sum_1)
         N_interesting_eigenvectors = int(params.N_interesting_eigenvectors)
         N_extremes_to_plot = params.N_extremes_to_plot
 
         # eigenvectors with sum 1 should have only positive or only negative contributions
-        for i in range(N_interesting_eigenvectors):
-            if i < len(eigenvectors.T):
-                eigenvector = eigenvectors.T[i]
-                pos_e, pos_neg = auto_determine_eigenvector_extremes(np.abs(eigenvector),N_extremes_to_plot)
-                # save the absolute
-                write_object(np.array(pos_e),output.abs_e_indices[i])
-            else:
-                write_object(np.array([]),output.abs_e_indices[i])
+        # for i in range(N_interesting_eigenvectors):
+        #     if i < len(eigenvectors.T):
+        #         eigenvector = eigenvectors.T[i]
+        #         pos_e, pos_neg = auto_determine_eigenvector_extremes(np.abs(eigenvector),N_extremes_to_plot)
+        #         # save the absolute
+        #         write_object(np.array(pos_e),output.abs_e_indices[i])
+        #     else:
+        #         write_object(np.array([]),output.abs_e_indices[i])
 
         eigenvectors = read_object(input.eigenvectors_sum_0)
         for i in range(N_interesting_eigenvectors):
@@ -328,6 +378,7 @@ checkpoint sqra_find_indices_dominant_eigenvectors:
             if i < len(eigenvectors.T):
                 eigenvector = eigenvectors.T[i]
                 pos_e, pos_neg = auto_determine_eigenvector_extremes(np.abs(eigenvector),N_extremes_to_plot)
+                print(i, pos_e)
                 # save the absolute
                 write_object(np.array(pos_e),output.abs_e_indices_other[i])
             else:
@@ -376,7 +427,7 @@ def input_zeroth_eigenvector(wc):
     indices_file = indices_file[int(wc.i)]
     indices = read_object(indices_file).astype(int)
     what = what_to_provide(wc.COM_or_full,for_a_structure=False)
-    result["all_frame_gros"] = find_the_right_frames(where, what, indices)
+    result["all_frame_gros"] = find_the_right_frames(where, what, indices, grid_len=NUM_GRID_POINTS)
     return result
 
 rule eigenvector_sum_1_overlapping_frames:
@@ -433,7 +484,7 @@ def input_sum_other_eigenvector(wc):
     indices_file = indices_file[int(wc.i)]
     indices = read_object(indices_file).astype(int)
     what = what_to_provide(wc.COM_or_full,for_a_structure=False)
-    result["all_frame_gros"] = find_the_right_frames(where, what, indices)
+    result["all_frame_gros"] = find_the_right_frames(where, what, indices, grid_len=NUM_GRID_POINTS)
     return result
 
 rule eigenvector_sum_other_overlapping_frames:
@@ -494,8 +545,8 @@ def input_eigenvector_sum_0(wc):
     indices_neg = read_object(indices_neg_file[int(wc.i)]).astype(int)
 
     what = what_to_provide(wc.COM_or_full,for_a_structure=False)
-    result["pos_e_structures"] = find_the_right_frames(where, what, indices_pos)
-    result["neg_e_structures"] = find_the_right_frames(where, what, indices_neg)
+    result["pos_e_structures"] = find_the_right_frames(where, what, indices_pos, NUM_GRID_POINTS)
+    result["neg_e_structures"] = find_the_right_frames(where, what, indices_neg, NUM_GRID_POINTS)
     return result
 
 rule eigenvector_sum_0_overlapping_frames:
