@@ -1,0 +1,43 @@
+grid:
+  unique_network_name: "mid_orca"
+  rotation_algorithm: "hypercube"
+  rotation_random_seed: 1
+  N_rotations: 10
+  periodic_in: [ False, False ]
+  translation_algorithm: "spherical"
+  translation_subgrids_A: [50, [2.5, 6.8, 8]]
+
+pseudotrajectory:
+  molecule_1: "water"
+  molecule_2: "water"
+  structure_ending: "xyz"
+  trajectory_ending: "xyz"
+
+analysis:
+  energy_program: "ORCA"
+  view_index: [ 2]
+  length_shortened_trajectory_ns: 10
+  energy_types: ["LJ (SR)", "Coulomb (SR)"]
+  upper_E_limit: 0
+  analyse_first_N_frames: None
+  plot_m1_as: "CPK"
+  plot_m2_as: "CPK"
+  parts_to_perform: ["get_energy_pseudosimulation"]
+
+curta:
+  num_batches: 10
+  num_structures_per_batch: 400
+
+sqra:
+  cutting_factor: 1e50
+  #capping_factor: 3000
+  #tolerance_rate_matrix_row_sum: 1e-10
+  sigma: 0
+  energy_kJ_mol_bulk: -14738.65315308063
+  tolerance_eigendecomposition: 0
+  allow_diffusion_to_bulk: True
+
+eigenvectors:
+  num_interesting_timescales: 4
+  num_interesting_eigenvectors: 12
+  num_extremes_to_plot: 5

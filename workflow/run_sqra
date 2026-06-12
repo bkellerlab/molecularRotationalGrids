@@ -1,0 +1,283 @@
+"""
+The process of evaluating a SQRA model consists of steps:
+1. making a grid (in run_grid)
+2. making a PT from a grid and two molecules
+3. TIME INTENSE: evaluating energies along a PT (in energy_eval_orca or energy_eval_gromacs)
+4. combining all energy evaluations in a .csv file
+5. building a rate matrix from grid data and energy .csv file + removing outliers
+6. TIME INTENSE: eigendecomposition of rate matrix
+7. visualization of eigenvector, eigenvalue and other data (in molecular_visualizations)
+
+Time intense steps should be performed on CURTA.
+"""
+import sys
+import os
+import numpy as np
+import matplotlib.pyplot as plt
+
+plt.switch_backend('agg')
+
+# add molgri directory
+sys.path.append(".")
+from molgri.paths import PATH_INPUT_BASEGRO, PATH_EXPERIMENTS
+from molgri.io import QuantumSetup
+
+config['num_repeats'] = 1
+
+include: "run_grid"
+
+if config["energy_program"] == "ORCA":
+    include: "energy_eval_orca"
+
+    QUANTUM_SETUP = QuantumSetup(
+        functional=config["params_dft"]["functional"],
+        basis_set=config["params_dft"]["basis_set"],
+        solvent=config["params_dft"]["solvent"],
+        dispersion_correction=config["params_dft"]["dispersion"],
+        num_scf=config["params_dft"]["num_scf"],
+        num_cores=config["params_dft"]["num_cores"],
+        ram_per_core=config["params_dft"]["ram_per_core"]
+    )
+    ORCA_DIR = QUANTUM_SETUP.get_dir_name()
+    EXPERIMENT_FULL_PATH = f"{PATH_EXPERIMENTS}{config['experiment_type']}/{config['experiment_id']}/{config['grid_identifier']}/{config['params_dft']['optimization_type']}_{ORCA_DIR}"
+elif config["energy_program"] == "GROMACS":
+    include: "energy_eval_gromacs"
+    EXPERIMENT_FULL_PATH = f"{PATH_EXPERIMENTS}{config['experiment_type']}/{config['experiment_id']}/{config['grid_identifier']}/"
+else:
+    raise ValueError(f"Energy program must be ORCA or GROMACS, not {config['energy_program']}")
+
+PROVIDED_DATA_PATH =  f"{PATH_INPUT_BASEGRO}{config['experiment_type']}/"
+
+
+# TODO: get opt trajectory!!!!!
+rule all_sqra:
+    input:
+        # FIRST STEP - ALL INPUTS  MUST EXIST
+        #expand(f"{{where}}structure.{config['structure_extension']}", where=EXPERIMENT_FULL_PATH)
+        # SECOND STEP - ALL JOBS ARE SUBMITTED (use -R run_on_curta)
+        #expand(f"{{where}}all_inputs_ran.touch", where=FULL_PATHS[1])
+        # THIRD STEP - COPY ALL BACK HERE (use -R get_from_curta)
+        #expand(f"{{where}}all_outputs_copied.touch", where=EXPERIMENT_FULL_PATH) #"SP", "ConstOpt"
+        # FINALLY - WHEN FINISHED COLLECT AND PLOT
+        #f"{EXPERIMENT_FULL_PATH}energy.csv",
+        f"{EXPERIMENT_FULL_PATH}energy.csv"
+    #expand(f"{EXPERIMENT_FULL_PATH}network_analysis/all_{{what}}_87.tga", what=["neighbours", "orientations", "closest"]),
+        #expand(f"{{where}}{{what}}", what="neighbours_17/neighbours.txt", where=EXPERIMENT_FULL_PATH),
+    #what=["its.png", "eigenvectors_vmdlog", "eigenvalues.png", "its.csv", "energy.csv", "orca_time.txt", "constrained_opt_energy.csv"]
+    log:
+        log = f"{EXPERIMENT_FULL_PATH}total_log.yaml"
+    benchmark:
+        repeat(f"{EXPERIMENT_FULL_PATH}total_benchmark.txt", config['num_repeats'])
+    run:
+        print("This input:", input)
+        import yaml
+        with open(log.log, "w")  as f:
+            yaml.dump(config, f)
+
+rule copy_structures:
+    """
+    Copying m1 and m2 is a separate rule because they may have extensions .xyz, .gro, .pdb ...
+    """
+    input:
+        m1 = f"{PROVIDED_DATA_PATH}m1.{config['structure_extension']}",
+        m2 = f"{PROVIDED_DATA_PATH}m2.{config['structure_extension']}",
+    output:
+        m1 = f"{{where}}m1.{config['structure_extension']}",
+        m2 = f"{{where}}m2.{config['structure_extension']}",
+    run:
+        import shutil
+        shutil.copy(input.m1, output.m1)
+        shutil.copy(input.m2, output.m2)
+
+rule find_num_atoms:
+    """
+    Create a simple file where the first line is the number of atoms in molecule 1 and the second line the number of 
+    atoms in molecule 2.
+    """
+    input:
+        m1 = rules.copy_structures.output.m1,
+        m2 = rules.copy_structures.output.m2,
+    output:
+        num_atoms = f"{{where}}num_atoms.txt"
+    run:
+        from molgri.io import OneMoleculeReader
+
+        N_m1 = len(OneMoleculeReader(input.m1).get_molecule().atoms)
+        N_m2 = len(OneMoleculeReader(input.m2).get_molecule().atoms)
+
+        with open(output.num_atoms, "w") as f:
+            f.write(f"{N_m1}\n")
+            f.write(f"{N_m2}\n")
+
+
+rule run_pt:
+    """
+    This rule should produce the structure and pseudo-trajectory as single files.
+    """
+    input:
+        molecule1 = f"{{where}}m1.{config['structure_extension']}",
+        molecule2 = f"{{where}}m2.{config['structure_extension']}",
+        grid = f"{{where}}full_array.npy"
+    output:
+        structure = f"{{where}}structure.{config['structure_extension']}",
+        trajectory = f"{{where}}trajectory.{config['trajectory_extension']}"
+    params:
+        cell_size_A = config["params_sqra"]["cell_size_A"]  # cubic box will be the output, this is size of the box in one dimension
+    # benchmark:
+    #     repeat(f"{EXPERIMENT_FULL_PATH}pt_benchmark.txt", config['num_repeats'])
+    run:
+        from molgri.io import PtWriter
+        my_writer = PtWriter(input.molecule1, input.molecule2, cell_size_A=params.cell_size_A, path_grid=input.grid)
+        my_writer.write_full_pt(path_output_pt=output.trajectory,path_output_structure=output.structure)
+
+
+rule lowest_e_structures:
+    input:
+        energy = f"{{where}}energy.csv"
+    output:
+        list_structures = f"{{where}}indices_lowest_E.csv"
+    params:
+        num = config["params_sqra"]["number_lowest_E_structures"]
+    run:
+        from molgri.space.utils import k_argmin_in_array
+        from molgri.io import EnergyReader
+        er = EnergyReader(input.energy).load_energy()
+        energies2 = er["Coulomb (SR)"]
+        energies5 = er["LJ (SR)"]
+        energies6 = er["Potential"]
+        energies7 = er["Disper. corr."]
+
+        all_lowest_ind = k_argmin_in_array(energies6, k=params.num)
+        all_lowest_E = energies6[all_lowest_ind]
+        sort_index = np.argsort(all_lowest_E)
+        sorted_indices = all_lowest_ind[sort_index]
+        print("POTENTIAL")
+        print(", ".join([str(x+1) for x in all_lowest_ind]))
+        print(all_lowest_E)
+        np.savetxt(output.list_structures, sorted_indices)
+
+
+rule run_sqra:
+    """
+    As input we need: energies, adjacency, volume, borders, distances.
+    As output we want to have the rate matrix.
+    """
+    input:
+        energy = f"{{where}}energy.csv",
+        distances_array = rules.run_grid.output.distances_array,
+        borders_array = rules.run_grid.output.borders_array,
+        volumes = rules.run_grid.output.volumes,
+    output:
+        rate_matrix = f"{{where}}rate_matrix.npz",
+        index_list = f"{{where}}index_list.npy",
+    benchmark:
+        repeat(f"{{where}}rate_matrix_benchmark.txt", config['num_repeats'])
+    params:
+        T=float(config["params_sqra"]["temperature_K"]),
+        energy_type=config["params_sqra"]["energy_type"],
+        m_h2o = float(config["params_sqra"]["mass_kg"]),
+        tau = float(config["params_setup"]["tau_t"]),
+        lower_lim = config["params_sqra"]["lower_lim_rate_matrix"],
+        upper_lim = config["params_sqra"]["upper_lim_rate_matrix"],
+    run:
+        from molgri.io import EnergyReader
+        from molgri.molecules.transitions import SQRA
+        from scipy import sparse
+        from scipy.constants import k as k_B
+
+        tau = float(params.tau) * 1e-12 # now in s
+
+        D = k_B * params.T *tau / params.m_h2o  # in m^2/s
+        D*= 1e8  # now in A^2/ps
+        print(f"Diffusion const D={D} ")
+
+        # load input files
+        all_volumes = np.load(input.volumes)
+        all_surfaces = sparse.load_npz(input.borders_array)
+        all_distances = sparse.load_npz(input.distances_array)
+
+
+
+        # determine limits
+        if params.lower_lim == "None":
+            lower_limit = None
+        else:
+            lower_limit = float(params.lower_lim)
+        if params.upper_lim == "None":
+            upper_limit = None
+        else:
+            upper_limit = float(params.upper_lim)
+
+
+        energies = EnergyReader(input.energy).load_single_energy_column(params.energy_type)
+        # TODO: how to deal with NaNs?
+        print(np.where(np.isnan(energies)))
+        energies = np.nan_to_num(energies, nan=np.infty)
+        print(energies)
+
+        sqra = SQRA(energies=energies,volumes=all_volumes,distances=all_distances,surfaces=all_surfaces)
+
+        print("created sqra")
+        print("shape of ", D, params.T)
+
+        rate_matrix = sqra.get_rate_matrix(D,params.T)
+        print(np.max(rate_matrix.data), np.min(rate_matrix.data), np.max(-rate_matrix.data), np.min(-rate_matrix.data))
+        rate_matrix, index_list = sqra.cut_and_merge(rate_matrix,T=params.T,lower_limit=lower_limit,
+            upper_limit=upper_limit)
+        # saving to file
+        sparse.save_npz(output.rate_matrix,rate_matrix)
+        np.save(output.index_list,np.array(index_list,dtype=object))
+
+
+rule run_decomposition:
+    """
+    As output we want to have eigenvalues, eigenvectors. Es input we get a (sparse) rate matrix.
+    """
+    input:
+        rate_matrix = rules.run_sqra.output.rate_matrix
+    output:
+        eigenvalues = f"{{where}}eigenvalues.npy",
+        eigenvectors = f"{{where}}eigenvectors.npy",
+    benchmark:
+        repeat(f"{{where}}decomposition_benchmark.txt", config['num_repeats'])
+    params:
+        tol=config["params_sqra"]["tol"],
+        maxiter=config["params_sqra"]["maxiter"],
+        sigma=config["params_sqra"]["sigma"],
+        which=config["params_sqra"]["which"],
+    run:
+        from scipy import sparse
+        from molgri.molecules.transitions import DecompositionTool
+
+        # loading
+        my_matrix = sparse.load_npz(input.rate_matrix)
+
+        if params.sigma == "None":
+            sigma = None
+        else:
+            sigma = float(params.sigma)
+        # calculation
+        dt = DecompositionTool(my_matrix)
+        all_eigenval, all_eigenvec = dt.get_decomposition(tol=params.tol, maxiter=params.maxiter, which=params.which,
+            sigma=sigma)
+
+        # saving to file
+        np.save(output.eigenvalues,np.array(all_eigenval))
+        np.save(output.eigenvectors,np.array(all_eigenvec))
+
+
+
+
+rule print_its:
+    input:
+        eigenvalues = rules.run_decomposition.output.eigenvalues
+    output:
+        data = f"{{where}}its.csv"
+    run:
+        import pandas as pd
+
+        all_its = []
+        eigenvals = np.load(input.eigenvalues)[1:]  # dropping the first one as it should be zero and cause issues
+        all_its.append([-1 / (eigenval) for eigenval in eigenvals])
+        my_df = pd.DataFrame(all_its, columns=[f"ITS {i} [ps]" for i in range(1, len(all_its[0])+1)])
+        my_df.to_csv(output.data)

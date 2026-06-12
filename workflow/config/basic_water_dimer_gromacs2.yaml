@@ -1,0 +1,44 @@
+grid:
+  unique_network_name: "small_bulk"
+  rotation_algorithm: "hypercube"
+  rotation_random_seed: 1
+  N_rotations: 1
+  periodic_in: [ False, False ]
+  translation_algorithm: "spherical"
+  translation_subgrids_A: [20, [2.5, 4, 5]]
+
+pseudotrajectory:
+  molecule_1: "water"
+  molecule_2: "water"
+  structure_ending: "gro"
+  trajectory_ending: "xtc"
+
+analysis:
+  energy_program: "GROMACS"
+  view_index: [ 2]
+  length_shortened_trajectory_ns: 10
+  energy_types: ["LJ (SR)", "Coulomb (SR)"]
+  upper_E_limit: 0
+  analyse_first_N_frames: None
+  plot_m1_as: "CPK"
+  plot_m2_as: "CPK"
+  parts_to_perform: ["make_pseudotrajectory", "get_energy_pseudosimulation", "sqra"]
+
+curta:
+  num_batches: 5
+  num_structures_per_batch: 50
+
+sqra:
+  #tolerance_rate_matrix_row_sum: 1e-10
+  cutting_factor: 1e7
+  #tolerance_rate_matrix_row_sum: 1e-10
+  sigma: 0
+  tolerance_eigendecomposition: 0
+  allow_diffusion_to_bulk: True
+  flow_to_bulk: 6.75e-2 # 675 # per ns# 6.75e-4
+  diffusion_coefficient: 230 # A^2/ns
+
+eigenvectors:
+  num_interesting_timescales: 4
+  num_interesting_eigenvectors: 12
+  num_extremes_to_plot: "auto"

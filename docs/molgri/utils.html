@@ -1,0 +1,333 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, minimum-scale=1" />
+<meta name="generator" content="pdoc 0.10.0" />
+<title>molgri.utils API documentation</title>
+<meta name="description" content="" />
+<link rel="preload stylesheet" as="style" href="https://cdnjs.cloudflare.com/ajax/libs/10up-sanitize.css/11.0.1/sanitize.min.css" integrity="sha256-PK9q560IAAa6WVRRh76LtCaI8pjTJ2z11v0miyNNjrs=" crossorigin>
+<link rel="preload stylesheet" as="style" href="https://cdnjs.cloudflare.com/ajax/libs/10up-sanitize.css/11.0.1/typography.min.css" integrity="sha256-7l/o7C8jubJiy74VsKTidCy1yBkRtiUGbVkYBylBqUg=" crossorigin>
+<link rel="stylesheet preload" as="style" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/10.1.1/styles/github.min.css" crossorigin>
+<style>:root{--highlight-color:#fe9}.flex{display:flex !important}body{line-height:1.5em}#content{padding:20px}#sidebar{padding:30px;overflow:hidden}#sidebar > *:last-child{margin-bottom:2cm}.http-server-breadcrumbs{font-size:130%;margin:0 0 15px 0}#footer{font-size:.75em;padding:5px 30px;border-top:1px solid #ddd;text-align:right}#footer p{margin:0 0 0 1em;display:inline-block}#footer p:last-child{margin-right:30px}h1,h2,h3,h4,h5{font-weight:300}h1{font-size:2.5em;line-height:1.1em}h2{font-size:1.75em;margin:1em 0 .50em 0}h3{font-size:1.4em;margin:25px 0 10px 0}h4{margin:0;font-size:105%}h1:target,h2:target,h3:target,h4:target,h5:target,h6:target{background:var(--highlight-color);padding:.2em 0}a{color:#058;text-decoration:none;transition:color .3s ease-in-out}a:hover{color:#e82}.title code{font-weight:bold}h2[id^="header-"]{margin-top:2em}.ident{color:#900}pre code{background:#f8f8f8;font-size:.8em;line-height:1.4em}code{background:#f2f2f1;padding:1px 4px;overflow-wrap:break-word}h1 code{background:transparent}pre{background:#f8f8f8;border:0;border-top:1px solid #ccc;border-bottom:1px solid #ccc;margin:1em 0;padding:1ex}#http-server-module-list{display:flex;flex-flow:column}#http-server-module-list div{display:flex}#http-server-module-list dt{min-width:10%}#http-server-module-list p{margin-top:0}.toc ul,#index{list-style-type:none;margin:0;padding:0}#index code{background:transparent}#index h3{border-bottom:1px solid #ddd}#index ul{padding:0}#index h4{margin-top:.6em;font-weight:bold}@media (min-width:200ex){#index .two-column{column-count:2}}@media (min-width:300ex){#index .two-column{column-count:3}}dl{margin-bottom:2em}dl dl:last-child{margin-bottom:4em}dd{margin:0 0 1em 3em}#header-classes + dl > dd{margin-bottom:3em}dd dd{margin-left:2em}dd p{margin:10px 0}.name{background:#eee;font-weight:bold;font-size:.85em;padding:5px 10px;display:inline-block;min-width:40%}.name:hover{background:#e0e0e0}dt:target .name{background:var(--highlight-color)}.name > span:first-child{white-space:nowrap}.name.class > span:nth-child(2){margin-left:.4em}.inherited{color:#999;border-left:5px solid #eee;padding-left:1em}.inheritance em{font-style:normal;font-weight:bold}.desc h2{font-weight:400;font-size:1.25em}.desc h3{font-size:1em}.desc dt code{background:inherit}.source summary,.git-link-div{color:#666;text-align:right;font-weight:400;font-size:.8em;text-transform:uppercase}.source summary > *{white-space:nowrap;cursor:pointer}.git-link{color:inherit;margin-left:1em}.source pre{max-height:500px;overflow:auto;margin:0}.source pre code{font-size:12px;overflow:visible}.hlist{list-style:none}.hlist li{display:inline}.hlist li:after{content:',\2002'}.hlist li:last-child:after{content:none}.hlist .hlist{display:inline;padding-left:1em}img{max-width:100%}td{padding:0 .5em}.admonition{padding:.1em .5em;margin-bottom:1em}.admonition-title{font-weight:bold}.admonition.note,.admonition.info,.admonition.important{background:#aef}.admonition.todo,.admonition.versionadded,.admonition.tip,.admonition.hint{background:#dfd}.admonition.warning,.admonition.versionchanged,.admonition.deprecated{background:#fd4}.admonition.error,.admonition.danger,.admonition.caution{background:lightpink}</style>
+<style media="screen and (min-width: 700px)">@media screen and (min-width:700px){#sidebar{width:30%;height:100vh;overflow:auto;position:sticky;top:0}#content{width:70%;max-width:100ch;padding:3em 4em;border-left:1px solid #ddd}pre code{font-size:1em}.item .name{font-size:1em}main{display:flex;flex-direction:row-reverse;justify-content:flex-end}.toc ul ul,#index ul{padding-left:1.5em}.toc > ul > li{margin-top:.5em}}</style>
+<style media="print">@media print{#sidebar h1{page-break-before:always}.source{display:none}}@media print{*{background:transparent !important;color:#000 !important;box-shadow:none !important;text-shadow:none !important}a[href]:after{content:" (" attr(href) ")";font-size:90%}a[href][title]:after{content:none}abbr[title]:after{content:" (" attr(title) ")"}.ir a:after,a[href^="javascript:"]:after,a[href^="#"]:after{content:""}pre,blockquote{border:1px solid #999;page-break-inside:avoid}thead{display:table-header-group}tr,img{page-break-inside:avoid}img{max-width:100% !important}@page{margin:0.5cm}p,h2,h3{orphans:3;widows:3}h1,h2,h3,h4,h5,h6{page-break-after:avoid}}</style>
+<script defer src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/10.1.1/highlight.min.js" integrity="sha256-Uv3H6lx7dJmRfRvH8TH6kJD1TSK1aFcwgx+mdg3epi8=" crossorigin></script>
+<script>window.addEventListener('DOMContentLoaded', () => hljs.initHighlighting())</script>
+</head>
+<body>
+<main>
+<article id="content">
+<header>
+<h1 class="title">Module <code>molgri.utils</code></h1>
+</header>
+<section id="section-intro">
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">import numpy as np
+
+
+def norm_per_axis(array: np.ndarray, axis: int = None) -&gt; np.ndarray:
+    &#34;&#34;&#34;
+    Returns the norm of the vector or along some axis of an array.
+    Default behaviour: if axis not specified, normalise a 1D vector or normalise 2D array row-wise. If axis specified,
+    axis=0 normalises column-wise and axis=1 row-wise.
+
+    Args:
+        array: numpy array containing a vector or a set of vectors that should be normalised - per default assuming
+               every row in an array is a vector
+        axis: optionally specify along which axis the normalisation should occur
+
+    Returns:
+        an array of the same shape as the input array where each value is the norm of the corresponding vector/row/column
+    &#34;&#34;&#34;
+    if axis is None:
+        if len(array.shape) &gt; 1:
+            axis = 1
+        else:
+            axis = 0
+    my_norm = np.linalg.norm(array, axis=axis, keepdims=True)
+    return np.repeat(my_norm, array.shape[axis], axis=axis)
+
+
+def normalise_vectors(array: np.ndarray, axis: int = None) -&gt; np.ndarray:
+    &#34;&#34;&#34;
+    Returns the unit vector of the vector or along some axis of an array.
+    Default behaviour: if axis not specified, normalise a 1D vector or normalise 2D array row-wise. If axis specified,
+    axis=0 normalises column-wise and axis=1 row-wise.
+
+    Args:
+        array: numpy array containing a vector or a set of vectors that should be normalised - per default assuming
+               every row in an array is a vector
+        axis: optionally specify along which axis the normalisation should occur
+
+    Returns:
+        an array of the same shape as the input array where vectors are normalised
+    &#34;&#34;&#34;
+    my_norm = norm_per_axis(array=array, axis=axis)
+    return np.divide(array, my_norm)
+
+
+def angle_between_vectors(central_vec: np.ndarray, side_vector: np.ndarray) -&gt; np.array:
+    &#34;&#34;&#34;
+    Having two vectors or two arrays in which each row is a vector, calculate all angles between vectors.
+    For arrays, returns an array giving results like those:
+
+    ------------------------------------------------------------------------------------
+    | angle(central_vec[0], side_vec[0])  | angle(central_vec[0], side_vec[1]) | ..... |
+    | angle(central_vec[1], side_vec[0])  | angle(central_vec[1], side_vec[1]  | ..... |
+    | ..................................  | .................................  | ..... |
+    ------------------------------------------------------------------------------------
+
+    Angle between vectors equals the distance between two points measured on a surface of an unit sphere!
+
+    Args:
+        central_vec: first vector or array of vectors
+        side_vector: second vector or array of vectors
+
+    Returns:
+
+    &#34;&#34;&#34;
+    assert central_vec.shape[-1] == side_vector.shape[-1], f&#34;Last components of shapes of both vectors are not equal:&#34; \
+                                                     f&#34;{central_vec.shape[-1]}!={side_vector.shape[-1]}&#34;
+    v1_u = normalise_vectors(central_vec)
+    v2_u = normalise_vectors(side_vector)
+    angle_vectors = np.arccos(np.clip(np.dot(v1_u, v2_u.T), -1.0, 1.0))
+    return angle_vectors
+
+
+def dist_on_sphere(vector1: np.ndarray, vector2: np.ndarray) -&gt; np.ndarray:
+    &#34;&#34;&#34;
+    Same as dist_on_sphere, but accepts and returns arrays and should only be used for already unitary vectors.
+
+    Args:
+        vector1: vector shape (n1, d) or (d,)
+        vector2: vector shape (n2, d) or (d,)
+
+    Returns:
+        an array the shape (n1, n2) containing distances between both sets of points on sphere
+    &#34;&#34;&#34;
+    norm1 = norm_per_axis(vector1)
+    norm2 = norm_per_axis(vector2)
+    assert np.allclose(norm1, norm2), &#34;Both vectors/arrays of vectors don&#39;t have the same norms!&#34;
+    angle = angle_between_vectors(vector1, vector2)
+    return angle * norm1</code></pre>
+</details>
+</section>
+<section>
+</section>
+<section>
+</section>
+<section>
+<h2 class="section-title" id="header-functions">Functions</h2>
+<dl>
+<dt id="molgri.utils.angle_between_vectors"><code class="name flex">
+<span>def <span class="ident">angle_between_vectors</span></span>(<span>central_vec: numpy.ndarray, side_vector: numpy.ndarray) ‑> <built-in function array></span>
+</code></dt>
+<dd>
+<div class="desc"><p>Having two vectors or two arrays in which each row is a vector, calculate all angles between vectors.
+For arrays, returns an array giving results like those:</p>
+<hr>
+<p>| angle(central_vec[0], side_vec[0])
+| angle(central_vec[0], side_vec[1]) | ..... |
+| angle(central_vec[1], side_vec[0])
+| angle(central_vec[1], side_vec[1]
+| ..... |
+| ..................................
+| .................................
+| ..... |</p>
+<hr>
+<p>Angle between vectors equals the distance between two points measured on a surface of an unit sphere!</p>
+<h2 id="args">Args</h2>
+<dl>
+<dt><strong><code>central_vec</code></strong></dt>
+<dd>first vector or array of vectors</dd>
+<dt><strong><code>side_vector</code></strong></dt>
+<dd>second vector or array of vectors</dd>
+</dl>
+<p>Returns:</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def angle_between_vectors(central_vec: np.ndarray, side_vector: np.ndarray) -&gt; np.array:
+    &#34;&#34;&#34;
+    Having two vectors or two arrays in which each row is a vector, calculate all angles between vectors.
+    For arrays, returns an array giving results like those:
+
+    ------------------------------------------------------------------------------------
+    | angle(central_vec[0], side_vec[0])  | angle(central_vec[0], side_vec[1]) | ..... |
+    | angle(central_vec[1], side_vec[0])  | angle(central_vec[1], side_vec[1]  | ..... |
+    | ..................................  | .................................  | ..... |
+    ------------------------------------------------------------------------------------
+
+    Angle between vectors equals the distance between two points measured on a surface of an unit sphere!
+
+    Args:
+        central_vec: first vector or array of vectors
+        side_vector: second vector or array of vectors
+
+    Returns:
+
+    &#34;&#34;&#34;
+    assert central_vec.shape[-1] == side_vector.shape[-1], f&#34;Last components of shapes of both vectors are not equal:&#34; \
+                                                     f&#34;{central_vec.shape[-1]}!={side_vector.shape[-1]}&#34;
+    v1_u = normalise_vectors(central_vec)
+    v2_u = normalise_vectors(side_vector)
+    angle_vectors = np.arccos(np.clip(np.dot(v1_u, v2_u.T), -1.0, 1.0))
+    return angle_vectors</code></pre>
+</details>
+</dd>
+<dt id="molgri.utils.dist_on_sphere"><code class="name flex">
+<span>def <span class="ident">dist_on_sphere</span></span>(<span>vector1: numpy.ndarray, vector2: numpy.ndarray) ‑> numpy.ndarray</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Same as dist_on_sphere, but accepts and returns arrays and should only be used for already unitary vectors.</p>
+<h2 id="args">Args</h2>
+<dl>
+<dt><strong><code>vector1</code></strong></dt>
+<dd>vector shape (n1, d) or (d,)</dd>
+<dt><strong><code>vector2</code></strong></dt>
+<dd>vector shape (n2, d) or (d,)</dd>
+</dl>
+<h2 id="returns">Returns</h2>
+<p>an array the shape (n1, n2) containing distances between both sets of points on sphere</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def dist_on_sphere(vector1: np.ndarray, vector2: np.ndarray) -&gt; np.ndarray:
+    &#34;&#34;&#34;
+    Same as dist_on_sphere, but accepts and returns arrays and should only be used for already unitary vectors.
+
+    Args:
+        vector1: vector shape (n1, d) or (d,)
+        vector2: vector shape (n2, d) or (d,)
+
+    Returns:
+        an array the shape (n1, n2) containing distances between both sets of points on sphere
+    &#34;&#34;&#34;
+    norm1 = norm_per_axis(vector1)
+    norm2 = norm_per_axis(vector2)
+    assert np.allclose(norm1, norm2), &#34;Both vectors/arrays of vectors don&#39;t have the same norms!&#34;
+    angle = angle_between_vectors(vector1, vector2)
+    return angle * norm1</code></pre>
+</details>
+</dd>
+<dt id="molgri.utils.norm_per_axis"><code class="name flex">
+<span>def <span class="ident">norm_per_axis</span></span>(<span>array: numpy.ndarray, axis: int = None) ‑> numpy.ndarray</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Returns the norm of the vector or along some axis of an array.
+Default behaviour: if axis not specified, normalise a 1D vector or normalise 2D array row-wise. If axis specified,
+axis=0 normalises column-wise and axis=1 row-wise.</p>
+<h2 id="args">Args</h2>
+<dl>
+<dt><strong><code>array</code></strong></dt>
+<dd>numpy array containing a vector or a set of vectors that should be normalised - per default assuming
+every row in an array is a vector</dd>
+<dt><strong><code>axis</code></strong></dt>
+<dd>optionally specify along which axis the normalisation should occur</dd>
+</dl>
+<h2 id="returns">Returns</h2>
+<p>an array of the same shape as the input array where each value is the norm of the corresponding vector/row/column</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def norm_per_axis(array: np.ndarray, axis: int = None) -&gt; np.ndarray:
+    &#34;&#34;&#34;
+    Returns the norm of the vector or along some axis of an array.
+    Default behaviour: if axis not specified, normalise a 1D vector or normalise 2D array row-wise. If axis specified,
+    axis=0 normalises column-wise and axis=1 row-wise.
+
+    Args:
+        array: numpy array containing a vector or a set of vectors that should be normalised - per default assuming
+               every row in an array is a vector
+        axis: optionally specify along which axis the normalisation should occur
+
+    Returns:
+        an array of the same shape as the input array where each value is the norm of the corresponding vector/row/column
+    &#34;&#34;&#34;
+    if axis is None:
+        if len(array.shape) &gt; 1:
+            axis = 1
+        else:
+            axis = 0
+    my_norm = np.linalg.norm(array, axis=axis, keepdims=True)
+    return np.repeat(my_norm, array.shape[axis], axis=axis)</code></pre>
+</details>
+</dd>
+<dt id="molgri.utils.normalise_vectors"><code class="name flex">
+<span>def <span class="ident">normalise_vectors</span></span>(<span>array: numpy.ndarray, axis: int = None) ‑> numpy.ndarray</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Returns the unit vector of the vector or along some axis of an array.
+Default behaviour: if axis not specified, normalise a 1D vector or normalise 2D array row-wise. If axis specified,
+axis=0 normalises column-wise and axis=1 row-wise.</p>
+<h2 id="args">Args</h2>
+<dl>
+<dt><strong><code>array</code></strong></dt>
+<dd>numpy array containing a vector or a set of vectors that should be normalised - per default assuming
+every row in an array is a vector</dd>
+<dt><strong><code>axis</code></strong></dt>
+<dd>optionally specify along which axis the normalisation should occur</dd>
+</dl>
+<h2 id="returns">Returns</h2>
+<p>an array of the same shape as the input array where vectors are normalised</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def normalise_vectors(array: np.ndarray, axis: int = None) -&gt; np.ndarray:
+    &#34;&#34;&#34;
+    Returns the unit vector of the vector or along some axis of an array.
+    Default behaviour: if axis not specified, normalise a 1D vector or normalise 2D array row-wise. If axis specified,
+    axis=0 normalises column-wise and axis=1 row-wise.
+
+    Args:
+        array: numpy array containing a vector or a set of vectors that should be normalised - per default assuming
+               every row in an array is a vector
+        axis: optionally specify along which axis the normalisation should occur
+
+    Returns:
+        an array of the same shape as the input array where vectors are normalised
+    &#34;&#34;&#34;
+    my_norm = norm_per_axis(array=array, axis=axis)
+    return np.divide(array, my_norm)</code></pre>
+</details>
+</dd>
+</dl>
+</section>
+<section>
+</section>
+</article>
+<nav id="sidebar">
+<h1>Index</h1>
+<div class="toc">
+<ul></ul>
+</div>
+<ul id="index">
+<li><h3>Super-module</h3>
+<ul>
+<li><code><a title="molgri" href="index.html">molgri</a></code></li>
+</ul>
+</li>
+<li><h3><a href="#header-functions">Functions</a></h3>
+<ul class="">
+<li><code><a title="molgri.utils.angle_between_vectors" href="#molgri.utils.angle_between_vectors">angle_between_vectors</a></code></li>
+<li><code><a title="molgri.utils.dist_on_sphere" href="#molgri.utils.dist_on_sphere">dist_on_sphere</a></code></li>
+<li><code><a title="molgri.utils.norm_per_axis" href="#molgri.utils.norm_per_axis">norm_per_axis</a></code></li>
+<li><code><a title="molgri.utils.normalise_vectors" href="#molgri.utils.normalise_vectors">normalise_vectors</a></code></li>
+</ul>
+</li>
+</ul>
+</nav>
+</main>
+<footer id="footer">
+<p>Generated by <a href="https://pdoc3.github.io/pdoc" title="pdoc: Python API documentation generator"><cite>pdoc</cite> 0.10.0</a>.</p>
+</footer>
+</body>
+</html>

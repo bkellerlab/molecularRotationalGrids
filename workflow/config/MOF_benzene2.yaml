@@ -1,0 +1,41 @@
+grid:
+  unique_network_name: "periodic_cartesian_80"
+  rotation_algorithm: "hypercube"
+  rotation_random_seed: 1
+  N_rotations: 80
+  translation_algorithm: "cartesian"
+  periodic_in: [True, True, True]
+  translation_subgrids_A: [ [0, 14.5086, 10], [0,  12.564816173346905, 10], [0, 11.84622229, 10] ] # units must be A
+
+pseudotrajectory:
+  molecule_1: "MOF_num"
+  molecule_2: "benzene_num"
+  structure_ending: "gro"
+  trajectory_ending: "xtc"
+  input_structure_ending: "xyz"
+  cuboid_cell: [14.5086, 12.564816173346905, 11.84622229] # units must be A
+
+analysis:
+  every_ith_energy: 10
+  energy_program: "LAMMPS"
+  view_index: [ 4]
+  zoom_level: 0
+  length_shortened_trajectory_ns: 10
+  energy_types: ["LJ (SR)", "Coulomb (SR)"]
+  upper_E_limit: 0
+  analyse_first_N_frames: None
+  plot_m1_as: "DynamicBonds"
+  plot_m2_as: "VDW"
+  parts_to_perform: ["make_pseudotrajectory_lammps", "plot_lowest_energies", "plot_some_frames", "msm", "assign_trajectory"]#"assign_trajectory" "all_rotations", "assign_trajectory", "plot_lowest_energies", , "msm"
+
+sqra:
+  #capping_factor: 3000
+  cutting_factor: 1e8
+  #tolerance_rate_matrix_row_sum: 1e-10
+  sigma: 0
+  tolerance_eigendecomposition: 1e-10
+
+eigenvectors:
+  num_interesting_timescales: 4
+  num_interesting_eigenvectors: 4
+  num_extremes_to_plot: 50

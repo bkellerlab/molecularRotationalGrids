@@ -1,0 +1,540 @@
+import sys
+import matplotlib.pyplot as plt
+import numpy as np
+import pandas as pd
+import scipy.constants
+
+plt.switch_backend('agg')
+
+configfile: "workflow/default_sqra_orca_config.yaml"
+
+# add molgri directory
+sys.path.append(".")
+from molgri.paths import PATH_EXPERIMENTS
+from molgri.io import QuantumSetup
+
+pd.set_option('display.float_format','{:.34f}'.format)
+
+
+QUANTUM_SETUP = QuantumSetup(
+    functional=config["params_dft"]["functional"],
+    basis_set=config["params_dft"]["basis_set"],
+    solvent=config["params_dft"]["solvent"],
+    dispersion_correction=config["params_dft"]["dispersion"],
+    num_scf=config["params_dft"]["num_scf"],
+    num_cores=config["params_dft"]["num_cores"],
+    ram_per_core=config["params_dft"]["ram_per_core"]
+)
+ORCA_DIR = QUANTUM_SETUP.get_dir_name()
+PATH_SEARCH_DIR = f"{PATH_EXPERIMENTS}{config['experiment_type']}/{config['experiment_id']}/{config['grid_identifier']}/{config['params_dft']['optimization_type']}_{ORCA_DIR}"
+
+from scipy.constants import physical_constants
+AVOGADRO_CONSTANT = physical_constants["Avogadro constant"][0]
+k_B_in_kJ_mol = scipy.constants.Boltzmann / 1000 * AVOGADRO_CONSTANT
+
+def get_outliers(df, lower_bound_factor, upper_bound_factor, my_property="Binding energy [kJ/mol]"):
+    # Compute Q1 (25th percentile) and Q3 (75th percentile)
+    Q1 = df[my_property].quantile(0.25, interpolation='midpoint')
+    Q3 = df[my_property].quantile(0.75, interpolation='midpoint')
+    IQR = Q3 - Q1  # Interquartile range
+    print("IQR is", IQR)
+
+    # Define outlier bounds
+    lower_bound = Q1 - lower_bound_factor * IQR
+    upper_bound = Q3 + upper_bound_factor * IQR
+
+    print(lower_bound, upper_bound, type(df[my_property].iloc[0]))
+
+    # Identify outliers (including NaNs and Infs)
+    df['outlier'] = (df[my_property] < lower_bound) | (df[my_property] > upper_bound) | df[my_property].isna() | np.isinf(df[my_property])
+    df['nan_inf'] = df[my_property].isna() | np.isinf(df[my_property])
+
+    num_nans = len(df[df['nan_inf']])
+    print(f"Number of of nans, +/- infs is {num_nans}/{len(df)} ({num_nans/len(df) * 100:.2f}%)")
+
+    outlier_indices = df[df['outlier']].index.tolist()
+    print(f"Outside bound {lower_bound_factor:.1f}-{upper_bound_factor:.1f} for {my_property}: {len(outlier_indices)}/{len(df)} ({len(outlier_indices) / len(df) * 100:.2f} %)")
+    return lower_bound, upper_bound, outlier_indices
+
+rule all:
+    input:
+        #f"{PATH_SEARCH_DIR}energy.txt",
+        #f"{PATH_SEARCH_DIR}energy_pairs_distribution.png",
+        #f"{PATH_SEARCH_DIR}removed_energy.txt",
+        #f"{PATH_SEARCH_DIR}removed_energy_distribution.png",
+        #f"{PATH_SEARCH_DIR}energy_distribution.png",
+        #f"{PATH_SEARCH_DIR}energy_pairs.csv",
+        #f"{PATH_SEARCH_DIR}energy_log_distribution.png",
+        #f"{PATH_SEARCH_DIR}pairs_exponential.png",
+        expand(f"{PATH_SEARCH_DIR}dE_{{e_outlier}}_{{outlier_factor}}/{{what}}",
+            e_outlier=["3"], outlier_factor=["10"], what=["rate_matrix.npz", "eigenvectors.npy"])
+        #elim_factor= ["None", "1", "3", "5", "10"], outlier_factor=["None", "1", "3", "10", "100", "1000"]
+
+rule get_energy_pairs:
+    input:
+        csv_file = f"{PATH_SEARCH_DIR}removed_energy.csv",
+        adjacency_array= f"{PATH_SEARCH_DIR}adjacency_array.npz",
+    output:
+        csv_report = f"{PATH_SEARCH_DIR}dE_{{e_outlier}}_{{outlier_factor}}energy_pairs.zip",
+    run:
+        from scipy.sparse import coo_array, load_npz
+        df = pd.read_csv(input.csv_file)
+        adjacency = load_npz(input.adjacency_array).tocoo()
+        print(len(df),len(adjacency.row),len(adjacency.col))
+
+        # OUTLIERS IN ENERGY (over 10 IQR) get replaced by the value of 10 IQR
+        energy_elim_factor = int(wildcards.e_outlier)
+        lim1, lim2, outliers = get_outliers(df, energy_elim_factor, energy_elim_factor, "Energy [kJ/mol]")
+        df.loc[outliers, "Energy [kJ/mol]"] = lim2
+
+        energies = df["Energy [kJ/mol]"].to_numpy() #dtype=np.float128
+        print(len(df), len(adjacency.row), len(adjacency.col))
+        diff_energies = energies[adjacency.row] - energies[adjacency.col]
+        pairs_df = pd.DataFrame(np.array([adjacency.row, adjacency.col, diff_energies]).T,
+            columns=["First index", "Second index", "Delta Energy [kJ/mol]"])
+        pairs_df["First index"] = pd.to_numeric(pairs_df["First index"],errors='coerce').astype('Int64')
+        pairs_df["Second index"] = pd.to_numeric(pairs_df["Second index"],errors='coerce').astype('Int64')
+        pairs_df["Exponent"] = -1 * pairs_df["Delta Energy [kJ/mol]"] / (k_B_in_kJ_mol * 273)
+        pairs_df["Boltzmann population"] = np.exp(-pairs_df["Delta Energy [kJ/mol]"] / (k_B_in_kJ_mol * 273))
+        pairs_df.to_csv(output.csv_report, compression="zip")
+
+
+# rule get_energy_pairs_with_filtered_outliers:
+#     input:
+#         csv_file = f"{PATH_SEARCH_DIR}energy_pairs.zip",
+#     output:
+#         csv_report = f"{PATH_SEARCH_DIR}outlier_factor_{{outlier_factor}}/energy_pairs.zip"
+#     run:
+#         pairs_df = pd.read_csv(input.csv_file, index_col=0) #, dtype={"Delta Energy [kJ/mol]":np.float128}
+#         print("pairs_df_reloaded",type(pairs_df["Delta Energy [kJ/mol]"].iloc[0]))
+#
+#         energy_elim_factor = int(wildcards.outlier_factor)
+#         lim1, lim2, outliers = get_outliers(pairs_df, energy_elim_factor, energy_elim_factor, "Delta Energy [kJ/mol]")
+#         print(f"Allowed delta energies {lim1}-{lim2}")
+#         pairs_df.loc[outliers, "Delta Energy [kJ/mol]"] = np.nan
+#
+#         pairs_df.to_csv(output.csv_report, compression="zip")
+
+
+rule print_how_many_missing:
+    input:
+        csv_file = "{some_csv}.csv"
+    output:
+        csv_report = "{some_csv}.txt"
+    run:
+        df = pd.read_csv(input.csv_file)
+
+        total_count = len(df)
+
+        # normal finish
+        false_count = (df['Normal Finish'] == False).sum()
+        none_nan_count = df['Normal Finish'].isna().sum()
+        total_failed_count = false_count + none_nan_count
+        percentage_failed = total_failed_count / total_count * 100
+
+        # indices of those who failed
+        filtered_df = df[df['Normal Finish'].isin([False]) | df['Normal Finish'].isna()]
+        min_frame = filtered_df['Frame'].min()
+        max_frame = filtered_df['Frame'].max()
+        mean_frame = filtered_df['Frame'].mean()
+
+        # optimization complete (only for constrained optimization)
+        if "ConstOpt" in wildcards.some_csv:
+            not_optimized_count = (df['Optimization Complete'] == False).sum()
+            none_nan_optimized_count = df['Optimization Complete'].isna().sum()
+            non_failed = total_count-total_failed_count
+            total_not_optimized_count = not_optimized_count + none_nan_optimized_count - total_failed_count
+            percentage_not_optimized = total_not_optimized_count/non_failed * 100
+
+
+        with open(output.csv_report, "w") as f:
+            f.write(f"Normal finish did not happen in {total_failed_count}/{total_count} cases ({percentage_failed:.2f}%).\n")
+            f.write(f"Those that failed were frames with indices {min_frame}-{max_frame}, on average {mean_frame:.0f}.\n")
+            if "ConstOpt" in wildcards.some_csv:
+                f.write(f"Additionally, optimization was not complete in {total_not_optimized_count}/{non_failed} cases ({percentage_not_optimized:.2f}%).\n")
+
+
+
+
+rule plot_energy_distribution:
+    input:
+        csv_file = "{some_csv}.csv"
+    output:
+        energy_distribution = "{some_csv}_distribution.png",
+        log_energy_distribution = "{some_csv}_log_distribution.png",
+    wildcard_constraints:
+        some_csv="^(?!.*pairs).*"
+    run:
+        import seaborn as sns
+
+        sns.set_context("talk")
+
+        df= pd.read_csv(input.csv_file)
+
+        # sp energy
+        fig, ax = plt.subplots(1,2, sharey=True, sharex=True)
+        if config['experiment_type'] == "guanidinium_xyz":
+            kj_mol_monomer = -540470.8771032256
+        elif config['experiment_type'] == "water_xyz":
+            kj_mol_monomer = -200563.91397680662
+        df["Binding energy [kJ/mol]"] = df["Energy [kJ/mol]"]-2*kj_mol_monomer
+
+
+        fig, ax = plt.subplots(1, 1, figsize=(6,6))
+
+        sns.histplot(df["Binding energy [kJ/mol]"], ax=ax, bins=1000, stat="probability", edgecolor='white', color="black") #, binrange=(-15,50), binwidth=65/50
+        #ax.set_yscale("log")
+
+        for bounds, colors in zip([1.0, 1.5, 3, 10], ["yellow", "green", "red", "blue"]):
+            lower_bound, upper_bound, _ = get_outliers(df, bounds, bounds)
+            plt.axvline(x=lower_bound,color=colors,linestyle='--',linewidth=2,label=f'{bounds}')
+            plt.axvline(x=upper_bound,color=colors,linestyle='--',linewidth=2,label=f'{bounds}')
+        ax.set_xlim(-500, 5000)
+        fig.tight_layout()
+        fig.savefig(output.energy_distribution)
+        ax.set_yscale("log")
+        ax.set_xlim(-500,35000)
+        fig.tight_layout()
+        fig.savefig(output.log_energy_distribution)
+
+        # now boltzmann
+        # df["Boltzmann population"] = np.exp(-df["Energy [kJ/mol]"] / (k_B_in_kJ_mol * 273))
+        # print(df["Boltzmann population"].describe())
+        # fig, ax = plt.subplots(1, 1, figsize=(6,6))
+        #
+        # sns.histplot(df["Boltzmann population"], ax=ax, bins=100, stat="probability") #, binrange=(-15,50), binwidth=65/50
+        # ax.set_yscale("log")
+        #
+        # for bounds, colors in zip([1.5, 3, 10], ["green", "red", "blue"]):
+        #     lower_bound, upper_bound = get_outliers(df, bounds, bounds, my_property="Boltzmann population")
+        #     plt.axvline(x=lower_bound,color=colors,linestyle='--',linewidth=2,label=f'{bounds}')
+        #     plt.axvline(x=upper_bound,color=colors,linestyle='--',linewidth=2,label=f'{bounds}')
+        #
+        # fig.tight_layout()
+        # fig.savefig(output.boltzmann_distribution)
+
+rule plot_pair_energy_distribution2:
+    input:
+        csv_file = f"{PATH_SEARCH_DIR}outlier_factor_1000/energy_pairs.zip"
+    output:
+        energy_distribution = f"{PATH_SEARCH_DIR}pairs_distribution.png",
+        boltzmann_distribution= f"{PATH_SEARCH_DIR}pairs_boltzmann.png",
+        exponential_distribution= f"{PATH_SEARCH_DIR}pairs_exponential.png",
+    wildcard_constraints:
+        some_csv = ".*_pairs.*"
+    run:
+        import seaborn as sns
+        import pandas as pd
+        import matplotlib.pyplot as plt
+
+        sns.set_style("white")
+        sns.set_context("talk")
+
+        df= pd.read_csv(input.csv_file)
+        bounds = 1000
+        lower_bound, upper_bound, _ = get_outliers(df,bounds,bounds,my_property="Delta Energy [kJ/mol]")
+
+        # sp energy
+        fig, ax = plt.subplots(1, 1, figsize=(6,6))
+
+        sns.histplot(df["Delta Energy [kJ/mol]"], ax=ax, bins=100, stat="probability",
+            edgecolor='white', color="black") #, binrange=(-15,50), binwidth=65/50
+        for bounds, colors in zip([1.0, 1.5, 3, 10], ["yellow", "green", "red", "blue"]):
+            lower_bound, upper_bound, _ = get_outliers(df, bounds, bounds, my_property="Delta Energy [kJ/mol]")
+            plt.axvline(x=lower_bound,color=colors,linestyle='--',linewidth=2,label=f'{bounds}')
+            plt.axvline(x=upper_bound,color=colors,linestyle='--',linewidth=2,label=f'{bounds}')
+
+        fig.tight_layout()
+        fig.savefig(output.energy_distribution)
+
+        # now boltzmann
+        lower_bound, upper_bound, _ = get_outliers(df,bounds,bounds,my_property="Boltzmann population")
+        print(lower_bound, upper_bound)
+        fig, ax = plt.subplots(1, 1, figsize=(6,6))
+
+        print("BELOW ONE", len(df[df["Boltzmann population"] < 1]))
+        print("OVER 10000",len(df[df["Boltzmann population"] > 10000]))
+
+        sns.histplot(df["Boltzmann population"], ax=ax, bins=100, stat="probability", binrange=(0, 50000),
+            edgecolor='white', color="black") #, binrange=(-15,50), binwidth=65/50
+
+        for bounds, colors in zip([1.0, 1.5, 3, 10], ["yellow", "green", "red", "blue"]):
+            lower_bound, upper_bound, _ = get_outliers(df, bounds, bounds, my_property="Delta Energy [kJ/mol]")
+            plt.axvline(x=lower_bound,color=colors,linestyle='--',linewidth=2,label=f'{bounds}')
+            plt.axvline(x=upper_bound,color=colors,linestyle='--',linewidth=2,label=f'{bounds}')
+        ax.set_xlim(0, 50000)
+        fig.tight_layout()
+        fig.savefig(output.boltzmann_distribution)
+
+        # only the exponent
+        fig, ax = plt.subplots(1, 1, figsize=(6,6))
+
+
+        sns.histplot(df["Exponent"], ax=ax, bins=100, stat="probability", binrange=(-1000,1000),
+            edgecolor='white', color="black") #, binrange=(-15,50), binwidth=65/50
+
+        for bounds, colors in zip([1.0, 1.5, 3, 10], ["yellow", "green", "red", "blue"]):
+            lower_bound, upper_bound, _ = get_outliers(df, bounds, bounds, my_property="Exponent")
+            plt.axvline(x=lower_bound,color=colors,linestyle='--',linewidth=2,label=f'{bounds}')
+            plt.axvline(x=upper_bound,color=colors,linestyle='--',linewidth=2,label=f'{bounds}')
+        ax.set_xlim(-1000, 1000)
+        fig.tight_layout()
+        fig.savefig(output.exponential_distribution)
+
+
+
+rule plot_pair_energy_distribution:
+    input:
+        csv_file = f"{PATH_SEARCH_DIR}outlier_factor_{{outlier_factor}}/energy_pairs.zip"
+    output:
+        energy_distribution = f"{PATH_SEARCH_DIR}outlier_factor_{{outlier_factor}}/distribution.png",
+        log_energy_distribution= f"{PATH_SEARCH_DIR}outlier_factor_{{outlier_factor}}/log_distribution.png",
+        boltzmann_distribution= f"{PATH_SEARCH_DIR}outlier_factor_{{outlier_factor}}/boltzmann.png",
+        log_boltzmann_distribution= f"{PATH_SEARCH_DIR}outlier_factor_{{outlier_factor}}/log_boltzmann.png",
+    wildcard_constraints:
+        some_csv = ".*_pairs.*"
+    run:
+        import seaborn as sns
+        import pandas as pd
+        import matplotlib.pyplot as plt
+
+        sns.set_style("white")
+        sns.set_context("talk")
+
+        df= pd.read_csv(input.csv_file)
+        bounds = int(wildcards.outlier_factor)
+        lower_bound, upper_bound, _ = get_outliers(df,bounds,bounds,my_property="Delta Energy [kJ/mol]")
+
+        # sp energy
+        fig, ax = plt.subplots(1, 1, figsize=(6,6))
+
+        sns.histplot(df["Delta Energy [kJ/mol]"], ax=ax, bins=100, stat="probability") #, binrange=(-15,50), binwidth=65/50
+        #plt.axvline(x=lower_bound,color="green",linestyle='--',linewidth=2,label=f'{bounds}')
+        #plt.axvline(x=upper_bound,color="green",linestyle='--',linewidth=2,label=f'{bounds}')
+        #fig.set_title(f"")
+
+        fig.tight_layout()
+        fig.savefig(output.energy_distribution)
+        #ax.set_xscale("log")
+        ax.set_yscale("log")
+        fig.tight_layout()
+        fig.savefig(output.log_energy_distribution)
+
+        # now boltzmann
+        lower_bound, upper_bound, _ = get_outliers(df,bounds,bounds,my_property="Boltzmann population")
+        print(lower_bound, upper_bound)
+        fig, ax = plt.subplots(1, 1, figsize=(6,6))
+
+        sns.histplot(df["Boltzmann population"], ax=ax, bins=100, stat="probability", binrange=(0,10**14)) #, binrange=(-15,50), binwidth=65/50
+
+
+        fig.tight_layout()
+        fig.savefig(output.boltzmann_distribution)
+        #ax.set_xscale("log")
+        ax.set_yscale("log")
+        fig.tight_layout()
+        fig.savefig(output.log_boltzmann_distribution)
+
+rule orca_total_and_average_time:
+    input:
+        energy=f"{PATH_SEARCH_DIR}energy.csv"
+    output:
+        total_time=f"{PATH_SEARCH_DIR}orca_time.txt"
+    run:
+        import pandas as pd
+
+        my_df = pd.read_csv(input.energy)
+        my_df["TIME"] = pd.to_timedelta(my_df["Time [h:m:s]"],errors="coerce")
+        my_df["Time [s]"] = my_df["TIME"].dt.total_seconds()
+        time_s = my_df["Time [s]"]
+
+        with open(output.total_time,"w") as f:
+            f.write(f"Total time [s]: {time_s.sum():.2f}\n")
+            f.write(f"Total time [h:m:s]: {pd.to_timedelta(time_s.sum(),unit='s')}\n")
+            f.write(f"700 parallel processes total time [h:m:s]: {pd.to_timedelta(time_s.sum()/700,unit='s')}\n")
+            f.write("--------------\n")
+            f.write(f"Mean time [s]: {time_s.mean():.2f} +- {time_s.std():.2f}\n")
+            f.write(f"Mean time [h:m:s]: {pd.to_timedelta(time_s.mean(),unit='s')} +- {pd.to_timedelta(time_s.std(),unit='s')}\n")
+            f.write("--------------\n")
+            f.write(f"Max time [s]: {time_s.max():.2f}\n")
+            f.write(f"Min time [s]: {time_s.min():.2f}\n")
+            f.write(f"Max time [h:m:s]: {pd.to_timedelta(time_s.max(),unit='s')}\n")
+            f.write(f"Min time [h:m:s]: {pd.to_timedelta(time_s.min(),unit='s')}\n")
+
+rule compare_initial_and_const_opt_energies:
+    input:
+        initial_energies = f"{PATH_EXPERIMENTS}{config['experiment_type']}/{config['experiment_id']}/{config['grid_identifier']}/SP_{ORCA_DIR}energy.csv",
+        const_opt_energies = f"{PATH_EXPERIMENTS}{config['experiment_type']}/{config['experiment_id']}/{config['grid_identifier']}/ConstOpt_{ORCA_DIR}energy.csv",
+    output:
+        plot = f"{PATH_EXPERIMENTS}{config['experiment_type']}/{config['experiment_id']}/{config['grid_identifier']}/absolute_energy_comparison.png",
+        #plot_hist = f"{EXPERIMENT_FULL_PATH}energy_hist.png",
+        plot_relative = f"{PATH_EXPERIMENTS}{config['experiment_type']}/{config['experiment_id']}/{config['grid_identifier']}/relative_energy_comparison.png",
+    run:
+        import seaborn as sns
+        import pandas as pd
+        import matplotlib.pyplot as plt
+        import numpy as np
+
+        print(input)
+        print(output)
+
+        sns.set_context("talk")
+
+        df_inital = pd.read_csv(input.initial_energies)
+        df_const_opt = pd.read_csv(input.const_opt_energies)
+
+        # sp energy
+        fig, ax = plt.subplots(1,2, sharey=True, sharex=True)
+
+        if config['experiment_type'] == "guanidinium_xyz":
+            kj_mol_monomer = -540470.8771032256
+        elif config['experiment_type'] == "water_xyz":
+            kj_mol_monomer = -200563.91397680662
+
+        df_inital["Binding energy [kJ/mol]"] = df_inital["Energy [kJ/mol]"]-2*kj_mol_monomer
+        df_const_opt["Binding energy [kJ/mol]"] = df_const_opt["Energy [kJ/mol]"] - 2 * kj_mol_monomer
+
+        filtered_initial = df_inital[df_inital['Binding energy [kJ/mol]'] < 50]
+        filtered_const_opt = df_const_opt[df_inital['Binding energy [kJ/mol]'] < 50]
+
+
+        # sns.histplot(filtered_initial["Binding energy [kJ/mol]"],ax=ax[0], bins=100)
+        # ax[0].set_title(f"SP Plotted: {len(filtered_initial)}, not: {len(df_inital)-len(filtered_initial)}")
+        # sns.histplot(filtered_const_opt["Binding energy [kJ/mol]"],ax=ax[1], bins=100)
+        # ax[1].set_title(f"OPT Plotted: {len(filtered_const_opt)}, not: {len(df_const_opt) - len(filtered_const_opt)}")
+        # fig.savefig(output.plot_hist)
+
+
+        # absolute errors
+        fig, ax = plt.subplots(1, 1, figsize=(6,6))
+
+        sns.histplot(df_const_opt['Energy [kJ/mol]']-df_inital['Energy [kJ/mol]'], ax=ax, bins=70, binrange=(-25,1), binwidth=26/70, stat="probability")
+        ax.set_xlim(-25, 1)
+        ax.set_xlabel("E(opt) - E(SP) [kJ/mol]")
+        fig.tight_layout()
+        fig.savefig(output.plot)
+
+        # relative errors
+
+        # absolute errors
+        fig, ax = plt.subplots(1, 1)
+
+        sns.histplot(100*(filtered_const_opt["Binding energy [kJ/mol]"]-filtered_initial["Binding energy [kJ/mol]"])/np.abs(filtered_const_opt["Binding energy [kJ/mol]"]),
+            ax=ax, bins=50, binrange=(-50,0), binwidth=50/50)
+        ax.set_xlim(-50,0)
+        ax.set_xlabel("Change in energy after optimization [%]")
+        fig.tight_layout()
+        fig.savefig(output.plot_relative)
+
+rule run_sqra:
+    """
+    As input we need: energies, adjacency, volume, borders, distances.
+    As output we want to have the rate matrix.
+    """
+    input:
+        energy_pairs = f"{PATH_SEARCH_DIR}dE_{{e_outlier}}_{{outlier_factor}}energy_pairs.zip",
+        distances_array = f"{PATH_SEARCH_DIR}distances_array.npz",
+        borders_array = f"{PATH_SEARCH_DIR}borders_array.npz",
+        volumes = f"{PATH_SEARCH_DIR}volumes.npy",
+    output:
+        rate_matrix = f"{PATH_SEARCH_DIR}dE_{{e_outlier}}_{{outlier_factor}}/rate_matrix.npz",
+        index_list= f"{PATH_SEARCH_DIR}dE_{{e_outlier}}_{{outlier_factor}}/index_list.npy",
+    benchmark:
+        repeat(f"{PATH_SEARCH_DIR}dE_{{e_outlier}}_{{outlier_factor}}/rate_matrix_benchmark.txt", config['num_repeats'])
+    params:
+        T=float(config["params_sqra"]["temperature_K"]),
+        energy_type=config["params_sqra"]["energy_type"],
+        m_h2o = float(config["params_sqra"]["mass_kg"]),
+        tau = float(config["params_setup"]["tau_t"]),
+        lower_lim = config["params_sqra"]["lower_lim_rate_matrix"],
+        upper_lim = config["params_sqra"]["upper_lim_rate_matrix"],
+    run:
+        from scipy import sparse
+        from scipy.constants import k as k_B
+
+        from molgri.molecules.rate_merger import delete_rate_cells
+
+        tau = float(params.tau) * 1e-12 # now in s
+
+        D = k_B * params.T *tau / params.m_h2o  # in m^2/s
+        D*= 1e8  # now in A^2/ps
+
+        df = pd.read_csv(input.energy_pairs)
+        energy_pairs = df["Boltzmann population"]
+
+        # load input files
+        all_volumes = np.load(input.volumes)
+        all_surfaces = sparse.load_npz(input.borders_array)
+        all_distances = sparse.load_npz(input.distances_array)
+
+        # build sqra
+        # you cannot multiply or divide directly in a coo format
+        transition_matrix = D * all_surfaces  #/ all_distances
+        transition_matrix = transition_matrix.tocoo()
+        transition_matrix.data /= all_distances.tocoo().data
+        # Divide every row of transition_matrix with the corresponding volume
+        transition_matrix.data /= all_volumes[transition_matrix.row]
+        transition_matrix.data *= energy_pairs
+        # normalise rows
+        sums = transition_matrix.sum(axis=1)
+        sums = np.array(sums).squeeze()
+        all_i = np.arange(len(all_volumes))
+        diagonal_array = sparse.coo_array((-sums, (all_i, all_i)), shape=(len(all_i), len(all_i)))
+        transition_matrix = transition_matrix.tocsr() + diagonal_array.tocsr()
+
+        # cut out cells where dE above or below allowed
+        bounds = float(wildcards.outlier_factor)
+        lower_bound, upper_bound, outliers = get_outliers(df,bounds,bounds,my_property="Delta Energy [kJ/mol]")
+
+        size_before = transition_matrix.size
+
+        transition_matrix, index_list = delete_rate_cells(transition_matrix,to_remove=outliers,
+            index_list=None)
+
+        size_after = transition_matrix.size
+        print(f"Factor {float(wildcards.outlier_factor)}, size {size_before}->{size_after} (change {(size_before-size_after)/size_before*100:.2f}%).")
+
+        # saving to file
+        sparse.save_npz(output.rate_matrix,transition_matrix)
+        np.save(output.index_list,np.array(index_list,dtype=object))
+
+rule run_decomposition:
+    """
+    As output we want to have eigenvalues, eigenvectors. Es input we get a (sparse) rate matrix.
+    """
+    input:
+        rate_matrix = f"{PATH_SEARCH_DIR}dE_{{e_outlier}}_{{outlier_factor}}/rate_matrix.npz"
+    output:
+        eigenvalues = f"{PATH_SEARCH_DIR}dE_{{e_outlier}}_{{outlier_factor}}/eigenvalues.npy",
+        eigenvectors = f"{PATH_SEARCH_DIR}dE_{{e_outlier}}_{{outlier_factor}}/eigenvectors.npy",
+    benchmark:
+        f"{PATH_SEARCH_DIR}dE_{{e_outlier}}_{{outlier_factor}}/decomposition_benchmark.txt"
+    params:
+        tol=0,
+        maxiter=config["params_sqra"]["maxiter"],
+        sigma=0,
+        which="SR",
+    run:
+        from scipy.sparse.linalg import eigs
+        from scipy import sparse
+
+        # loading
+        my_matrix = sparse.load_npz(input.rate_matrix)
+
+        print(input.rate_matrix, my_matrix.shape, my_matrix.size)
+
+        eigenval, eigenvec = eigs(my_matrix.T,k=6,tol=float(params.tol),maxiter=int(params.maxiter),which=params.which,sigma=params.sigma)
+        # if imaginary eigenvectors or eigenvalues, raise error
+        if not np.allclose(eigenvec.imag.max(),0,rtol=1e-3,atol=1e-5) or not np.allclose(eigenval.imag.max(),0,
+                rtol=1e-3,atol=1e-5):
+            print(f"Complex values for eigenvectors and/or eigenvalues: {eigenvec}, {eigenval}")
+        eigenvec = eigenvec.real
+        eigenval = eigenval.real
+        # sort eigenvectors according to their eigenvalues
+        idx = eigenval.argsort()[::-1]
+        eigenval = eigenval[idx]
+        eigenvec = eigenvec[:, idx]
+
+        # saving to file
+        np.save(output.eigenvalues,np.array(eigenval))
+        np.save(output.eigenvectors,np.array(eigenvec))

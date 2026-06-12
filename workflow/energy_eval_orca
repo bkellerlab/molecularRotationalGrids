@@ -1,0 +1,190 @@
+"""Extra functions for sqra pipelines with orca on curta."""
+import sys
+import os
+import subprocess
+import numpy as np
+
+sys.path.append(".")
+from molgri.io import OrcaWriter, OrcaReader, QuantumMolecule, QuantumSetup, read_important_stuff_into_csv, read_multi_out_into_csv
+from molgri.space.fullgrid import FullGrid
+from molgri.paths import PATH_INPUT_BASEGRO, PATH_EXPERIMENTS
+
+
+configfile: "workflow/default_sqra_orca_config.yaml"
+
+QUANTUM_SETUP = QuantumSetup(
+    functional=config["params_dft"]["functional"],
+    basis_set=config["params_dft"]["basis_set"],
+    solvent=config["params_dft"]["solvent"],
+    dispersion_correction=config["params_dft"]["dispersion"],
+    num_scf=config["params_dft"]["num_scf"],
+    num_cores=config["params_dft"]["num_cores"],
+    ram_per_core=config["params_dft"]["ram_per_core"]
+)
+ORCA_DIR = QUANTUM_SETUP.get_dir_name()
+EXPERIMENT_FULL_PATH = f"{PATH_EXPERIMENTS}{config['experiment_type']}/{config['experiment_id']}/{config['grid_identifier']}/{config['params_dft']['optimization_type']}_{ORCA_DIR}"
+
+#LOCAL_PATH = "/home/hanaz63/2024_molgri2/nobackup/molecularRotationalGrids/"
+REMOTE_PATH = "/home/hanaz63/nobackup/"
+
+NUM_GRID_POINTS = len(FullGrid(
+    b_grid_name=str(config["params_grid"]["num_orientations"]),
+    o_grid_name=str(config["params_grid"]["num_directions"]),
+    t_grid_name=config["params_grid"]["radial_distances_nm"]))
+
+BATCH_SIZE = NUM_GRID_POINTS//config['num_batches'] +1
+
+
+rule all_orca:
+    input:
+        f"{EXPERIMENT_FULL_PATH}energy.csv"
+    run:
+        print("GOAL", input)
+
+def _determine_batch_subfolders():
+    all_paths = []
+    for batch in range(config['num_batches']):
+        section_size = NUM_GRID_POINTS//config['num_batches'] +1
+        batch_start_index = batch*section_size
+        batch_end_index = np.min([(batch+1)*section_size, NUM_GRID_POINTS])
+        all_paths.extend([f"batch_{batch}/{str(i).zfill(10)}/" for i in range(batch_start_index, batch_end_index)])
+
+    return all_paths
+
+def _determine_batch_folders(wildcards, file_needed):
+    all_paths = []
+    for batch in range(config['num_batches']):
+        section_size = NUM_GRID_POINTS//config['num_batches'] +1
+        batch_start_index = batch*section_size
+        batch_end_index = np.min([(batch+1)*section_size, NUM_GRID_POINTS])
+        all_paths.extend([f"{wildcards.where}batch_{batch}/{str(i).zfill(10)}/{file_needed}" for i in range(batch_start_index, batch_end_index)])
+    return all_paths
+
+
+def determine_output_files_in_batches(wildcards):
+    return _determine_batch_folders(wildcards, "orca.out")
+
+def determine_input_files_in_batches(wildcards):
+    return _determine_batch_folders(wildcards,"orca.inp")
+
+paths = [f"{REMOTE_PATH}{EXPERIMENT_FULL_PATH}{my_path}orca.out" for my_path in
+                            _determine_batch_subfolders() if
+                            os.path.exists(f"{REMOTE_PATH}{EXPERIMENT_FULL_PATH}{my_path}orca.out")]
+print("NUM PATHS", len(paths))
+
+rule modify_run_orca:
+    input:
+        script_run_orca_job= "molgri/scripts/run_ORCA.sh",
+        script_submit_all_jobs = "molgri/scripts/submit_on_curta.sh"
+    output:
+        script_run_orca_job=f"{REMOTE_PATH}{{where}}run_ORCA.sh",
+        script_submit_all_jobs =f"{REMOTE_PATH}{{where}}submit_on_curta.sh"
+    params:
+        max_time = config['params_dft']['max_runtime'],
+        max_memory = config['params_dft']['max_mem_per_cpu']
+    run:
+        # submit all jobs is currently just copied
+        import shutil
+        shutil.copy(input.script_submit_all_jobs,output.script_submit_all_jobs)
+
+        with open(input.script_run_orca_job, "r") as f:
+            all_lines = f.readlines()
+
+        for i, line in enumerate(all_lines):
+            if line.startswith("#SBATCH --time="):
+                all_lines[i] = f"#SBATCH --time={params.max_time}\n"
+            if line.startswith("#SBATCH --mem-per-cpu="):
+                all_lines[i] = f"#SBATCH --mem-per-cpu={params.max_memory}\n"
+
+        with open(output.script_run_orca_job,"w") as f:
+            f.writelines(all_lines)
+
+rule split_inpfile:
+    """
+    If needed (e.g. for orca calculations) split a single file trajectory info a folder of single-structure files named
+    from 0000000000 to the total num of points.
+
+    Warning, this is not a general tool for any .xyz files but specifically for my pseudotrajectory file.
+    """
+    input:
+        full_inp=f"{REMOTE_PATH}{{where}}full_orca.inp",
+    output:
+        all_out = expand(f"{REMOTE_PATH}{{where}}{{specific_paths}}orca.inp",
+            specific_paths=_determine_batch_subfolders(), allow_missing=True),
+        to_touch = touch(f"{{where}}all_inputs_exist.touch")
+    run:
+        with open(input.full_inp, "r") as f:
+            all_lines = f.readlines() # throwing away the last \n line
+
+        split_len = len(all_lines)//NUM_GRID_POINTS
+
+        for i, output_file in enumerate(output.all_out):
+            with open(output_file, "w") as f:
+                f.writelines(all_lines[i*split_len:(i+1)*split_len])
+
+
+rule make_orca_inp_whole_traj:
+    input:
+        xyz_file = f"{{where}}trajectory.xyz",
+        num_atoms= f"{{where}}num_atoms.txt"
+    output:
+        inp_file = f"{REMOTE_PATH}{{where}}full_orca.inp"
+    params:
+        charge = config["params_dft"]["charge"],
+        multiplicity = config["params_dft"]["multiplicity"],
+    run:
+        with open(input.num_atoms) as f:
+            first_fragment = int(f.readline())
+            second_fragment = int(f.readline())
+
+        dimer = QuantumMolecule(charge=params.charge,multiplicity=params.multiplicity,xyz_file=input.xyz_file,
+                                fragment_1_len=first_fragment, fragment_2_len=second_fragment)
+
+        ob = OrcaWriter(dimer,QUANTUM_SETUP)
+        geo_optimization = "Opt" in config["params_dft"]["optimization_type"]
+        constrain_fragments = config["params_dft"]["optimization_type"] == "ConstOpt"
+        ob.make_entire_trajectory_inp(geo_optimization=geo_optimization, constrain_fragments=constrain_fragments)
+        ob.write_to_file(output.inp_file)
+
+checkpoint run_on_curta:
+    input:
+        script_run_orca_job = f"{REMOTE_PATH}{{where}}run_ORCA.sh",
+        script_submit_all_jobs = f"{REMOTE_PATH}{{where}}submit_on_curta.sh",
+        all_inputs = rules.split_inpfile.output.all_out
+    output:
+        touch(f"{{where}}ran.touch")
+    run:
+        calculation_dict = f"{REMOTE_PATH}{wildcards.where}"
+        shell("ssh hanaz63@curta.zedat.fu-berlin.de 'cd /home/hanaz63/{wildcards.where} && ./submit_on_curta.sh'")
+
+def find_all_created_outs(wildcards):
+    """
+    This input is important in order to first run calculations on curta and then look which .out files exist.
+    """
+    checkpoint_all_calculations_ran = checkpoints.run_on_curta.get(where=wildcards.where)
+    all_existing_outputs = [f"{REMOTE_PATH}{EXPERIMENT_FULL_PATH}{my_path}orca.out" for my_path in
+                            _determine_batch_subfolders() if
+                            os.path.exists(f"{REMOTE_PATH}{EXPERIMENT_FULL_PATH}{my_path}orca.out")]
+    print("len outputs", len(all_existing_outputs))
+    return all_existing_outputs
+
+
+rule orca_collect_energies:
+    """
+    After energies for each point in trajectory have been calculated, combine them for
+    """
+    input:
+        find_all_created_outs
+        #expand(f"{{where}}{{batch_subf}}orca.out",batch_subf=_determine_batch_subfolders(),allow_missing=True)
+    output:
+        energy = f"{{where}}energy.csv"
+    run:
+        # note: since differences in energy are used, there is no need for ZPE-corrected energy
+        # TODO: make sure to allow for control of the number of cycles and deal with failing structures
+        #for multi_out in input:
+        read_important_stuff_into_csv(input, csv_file_to_write=output.energy,
+            setup=QUANTUM_SETUP, num_points=NUM_GRID_POINTS )
+
+
+
+

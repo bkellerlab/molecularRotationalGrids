@@ -1,0 +1,556 @@
+import os.path
+import sys
+sys.path.append(".")
+
+import numpy as np
+import yaml
+from itertools import product
+
+from molgri.paths import PATH_EXPERIMENTS
+configfile: "workflow/default_sqra_orca_config.yaml"
+
+rule lowest_e:
+    input:
+        energy = f"/home/hanaz63/Downloads/ATB_GROMOS/two_molecules_cal/energy.xvg"
+    output:
+        list_structures = f"/home/hanaz63/Downloads/ATB_GROMOS/two_molecules_cal/structures.txt"
+    params:
+        num = 4
+    run:
+        from molgri.space.utils import k_argmin_in_array
+        from molgri.io import EnergyReader
+        er = EnergyReader(input.energy).load_energy()
+        energies2 = er["Coulomb (SR)"]
+        energies5 = er["LJ (SR)"]
+        energies6 = er["Potential"]
+        energies7 = er["Disper. corr."]
+
+        all_lowest_ind = k_argmin_in_array(energies6, k=params.num)
+        all_lowest_E = energies6[all_lowest_ind]
+        sort_index = np.argsort(all_lowest_E)
+        sorted_indices = all_lowest_ind[sort_index]
+        print("POTENTIAL")
+        print(", ".join([str(x+1) for x in all_lowest_ind]))
+        print(all_lowest_E)
+        np.savetxt(output.list_structures, sorted_indices)
+
+rule compare_bpti_evec_with_pdb:
+    input:
+        reference = f"../../../Downloads/4Y0Y_clean.pdb",
+        m1 = f"experiments/sqra_bpti_trypsine/example/configA/m1.gro",
+        structure = f"experiments/sqra_bpti_trypsine/example/configA/structure.gro",
+        trajectory = f"experiments/sqra_bpti_trypsine/example/configA/trajectory.xtc",
+    params:
+        frames = [2098, 4518, 6603, 6392, 34402]
+    output:
+        aligned = f"../../../Downloads/aligned.xtc"
+    run:
+        import MDAnalysis as mda
+        from MDAnalysis.analysis import align
+        from MDAnalysis.analysis.rms import rmsd
+
+        m1 = mda.Universe(input.m1)
+        m1_names = [atom.name for atom in m1.atoms]
+
+
+        ref = mda.Universe(input.reference)
+        mobile = mda.Universe(input.structure, input.trajectory)
+        first_few = mobile.select_atoms("protein and name CA and index 0:1008")
+        first_few_dynamic = ref.select_atoms("protein and name CA and index 0:1008")
+
+        print(len(ref.atoms), len(mobile.atoms))
+
+        for my_atoms in zip(first_few.atoms, first_few_dynamic.atoms):
+            if len(my_atoms) == 2:
+                print(my_atoms[0].index, my_atoms[1].index)
+        # for res in zip(first_few, first_few_dynamic):
+        #     if len(res)==2 and res[0].resid != res[1].resid:
+        #         print(res[0], res[1])
+        #         break
+
+        alignment = align.AlignTraj(mobile, ref, select="protein and name CA and index 0:1008",filename=output.aligned)
+
+        alignment.run()
+
+# what you wanna adapt:
+num_orientations = np.linspace(8,80,10)
+num_directions = np.linspace(8,80,10)
+radial_distances_nm = [f'linspace(0.2, 0.4, {i})' for i in np.linspace(2, 15, 10, dtype=int)]
+grid_identifier = [f"size_{k}" for k in range(len(num_orientations)*len(num_directions)*len(radial_distances_nm))]
+
+grid_options = product(num_orientations, num_directions, radial_distances_nm)
+
+rule prepare_multiple_config_files:
+    input:
+        initial_config = "input/sqra_water_in_vacuum/all_config_files/default_small_configuration_file.yaml"
+    output:
+        new_config = expand("input/sqra_water_in_vacuum/all_config_files/{gr_i}.yaml", gr_i=grid_identifier)
+    run:
+        with open(input.initial_config,'r') as f:
+            doc = yaml.safe_load(f)
+
+        for i, out_file in enumerate(output.new_config):
+            new_doc = doc.copy()
+            current_option = next(grid_options)
+            new_doc["params_grid"]["num_orientations"] = int(current_option[0])
+            new_doc["params_grid"]["num_directions"] = int(current_option[1])
+            new_doc["params_grid"]["radial_distances_nm"] = str(current_option[2])
+            new_doc["grid_identifier"] = grid_identifier[i]
+            new_doc["experiment_id"] = "size_experiment"
+            with open(out_file,"w") as f:
+                yaml.dump(new_doc,f)
+
+rule run_one_config_file:
+    input:
+        config_file="input/sqra_water_in_vacuum/all_config_files/{gr_i}.yaml"
+    output:
+        done = "input/sqra_water_in_vacuum/all_config_files/finished_{gr_i}.checkpoint"
+    resources:
+        cores = 1
+    shell:
+        "snakemake --snakefile workflow/run_sqra --cores {resources.cores} --configfile {input.config_file}  --rerun-incomplete --keep-going > {output.done}"
+
+
+rule run_multiple_config_files:
+    input:
+        config_file=expand("input/sqra_water_in_vacuum/all_config_files/finished_{gr_i}.checkpoint",gr_i=grid_identifier)
+
+
+rule plot_time_its_diff_sizes:
+    input:
+        time_energy = expand("experiments/sqra_water_in_vacuum/size_experiment/{gr_i}/gromacs_benchmark.txt", gr_i=grid_identifier),
+        time_decomposition = expand("experiments/sqra_water_in_vacuum/size_experiment/{gr_i}/decomposition_benchmark.txt",gr_i=grid_identifier),
+        params = expand("experiments/sqra_water_in_vacuum/size_experiment/{gr_i}/total_log.yaml", gr_i=grid_identifier),
+        itses = expand("experiments/sqra_water_in_vacuum/size_experiment/{gr_i}/its.csv", gr_i=grid_identifier),
+    output:
+        csv_file = "experiments/sqra_water_in_vacuum/size_experiment/size_analysis.csv",
+        its_plot = "experiments/sqra_water_in_vacuum/size_experiment/size_its_analysis.png"
+    params:
+        num_its = 5
+    run:
+        # todo show time of calclation
+        # todo: also show some eigenvectors
+        from molgri.io import BenchmarkReader, ParameterReader, ItsReader
+        import pandas as pd
+        import matplotlib.pyplot as plt
+        import seaborn as sns
+        import matplotlib.gridspec as gridspec
+
+        data = []
+        for t_e, t_d, my_params, its in zip(input.time_energy, input.time_decomposition, input.params, input.itses):
+            time_gromacs = BenchmarkReader(t_e).get_mean_time_in_s()
+            time_decomp = BenchmarkReader(t_d).get_mean_time_in_s()
+            all_params = ParameterReader(my_params).get_grid_size_params_als_dict()
+            its_num = ItsReader(its).get_first_N_its(params.num_its)
+            size_data = [time_gromacs, time_decomp, *all_params, *its_num]
+            data.append(size_data)
+
+
+        columns = ["Time gromacs [s]", "Time decomposition [s]", "Num. directions", "Num. orientations", "Num. radii"]
+        columns.extend([f"ITS {i+1} [ps]" for i in range(params.num_its)])
+        df = pd.DataFrame(data, columns=columns)
+        df["Total time [min]"] = (df["Time gromacs [s]"]+df["Time decomposition [s]"])/60
+        df["Total num gridpoints"] = df["Num. directions"]*df["Num. orientations"]*df["Num. radii"]
+        df.to_csv(output.csv_file)
+
+        fig = plt.figure(figsize=(8, 12))  # Adjust figure size to your needs
+        gs = gridspec.GridSpec(4,3,width_ratios=[1, 1, 1])
+        ax1 = fig.add_subplot(gs[0, :])
+        ax1_bigger = fig.add_subplot(gs[1, :])
+        ax2 = fig.add_subplot(gs[2, 0])
+        ax3 = fig.add_subplot(gs[2, 1])
+        ax4 = fig.add_subplot(gs[2, 2])
+        ax5 = fig.add_subplot(gs[3, 0])
+        ax6 = fig.add_subplot(gs[3, 1])
+        ax7 = fig.add_subplot(gs[3, 2])
+
+        colors = [plt.cm.tab20(i) for i in range(20)]
+
+        ax1_twin = ax1.twinx()
+        sns.lineplot(df,x="Total num gridpoints",y="Total time [min]",ax=ax1_twin,color="black", linestyle="--")
+        for i in range(params.num_its):
+            sns.lineplot(df,x="Total num gridpoints",y=f"ITS {i + 1} [ps]",ax=ax1,color=colors[i],marker="o", markersize=5)
+            sns.lineplot(df,x="Total num gridpoints",y=f"ITS {i + 1} [ps]",ax=ax1_bigger,color=colors[i],marker="o",markersize=5)
+            sns.lineplot(df, x="Num. directions", y=f"ITS {i+1} [ps]", ax=ax2, color=colors[i], marker="o", markersize=5)
+            sns.lineplot(df,x="Num. orientations",y=f"ITS {i + 1} [ps]",ax=ax3, color=colors[i], marker="o", markersize=5)
+            sns.lineplot(df,x="Num. radii",y=f"ITS {i + 1} [ps]",ax=ax4, color=colors[i], marker="o", markersize=5)
+            sns.lineplot(df, x="Num. directions", y=f"ITS {i+1} [ps]", ax=ax5, color=colors[i], marker="o", markersize=5)
+            sns.lineplot(df,x="Num. orientations",y=f"ITS {i + 1} [ps]",ax=ax6, color=colors[i], marker="o", markersize=5)
+            sns.lineplot(df,x="Num. radii",y=f"ITS {i + 1} [ps]",ax=ax7, color=colors[i], marker="o", markersize=5)
+
+
+        ax1.set(ylabel="ITS [ps]", yscale="log") #, xscale="log" ,
+        ax1_bigger.set(ylabel="ITS [ps]",ylim=(0,100))  #, xscale="log" ,
+        ax2.set(ylabel="ITS [ps]")
+        ax3.set(ylabel="ITS [ps]")
+        ax4.set(ylabel="ITS [ps]")
+        ax5.set(ylabel="ITS [ps]", ylim=(0,100))
+        ax6.set(ylabel="ITS [ps]", ylim=(0,100))
+        ax7.set(ylabel="ITS [ps]", ylim=(0,100))
+
+
+        fig.tight_layout()
+        fig.savefig(output.its_plot)
+
+#"experiments/guanidinium_xyz/example/medium_gua_grid/"
+# "experiments/water_xyz/example/large_example_water/"
+
+#/home/hanaz63/2024_molgri2/nobackup/molecularRotationalGrids/experiments/guanidinium_xyz/example/huge_gua_grid//
+
+
+EXPERIMENT_FULL_PATH = "experiments/water_xyz/example_new/water_64K/"
+FUNCTIONAL = "PBE0_def2tzvp_water_D4"
+rule compare_initial_and_const_opt_energies:
+    input:
+        initial_energies = f"{EXPERIMENT_FULL_PATH}SP_{FUNCTIONAL}/energy.csv",
+        const_opt_energies = f"{EXPERIMENT_FULL_PATH}ConstOpt_{FUNCTIONAL}/energy.csv"
+    output:
+        plot = f"{EXPERIMENT_FULL_PATH}absolute_energy_comparison.png",
+        #plot_hist = f"{EXPERIMENT_FULL_PATH}energy_hist.png",
+        plot_relative = f"{EXPERIMENT_FULL_PATH}relative_energy_comparison.png",
+    run:
+        import seaborn as sns
+        import pandas as pd
+        import matplotlib.pyplot as plt
+
+        sns.set_context("talk")
+
+        df_inital = pd.read_csv(input.initial_energies)
+        df_const_opt = pd.read_csv(input.const_opt_energies)
+
+        # sp energy
+        fig, ax = plt.subplots(1,2, sharey=True, sharex=True)
+        # kj_mol_gua_monomer = -540470.8771032256
+        kj_mol_water_monomer = -200563.91397680662
+        df_inital["Binding energy [kJ/mol]"] = df_inital["Energy [kJ/mol]"]-2*kj_mol_water_monomer
+        df_const_opt["Binding energy [kJ/mol]"] = df_const_opt["Energy [kJ/mol]"] - 2 * kj_mol_water_monomer
+
+        filtered_initial = df_inital[df_inital['Binding energy [kJ/mol]'] < 50]
+        filtered_const_opt = df_const_opt[df_inital['Binding energy [kJ/mol]'] < 50]
+
+
+        # sns.histplot(filtered_initial["Binding energy [kJ/mol]"],ax=ax[0], bins=100)
+        # ax[0].set_title(f"SP Plotted: {len(filtered_initial)}, not: {len(df_inital)-len(filtered_initial)}")
+        # sns.histplot(filtered_const_opt["Binding energy [kJ/mol]"],ax=ax[1], bins=100)
+        # ax[1].set_title(f"OPT Plotted: {len(filtered_const_opt)}, not: {len(df_const_opt) - len(filtered_const_opt)}")
+        # fig.savefig(output.plot_hist)
+
+
+        # absolute errors
+        fig, ax = plt.subplots(1, 1, figsize=(6,6))
+
+        sns.histplot(df_const_opt['Energy [kJ/mol]']-df_inital['Energy [kJ/mol]'], ax=ax, bins=50, binrange=(-5,1), binwidth=6/50, stat="probability")
+        ax.set_xlim(-5, 1)
+        ax.set_xlabel("E(opt) - E(SP) [kJ/mol]")
+        fig.tight_layout()
+        fig.savefig(output.plot)
+
+        # relative errors
+
+        # absolute errors
+        fig, ax = plt.subplots(1, 1)
+
+        sns.histplot(100*(filtered_const_opt["Binding energy [kJ/mol]"]-filtered_initial["Binding energy [kJ/mol]"])/np.abs(filtered_const_opt["Binding energy [kJ/mol]"]),
+            ax=ax, bins=50, binrange=(-50,0), binwidth=50/50)
+        ax.set_xlim(-50,0)
+        ax.set_xlabel("Change in energy after optimization [%]")
+        fig.tight_layout()
+        fig.savefig(output.plot_relative)
+
+
+
+
+
+# do this only for selected xyz files, eg those in final pics
+PLACE = """experiments/water_xyz/example/mid_example_water/ConstOpt_PBE0_def2tzvp_water_D4/"""
+
+rule fill_in_missing_values:
+    input:
+        const_opt = f"experiments/water_xyz/example_new/water_64K/ConstOpt_PBE0_def2tzvp_water_D4/energy.csv",
+        sp = f"experiments/water_xyz/example_new/water_64K/SP_PBE0_def2tzvp_water_D4/energy.csv",
+    output:
+        filled_in = f"experiments/water_xyz/example_new/water_64K/ConstOpt_PBE0_def2tzvp_water_D4/energy_corr.csv",
+        filled_in2= f"experiments/water_xyz/example_new/water_64K/SP_PBE0_def2tzvp_water_D4/energy_corr.csv",
+    run:
+        import pandas as pd
+        df_co = pd.read_csv(input.const_opt)
+        df_sp = pd.read_csv(input.sp)
+
+
+        num_missing = df_co['Energy [kJ/mol]'].isna().sum()
+        num_total = len(df_co)
+        print(f"Have to fill in {num_missing}/{num_total} missing values ({num_missing/num_total*100})%")
+
+        df_co["Energy [kJ/mol]"] = df_co["Energy [kJ/mol]"].fillna(df_sp["Energy [kJ/mol]"])
+        df_co.to_csv(output.filled_in)
+        df_sp.to_csv(output.filled_in2)
+
+
+rule find_missing_values:
+    input:
+        const_opt= "experiments/water_xyz/example_new/water_64K/ConstOpt_PBE0_def2tzvp_water_D4/energy.csv"
+    output:
+        list_of_files = "experiments/water_xyz/example_new/water_64K/ConstOpt_PBE0_def2tzvp_water_D4/missing_files.txt"
+    run:
+        import pandas as pd
+        my_df = pd.read_csv(input.const_opt)
+        pd.options.display.max_colwidth = 150
+        not_finished_df = my_df[~my_df["Normal Finish"]]
+        indices = not_finished_df["Frame"].to_numpy()
+        files = find_all_structures_with_indices(indices, "experiments/water_xyz/example_new/water_64K/ConstOpt_PBE0_def2tzvp_water_D4/", "orca.inp")
+        print(files)
+        with open(output.list_of_files, "w") as f:
+            f.write("\n".join(files))
+
+rule get_total_time:
+    input:
+        "experiments/water_xyz/example_new/water_64K/ConstOpt_PBE0_def2tzvp_water_D4/orca_time.txt",
+        "experiments/water_xyz/example_new/water_64K/SP_PBE0_def2tzvp_water_D4/orca_time.txt",
+        "experiments/guanidinium_xyz/example_new/huge_gua_grid/SP_B3LYP_def2tzvp_water_D4/orca_time.txt",
+        "experiments/guanidinium_xyz/example_new/huge_gua_grid/ConstOpt_B3LYP_def2tzvp_water_D4/orca_time.txt"
+
+rule orca_total_and_average_time:
+    input:
+        energy=f"{{where}}energy.csv"
+    output:
+        total_time=f"{{where}}orca_time.txt"
+    run:
+        import pandas as pd
+
+        my_df = pd.read_csv(input.energy)
+        my_df["TIME"] = pd.to_timedelta(my_df["Time [h:m:s]"],errors="coerce")
+        my_df["Time [s]"] = my_df["TIME"].dt.total_seconds()
+        time_s = my_df["Time [s]"]
+
+        with open(output.total_time,"w") as f:
+            f.write(f"Total time [s]: {time_s.sum():.2f}\n")
+            f.write(f"Total time [h:m:s]: {pd.to_timedelta(time_s.sum(),unit='s')}\n")
+            f.write(f"700 parallel processes total time [h:m:s]: {pd.to_timedelta(time_s.sum()/700,unit='s')}\n")
+            f.write("--------------\n")
+            f.write(f"Mean time [s]: {time_s.mean():.2f} +- {time_s.std():.2f}\n")
+            f.write(f"Mean time [h:m:s]: {pd.to_timedelta(time_s.mean(),unit='s')} +- {pd.to_timedelta(time_s.std(),unit='s')}\n")
+            f.write("--------------\n")
+            f.write(f"Max time [s]: {time_s.max():.2f}\n")
+            f.write(f"Min time [s]: {time_s.min():.2f}\n")
+            f.write(f"Max time [h:m:s]: {pd.to_timedelta(time_s.max(),unit='s')}\n")
+            f.write(f"Min time [h:m:s]: {pd.to_timedelta(time_s.min(),unit='s')}\n")
+
+rule run_example:
+    input:
+        "/home/hanaz63/2024_molgri2/nobackup/molecularRotationalGrids/experiments/sqra_water_in_vacuum/example/large_example_water/neighbours_17/vmdlog"
+
+
+import sys
+import os
+import numpy as np
+import matplotlib.pyplot as plt
+
+plt.switch_backend('agg')
+
+# add molgri directory
+sys.path.append(".")
+from molgri.paths import PATH_INPUT_BASEGRO, PATH_EXPERIMENTS
+from molgri.io import QuantumSetup
+
+#include: "run_grid"
+
+if config["energy_program"] == "ORCA":
+    #include: "energy_eval_orca"
+
+    QUANTUM_SETUP = QuantumSetup(
+        functional=config["params_dft"]["functional"],
+        basis_set=config["params_dft"]["basis_set"],
+        solvent=config["params_dft"]["solvent"],
+        dispersion_correction=config["params_dft"]["dispersion"],
+        num_scf=config["params_dft"]["num_scf"],
+        num_cores=config["params_dft"]["num_cores"],
+        ram_per_core=config["params_dft"]["ram_per_core"]
+    )
+    ORCA_DIR = QUANTUM_SETUP.get_dir_name()
+    PATH_SEARCH_DIR = f"{PATH_EXPERIMENTS}{config['experiment_type']}/{config['experiment_id']}/{config['grid_identifier']}/{config['params_dft']['optimization_type']}_{ORCA_DIR}"
+elif config["energy_program"] == "GROMACS":
+    #include: "energy_eval_gromacs"
+    PATH_SEARCH_DIR = f"{PATH_EXPERIMENTS}{config['experiment_type']}/{config['experiment_id']}/{config['grid_identifier']}/"
+else:
+    raise ValueError(f"Energy program must be ORCA or GROMACS, not {config['energy_program']}")
+
+
+rule from_rough_to_clean_csv:
+    input:
+        rough = f"{PATH_SEARCH_DIR}orca_results.csv"
+    output:
+        clean = f"{PATH_SEARCH_DIR}playground/results.csv"
+    run:
+        import pandas as pd
+        from pathlib import Path
+        from scipy.constants import physical_constants
+
+        HARTREE_TO_J = physical_constants["Hartree energy"][0]
+        AVOGADRO_CONSTANT = physical_constants["Avogadro constant"][0]
+
+        # "File,Total Run Time,Final Single Point Energy"
+        df = pd.read_csv(input.rough)
+        df['Frame'] = df['File'].apply(lambda x: int(Path(x).parent.name))
+        df["Energy [kJ/mol]"] = df["Final Single Point Energy"] / 1000.0 * (HARTREE_TO_J * AVOGADRO_CONSTANT)
+        df = df.sort_values(by="Frame")
+        print(df)
+
+        df.to_csv(output.clean)
+
+
+rule remove_too_long:
+    input:
+        rough = f"{PATH_SEARCH_DIR}energy.csv"
+    output:
+        clean = f"{PATH_SEARCH_DIR}removed_energy.csv"
+    params:
+        max_time_in_s = config['params_dft']['max_runtime']
+    run:
+        import pandas as pd
+        from pathlib import Path
+        from scipy.constants import physical_constants
+
+
+        def time_string_to_seconds(time_str):
+            # Replace '-' with ' days ' to match pandas timedelta format
+            time_str = time_str.replace('-',' days ')
+            # Convert to timedelta
+            td = pd.to_timedelta(time_str)
+            # Return total seconds as float
+            return td.total_seconds()
+
+        # "File,Total Run Time,Final Single Point Energy"
+        df = pd.read_csv(input.rough)
+        try:
+            df["Time [h:m:s]"] = pd.to_timedelta(df["Time [h:m:s]"])
+            df["Time [s]"] = np.where(df["Normal Finish"],df["Time [h:m:s]"].dt.total_seconds(),np.NaN)
+        except:
+            pass
+
+        # Create new_df with conditions applied
+        new_df = df.copy()
+        try:
+            new_df.loc[new_df['Time [s]'] >= time_string_to_seconds(params.max_time_in_s), 'Energy [kJ/mol]'] = np.nan
+        except:
+            pass
+        new_df.to_csv(output.clean)
+
+rule run_sqra:
+    """
+    As input we need: energies, adjacency, volume, borders, distances.
+    As output we want to have the rate matrix.
+    """
+    input:
+        energy = f"{PATH_SEARCH_DIR}removed_energy.csv",
+        distances_array = f"{PATH_SEARCH_DIR}distances_array.npz",
+        borders_array = f"{PATH_SEARCH_DIR}borders_array.npz",
+        volumes = f"{PATH_SEARCH_DIR}volumes.npy",
+    output:
+        rate_matrix = f"{PATH_SEARCH_DIR}absolute_lim_{{upper_bound}}/rate_matrix.npz",
+        index_list = f"{PATH_SEARCH_DIR}absolute_lim_{{upper_bound}}/index_list.npy",
+    benchmark:
+        f"{PATH_SEARCH_DIR}absolute_lim_{{upper_bound}}/rate_matrix_benchmark.txt"
+    params:
+        T=float(config["params_sqra"]["temperature_K"]),
+        energy_type=config["params_sqra"]["energy_type"],
+        m_h2o = float(config["params_sqra"]["mass_kg"]),
+        tau = float(config["params_setup"]["tau_t"]),
+        lower_lim = config["params_sqra"]["lower_lim_rate_matrix"],
+        upper_lim = config["params_sqra"]["upper_lim_rate_matrix"],
+    run:
+        from molgri.io import EnergyReader
+        from molgri.molecules.transitions import SQRA
+        from scipy import sparse
+        from scipy.constants import k as k_B
+        import pandas as pd
+
+        tau = float(params.tau) * 1e-12 # now in s
+
+        D = k_B * params.T *tau / params.m_h2o  # in m^2/s
+        D*= 1e8  # now in A^2/ps
+        print(f"Diffusion const D={D} ")
+
+        # load input files
+        all_volumes = np.load(input.volumes)
+        all_surfaces = sparse.load_npz(input.borders_array)
+        all_distances = sparse.load_npz(input.distances_array)
+
+
+
+        # determine limits
+        if params.lower_lim == "None":
+            lower_limit = None
+        else:
+            lower_limit = float(params.lower_lim)
+        if params.upper_lim == "None":
+            upper_limit = None
+        else:
+            upper_limit = float(params.upper_lim)
+
+
+        energies = EnergyReader(input.energy).load_single_energy_column(params.energy_type)
+
+        # subtract monomer energies
+        if config['experiment_type'] == "guanidinium_xyz":
+            kj_mol_monomer = -540470.8771032256
+        elif config['experiment_type'] == "water_xyz":
+            kj_mol_monomer = -200563.91397680662
+        energies = energies - 2*kj_mol_monomer
+
+        energies = np.nan_to_num(energies, nan=np.infty)
+
+        sqra = SQRA(energies=energies,volumes=all_volumes,distances=all_distances,surfaces=all_surfaces)
+
+
+        rate_matrix = sqra.get_rate_matrix(D,params.T)
+        print("rate matrix", pd.DataFrame(rate_matrix.data).describe())
+        rate_matrix, index_list = sqra.cut_and_merge(rate_matrix,T=params.T,lower_limit=None,
+            upper_limit=float(wildcards.upper_bound), lower_bound_factor=None,
+        upper_bound_factor=None)
+        print("rate matrix after cut",pd.DataFrame(rate_matrix.data).describe())
+        # saving to file
+        sparse.save_npz(output.rate_matrix,rate_matrix)
+        np.save(output.index_list,np.array(index_list,dtype=object))
+
+
+
+rule run_decomposition:
+    """
+    As output we want to have eigenvalues, eigenvectors. Es input we get a (sparse) rate matrix.
+    """
+    input:
+        rate_matrix = f"{PATH_SEARCH_DIR}absolute_lim_{{upper_bound}}/rate_matrix.npz"
+    output:
+        eigenvalues = f"{PATH_SEARCH_DIR}absolute_lim_{{upper_bound}}/eigenvalues.npy",
+        eigenvectors = f"{PATH_SEARCH_DIR}absolute_lim_{{upper_bound}}/eigenvectors.npy",
+    benchmark:
+        f"{PATH_SEARCH_DIR}absolute_lim_{{upper_bound}}/decomposition_benchmark.txt"
+    params:
+        tol=config["params_sqra"]["tol"],
+        maxiter=config["params_sqra"]["maxiter"],
+        sigma=config["params_sqra"]["sigma"],
+        which=config["params_sqra"]["which"],
+    run:
+        from scipy import sparse
+        from molgri.molecules.transitions import DecompositionTool
+
+        # loading
+        my_matrix = sparse.load_npz(input.rate_matrix)
+
+        if params.sigma == "None":
+            sigma = None
+        else:
+            sigma = float(params.sigma)
+        # calculation
+        dt = DecompositionTool(my_matrix)
+        all_eigenval, all_eigenvec = dt.get_decomposition(tol=params.tol, maxiter=params.maxiter, which=params.which,
+            sigma=sigma)
+
+        # saving to file
+        np.save(output.eigenvalues,np.array(all_eigenval))
+        np.save(output.eigenvectors,np.array(all_eigenvec))
+
+rule all_bound_eigenalues:
+    input:
+        expand(f"{PATH_SEARCH_DIR}absolute_lim_{{upper_bound}}/rate_matrix.npz", zip,
+            upper_bound=["1", "3", "5", "10", "20", "50", "100", "200", "500", "1000"])
