@@ -113,7 +113,7 @@ if "plot_some_frames" in config["analysis"]["parts_to_perform"]:
 if "plot_lowest_energies" in config["analysis"]["parts_to_perform"]:
     DESIRED_RESULTS.extend(
         [expand(f"<outputs_molecular_plots>lowest_energy/{{sim_pseudo_wrapped}}/{{N}}_lowest_zoom{{zoom_level}}_view{{view_index}}.png",
-            sim_pseudo_wrapped=["simulation", "wrapped"], zoom_level=zoom_level, view_index=view_index, N=[1, 2, 5, 10])]
+            sim_pseudo_wrapped=["pseudosimulation"], zoom_level=zoom_level, view_index=view_index, N=[1, 2, 5, 10])]
     )
 
 if "assign_trajectory"  in config["analysis"]["parts_to_perform"]:
@@ -126,7 +126,7 @@ if "assign_trajectory"  in config["analysis"]["parts_to_perform"]:
 if "sqra"  in config["analysis"]["parts_to_perform"]:
     DESIRED_RESULTS.extend(
         [rules.get_eigenvectors_sum_0.input, rules.get_eigenvectors_sum_other.input, rules.save_sqra_its.output,
-         rules.plot_sqra_eigenvectors_as_lines.output, rules.plot_sqra_eigenvalues.output]
+         rules.plot_sqra_eigenvectors_as_lines.output, rules.plot_sqra_eigenvalues.output, rules.plot_sqra_its.output]
     )
 
 if "prepare_all_on_curta" in config["analysis"]["parts_to_perform"]:
