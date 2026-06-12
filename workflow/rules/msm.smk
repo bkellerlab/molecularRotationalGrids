@@ -348,6 +348,16 @@ rule run_plot_its_msm:
                     fig.update_yaxes(range=[0, 20],row=1,col=col)
                 fig.add_scatter(x=xs, y=its, mode="lines+markers", line=dict(width=2, color=cols[i]), row=1,
                                      col=col)
+
+        fig.update_layout(
+            font=dict(size=22),# larger text like seaborn talk
+            title_font=dict(size=28),
+            xaxis_title_font=dict(size=28),
+            yaxis_title_font=dict(size=28),
+            legend_font=dict(size=22),
+        )
+
+        fig.update_traces(line=dict(width=3))
         fig.update_layout(
             xaxis=dict(
                 showline=True,# show axis spine

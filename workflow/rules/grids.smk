@@ -5,9 +5,13 @@ import numpy as np
 import pandas as pd
 import matplotlib
 import plotly.graph_objects as go
+from scipy.sparse import coo_matrix
+from scipy.spatial.transform import Rotation, Slerp
 
-from molgri.network.generation import build_quaternion_network, build_translation_network, create_full_network
+from molgri.network.generation import build_quaternion_network, build_translation_network, create_full_network, \
+    get_all_rotated_diffusion_matrices
 from molgri.images.plotting import show_graph, show_array
+from molgri.utils.arrays import normalise_vectors
 
 from workflow.helpers.io import write_object, read_object
 from workflow.helpers.build_subgrids import make_grid_base
@@ -39,6 +43,116 @@ rule create_rotation_network:
 
         rotation_network = build_quaternion_network(upper_quaternions)
         write_object(rotation_network, output.network_file)
+
+
+rule evaluate_rotated_diffusion_matrices:
+    input:
+        info_material = "<outputs_network>grid_info.yaml"
+    output:
+        rotated_translational_diffusion = "<outputs_network>rotation_network/rotated_translational_diffusion_matrices.npy",
+        rotated_rotational_diffusion= "<outputs_network>rotation_network/rotated_rotational_diffusion_matrices.npy"
+    params:
+        translational_diffusion = config["sqra"]["translational_diffusion_coefficient"],
+        rotational_diffusion = config["sqra"]["rotational_diffusion_coefficient"]
+    run:
+        grid_info = read_object(input.info_material)
+        upper_quaternions = np.array(grid_info["quaternions"])
+
+        # translational diffusion
+        translational_diffusion_matrix = np.diag(np.array(params.translational_diffusion))
+        rotated_diffusion_trans = get_all_rotated_diffusion_matrices(upper_quaternions, translational_diffusion_matrix)
+        write_object(rotated_diffusion_trans, output.rotated_translational_diffusion)
+
+        # rotational diffusion
+        rotational_diffusion_matrix = np.diag(np.array(params.rotational_diffusion))
+        rotated_diffusion_rot = get_all_rotated_diffusion_matrices(upper_quaternions, rotational_diffusion_matrix)
+        write_object(rotated_diffusion_rot, output.rotated_rotational_diffusion)
+
+rule get_rotation_index_along_grid:
+    """
+    Save which quaternion and position relate to which index. Useful for debugging.
+    """
+    input:
+        network= f"<outputs_network>network.pkl",
+    output:
+        rotation_indices = f"<outputs_network>rotation_indices.npy"
+    run:
+        my_network = read_object(input.network)
+        rotation_indices = my_network.get_rotation_indices()
+        write_object(rotation_indices, output.rotation_indices)
+
+rule get_neighbour_diffusion_matrix:
+    input:
+        grid = "<outputs_network>grid.npy",
+        numerical_edge_type = "<outputs_network>edge_types.npz",
+        rotated_translational_diffusion = "<outputs_network>rotation_network/rotated_translational_diffusion_matrices.npy",
+        rotated_rotational_diffusion= "<outputs_network>rotation_network/rotated_rotational_diffusion_matrices.npy",
+        rotation_indices= f"<outputs_network>rotation_indices.npy"
+    output:
+        neighbour_diffusion_matrix = "<outputs_network>neighbour_diffusion_matrix.npz",
+    benchmark:
+        "<outputs_network>rotation_network/timing_get_neighbour_diffusion_matrix.txt"
+    params:
+        rotational_diffusion = config["sqra"]["rotational_diffusion_coefficient"]
+    run:
+        edge_type = read_object(input.numerical_edge_type).tocoo()
+
+        grid = read_object(input.grid)[:,:3]
+        quaternion = read_object(input.grid)[:, 3:]
+        rotation_indices = read_object(input.rotation_indices)
+        rotated_translational_diffusion_matrices = read_object(input.rotated_translational_diffusion)
+        rotated_rotational_diffusion_matrices = read_object(input.rotated_rotational_diffusion)
+
+        base_rotational_diffusion = np.diag(np.array(params.rotational_diffusion))
+
+        diffusion_matrix_data = []
+        for i, j, edge_code in zip(edge_type.row, edge_type.col, edge_type.data):
+            rotation_index_of_i = rotation_indices[i]
+            rotation_index_of_j = rotation_indices[j]
+            if edge_code !=4:
+                assert rotation_index_of_i == rotation_index_of_j
+                # then this is translational edge
+                diffusion_matrix = rotated_translational_diffusion_matrices[rotation_index_of_i]
+                direction_vector = normalise_vectors(grid[j]-grid[i])
+                final_diffusion = direction_vector.T@diffusion_matrix@direction_vector
+                diffusion_matrix_data.append(final_diffusion)
+            else:
+                # is rotational edge, not implemented yet
+                diffusion_matrix_i = rotated_rotational_diffusion_matrices[rotation_index_of_i]
+                diffusion_matrix_j = rotated_rotational_diffusion_matrices[rotation_index_of_j]
+                rot = Rotation.from_quat(np.array([quaternion[i], quaternion[j]]),scalar_first=True)
+                my_slerp = Slerp([0, 1],rot)
+                N_interpolations = 20
+                t = np.linspace(0,1,N_interpolations)
+                # has shape (N_interpolations, 3, 3)
+                interpolated_rot = my_slerp(t).as_matrix()
+
+
+                # make my diffusion matrix also the same shape
+                base_rotational_diffusion_tiled = np.tile(base_rotational_diffusion,(N_interpolations, 1, 1))
+
+
+                # using batch transpose, 0th axis unchanged, 1nd and 2st are swapped
+                transposed_interpolated_rot = interpolated_rot.transpose(0, 2, 1)
+                interpolated_Ds = interpolated_rot@base_rotational_diffusion_tiled@transposed_interpolated_rot
+                #print("interpolated_Ds part1 ",np.round(interpolated_rot@base_rotational_diffusion_tiled, 3))
+
+                # direction is now given by the quaternion connecting the start and the end quaternion
+                R1 = Rotation.from_quat(np.array(quaternion[i]),scalar_first=True)
+                R2 = Rotation.from_quat(np.array(quaternion[j]),scalar_first=True)
+                relative_quat = R2 * R1.inv()
+
+                # should the direction also continuisly change?
+                direction_vector = normalise_vectors(relative_quat.as_rotvec())
+                final_diffusion = direction_vector.T @ interpolated_Ds @ direction_vector
+                average_final_diffusion = np.sum(final_diffusion)/N_interpolations
+
+                diffusion_matrix_data.append(average_final_diffusion)
+
+        #print(len(diffusion_matrix_data), edge_type.col.shape, edge_type.col.shape, edge_type.shape, diffusion_matrix[0], diffusion_matrix[-1])
+        translational_diffusion_matrix = coo_matrix((diffusion_matrix_data, (edge_type.row, edge_type.col)),shape=edge_type.shape, dtype=np.float64)
+        write_object(translational_diffusion_matrix, output.neighbour_diffusion_matrix)
+
 
 
 rule create_translation_network:

@@ -17,7 +17,8 @@ def input_sqra(wc):
     base_properties = {"energies": "<pseudosimulation>energy.csv",
             "volumes": "<outputs_network>volumes.npz",
             "distances": "<outputs_network>distances.npz",
-            "surfaces": "<outputs_network>surfaces.npz"}
+            "surfaces": "<outputs_network>surfaces.npz",
+            "neighbour_diffusion_matrix": "<outputs_network>neighbour_diffusion_matrix.npz",}
     if config["sqra"]["allow_diffusion_to_bulk"]:
         base_properties["surfaces_to_bulk"] = f"<outputs_network>boundaries_to_bulk.npy"
         base_properties["volumes_to_bulk"] = f"<outputs_network>volumes_to_bulk.npy"
@@ -29,8 +30,7 @@ rule make_sqra:
     output:
         rate_matrix = f"<outputs_transitions>sqra/sqra.npz",
     params:
-        T_in_K = 293,
-        diffusion_coefficient = config["sqra"]["diffusion_coefficient"],
+        T_in_K = config["sqra"]["T"],
         capping_factor = config["sqra"]["capping_factor"],
         flow_to_bulk = config["sqra"]["flow_to_bulk"],
         allow_diffusion_to_bulk = config["sqra"]["allow_diffusion_to_bulk"],
@@ -41,11 +41,12 @@ rule make_sqra:
         volumes = read_object(input.volumes)
         distances = read_object(input.distances)
         surfaces = read_object(input.surfaces)
+        neighbour_diffusion_matrix = read_object(input.neighbour_diffusion_matrix)
         flow_to_bulk = float(params.flow_to_bulk)
         energy_kJ_mol_bulk = float(params.energy_kJ_mol_bulk)
 
         sqra = SQRA(energies=my_energy_array,volumes=volumes,distances=distances,surfaces=surfaces, T=params.T_in_K)
-        rate_matrix = sqra.get_rate_matrix(params.diffusion_coefficient,
+        rate_matrix = sqra.get_rate_matrix(neighbour_diffusion_matrix,
             capping_factor=params.capping_factor)
         print("pre ", pd.DataFrame(rate_matrix.data).describe())
         if bool(params.allow_diffusion_to_bulk):
@@ -76,6 +77,7 @@ rule reduce_sqra_size:
             logarithmically_spaced_cutting_factors = logarithmically_spaced_cutting_factors [::-1]
 
             for cutting_factor in logarithmically_spaced_cutting_factors:
+                print("Trying cutting_factor = ", cutting_factor)
                 reduced_sqra, indices_to_keep = delete_rows_columns(sqra,"sqra", cutting_factor)
                 # we demand the row-sum of rate matrix to be close to zero in order to get eigenvectors that behave as such
                 if np.abs(np.max(np.sum(reduced_sqra, axis=1))) < float(params.tolerance_rate_matrix_row_sum):
@@ -298,7 +300,7 @@ rule plot_sqra_its:
 
         for it in its[:4]:
             fig.add_hline(it,line=dict(color="black",dash="dash",width=1),opacity=1)
-        fig.update_layout(xaxis_title=r"",yaxis_title="ITS [ns]",xaxis=dict(range=[0, 1]),
+        fig.update_layout(xaxis_title=r"",yaxis_title="ITS",xaxis=dict(range=[0, 1]),
             yaxis=dict(range=[0, np.max(its) + 0.2]))
 
         fig.update_layout(
@@ -320,7 +322,14 @@ rule plot_sqra_its:
             ),
             plot_bgcolor="white"
         )
-
+        fig.update_layout(
+            font=dict(size=22),# larger text like seaborn talk
+            title_font=dict(size=28),
+            xaxis_title_font=dict(size=28),
+            yaxis_title_font=dict(size=28),
+            legend_font=dict(size=22),
+            width=500,height=500
+        )
         fig.write_image(output.plot, scale=3)
 
 checkpoint sqra_find_indices_dominant_eigenvectors:

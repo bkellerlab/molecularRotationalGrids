@@ -46,15 +46,12 @@ rule create_bulk_structure:
 
 
 
-
-
-
 rule create_pseudotrajectory:
     """
     Here we are creating a pseudotrajectory from two molecules and a network.
     """
     input:
-        structure = f"<simulation>structure.gro",
+        structure = f"<pseudosimulation>structure.gro",
         molecule_1 = f"<pseudosimulation>molecule1.<ext_inp>",
         molecule_2 = f"<pseudosimulation>molecule2.<ext_inp>",
         network = f"<outputs_network>network.pkl"
