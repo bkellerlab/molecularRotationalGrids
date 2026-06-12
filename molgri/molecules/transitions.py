@@ -5,6 +5,7 @@ perform eigendecomposition of these matrices.
 
 from typing import Optional, Sequence, Tuple, Any
 
+import pandas as pd
 from numpy.typing import NDArray
 import numpy as np
 from scipy.signal import find_peaks
@@ -200,7 +201,7 @@ class SQRA:
         return self.rate_matrix
 
 
-    def get_rate_matrix(self, D: float, capping_factor: float) -> csr_array:
+    def get_rate_matrix(self, diffusion_matrix: csr_array, capping_factor: float) -> csr_array:
         """
         This is the method that gets from cell properties (energies, volumes) and adjacency properties (distances,
         surfaces) to the full rate matrix.
@@ -218,8 +219,11 @@ class SQRA:
         #assert len(self.energies) == len(self.volumes), f"{len(self.energies)} != {len(self.volumes)}"
         # you cannot multiply or divide directly in a coo format
         # using a higher-precision dtype is not useful, since we take exponentials of huge numbers - always overflow
-        rate_matrix = D * self.surfaces
+        rate_matrix = self.surfaces
+        print("surfaces ", pd.DataFrame(self.surfaces.data).describe())
         rate_matrix = rate_matrix.tocoo()
+        rate_matrix.data *= diffusion_matrix.tocoo().data
+        print("diffusion_matrix ", pd.DataFrame(diffusion_matrix.data).describe())
         rate_matrix.data /= self.distances.tocoo().data
         # Divide every row of transition_matrix with the corresponding volume
         rate_matrix.data /= self.volumes.tocoo().data #[rate_matrix.row]
@@ -234,7 +238,9 @@ class SQRA:
             energy_differences = np.where(energy_differences < float(capping_factor), energy_differences, float(capping_factor))
 
         pi_exponent = energy_differences * 1000 / (2 * kB * N_A * self.T)
+        print("pi_exponent ", pd.DataFrame(pi_exponent).describe())
         rate_matrix.data *= np.exp(pi_exponent)
+        print("rate matrix before normalizing ", pd.DataFrame(rate_matrix.data).describe())
         #print(pd.DataFrame(rate_matrix.data).describe())
 
         # normalize sum of rows
@@ -243,6 +249,7 @@ class SQRA:
         sum_diag = diags_array(-sums, format="csr")
         all_together = rate_matrix + sum_diag
         self.rate_matrix = all_together
+        print("rate matrix after normalizing ", pd.DataFrame(rate_matrix.data).describe())
         return all_together
 
 
@@ -305,7 +312,7 @@ class DecompositionTool:
         third_tuple = (eigenvalues[indices_sum_to_other], eigenvectors[:, indices_sum_to_other])
         return first_tuple, third_tuple
 
-    def get_decomposition(self, tol: float, maxiter: int, which: str, sigma: Optional[float], k: int = 24) -> tuple:
+    def get_decomposition(self, tol: float, maxiter: int, which: str, sigma: Optional[float], k: int = 15) -> tuple:
         """
         The function to decompose matrices. It wraps the scipy decompose and makes sure:
         - the output is not given as complex numbers
@@ -326,7 +333,6 @@ class DecompositionTool:
         """
         # two options for transpose: large, sparse matrices need specialized methods but small ones perform better
         # with full eigendecomposition
-        print("getting decomposition ", self.matrix_to_decompose.shape, sigma, k)
         eigenval, eigenvec = decompose_with_petsc(self.matrix_to_decompose.T, sigma, num_eigenvectors=k)
         # if self.matrix_to_decompose.shape[0] > 20000:
         #     eigenval, eigenvec = eigs(self.matrix_to_decompose.T, k=k, tol=tol, maxiter=maxiter, which=which,

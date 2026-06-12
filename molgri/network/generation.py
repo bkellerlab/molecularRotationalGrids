@@ -12,6 +12,7 @@ import networkx as nx
 import numpy as np
 from numpy.typing import NDArray
 from scipy.sparse import coo_array
+from scipy.spatial.transform import Rotation
 
 from molgri.network.abstract import get_spherical_voronoi
 from molgri.network.full_network import FullNetwork, FullNode
@@ -21,6 +22,28 @@ from molgri.network.translation_network import CartesianTranslationNetwork, OneD
     TranslationNode
 from molgri.utils.quaternions import double_coverage_from_upper_quaternions, hypersphere_voronoi_cell_volumes
 
+
+def get_all_rotated_diffusion_matrices(upper_quaternions: NDArray, diffusion_matrix: NDArray) -> NDArray:
+    """
+    The provided input is the constant translational diffusion matrix in the body-fixed frame as well as the set of all
+    quaternions used to rotate the body. After the body has been rotated with some quaternion, the matrix in the
+    body-fixed frame remains the same but the matrix in the
+    world-fixed frame is now different. This method provides the translational diffusion matrix in the world-fixed
+    frame after the rotation given by the quaternion.
+
+    Args:
+        upper_quaternions (NDArray): an array of shape (N_rot, 4) describing all rotations in our set
+        diffusion_matrix (NDArray): an array of shape (3, 3) the translational diffusion matrix of the original molecule
+
+    Returns:
+         an array of shape (N_rot, 3, 3) the translational diffusion matrix after each rotation in the world-fixed frame
+    """
+    diffusion_matrices = []
+    for quat in upper_quaternions:
+        R = Rotation.from_quat(quat, scalar_first=True).as_matrix()
+        transformed_diffusion_matrix = R @ diffusion_matrix @ R.T
+        diffusion_matrices.append(transformed_diffusion_matrix)
+    return np.array(diffusion_matrices)
 
 def build_quaternion_network(upper_quaternions: NDArray) -> RotationNetwork:
     """

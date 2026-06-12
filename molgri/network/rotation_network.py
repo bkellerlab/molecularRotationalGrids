@@ -34,6 +34,7 @@ class RotationNode(AbstractNode):
         self.coordinate = quaternion
         self.hull = hypersphere_hull
         self.volume = hull_volume
+        self.rotation = Rotation.from_quat(self.coordinate, scalar_first=True)
 
     def hull(self) -> NDArray:
         return self.hull
@@ -62,8 +63,7 @@ class RotationNode(AbstractNode):
         """
         center_of_geometry = np.average(molecular_coordinates, axis=0, weights=weights)
         shifted_points = molecular_coordinates - center_of_geometry
-        rot = Rotation.from_quat(self.coordinate, scalar_first=True)
-        rotated_points = rot.apply(shifted_points)
+        rotated_points = self.rotation.apply(shifted_points)
         rotated_points += center_of_geometry
         return rotated_points
 

@@ -99,7 +99,6 @@ class FullNode(AbstractNode):
         return translated_points
 
 
-
 class FullNetwork(AbstractNetwork):
 
     @cached_property

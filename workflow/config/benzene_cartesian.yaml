@@ -1,0 +1,36 @@
+grid:
+  unique_network_name: "cartesian_positions_above_below"
+  rotation_algorithm: "hypercube"
+  rotation_random_seed: 1
+  N_rotations: 272
+  translation_algorithm: "cartesian"
+  periodic_in: [False, False, False]
+  translation_subgrids_A: [ [-10, 10, 10], [-10, 10, 10], [-10, 10, 20] ]
+
+pseudotrajectory:
+  molecule_1: "benzene"
+  molecule_2: "benzene"
+  structure_ending: "gro"
+  trajectory_ending: "xtc"
+
+analysis:
+  energy_program: GROMACS
+  view_index: [ 1 ]
+  length_shortened_trajectory_ns: 10
+  energy_types: ["LJ (SR)", "Coulomb (SR)"]
+  upper_E_limit: 0
+  analyse_first_N_frames: None
+  parts_to_perform: ["sqra", "plot_lowest_energies"]
+
+sqra:
+  #capping_factor: 3000
+  cutting_factor: 1e5
+  #tolerance_rate_matrix_row_sum: 1e-8
+  sigma: 0
+  tolerance_eigendecomposition: 0
+  diffusion_coefficient: 54.9 # A^2/ns
+
+eigenvectors:
+  num_interesting_timescales: 4
+  num_interesting_eigenvectors: 12
+  num_extremes_to_plot: 5

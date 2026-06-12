@@ -131,7 +131,7 @@ def show_array(my_array, title: str = "", indices=None, log=False):
     else:
         data = my_array
 
-    fig = px.imshow(data, color_continuous_scale="RdBu", zmax=45, zmin=-45)
+    fig = px.imshow(data, color_continuous_scale="RdBu") #, zmax=45, zmin=-45
     fig.update_xaxes(
         tickmode="array",
         #tickvals=indices,
