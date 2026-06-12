@@ -211,3 +211,12 @@ januar_outdated_outputs/
 !inputs/vmd_scripts/*
 
 */.snakemake_timestamp
+
+workflow/config
+!workflow/config/defaults.yaml
+!workflow/config/water_dimer.yaml
+!workflow/config/water_dimer_gromacs.yaml
+!workflow/config/benzene_cartesian.yaml
+pics_goat
+pics_molgri/benzene/goat
+*.txt
