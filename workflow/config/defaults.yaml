@@ -1,0 +1,39 @@
+pseudotrajectory:
+  input_structure_ending: "gro"
+  structure_ending: "gro"
+  trajectory_ending: "xtc"
+  cuboid_cell: [14.5086, 12.564816173346905, 11.84622229]
+
+analysis:
+  energy_program: GROMACS
+  zoom_level: 0
+  view_index: [ 1 ]
+  length_shortened_trajectory_ns: 10
+  analyse_first_N_frames: None
+  every_ith_energy: 1
+  plot_m1_as: Licorice
+  plot_m2_as: Licorice
+
+msm:
+  tolerance: 0
+  taus: [1, 2, 3, 5, 10, 20, 30, 50, 100, 200, 300, 500, 1000]
+
+sqra:
+  # rate matrix reduction
+  capping_factor: None
+  cutting_factor: "auto"
+  tolerance_rate_matrix_row_sum: 1e-12
+  # eigendecomposition
+  tolerance_eigendecomposition: 0
+  sigma: 0
+  T: 300
+  allow_diffusion_to_bulk: False
+  flow_to_bulk: 675
+  concentration_in_bulk: 0.033422
+  energy_kJ_mol_bulk: -2.808216
+
+eigenvectors:
+  num_interesting_timescales: 4
+  num_interesting_eigenvectors: 4
+  num_interesting_eigenvectors_as_lines: 4
+  num_extremes_to_plot: "auto"

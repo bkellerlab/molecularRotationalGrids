@@ -212,11 +212,10 @@ januar_outdated_outputs/
 
 */.snakemake_timestamp
 
-workflow/config
+workflow/config/*
 !workflow/config/defaults.yaml
 !workflow/config/water_dimer.yaml
-!workflow/config/water_dimer_gromacs.yaml
-!workflow/config/benzene_cartesian.yaml
+!workflow/config/benzene_spherical_isotropic.yaml
 pics_goat
 pics_molgri/benzene/goat
 *.txt
